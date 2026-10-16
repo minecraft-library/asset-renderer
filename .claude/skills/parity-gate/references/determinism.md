@@ -41,12 +41,13 @@ those artifacts carry a floor of one.
   into a value that is supposed to name this renderer.
 - **The reference tree**, given one client boot. A partial refresh is the failure mode, not a
   cheaper version of the same thing.
+- **`atlas.png` and `atlas.json`.** Byte-for-byte across five fresh JVMs of `generateAtlas --rerun`.
+  That is a measurement and nothing holds it: no artifact is defined over `build/atlas/`, and the
+  atlas tests each run in one JVM. What they hold is what makes it so - each tile against its subject
+  drawn alone, and the subject order against the lists that give it.
 
 ## What can never be hashed
 
-- **`atlas.png` and everything under `build/atlas/`.** `AtlasRenderer` dispatches its tiles on
-  `parallelStream` by design, so two runs place the same sprites at different offsets. It is
-  registered as no artifact and suppressed outright in the reach map. A must-not-crash smoke check.
 - **Anything rendered from a live account's skin.** The `account` sheet group depends on a skin
   service, so its digest is a fact about the network on the day it ran. It is excluded from the
   contact-sheet artifact by name.

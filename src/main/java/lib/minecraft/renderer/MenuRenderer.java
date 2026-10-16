@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextField;
@@ -32,8 +33,8 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
@@ -441,7 +442,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
             for (FramePlacement placement : placements)
-                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
+                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y(), BlendMode.PREMULTIPLIED);
 
             return Timeline.still(buffer);
         }

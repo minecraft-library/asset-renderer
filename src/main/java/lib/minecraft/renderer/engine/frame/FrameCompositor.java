@@ -10,6 +10,7 @@ import dev.simplified.image.data.FrameBlend;
 import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +36,10 @@ import java.util.function.LongFunction;
  * <p>
  * Each sampled picture is drawn at its placement's origin: rescaled into the placement's
  * {@link FramePlacement#extent() extent} by {@link PixelBuffer#blitScaled} when it carries one, and
- * blitted at the picture's own size when it does not.
+ * blitted at the picture's own size when it does not. Either way a placement is laid down with
+ * {@link BlendMode#PREMULTIPLIED}, because it is a finished render whose colours already carry their
+ * alpha - except a picture built up from partial frames, which is composed as a viewer composes a
+ * decoded file and so holds colours that do not, and is laid down with {@link BlendMode#NORMAL}.
  */
 @UtilityClass
 public class FrameCompositor {
@@ -57,7 +61,7 @@ public class FrameCompositor {
      */
     public static @NotNull ImageData merge(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
-        ConcurrentList<LongFunction<PixelBuffer>> samplers = layers.stream()
+        ConcurrentList<Sampler> samplers = layers.stream()
             .map(layer -> sampler(layer.source()))
             .collect(Concurrent.toList());
 
@@ -96,55 +100,67 @@ public class FrameCompositor {
      * @param timeMs the playback offset each animated layer is sampled at
      * @return the composited frame
      */
-    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, @NotNull ConcurrentList<LongFunction<PixelBuffer>> samplers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
+    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, @NotNull ConcurrentList<Sampler> samplers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         background.fill(buffer);
 
-        for (int index = 0; index < layers.size(); index++)
-            draw(buffer, layers.get(index), samplers.get(index).apply(timeMs));
+        for (int index = 0; index < layers.size(); index++) {
+            Sampler sampler = samplers.get(index);
+            draw(buffer, layers.get(index), sampler.picture().apply(timeMs), sampler.mode());
+        }
 
         return buffer;
     }
 
     /**
-     * Draws one sampled picture of a placement onto the canvas at the placement's origin - rescaled
+     * Lays one sampled picture of a placement onto the canvas at the placement's origin - rescaled
      * into the placement's extent by {@link PixelBuffer#blitScaled} when it has one, and blitted at the
      * picture's own size when it does not.
      *
      * @param canvas the output frame being composited
      * @param layer the placement the picture was sampled from
      * @param picture the placement's picture at the output frame's playback time
+     * @param mode how the picture is laid down
      */
-    private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer picture) {
+    private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer picture, @NotNull BlendMode mode) {
         layer.extent().ifPresentOrElse(
-            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height()),
-            () -> canvas.blit(picture, layer.x(), layer.y()));
+            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height(), mode),
+            () -> canvas.blit(picture, layer.x(), layer.y(), mode));
     }
 
     /**
-     * Returns how a layer's source is sampled at a playback time.
+     * Returns how a layer's source is sampled at a playback time, and how what it shows is laid down.
      * <p>
      * A static source, or an animated one with no frames, shows its single frame throughout. An
      * animated source whose every frame {@linkplain Composition#covers covers} its canvas from the
      * origin shows, at each time, the frame the
      * {@link AnimatedImageData#getFrameAtTime(long, boolean) frame-at-time resolver} picks, exactly as
-     * it is. Any other animated source is played as a {@link Composition}.
+     * it is. All of these are laid down with {@link BlendMode#PREMULTIPLIED}. Any other animated source
+     * is played as a {@link Composition}, whose pictures are laid down with {@link BlendMode#NORMAL}.
      *
      * @param source the layer's image data, static or animated
-     * @return the picture the source shows at a playback time
+     * @return the picture the source shows at a playback time, and how it is laid down
      */
-    private static @NotNull LongFunction<PixelBuffer> sampler(@NotNull ImageData source) {
+    private static @NotNull Sampler sampler(@NotNull ImageData source) {
         if (!(source instanceof AnimatedImageData animated) || animated.getFrames().isEmpty())
-            return timeMs -> source.toPixelBuffer();
+            return new Sampler(timeMs -> source.toPixelBuffer(), BlendMode.PREMULTIPLIED);
 
         boolean wholeFrames = animated.getFrames().stream()
             .allMatch(frame -> Composition.covers(frame, animated.getWidth(), animated.getHeight()));
 
         if (wholeFrames)
-            return timeMs -> animated.getFrameAtTime(timeMs, false).frame().pixels();
+            return new Sampler(timeMs -> animated.getFrameAtTime(timeMs, false).frame().pixels(), BlendMode.PREMULTIPLIED);
 
-        return new Composition(animated)::pictureAt;
+        return new Sampler(new Composition(animated)::pictureAt, BlendMode.NORMAL);
     }
+
+    /**
+     * What a layer's source shows at each playback time, and how that picture is laid down.
+     *
+     * @param picture the picture the source shows at a playback time
+     * @param mode how the picture is laid onto the canvas
+     */
+    private record Sampler(@NotNull LongFunction<PixelBuffer> picture, @NotNull BlendMode mode) {}
 
     /**
      * Computes the merged loop duration as the LCM of every animated layer's total duration, so

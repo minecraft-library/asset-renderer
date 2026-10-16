@@ -355,9 +355,9 @@ final class BlindnessMapTest {
     /**
      * The stored artifacts whose names identify each renderer that has one.
      *
-     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact by decision -
-     * it does not reproduce, so a digest over it would be a gate failing for its own reasons - and
-     * the grid, layout and text renderers have none at all. Those four appear nowhere among the
+     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact - it is written
+     * outside every root a capture hashes, and its own tests are its gate - and the grid, layout and
+     * text renderers have none at all. Those four appear nowhere among the
      * store's ids, which is the fact the roster exists to carry: a subject is the only place in this
      * repository a reader learns that the text renderer is in the parity picture and is ungated.
      *

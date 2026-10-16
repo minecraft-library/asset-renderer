@@ -94,13 +94,13 @@ class GridRendererCellFitTest {
         GridResult sheet = render(tiles);
         ConcurrentList<FramePlacement> asTheyAre = Concurrent.newList();
         for (GridResult.Cell cell : sheet.cells())
-            asTheyAre.add(new FramePlacement(cell.x(), cell.y(), cell.result().image()));
+            asTheyAre.add(new FramePlacement(cell.x(), cell.y(), tiles.get(cell.index()).content().get().image()));
         ImageData merged = FrameCompositor.merge(asTheyAre, sheet.image().getWidth(), sheet.image().getHeight(),
             FRAMES_PER_SECOND, Background.solid(BACKGROUND));
 
         assertThat("the sheet is the merge of its tiles at their own size", digest(sheet.image()), is(digest(merged)));
-        assertThat("and the bytes the sheet drew before tiles were fitted to their cells", digest(sheet.image()),
-            is("6e8cec41c0276599f3dec50429f0b0a0a9808cecb93029ee91193ea8a3d54277"));
+        assertThat("and the bytes the sheet draws with each tile laid down premultiplied", digest(sheet.image()),
+            is("f7ea0cc1ad9c6600f8fbff78067b639e3a9328d159ade3852668eb412ab2d2ff"));
     }
 
     /**
@@ -132,7 +132,7 @@ class GridRendererCellFitTest {
     private static @NotNull ConcurrentList<GridOptions.GridTile> stillsAt(@NotNull ConcurrentList<GridOptions.GridTile> tiles, long playbackMs) {
         ConcurrentList<GridOptions.GridTile> stills = Concurrent.newList();
         for (GridOptions.GridTile tile : tiles) {
-            ImageData image = tile.result().image();
+            ImageData image = tile.content().get().image();
             PixelBuffer frame = image instanceof AnimatedImageData animated
                 ? animated.getFrameAtTime(playbackMs, false).frame().pixels()
                 : image.toPixelBuffer();

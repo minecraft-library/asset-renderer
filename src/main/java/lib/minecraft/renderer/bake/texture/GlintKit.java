@@ -408,31 +408,59 @@ public class GlintKit {
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
         @NotNull Timeline timeline, @NotNull PixelBuffer glintTexture
     ) {
-        for (int f = 0; f < frames.size(); f++) {
-            long glintTime = glintTimeAt(timeline.millisAt(foil.animate() ? f : 0));
-            PixelBuffer stamped = applyGlintAtTimes(
-                frames.get(f), glintTexture, new long[]{glintTime}, foil.preset(), null).getFirst();
-            frames.set(f, stamped);
-        }
+        PixelBuffer tintedGlint = tinted(glintTexture, foil.preset());
+        for (int f = 0; f < frames.size(); f++)
+            stampInPlace(frames.get(f), tintedGlint, glintTimeAt(timeline.millisAt(foil.animate() ? f : 0)), foil.preset());
         return new RasterPass.Finish.Result(frames, timeline);
     }
 
     /**
      * Multiplies the one baked frame of a static subject into the scrolling foil loop, returning the
-     * frames on the glint's own frame-rate schedule. A non-animating foil keeps only the frame-0 glint.
+     * frames on the glint's own frame-rate schedule. A non-animating foil stamps the frame-0 glint onto
+     * the baked frame in place and keeps only that.
      */
     private static @NotNull RasterPass.Finish.Result scroll(
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
         @NotNull PixelBuffer glintTexture
     ) {
-        ConcurrentList<PixelBuffer> looped = applyGlint(frames.getFirst(), glintTexture, foil.preset());
         Timeline.FpsLoop playback = new Timeline.FpsLoop(foil.preset().framesPerSecond(), foil.preset().totalFrames());
         if (foil.animate())
-            return new RasterPass.Finish.Result(looped, playback);
+            return new RasterPass.Finish.Result(applyGlint(frames.getFirst(), glintTexture, foil.preset()), playback);
 
+        PixelBuffer frame = frames.getFirst();
+        stampInPlace(frame, tinted(glintTexture, foil.preset()), glintTimeAt(playback.millisAt(0)), foil.preset());
         ConcurrentList<PixelBuffer> single = Concurrent.newList();
-        single.add(looped.getFirst());
+        single.add(frame);
         return new RasterPass.Finish.Result(single, playback);
+    }
+
+    /**
+     * Stamps the foil onto a baked frame for one glint time, restricted to the frame's coverage mask
+     * when it carries one, then drops the mask - leaving the frame as {@link #applyGlintAtTimes} leaves
+     * the copy it stamps, which carries none.
+     *
+     * @param frame the baked frame, which nothing else holds
+     * @param tintedGlint the glint texture with the preset's tint applied
+     * @param glintTime the glint time, in vanilla post-{@code glintSpeed} milliseconds
+     * @param options the glint configuration
+     */
+    private static void stampInPlace(@NotNull PixelBuffer frame, @NotNull PixelBuffer tintedGlint, long glintTime, @NotNull GlintOptions options) {
+        stampGlint(frame, tintedGlint, glintTime, options, null, frame.mask().orElse(null));
+        frame.clearMask();
+    }
+
+    /**
+     * Returns the glint texture with the preset's tint applied - the texture itself when the tint is
+     * white.
+     *
+     * @param glintTexture the glint scroll texture
+     * @param options the glint configuration
+     * @return the tinted glint texture
+     */
+    private static @NotNull PixelBuffer tinted(@NotNull PixelBuffer glintTexture, @NotNull GlintOptions options) {
+        return options.tintArgb() == ColorMath.WHITE
+            ? glintTexture
+            : ColorMath.tint(glintTexture, options.tintArgb());
     }
 
     /**
@@ -465,9 +493,7 @@ public class GlintKit {
         @NotNull GlintOptions options,
         @Nullable SpriteUv spriteUv
     ) {
-        PixelBuffer tintedGlint = options.tintArgb() == ColorMath.WHITE
-            ? glintTexture
-            : ColorMath.tint(glintTexture, options.tintArgb());
+        PixelBuffer tintedGlint = tinted(glintTexture, options);
         // The foil coverage rides the base buffer; unwrap once here, at the boundary of the per-pixel
         // stamp loop, so stampGlint's inner loop reads a plain nullable rather than an Optional.
         PixelMask glintMask = base.mask().orElse(null);

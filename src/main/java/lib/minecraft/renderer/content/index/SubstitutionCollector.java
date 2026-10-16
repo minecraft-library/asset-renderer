@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
 import lib.minecraft.renderer.call.result.Substitution;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The stand-ins one render has drawn so far, safe to add to from any frame worker.
@@ -23,14 +24,19 @@ public final class SubstitutionCollector {
     public static final @NotNull SubstitutionCollector DISCARD = new SubstitutionCollector(false);
 
     /**
+     * What a collector that has recorded nothing answers, shared by every one of them.
+     */
+    private static final @NotNull ConcurrentList<Substitution> NONE = Concurrent.newUnmodifiableList();
+
+    /**
      * Whether this collector keeps what is added to it - false for {@link #DISCARD} alone.
      */
     private final boolean keeps;
 
     /**
-     * The stand-ins recorded so far, each once.
+     * The stand-ins recorded so far, each once, created by the first one added - most renders draw none.
      */
-    private final @NotNull ConcurrentSet<Substitution> recorded = Concurrent.newSet();
+    private volatile @Nullable ConcurrentSet<Substitution> recorded;
 
     /**
      * Constructs a new empty {@code SubstitutionCollector} that keeps every stand-in added to it.
@@ -54,8 +60,18 @@ public final class SubstitutionCollector {
      * @param substitution the stand-in drawn
      */
     public void add(@NotNull Substitution substitution) {
-        if (this.keeps)
-            this.recorded.add(substitution);
+        if (!this.keeps) return;
+
+        ConcurrentSet<Substitution> set = this.recorded;
+        if (set == null) {
+            synchronized (this) {
+                set = this.recorded;
+                if (set == null)
+                    this.recorded = set = Concurrent.newSet();
+            }
+        }
+
+        set.add(substitution);
     }
 
     /**
@@ -64,7 +80,10 @@ public final class SubstitutionCollector {
      * @return an unmodifiable copy of what this collector holds
      */
     public @NotNull ConcurrentList<Substitution> snapshot() {
-        return this.recorded.stream()
+        ConcurrentSet<Substitution> set = this.recorded;
+        if (set == null) return NONE;
+
+        return set.stream()
             .sorted()
             .collect(Concurrent.toUnmodifiableList());
     }

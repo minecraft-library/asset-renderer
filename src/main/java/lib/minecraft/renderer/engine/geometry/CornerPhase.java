@@ -125,17 +125,27 @@ public enum CornerPhase {
      * @return the four corner positions, in emission order
      */
     public @NotNull Vector3f @NotNull [] corners(@NotNull Face face, @NotNull Box box) {
-        Vector3f[] cornersOfBox = {
-            new Vector3f(box.minX(), box.minY(), box.minZ()), new Vector3f(box.maxX(), box.minY(), box.minZ()),
-            new Vector3f(box.maxX(), box.maxY(), box.minZ()), new Vector3f(box.minX(), box.maxY(), box.minZ()),
-            new Vector3f(box.minX(), box.minY(), box.maxZ()), new Vector3f(box.maxX(), box.minY(), box.maxZ()),
-            new Vector3f(box.maxX(), box.maxY(), box.maxZ()), new Vector3f(box.minX(), box.maxY(), box.maxZ())
-        };
         int[] indices = this.vertexIndices[face.ordinal()];
         return new Vector3f[]{
-            cornersOfBox[indices[0]], cornersOfBox[indices[1]],
-            cornersOfBox[indices[2]], cornersOfBox[indices[3]]
+            corner(box, indices[0]), corner(box, indices[1]),
+            corner(box, indices[2]), corner(box, indices[3])
         };
+    }
+
+    /**
+     * Returns one corner of the canonical 8-corner box laid out in the class javadoc - the box's
+     * maximum x on corners 1, 2, 5 and 6, its maximum y on 2, 3, 6 and 7, and its maximum z on 4 to 7.
+     *
+     * @param box the bounding box
+     * @param index the corner's index, {@code 0} to {@code 7}
+     * @return the corner position
+     */
+    private static @NotNull Vector3f corner(@NotNull Box box, int index) {
+        return new Vector3f(
+            index == 1 || index == 2 || index == 5 || index == 6 ? box.maxX() : box.minX(),
+            index == 2 || index == 3 || index == 6 || index == 7 ? box.maxY() : box.minY(),
+            index >= 4 ? box.maxZ() : box.minZ()
+        );
     }
 
     /**

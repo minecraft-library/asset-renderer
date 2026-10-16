@@ -234,17 +234,17 @@ Each index build records its own INFO entries, so reordering two of them is invi
 
 *Probe:* reorder two index builds and confirm the tables are byte-identical while the log is not
 
-## B15 - atlas.png can never be a byte gate
+## B15 - The store holds no artifact for the atlas
 
 - **mode** suppress
 - **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/call/request/AtlasOptions.java`, `src/visual/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
-- **source** declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'
+- **source** declares no store artifact, so its reason names the gate that answers instead
 
-AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it is a main in the visual source set and emits, where the suite B33 speaks for only asserts; this rule is where the same answer is written down rather than inferred from an excuse.
+atlas.png and its sidecar reproduce byte for byte across fresh JVMs - every subject is laid down in the order the context's lists and the atlas's own fixed lists give it - but no artifact holds them: generateAtlas writes build/atlas/, outside the cache/visual root manifest.visual hashes, and no capture step runs it. A change reaching only the atlas therefore plans nothing here. Tests gate it instead: AtlasRendererLayoutTest holds each tile to its subject drawn alone, write() to render() encoded byte for byte, and the subject order to the passes' lists, and GridRendererRecycledTileTest holds the frames a recycling grid lends. Each runs in one JVM, so reproduction across JVMs is a measurement this rule's probe repeats rather than a fact a test holds. The entry point that drives it is a main in the visual source set and emits, where the suite B33 speaks for only asserts; this rule is where the same answer is written down rather than inferred from an excuse.
 
-*Probe:* run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
+*Probe:* run generateAtlas in five fresh JVMs with --rerun and hash build/atlas/atlas.png and atlas.json; all five agree, and no capture step reads either
 
 ## B16 - The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst
 
@@ -458,7 +458,7 @@ Each sweep and render main is the entry point its Gradle task runs, so its own c
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
 
-A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The one exception inside it is the tests that compute the value each self-captured file carries, which B38 answers for. The sources that DO emit live in the visual source set and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, and B15 for the atlas entry point, whose output is unhashable by construction.
+A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The one exception inside it is the tests that compute the value each self-captured file carries, which B38 answers for. The sources that DO emit live in the visual source set and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, and B15 for the atlas entry point, whose output no artifact holds.
 
 *Probe:* run ./gradlew test, then capture any artifact and confirm it is byte-identical
 

@@ -107,6 +107,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasRendererLayoutTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/AtlasRendererMissingTextureTest": {
       "artifacts": [],
       "source": "derived"
@@ -225,6 +229,14 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/GridRendererRecycledTileTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/GridRendererSuppliedTileTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/HeldBlockItemTest": {
       "artifacts": [],
       "source": "derived"
@@ -287,6 +299,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/MenuRendererItemBoxTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MenuRendererSlotBlendTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4271,6 +4287,37 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/frame/FrameLoan": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/FrameLoanTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/frame/FramePlacement": {
       "artifacts": [
         "manifest.visual",
@@ -4317,6 +4364,14 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/RasterPassAntiAliasTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/RasterPassSupersampleTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/frame/Timeline": {
@@ -5277,6 +5332,10 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/raster/RasterizerDepthReuseTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/raster/RasterizerDrawsTest": {

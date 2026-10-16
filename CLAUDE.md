@@ -133,8 +133,9 @@ writes a capture, `parityCompare` reports movers, `parityPromote` makes a captur
 declaration mechanics behind it - how reach is resolved, what coining an artifact owes - are in
 [parity/CLAUDE.md].
 
-- Determinism is the precondition for a hash. Prove a producer reproduces before comparing digests;
-  `build/atlas/atlas.png` fails that by design.
+- Determinism is the precondition for a hash. Prove a producer reproduces across fresh JVMs before
+  comparing digests: `Set.of`, `Map.of` and their `copyOf` forms iterate in an order salted per JVM,
+  as does a hash keyed by identity, so one run cannot show it.
 - Look at a render for a change meant to move pixels; hash one for a change meant to move none.
 - What a value reaches is provable: perturb it, re-render, and the outputs that move name the reach.
 - Scope an already-red task's output to the package you touched and compare; never read its exit

@@ -318,8 +318,8 @@ register<JavaExec>("redstoneTints") {
 // IS an artifact of its own (playerRender, fluidRenderer, portalRenderer), and the six
 // *-parity-vanilla trees are not members because they are per-subject diff panels keyed by a
 // sweep table rather than a byte-gate population. `generateAtlas` is not a member either: it
-// writes build/atlas/, outside the root entirely, and its parallel tile dispatch makes its
-// output permanently unhashable.
+// writes build/atlas/, outside the root entirely, and the reach map registers the atlas as no
+// artifact.
 //
 // One more is a non-member for a reason of its own, written down rather than left as an
 // omission, because an unrecorded exclusion is indistinguishable from an oversight:

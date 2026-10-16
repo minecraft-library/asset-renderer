@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.AlphaMode;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
@@ -152,7 +154,15 @@ public record RasterPass(
     /**
      * Rasters one frame at the given instant through the supersample / FXAA / downscale tail. When
      * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
-     * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
+     * down with {@link BlendMode#PREMULTIPLIED} - the hi-res frame is finished, so its pixels are
+     * copied rather than blended a second time - and any mask downsampled; otherwise it is drawn
+     * straight into the output buffer. FXAA reads the frame as {@link AlphaMode#PREMULTIPLIED}, what
+     * source-over drawing onto a transparent buffer leaves, so a filtered frame keeps its colours
+     * carrying their alpha as every other frame does.
+     * <p>
+     * The output buffer is taken before anything is drawn, from the {@link FrameLoan} open on the
+     * calling thread when there is one, so a frame the draw renders inside itself never takes the
+     * array the loan lends this one.
      *
      * @param tick the sample instant floored to a whole tick, for discrete per-tick lookups
      * @param ageInTicks the exact sample instant, in ticks, which may fall between two
@@ -162,23 +172,23 @@ public record RasterPass(
         if (ssaa > 1) {
             int hiWidth = width * ssaa;
             int hiHeight = height * ssaa;
+            PixelBuffer output = FrameLoan.frame(width, height);
 
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiWidth, hiHeight)) {
                 PixelBuffer hiRes = lease.buffer();
                 if (recordMask) hiRes.enableMask();
                 raster.rasterize(hiRes, tick, ageInTicks);
-                if (antiAlias) hiRes.applyFxaa();
-                PixelBuffer output = PixelBuffer.create(width, height);
-                output.blitScaled(hiRes, 0, 0, width, height);
+                if (antiAlias) hiRes.applyFxaa(AlphaMode.PREMULTIPLIED);
+                output.blitScaled(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED);
                 hiRes.mask().map(m -> m.downsample(width, height)).ifPresent(output::attachMask);
                 return output;
             }
         }
 
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = FrameLoan.frame(width, height);
         if (recordMask) buffer.enableMask();
         raster.rasterize(buffer, tick, ageInTicks);
-        if (antiAlias) buffer.applyFxaa();
+        if (antiAlias) buffer.applyFxaa(AlphaMode.PREMULTIPLIED);
         return buffer;
     }
 

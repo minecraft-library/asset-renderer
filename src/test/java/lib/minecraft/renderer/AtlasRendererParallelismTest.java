@@ -29,9 +29,8 @@ import static org.hamcrest.Matchers.is;
  * implementation preserves tile encounter order, which the sidecar JSON and the grid layout both
  * require, that every filtered id owns exactly one tile, and that the skipped rows keep the order the
  * pass met their subjects in. Order-preservation is the critical invariant - a
- * parallelStream().forEach implementation would shuffle tiles. No pixel or digest is compared: the
- * composed atlas PNG does not reproduce byte-for-byte by design, so there is nothing for a digest to
- * hold it to.
+ * parallelStream().forEach implementation would shuffle tiles. No pixel or digest is compared here;
+ * {@link AtlasRendererLayoutTest} holds each tile to its subject drawn alone.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.

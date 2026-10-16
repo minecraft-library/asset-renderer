@@ -82,9 +82,9 @@ class RenderResultTest {
     @DisplayName("a grid names the union of its cells' stand-ins")
     void aGridNamesItsCellsStandIns() {
         GridResult grid = new GridResult(IMAGE, list(
-            new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, RenderResult.of(IMAGE, List.of(NOTHING, STONE))),
-            new GridResult.Cell(1, 1, 0, 16, 0, 16, 16, RenderResult.of(IMAGE)),
-            new GridResult.Cell(2, 0, 1, 0, 16, 16, 16, RenderResult.of(IMAGE, List.of(STONE, DIRT)))));
+            new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, list(NOTHING, STONE)),
+            new GridResult.Cell(1, 1, 0, 16, 0, 16, 16, list()),
+            new GridResult.Cell(2, 0, 1, 0, 16, 16, 16, list(STONE, DIRT))));
 
         assertThat(grid.substitutions(), contains(DIRT, STONE, NOTHING));
     }
@@ -93,7 +93,7 @@ class RenderResultTest {
     @DisplayName("a layout names the union of its children's stand-ins, a nested composite's included")
     void aLayoutNamesItsChildrenStandIns() {
         GridResult nested = new GridResult(IMAGE, list(
-            new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, RenderResult.of(IMAGE, List.of(LEAF)))));
+            new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, list(LEAF))));
         LayoutResult layout = new LayoutResult(IMAGE, list(
             new LayoutResult.Child(0, 8, 8, 16, 16, RenderResult.of(IMAGE, List.of(STONE))),
             new LayoutResult.Child(1, 32, 8, 16, 16, nested),
@@ -130,7 +130,7 @@ class RenderResultTest {
     @Test
     @DisplayName("each composite keeps an unmodifiable copy of the lists it was built from")
     void eachCompositeCopiesItsLists() {
-        GridResult.Cell cell = new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, RenderResult.of(IMAGE));
+        GridResult.Cell cell = new GridResult.Cell(0, 0, 0, 0, 0, 16, 16, list());
         ConcurrentList<GridResult.Cell> cells = list(cell);
         GridResult grid = new GridResult(IMAGE, cells);
         cells.add(cell);

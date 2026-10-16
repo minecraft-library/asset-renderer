@@ -17,9 +17,9 @@ builds to fill one, `ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `c
 per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `call/result/` is what a
 render hands back: `RenderResult`, every renderer's answer, holding the image and a `Substitution` for
 each stand-in drawn in it, and the narrower answers of the renderers that place other renders -
-`AtlasResult`, which adds the sidecar placing each tile, and `GridResult`, `LayoutResult` and
-`MenuResult`, which add where each child was drawn and the child's own result. `Renderer` and the
-renderers sit in the root.
+`AtlasResult`, which adds the sidecar placing each tile, `GridResult`, which adds where each tile was
+drawn and the stand-ins it drew, and `LayoutResult` and `MenuResult`, which add where each child was
+drawn and the child's own result. `Renderer` and the renderers sit in the root.
 
 - **A type only one result names nests in that result**, as a type only one bag names nests in that
   bag: `Sidecar`, `Tile` and `Skipped` nest in `AtlasResult`, and each composite's placement record
@@ -28,11 +28,25 @@ renderers sit in the root.
   holding pixels drawn elsewhere wraps them with `RenderResult.of`. The image library and the frame
   compositor read animation off the image's own type, so a result is unwrapped with `image()`
   wherever an image is wanted.
-- **A composite carries its children's results.** A `GridOptions.GridTile`, a `LayoutOptions` child
-  and a `MenuOptions.MenuSlotContent` take a result, and the composite's own result places each child
-  and keeps its result, so it names which child substituted what. The bags take a result, which is why
-  `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or a
-  mark, so nothing in `call/result` names a bag.
+- **A composite carries its children's results.** A `LayoutOptions` child and a
+  `MenuOptions.MenuSlotContent` take a result, and the composite's own result places each child and
+  keeps its result, so it names which child substituted what. A `GridOptions.GridTile` takes a result
+  or a supplier of one, which the grid calls on the worker that draws the tile, and a grid's cell keeps
+  the stand-ins its tile drew rather than its result, so an undecorated static sheet lets each tile's
+  pixels go once drawn and a sheet of thousands never holds them all. The bags take a result, which is
+  why `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or
+  a mark, so nothing in `call/result` names a bag.
+- **A finished render is laid down with `BlendMode.PREMULTIPLIED`; a texture is drawn with
+  `NORMAL`.** `NORMAL` is the GPU's source-alpha blend, so a render drawn onto a transparent buffer
+  holds each translucent colour already scaled by its alpha - what the vanilla client's framebuffer
+  holds - and laying that render down with `NORMAL` scales it a second time. The grid's cells, the
+  frame compositor's placements, a menu's static composite, the supersampled frame's scale-down, a
+  stack count's scratch and `Background.composite` take `PREMULTIPLIED`, which keeps a translucent
+  pixel as it was over a transparent one and, over an opaque one, gives what drawing the subject
+  there gives. A face, a layer, a sprite or a mask is not finished and keeps `NORMAL`, and so does
+  the picture the frame compositor builds up from a decoded file's partial frames, which it composes
+  as a viewer would. `NORMAL` itself is not the defect: straight-alpha source-over in its place
+  moves every translucent block and entity off the vanilla client's renders.
 - **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
   beside the `RendererContext` that carries it.
 

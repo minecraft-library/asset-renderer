@@ -13,7 +13,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * There is one cell per tile, in the order of the options' tile list, so a list naming one cell twice
  * answers two cells at the same place. A cell is where its tile was drawn: a static and an animated
- * sheet alike scale each tile to it, so its rectangle is exactly the pixels the tile covers.
+ * sheet alike scale each tile to it, so its rectangle is exactly the pixels the tile covers. A cell keeps
+ * the stand-ins its tile drew and none of its pixels, which are in the sheet, so a grid holds no tile's
+ * render once the tile is drawn.
  *
  * @param image the composed sheet, static for one frame and animated for several
  * @param cells one cell per tile, in the order of the options' tile list
@@ -32,7 +34,7 @@ public record GridResult(@NotNull ImageData image, @NotNull ConcurrentList<Cell>
     @Override
     public @NotNull ConcurrentList<Substitution> substitutions() {
         return PlainResult.distinctSorted(this.cells.stream()
-            .flatMap(cell -> cell.result().substitutions().stream()));
+            .flatMap(cell -> cell.substitutions().stream()));
     }
 
     /**
@@ -45,8 +47,8 @@ public record GridResult(@NotNull ImageData image, @NotNull ConcurrentList<Cell>
      * @param y the cell's top edge, in output pixels
      * @param width the cell's width, in output pixels
      * @param height the cell's height, in output pixels
-     * @param result the tile's own result
+     * @param substitutions the stand-ins the tile's render drew
      */
-    public record Cell(int index, int col, int row, int x, int y, int width, int height, @NotNull RenderResult result) {}
+    public record Cell(int index, int col, int row, int x, int y, int width, int height, @NotNull ConcurrentList<Substitution> substitutions) {}
 
 }

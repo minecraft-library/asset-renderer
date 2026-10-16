@@ -3,8 +3,6 @@ package lib.minecraft.renderer.example;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.result.AtlasResult;
@@ -19,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -163,8 +160,9 @@ public final class AtlasGenerator {
      *
      * <p>This is the no-flag default: acquire the client assets, load a
      * {@link RendererContext} over them and hand it to {@link AtlasRenderer}. The atlas is a static
-     * sheet, written as {@code atlas.png}, and {@code atlas.json} is the {@link AtlasResult.Sidecar}
-     * the renderer returned, serialised here and then read back off disk: the bytes that landed are
+     * sheet, which the renderer writes as {@code atlas.png} a band of tile rows at a time, and
+     * {@code atlas.json} is the {@link AtlasResult.Sidecar} the write returned, serialised here and
+     * then read back off disk: the bytes that landed are
      * what a downstream reader meets, so a file it cannot decode, or one holding a count its own tile
      * array contradicts, fails here instead.
      *
@@ -180,12 +178,10 @@ public final class AtlasGenerator {
         RendererContext context = RendererContext.load(assets);
         log("pipeline ready: %d blocks, %d items at %s",
             context.knownBlockIds().size(), context.knownItemIds().size(), assets.options().vanillaRoot());
-        AtlasResult atlas = new AtlasRenderer(context).render(AtlasOptions.defaults());
+        Path outputFile = outputDir.resolve("atlas.png");
+        AtlasResult.Sidecar sidecar = new AtlasRenderer(context).write(AtlasOptions.defaults(), outputFile);
+        int rows = (sidecar.count() + sidecar.columns() - 1) / sidecar.columns();
 
-        File outputFile = outputDir.resolve("atlas.png").toFile();
-        new ImageFactory().toFile(atlas.image(), ImageFormat.PNG, outputFile);
-
-        AtlasResult.Sidecar sidecar = atlas.sidecar();
         Path jsonFile = outputDir.resolve("atlas.json");
         // JsonTree.write terminates the file with one literal LF, which is what this needs: a writer
         // that asks the JVM what a newline is emits CRLF on one host and LF on another for the same
@@ -204,7 +200,7 @@ public final class AtlasGenerator {
         if (!written.equals(sidecar))
             throw new AtlasException("Atlas sidecar '%s' does not read back as the %d tiles it was written from", jsonFile.toAbsolutePath(), sidecar.tiles().size());
         log("wrote atlas: %d tiles -> %s (%dx%d px)",
-            sidecar.tiles().size(), outputFile.getAbsolutePath(), atlas.image().getWidth(), atlas.image().getHeight());
+            sidecar.tiles().size(), outputFile.toAbsolutePath(), sidecar.columns() * sidecar.tileSize(), rows * sidecar.tileSize());
         log("wrote sidecar: %s", jsonFile.toAbsolutePath());
     }
 
