@@ -169,6 +169,18 @@ public class GlintKit {
     private static final int GLINT_LOOP_SECONDS = 2;
 
     /**
+     * Each 0-255 glint channel faded by {@link #GLINT_ALPHA}, element {@code c} holding
+     * {@code Math.round(c * GLINT_ALPHA)}. Filled once at class initialisation and never written
+     * afterwards, so every thread that stamps a glint reads it whole.
+     */
+    private static final int[] GLINT_FADE = new int[256];
+
+    static {
+        for (int c = 0; c < GLINT_FADE.length; c++)
+            GLINT_FADE[c] = Math.round(c * GLINT_ALPHA);
+    }
+
+    /**
      * The live atlas sprite's normalized UV sub-rect, the real {@code UV0} source for an exact glint
      * sample in place of the offline normalized-icon approximation.
      *
@@ -526,6 +538,11 @@ public class GlintKit {
         int h = target.height();
         int glintW = glint.width();
         int glintH = glint.height();
+        // Decided per stamp from the texture it samples, which is whatever the pack stack resolves: a
+        // pack's own or replaced glint at any size on either axis, or the 16x16 missing-texture
+        // checkerboard.
+        boolean powerOfTwoW = isPowerOfTwo(glintW);
+        boolean powerOfTwoH = isPowerOfTwo(glintH);
 
         float u = (float) Math.floorMod(glintTimeMillis, options.uLoopMillis()) / options.uLoopMillis();
         float v = (float) Math.floorMod(glintTimeMillis, options.vLoopMillis()) / options.vLoopMillis();
@@ -568,7 +585,7 @@ public class GlintKit {
                 float tcx = rx - u;
                 float tcy = ry + v;
 
-                int glintPixel = sampleBilinearWrapped(glint, tcx * glintW, tcy * glintH);
+                int glintPixel = sampleBilinearWrapped(glint, tcx * glintW, tcy * glintH, powerOfTwoW, powerOfTwoH);
                 if (ColorMath.alpha(glintPixel) < GLINT_DISCARD_ALPHA_BYTE) continue;
 
                 // Pre-fade by GlintAlpha (vanilla's glint shader multiplies by it before the blend),
@@ -577,9 +594,9 @@ public class GlintKit {
                 // (out.rgb = src.rgb^2 + dst.rgb, dst alpha preserved).
                 int faded = ColorMath.pack(
                     ColorMath.alpha(glintPixel),
-                    Math.round(ColorMath.red(glintPixel) * GLINT_ALPHA),
-                    Math.round(ColorMath.green(glintPixel) * GLINT_ALPHA),
-                    Math.round(ColorMath.blue(glintPixel) * GLINT_ALPHA));
+                    fade(ColorMath.red(glintPixel)),
+                    fade(ColorMath.green(glintPixel)),
+                    fade(ColorMath.blue(glintPixel)));
                 target.setPixel(x, y, ColorMath.blend(faded, dst, BlendMode.QUADRATIC_ADD));
             }
         }
@@ -594,9 +611,12 @@ public class GlintKit {
      * @param texture the glint texture
      * @param texelX the sample X in texel units (pre-wrap, pixel-corner space)
      * @param texelY the sample Y in texel units
+     * @param powerOfTwoW whether the texture's width is a positive power of two
+     * @param powerOfTwoH whether the texture's height is a positive power of two
      * @return the bilinearly-interpolated ARGB sample
      */
-    private static int sampleBilinearWrapped(@NotNull PixelBuffer texture, float texelX, float texelY) {
+    private static int sampleBilinearWrapped(@NotNull PixelBuffer texture, float texelX, float texelY,
+                                             boolean powerOfTwoW, boolean powerOfTwoH) {
         int w = texture.width();
         int h = texture.height();
         // Shift to texel centres so integer coords land mid-texel, then bilerp toward the next texel.
@@ -606,10 +626,10 @@ public class GlintKit {
         int y0 = (int) Math.floor(fy);
         float dx = fx - x0;
         float dy = fy - y0;
-        int xa = Math.floorMod(x0, w);
-        int xb = Math.floorMod(x0 + 1, w);
-        int ya = Math.floorMod(y0, h);
-        int yb = Math.floorMod(y0 + 1, h);
+        int xa = wrap(x0, w, powerOfTwoW);
+        int xb = wrap(x0 + 1, w, powerOfTwoW);
+        int ya = wrap(y0, h, powerOfTwoH);
+        int yb = wrap(y0 + 1, h, powerOfTwoH);
 
         int p00 = texture.getPixel(xa, ya);
         int p10 = texture.getPixel(xb, ya);
@@ -630,6 +650,43 @@ public class GlintKit {
         float top = c00 + (c10 - c00) * dx;
         float bottom = c01 + (c11 - c01) * dx;
         return Math.clamp(Math.round(top + (bottom - top) * dy), 0, 255);
+    }
+
+    /**
+     * Wraps a texel coordinate into {@code 0..size - 1} as {@code GL_REPEAT} does. A power-of-two size
+     * keeps the coordinate's low bits, which is {@code Math.floorMod} for every {@code int}, negative
+     * and overflowed coordinates included; any other size takes {@code Math.floorMod} itself.
+     *
+     * @param coord the texel coordinate
+     * @param size the axis size in texels
+     * @param powerOfTwo whether {@code size} is a positive power of two
+     * @return the wrapped coordinate in {@code 0..size - 1}
+     */
+    private static int wrap(int coord, int size, boolean powerOfTwo) {
+        return powerOfTwo ? coord & (size - 1) : Math.floorMod(coord, size);
+    }
+
+    /**
+     * Tests whether a texture axis is a positive power of two, the one size {@link #wrap} masks. Zero
+     * is not one, so an empty texture fails in {@code Math.floorMod} rather than reading outside its
+     * pixels.
+     *
+     * @param size the axis size in texels
+     * @return whether {@code size} is a positive power of two
+     */
+    private static boolean isPowerOfTwo(int size) {
+        return size > 0 && (size & (size - 1)) == 0;
+    }
+
+    /**
+     * Fades one glint channel by {@link #GLINT_ALPHA}, reading the table filled with
+     * {@code Math.round(channel * GLINT_ALPHA)}.
+     *
+     * @param channel the 0-255 channel value
+     * @return the faded channel value
+     */
+    static int fade(int channel) {
+        return GLINT_FADE[channel];
     }
 
 }
