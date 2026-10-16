@@ -316,7 +316,7 @@
     },
     {
       "path": "toggles.png",
-      "sha256": "055b02d6c51113e8312a316480a4a03a20b7c9629d1a01a89e5f3cdc49448855"
+      "sha256": "a626292d469024c31d7196abdd506b6eab6bcff86aaf7933848a08e197de2d4e"
     },
     {
       "path": "toggles/2D_bg_solid.png",
@@ -368,7 +368,7 @@
     },
     {
       "path": "toggles/ssaa_4_fxaa.png",
-      "sha256": "05c180a09d040ab3611bdced0177249842dd1fefa3075b4ba930dac5144926c6"
+      "sha256": "5c816d2c0f1fcc5805f0db925f21a0f1ea7ddfd7cb23884d121e685f469ffb76"
     },
     {
       "path": "trims.png",
@@ -424,9 +424,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "0ecfc5cd57dc460a39b8fad9c5f257678d6c5770f89bf4aaa0c95f35bd69ef8d",
+    "asset_content_digest": "6922dbb84e2ef9e2abf88144c221d60831ac2c2b4adcd5148782ea30af9390e9",
     "asset_dirty": true,
-    "asset_sha": "85f2ac661d972fe9ad69f3ff1e92a077af1342ca",
+    "asset_sha": "e307384a74077a35071a41947b7ff131a9436995",
     "counts": {
       "files": 104
     },
@@ -435,7 +435,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "RasterPass.antiAlias divides a frame through by its alpha for the image library's straight-alpha FXAA and scales each pixel the filter rewrote back by its own, so an anti-aliased frame stays premultiplied. Every mover is an FXAA render - the five iso block renders, all 30 entity projections, all 90 entity renders, all 16 projection-smoke tiles, and the player sheet's ssaa 4 + fxaa cell with the sheet that holds it - and every render without FXAA held. Across the 143 moved files no pixel carries a colour above its alpha, over 335,407 partly covered pixels; a softened silhouette pixel had held full colour over partial alpha and landed brighter than the subject.",
+    "reason": "The image library at a79e16b filters FXAA as premultiplied colour, its bilinear taps mixing colour in proportion to alpha and each channel rounded once, and RasterPass hands it each frame as AlphaMode.PREMULTIPLIED in place of a wrapper whose straddling taps came out at about half their colour. Every mover is an FXAA render - the five iso block renders, all 30 entity projections, all 90 entity renders, all 16 projection-smoke tiles, and the player sheet's ssaa 4 + fxaa cell with the sheet that holds it - and every other row held. Against renders of e307384a: 719,560 of 748,862 changed pixels are lighter; partly covered pixels darker than every opaque pixel within 3 px by more than 10 luma fall from 34,789 to 1,743; 72,612 opaque pixels return to alpha 255 from 254; the 587 darker are one-level contact-sheet drops, breeze wind pixels the wrapper had pushed above all their inputs, and 8 last-column pixels whose tap past the canvas edge reads the edge pixel; no pixel carries a colour above its alpha. The capture's digests equal a capture built from the library source before publishing.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -448,8 +448,8 @@
       "walk": 1056
     },
     "root": "cache/visual/player-render",
-    "timestamp": "2026-10-15T23:04:33Z",
+    "timestamp": "2026-10-16T01:05:53Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 6931
+    "wall_time_ms": 7629
   }
 }

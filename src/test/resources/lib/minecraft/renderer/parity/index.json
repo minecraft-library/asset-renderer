@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 6931,
-      "promoted_at": "85f2ac661d972fe9ad69f3ff1e92a077af1342ca",
-      "sha256": "4b3673730f5f9efe0b190d377d5b85535dce4668308f4fe61277db1b955e5ca1"
+      "last_duration_ms": 7629,
+      "promoted_at": "e307384a74077a35071a41947b7ff131a9436995",
+      "sha256": "b0d33acfdf6188f41ee3f1b0b82337a4030b3bdd9e167f13a58c2e105002f2f9"
     },
     "manifest.portal": {
       "baselined": true,
@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 39712,
-      "promoted_at": "85f2ac661d972fe9ad69f3ff1e92a077af1342ca",
-      "sha256": "5a0b947d03a2365af016fb1a157be5bb8cfa81bbc089ed63bca14873e527e981"
+      "last_duration_ms": 41305,
+      "promoted_at": "e307384a74077a35071a41947b7ff131a9436995",
+      "sha256": "f0c6c48cd0c613e2a255ec8419c6c4787ccf6690d0c181e1061ae95a469201ec"
     },
     "pin.block-crc": {
       "baselined": true,
