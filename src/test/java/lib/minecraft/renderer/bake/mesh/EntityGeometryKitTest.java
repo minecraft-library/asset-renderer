@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
@@ -35,6 +36,7 @@ import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,6 +101,14 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * The emission tests pin what the kit hangs on each triangle beside its geometry and how many it
  * emits: the exact {@code bone:direction} debug tag, surface traits decided per cube from the texture
  * and pass each build is handed, and every face a multi-cube bone owes around a plane cube.
+ * <p>
+ * The shared-geometry tests pin that a pass reading per-face geometry back from the table the builds
+ * of one draw share emits, bit for bit, what the same pass emits built alone: over a mesh equal to a
+ * held one but posed at another scale, over sheets that disagree on cull and translucency, over a sheet
+ * of another size under a mesh declaring no texture size - one of them as wide and less tall - through
+ * another frame, over a mesh whose first cube-bearing bone rests hidden, over plane cubes whose leading
+ * faces the full build skips, and on the dragon's eyes pass and the villager's overlay passes, posed
+ * instances included.
  */
 class EntityGeometryKitTest {
 
@@ -125,6 +135,10 @@ class EntityGeometryKitTest {
 
     /** A child turn on all three axes, under which the two readings of a normal round apart. */
     private static final EulerRotation ANY_TURN = new EulerRotation(30f, 20f, 10f);
+
+    /** The default pass through one frame instance, so every build a shared table sees can hit it. */
+    private static final EntityGeometryKit.EntityBuildParams DEFAULT_PASS = new EntityGeometryKit.EntityBuildParams(
+        new FitFrame(Vector3f.ZERO, 1f, 1f), PassDeclaration.DEFAULT, ColorMath.WHITE);
 
     @Test
     @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
@@ -775,6 +789,233 @@ class EntityGeometryKitTest {
         assertThat("the next bone's cube", tags.subList(28, 40).stream().distinct().count(), equalTo(6L));
     }
 
+    // --- shared geometry ---
+
+    /**
+     * Pins that the shared table answers a mesh by reference: a mesh equal to a held one in every field
+     * equality reads, but posed at another scale, is built afresh. A table keyed by equality hands the
+     * stretched mesh the unstretched one's corners and normals.
+     */
+    @Test
+    @DisplayName("a mesh equal to a held one but posed at another scale is built afresh")
+    void sharedGeometry_poseScaleVariantIsBuiltAfresh() {
+        EntityMesh unstretched = turnedUnder(new Vector3f(1f, 1f, 1f), PITCH);
+        EntityMesh stretched = turnedUnder(STRETCH, PITCH);
+        assertThat("equality reads no pose scale", stretched, equalTo(unstretched));
+        assertThat("the two are distinct instances", stretched, not(sameInstance(unstretched)));
+        assertThat("the pose scale moves the geometry",
+            anyPositionDiffers(freshPass(stretched, solidWhite(), DEFAULT_PASS), freshPass(unstretched, solidWhite(), DEFAULT_PASS)),
+            equalTo(true));
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        assertSharedMatchesFresh("unstretched", unstretched, solidWhite(), DEFAULT_PASS, table);
+        assertSharedMatchesFresh("stretched", stretched, solidWhite(), DEFAULT_PASS, table);
+    }
+
+    /**
+     * Pins that every pass over a held mesh decides its own cull and translucency flags from its own
+     * texture. One mesh is drawn through one table against an opaque sheet (culled, opaque), a clear one
+     * (unculled, cutout) and a half-alpha one (unculled, translucent), so a flag carried from the first
+     * pass to a later one shows on the second or the third.
+     */
+    @Test
+    @DisplayName("each pass over a held mesh reads its cull and translucency off its own texture")
+    void sharedGeometry_flagsArePerPass() {
+        EntityMesh mesh = carrier(true);
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        List<VisibleTriangle> opaque = assertSharedMatchesFresh("opaque", mesh, filled(0xFFFFFFFF, 64), DEFAULT_PASS, table);
+        List<VisibleTriangle> clear = assertSharedMatchesFresh("clear", mesh, filled(0x00FFFFFF, 64), DEFAULT_PASS, table);
+        List<VisibleTriangle> half = assertSharedMatchesFresh("half", mesh, filled(0x80FFFFFF, 64), DEFAULT_PASS, table);
+
+        assertThat("the clear pass replays the opaque pass's corners",
+            clear.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
+        assertThat("the half-alpha pass replays them too",
+            half.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
+        assertThat("an opaque sheet culls", opaque.getFirst().traits().cullBackFaces(), equalTo(true));
+        assertThat("a clear sheet does not", clear.getFirst().traits().cullBackFaces(), equalTo(false));
+        assertThat("and is no translucent shell", clear.getFirst().traits().translucent(), equalTo(false));
+        assertThat("a half-alpha sheet is one", half.getFirst().traits().translucent(), equalTo(true));
+    }
+
+    /**
+     * Pins that held polygon UVs are reused only against the dimensions they were resolved at. A mesh
+     * declaring no texture size resolves its UVs against the sheet it draws, so an overlay sheet of
+     * another size resolves them afresh; a mesh declaring one resolves every sheet against that size and
+     * shares them. Two sheets of one width and different heights go through a table of their own, so UVs
+     * reused whenever the width alone matches hand the taller sheet the shorter one's.
+     */
+    @Test
+    @DisplayName("a mesh declaring no texture size resolves its UVs afresh against a sheet of another size")
+    void sharedGeometry_undeclaredSizeResolvesUvsPerSheet() {
+        EntityMesh declared = carrier(true);
+        EntityMesh undeclared = new EntityMesh(new TextureSize(0, 0), declared.getBones(), declared.isCull());
+        PixelBuffer small = filled(0xFFFFFFFF, 64);
+        PixelBuffer large = filled(0xFFFFFFFF, 128);
+        assertThat("the undeclared mesh's UVs follow the sheet",
+            freshPass(undeclared, small, DEFAULT_PASS).getFirst().uv1(),
+            not(equalTo(freshPass(undeclared, large, DEFAULT_PASS).getFirst().uv1())));
+
+        PixelBuffer shallow = uvTexture(32);
+        PixelBuffer deep = uvTexture(64);
+        assertThat("the undeclared mesh's UVs follow the sheet's height alone",
+            uvs(freshPass(undeclared, shallow, DEFAULT_PASS)), not(equalTo(uvs(freshPass(undeclared, deep, DEFAULT_PASS)))));
+        Map<EntityMesh, Object> oneWidth = EntityGeometryKit.sharedGeometry();
+        assertSharedMatchesFresh("undeclared, 64x32 sheet", undeclared, shallow, DEFAULT_PASS, oneWidth);
+        assertSharedMatchesFresh("undeclared, 64x64 sheet", undeclared, deep, DEFAULT_PASS, oneWidth);
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        assertSharedMatchesFresh("undeclared, small sheet", undeclared, small, DEFAULT_PASS, table);
+        assertSharedMatchesFresh("undeclared, large sheet", undeclared, large, DEFAULT_PASS, table);
+        List<VisibleTriangle> declaredSmall = assertSharedMatchesFresh("declared, small sheet", declared, small, DEFAULT_PASS, table);
+        List<VisibleTriangle> declaredLarge = assertSharedMatchesFresh("declared, large sheet", declared, large, DEFAULT_PASS, table);
+        assertThat("a declared size shares its UVs across sheets",
+            declaredLarge.getFirst().uv1(), sameInstance(declaredSmall.getFirst().uv1()));
+    }
+
+    /**
+     * Pins that the table answers a held mesh only for the frame it was fitted through: the same mesh
+     * built through another frame is built afresh rather than handed corners transformed through the
+     * first.
+     */
+    @Test
+    @DisplayName("a held mesh built through another frame is built afresh")
+    void sharedGeometry_anotherFrameIsBuiltAfresh() {
+        EntityMesh mesh = carrier(true);
+        FitFrame other = new FitFrame(new Vector3f(1f, 2f, 3f), 0.5f, 2f);
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        assertSharedMatchesFresh("first frame", mesh, solidWhite(), DEFAULT_PASS, table);
+        assertSharedMatchesFresh("other frame", mesh, solidWhite(), new EntityGeometryKit.EntityBuildParams(
+            other, PassDeclaration.DEFAULT, ColorMath.WHITE), table);
+    }
+
+    /**
+     * Pins replay over a mesh whose first cube-bearing bone rests hidden ahead of a visible one. The
+     * hidden bone holds no slots, so a replay that walked it would read the visible bone's slots for it
+     * and then run past the held arrays; skipping it, the visible bone replays its own faces, against an
+     * opaque sheet and then a clear one.
+     */
+    @Test
+    @DisplayName("a held mesh with a hidden bone ahead of a visible one replays the visible bone's own faces")
+    void sharedGeometry_hiddenBoneIsSkippedOnReplay() {
+        EntityMesh carrier = carrier(false);
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", carrier.getBones().get("body").withVisible(false));
+        bones.put("head", carrier.getBones().get("head"));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        List<VisibleTriangle> opaque = assertSharedMatchesFresh("opaque", mesh, filled(0xFFFFFFFF, 64), DEFAULT_PASS, table);
+        List<VisibleTriangle> clear = assertSharedMatchesFresh("clear", mesh, filled(0x00FFFFFF, 64), DEFAULT_PASS, table);
+        assertThat("only the visible bone draws",
+            tags(opaque).stream().allMatch(tag -> tag.startsWith("head:")), equalTo(true));
+        assertThat("the clear pass replays the opaque pass's corners",
+            clear.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
+    }
+
+    /**
+     * Pins replay over plane cubes whose first faces are ones the full build skips. A plane facing along
+     * z draws only its north and south faces and one facing along x only its west and east, so their
+     * leading slots hold nothing; a replay that left a cube's face walk at an empty slot, rather than
+     * passing to the next, would drop every face either plane carries while the whole cubes around them
+     * still replayed.
+     */
+    @Test
+    @DisplayName("a held mesh replays a plane cube's faces past the slots its full build skipped")
+    void sharedGeometry_planeCubeReplaysPastItsSkippedSlots() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), planeCubeAt(8f), unitCubeAt(16f)));
+        bones.put("head", cubeBone(sidePlaneCubeAt(24f), unitCubeAt(32f)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        List<VisibleTriangle> opaque = assertSharedMatchesFresh("opaque", mesh, filled(0xFFFFFFFF, 64), DEFAULT_PASS, table);
+        List<VisibleTriangle> clear = assertSharedMatchesFresh("clear", mesh, filled(0x00FFFFFF, 64), DEFAULT_PASS, table);
+        assertThat("the clear pass replays the opaque pass's corners",
+            clear.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
+
+        List<String> tags = tags(clear);
+        assertThat("every triangle the mesh owes", tags.size(), equalTo(12 + 4 + 12 + 4 + 12));
+        assertThat("the z-facing plane's two faces", tags.subList(12, 16),
+            equalTo(List.of("body:north", "body:north", "body:south", "body:south")));
+        assertThat("the x-facing plane's two faces", tags.subList(28, 32),
+            equalTo(List.of("head:west", "head:west", "head:east", "head:east")));
+    }
+
+    /**
+     * Pins the shared build on the dragon, whose eyes pass draws the body's own mesh instance through an
+     * emissive pass over a mostly transparent sheet, so the two passes disagree on cubes' flags while
+     * agreeing on every corner. A posed subject poses the body and the eyes as two separate rebuilds,
+     * so neither is the bind mesh the table holds and both are built afresh.
+     */
+    @Test
+    @DisplayName("the dragon's eyes pass replays the body's geometry under its own flags")
+    void sharedGeometry_dragonEyesPass() {
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
+        RendererContext context = ClientAssetsExtension.context();
+        Entity dragon = context.findEntity("minecraft:ender_dragon").get();
+        Entity.OverlayLayer eyes = dragon.overlays().getFirst();
+        assertThat("the eyes pass draws the body's own mesh", eyes.model(), sameInstance(dragon.model()));
+        PixelBuffer bodySheet = entityTexture(context, dragon.textureRef().orElseThrow());
+        PixelBuffer eyesSheet = entityTexture(context, eyes.textureRef().orElseThrow());
+        EntityGeometryKit.EntityBuildParams eyesPass = new EntityGeometryKit.EntityBuildParams(
+            DEFAULT_PASS.frame(), eyes.pass(), eyes.tintArgb());
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        List<VisibleTriangle> body = assertSharedMatchesFresh("body", dragon.model(), bodySheet, DEFAULT_PASS, table);
+        List<VisibleTriangle> glow = assertSharedMatchesFresh("eyes", dragon.model(), eyesSheet, eyesPass, table);
+        assertThat("the eyes pass replays the body's corners",
+            glow.getFirst().position0(), sameInstance(body.getFirst().position0()));
+        assertThat("the two passes disagree on some cube's cull or translucency", flagsDiffer(body, glow), equalTo(true));
+
+        PoseStyle idle = dragon.styles().resolve(PoseStyle.IDLE, row -> false, dragon.id().toString());
+        Entity posed = PosePlayer.posed(dragon, idle, dragon.styles().periodTicks(), 5);
+        EntityMesh posedEyes = posed.overlays().getFirst().model();
+        assertThat("the posed body is another instance", posed.model(), not(sameInstance(dragon.model())));
+        assertThat("and so are its posed eyes", posedEyes, not(sameInstance(posed.model())));
+        assertSharedMatchesFresh("posed body", posed.model(), bodySheet, DEFAULT_PASS, table);
+        assertSharedMatchesFresh("posed eyes", posedEyes, eyesSheet, eyesPass, table);
+    }
+
+    /**
+     * Pins the shared build on the villager, whose type, profession and level passes all draw the
+     * body's own mesh instance: each sheet through one table, a sheet twice the size among them, then
+     * the same mesh with its texture size undeclared over a sheet of each size, then the mesh as a pose
+     * leaves it - each matching the pass built alone.
+     */
+    @Test
+    @DisplayName("the villager's overlay passes replay its body's geometry, over a larger sheet and posed")
+    void sharedGeometry_villagerOverlays() {
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
+        RendererContext context = ClientAssetsExtension.context();
+        Entity villager = context.findEntity("minecraft:villager").get();
+        EntityMesh mesh = villager.model();
+        for (Entity.OverlayLayer overlay : villager.overlays())
+            assertThat("every villager pass draws the body's own mesh", overlay.model(), sameInstance(mesh));
+        PixelBuffer bodySheet = entityTexture(context, villager.textureRef().orElseThrow());
+        PixelBuffer doubled = doubled(bodySheet);
+
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        List<VisibleTriangle> body = assertSharedMatchesFresh("body", mesh, bodySheet, DEFAULT_PASS, table);
+        for (String ref : List.of("villager/type/plains", "villager/profession/librarian", "villager/profession_level/diamond")) {
+            List<VisibleTriangle> pass = assertSharedMatchesFresh(ref, mesh, entityTexture(context, ref),
+                new EntityGeometryKit.EntityBuildParams(DEFAULT_PASS.frame(), villager.overlays().getFirst().pass(),
+                    ColorMath.WHITE), table);
+            assertThat(ref + " replays the body's corners", pass.getFirst().position0(), sameInstance(body.getFirst().position0()));
+        }
+        assertSharedMatchesFresh("a sheet twice the size", mesh, doubled, DEFAULT_PASS, table);
+
+        EntityMesh undeclared = new EntityMesh(new TextureSize(0, 0), mesh.getBones(), mesh.isCull());
+        assertSharedMatchesFresh("undeclared size, its own sheet", undeclared, bodySheet, DEFAULT_PASS, table);
+        assertSharedMatchesFresh("undeclared size, a sheet twice the size", undeclared, doubled, DEFAULT_PASS, table);
+
+        PoseStyle stride = villager.styles().resolve(PoseStyle.STRIDE, row -> false, villager.id().toString());
+        EntityMesh posed = PosePlayer.posed(villager, stride, villager.styles().periodTicks(), 5).model();
+        assertThat("the posed mesh is another instance", posed, not(sameInstance(mesh)));
+        assertSharedMatchesFresh("posed", posed, bodySheet, DEFAULT_PASS, table);
+    }
+
     // --- fixtures ---
 
     /** A bone at the origin, unturned and unscaled, hung from nothing and owning {@code cubes} in order. */
@@ -798,6 +1039,16 @@ class EntityGeometryKitTest {
     private static EntityMesh.Cube planeCubeAt(float u) {
         return new EntityMesh.Cube(
             new Vector3f(-0.5f, -0.5f, 0f), new Vector3f(1f, 1f, 0f), new Vector2f(u, 0f),
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+    }
+
+    /**
+     * A 1x1 plane facing along x, centred at the origin, whose atlas unwrap starts at {@code (u, 0)} - its
+     * west and east faces carry area and the four ahead of them are lines.
+     */
+    private static EntityMesh.Cube sidePlaneCubeAt(float u) {
+        return new EntityMesh.Cube(
+            new Vector3f(0f, -0.5f, -0.5f), new Vector3f(0f, 1f, 1f), new Vector2f(u, 0f),
             Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
     }
 
@@ -1134,6 +1385,89 @@ class EntityGeometryKitTest {
         return carried;
     }
 
+    /** A square {@code size x size} sheet holding one ARGB value in every texel. */
+    private static PixelBuffer filled(int argb, int size) {
+        int[] pixels = new int[size * size];
+        Arrays.fill(pixels, argb);
+        return PixelBuffer.of(pixels, size, size);
+    }
+
+    /** The sheet at twice its width and height, each texel repeated over a {@code 2x2} block. */
+    private static PixelBuffer doubled(PixelBuffer sheet) {
+        int width = sheet.width() * 2;
+        int height = sheet.height() * 2;
+        int[] pixels = new int[width * height];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                pixels[y * width + x] = sheet.getPixel(x / 2, y / 2);
+        return PixelBuffer.of(pixels, width, height);
+    }
+
+    /** The vanilla entity sheet at {@code minecraft:entity/<ref>}. */
+    private static PixelBuffer entityTexture(RendererContext context, String ref) {
+        return context.resolveTexture("minecraft:entity/" + ref).get();
+    }
+
+    /** The triangles one pass builds alone, sharing nothing. */
+    private static List<VisibleTriangle> freshPass(
+        EntityMesh mesh, PixelBuffer texture, EntityGeometryKit.EntityBuildParams params) {
+        return collect(EntityGeometryKit.buildTriangles(mesh, texture, params));
+    }
+
+    /**
+     * Builds one pass through the shared table, asserts it matches the same pass built alone, and
+     * answers the shared build's triangles.
+     */
+    private static List<VisibleTriangle> assertSharedMatchesFresh(
+        String label, EntityMesh mesh, PixelBuffer texture, EntityGeometryKit.EntityBuildParams params,
+        Map<EntityMesh, Object> table) {
+        List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, texture, params, table));
+        assertSameTriangles(label, shared, freshPass(mesh, texture, params));
+        return shared;
+    }
+
+    /**
+     * Asserts two triangle lists agree triangle for triangle: every position, UV and normal bit for
+     * bit, the same texture instance, and the same tint, shade, traits and tag.
+     */
+    private static void assertSameTriangles(String label, List<VisibleTriangle> actual, List<VisibleTriangle> expected) {
+        assertThat(label + " triangle count", actual.size(), equalTo(expected.size()));
+        assertThat(label + " draws something", expected.isEmpty(), equalTo(false));
+        for (int i = 0; i < expected.size(); i++) {
+            VisibleTriangle a = actual.get(i);
+            VisibleTriangle e = expected.get(i);
+            String at = label + " triangle " + i + " (" + e.debugTag() + ")";
+            assertSameBits(at + " p0", a.position0(), e.position0());
+            assertSameBits(at + " p1", a.position1(), e.position1());
+            assertSameBits(at + " p2", a.position2(), e.position2());
+            assertSameBits(at + " uv0", a.uv0(), e.uv0());
+            assertSameBits(at + " uv1", a.uv1(), e.uv1());
+            assertSameBits(at + " uv2", a.uv2(), e.uv2());
+            assertSameBits(at + " normal", a.normal(), e.normal());
+            assertThat(at + " texture", a.texture(), sameInstance(e.texture()));
+            assertThat(at + " tint", a.tintArgb(), equalTo(e.tintArgb()));
+            assertThat(at + " shading", Float.floatToIntBits(a.shading()), equalTo(Float.floatToIntBits(e.shading())));
+            assertThat(at + " traits", a.traits(), equalTo(e.traits()));
+            assertThat(at + " tag", a.debugTag(), equalTo(e.debugTag()));
+        }
+    }
+
+    /** Whether any vertex of two index-aligned triangle lists sits at different bits. */
+    private static boolean anyPositionDiffers(List<VisibleTriangle> a, List<VisibleTriangle> b) {
+        for (int i = 0; i < Math.min(a.size(), b.size()); i++)
+            for (int v = 0; v < 3; v++)
+                if (!positions(a.get(i))[v].equals(positions(b.get(i))[v])) return true;
+        return a.size() != b.size();
+    }
+
+    /** Whether two index-aligned passes over one mesh disagree on any triangle's cull or translucency. */
+    private static boolean flagsDiffer(List<VisibleTriangle> a, List<VisibleTriangle> b) {
+        for (int i = 0; i < Math.min(a.size(), b.size()); i++)
+            if (a.get(i).traits().cullBackFaces() != b.get(i).traits().cullBackFaces()
+                || a.get(i).traits().translucent() != b.get(i).traits().translucent()) return true;
+        return false;
+    }
+
     /** Asserts a unit vector points along {@code (x, y, z)}, which is normalised here. */
     private static void assertDirection(String label, Vector3f actual, double x, double y, double z) {
         double length = Math.sqrt(x * x + y * y + z * z);
@@ -1147,6 +1481,12 @@ class EntityGeometryKitTest {
         assertThat(label + " x", Float.floatToIntBits(actual.x()), equalTo(Float.floatToIntBits(expected.x())));
         assertThat(label + " y", Float.floatToIntBits(actual.y()), equalTo(Float.floatToIntBits(expected.y())));
         assertThat(label + " z", Float.floatToIntBits(actual.z()), equalTo(Float.floatToIntBits(expected.z())));
+    }
+
+    /** Asserts two UVs agree bit for bit on both components. */
+    private static void assertSameBits(String label, Vector2f actual, Vector2f expected) {
+        assertThat(label + " u", Float.floatToIntBits(actual.x()), equalTo(Float.floatToIntBits(expected.x())));
+        assertThat(label + " v", Float.floatToIntBits(actual.y()), equalTo(Float.floatToIntBits(expected.y())));
     }
 
     /** Asserts two matrices agree bit for bit on all sixteen entries. */

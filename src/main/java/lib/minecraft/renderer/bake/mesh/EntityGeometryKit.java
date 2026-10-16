@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -92,6 +93,11 @@ public class EntityGeometryKit {
     private static final Face @NotNull [] FACES = Face.values();
 
     /**
+     * The faces a cube carries, which is the stride of a cube's run of slots in {@link SharedFaces}.
+     */
+    private static final int FACES_PER_CUBE = FACES.length;
+
+    /**
      * Parameters for a native-resolution entity triangle build. Bundles the values that vary
      * per render so callers spell them at a named call boundary rather than positionally.
      *
@@ -143,12 +149,87 @@ public class EntityGeometryKit {
         @NotNull PixelBuffer texture,
         @NotNull EntityBuildParams params
     ) {
+        return build(model, texture, params, null);
+    }
+
+    /**
+     * Builds rasterizer-ready triangles for an entity model at native resolution, sharing per-face
+     * geometry with every other build handed the same table. A mesh the table already holds, fitted
+     * through the same {@link FitFrame} instance, has its transformed corners, turned normals and debug
+     * tags read back rather than rebuilt, and its polygon UVs too where this build resolves them against
+     * the same texture width and height; a mesh the table does not hold is built in full and its
+     * geometry entered.
+     *
+     * <p>Whatever reads this build's texture is this build's own either way: each cube's cull and
+     * translucency flags, the surface traits, the tint and the texture itself. Every build emits its
+     * own triangles, in the bone, cube and face order a full build walks.
+     *
+     * <p>The table must answer a mesh by reference and never by equality, as an {@link IdentityHashMap}
+     * does, because two meshes equal in every field equality reads can still differ in a bone's pose
+     * scale, which it does not read. A mesh the table holds under another frame is built in full and
+     * not entered again.
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param texture the shared texture atlas
+     * @param params the render frame, pass declaration and tint for this build
+     * @param sharedGeometry an {@link IdentityHashMap} the builds of one draw share, read by one thread
+     *     at a time
+     * @return the build result containing the triangle list
+     */
+    public static @NotNull BuildResult buildTriangles(
+        @NotNull EntityMesh model,
+        @NotNull PixelBuffer texture,
+        @NotNull EntityBuildParams params,
+        @NotNull Map<EntityMesh, Object> sharedGeometry
+    ) {
+        return build(model, texture, params, sharedGeometry);
+    }
+
+    /**
+     * Creates the table the builds of one draw share their per-face geometry through, keyed by each
+     * mesh's reference identity.
+     *
+     * @return an empty table for {@link #buildTriangles(EntityMesh, PixelBuffer, EntityBuildParams, Map)}
+     */
+    static @NotNull Map<EntityMesh, Object> sharedGeometry() {
+        return new IdentityHashMap<>();
+    }
+
+    /**
+     * Builds one pass's triangles, replaying the geometry {@code sharedGeometry} holds for the mesh
+     * when it holds some for this frame, and otherwise building in full and entering what was built
+     * where the table holds nothing for the mesh yet.
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param texture the shared texture atlas
+     * @param params the render frame, pass declaration and tint for this build
+     * @param sharedGeometry the table shared with the draw's other builds, or {@code null} to share
+     *     nothing
+     * @return the build result containing the triangle list
+     */
+    private static @NotNull BuildResult build(
+        @NotNull EntityMesh model,
+        @NotNull PixelBuffer texture,
+        @NotNull EntityBuildParams params,
+        @Nullable Map<EntityMesh, Object> sharedGeometry
+    ) {
         FitFrame frame = params.frame();
+        PassDeclaration pass = params.pass();
+        int tintArgb = params.tintArgb();
+
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+
+        Object held = sharedGeometry == null ? null : sharedGeometry.get(model);
+        if (held instanceof SharedFaces shared && shared.frame() == frame)
+            return replay(model, texture, pass, tintArgb, texW, texH, shared);
+        SharedFaces recording = sharedGeometry != null && held == null
+            ? SharedFaces.empty(frame, texW, texH, faceSlots(model))
+            : null;
+
         Vector3f centre = frame.anchor();
         float scale = frame.ndcScale();
         float modelScale = frame.modelScale();
-        PassDeclaration pass = params.pass();
-        int tintArgb = params.tintArgb();
 
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
@@ -171,14 +252,12 @@ public class EntityGeometryKit {
             .scale(modelScale);
         Map<String, Matrix4f> kitFitChainTransforms = BoneKit.buildChainTransformsFrom(kitFit, model.getBones());
 
-        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
-        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
-
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         // The current bone's debug tag per face, indexed by ordinal and built the first time one of the
         // bone's cubes emits that face. It belongs to this call alone, because frames bake on parallel
         // threads, and is cleared as each bone starts.
         String[] faceTags = new String[FACES.length];
+        int slot = 0;
 
         for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
@@ -243,6 +322,8 @@ public class EntityGeometryKit {
                 // this call's texture, which another pass, or another tick of an animated texture, paints
                 // differently.
                 SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
+                int cubeSlot = slot;
+                slot += FACES_PER_CUBE;
 
                 for (Face face : FACES) {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
@@ -277,11 +358,152 @@ public class EntityGeometryKit {
                         debugTag = faceTags[face.ordinal()] = boneName + ":" + face.direction();
                     BoxKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
                         cubeTraits, debugTag);
+                    if (recording != null)
+                        recording.hold(cubeSlot + face.ordinal(), corners, normal, debugTag, effUv);
+                }
+            }
+        }
+
+        // Entered only once every slot is filled, so nothing writes into what the table holds.
+        if (recording != null) sharedGeometry.put(model, recording);
+        return new BuildResult(triangles);
+    }
+
+    /**
+     * Emits one pass's triangles over the geometry an earlier build of the same mesh held, walking the
+     * bones, cubes and faces in the order that build walked them. Each cube's cull and translucency
+     * flags are read off this pass's texture, and a face takes the held polygon UVs only where this
+     * pass resolves them against the width and height they were resolved at.
+     *
+     * @param model the mesh the held geometry was built from
+     * @param texture the texture this pass samples
+     * @param pass the pass declaration baked onto every triangle
+     * @param tintArgb the ARGB tint multiplied into every sampled texel
+     * @param texW the texture width this pass resolves UVs against
+     * @param texH the texture height this pass resolves UVs against
+     * @param shared the geometry the earlier build held
+     * @return the build result containing this pass's triangles
+     */
+    private static @NotNull BuildResult replay(
+        @NotNull EntityMesh model,
+        @NotNull PixelBuffer texture,
+        @NotNull PassDeclaration pass,
+        int tintArgb,
+        float texW,
+        float texH,
+        @NotNull SharedFaces shared
+    ) {
+        boolean sameUv = shared.texW() == texW && shared.texH() == texH;
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        int slot = 0;
+
+        for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
+            EntityMesh.Bone bone = boneEntry.getValue();
+            if (!bone.isVisible()) continue;
+            for (EntityMesh.Cube cube : bone.getCubes()) {
+                Vector3f size = cube.getSize();
+                // This pass's own texture decides the cube's flags, read through a holder of this pass's
+                // own, which also answers a face whose held UVs were resolved at another size.
+                BoneKit.CubeUv cubeUv = new BoneKit.CubeUv(cube, texW, texH);
+                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cubeUv, size, texture);
+                boolean cubeIsTranslucent = !cubeCullBackFaces
+                    && uvPartialAlphaPresent(cubeUv, size, texture);
+                SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
+                int cubeSlot = slot;
+                slot += FACES_PER_CUBE;
+
+                for (Face face : FACES) {
+                    int at = cubeSlot + face.ordinal();
+                    Vector3f[] corners = shared.corners()[at];
+                    // An empty slot is a face the full build skipped as a degenerate plane.
+                    if (corners == null) continue;
+
+                    Vector2f[] effUv = sameUv ? shared.uvs()[at] : cubeUv.polygon(face);
+                    BoxKit.addQuad(triangles, corners, effUv, texture, tintArgb, shared.normals()[at], Shading.UNLIT,
+                        cubeTraits, shared.debugTags()[at]);
                 }
             }
         }
 
         return new BuildResult(triangles);
+    }
+
+    /**
+     * Counts the slots a build of {@code model} walks - one per face of every cube a visible bone
+     * carries.
+     *
+     * @param model the mesh to count
+     * @return the slot count
+     */
+    private static int faceSlots(@NotNull EntityMesh model) {
+        int cubes = 0;
+        for (EntityMesh.Bone bone : model.getBones().values())
+            if (bone.isVisible()) cubes += bone.getCubes().size();
+        return cubes * FACES_PER_CUBE;
+    }
+
+    /**
+     * The per-face geometry one full build of a mesh produced, which a later build of the same mesh
+     * through the same frame reads back. Every array holds one slot per face of every cube a visible
+     * bone carries, in the order the build walks them - a run of
+     * {@link EntityGeometryKit#FACES_PER_CUBE} slots per cube, each face at its ordinal - and a face
+     * the degenerate-plane skip drops leaves its slot empty. Every slot is filled before the holder
+     * enters a table, and none is written after.
+     *
+     * @param frame the fit frame the corners were transformed through
+     * @param texW the texture width the polygon UVs were resolved against
+     * @param texH the texture height the polygon UVs were resolved against
+     * @param corners each face's four transformed corners, empty for a skipped face
+     * @param normals each face's turned unit normal, empty for a skipped face
+     * @param debugTags each face's {@code bone:direction} label, empty for a skipped face
+     * @param uvs each face's four polygon UVs, empty for a skipped face
+     */
+    private record SharedFaces(
+        @NotNull FitFrame frame,
+        float texW,
+        float texH,
+        @NotNull Vector3f @NotNull [] @Nullable [] corners,
+        @Nullable Vector3f @NotNull [] normals,
+        @Nullable String @NotNull [] debugTags,
+        @NotNull Vector2f @NotNull [] @Nullable [] uvs
+    ) {
+
+        /**
+         * Creates a holder with every slot empty.
+         *
+         * @param frame the fit frame the build transforms through
+         * @param texW the texture width the build resolves UVs against
+         * @param texH the texture height the build resolves UVs against
+         * @param slots the slot count {@link EntityGeometryKit#faceSlots} answers for the mesh
+         * @return the empty holder
+         */
+        static @NotNull SharedFaces empty(@NotNull FitFrame frame, float texW, float texH, int slots) {
+            return new SharedFaces(frame, texW, texH,
+                new Vector3f[slots][], new Vector3f[slots], new String[slots], new Vector2f[slots][]);
+        }
+
+        /**
+         * Fills one face's slot with what the full build emitted for it.
+         *
+         * @param at the face's slot
+         * @param corners the face's four transformed corners
+         * @param normal the face's turned unit normal
+         * @param debugTag the face's {@code bone:direction} label
+         * @param uv the face's four polygon UVs
+         */
+        void hold(
+            int at,
+            @NotNull Vector3f @NotNull [] corners,
+            @NotNull Vector3f normal,
+            @NotNull String debugTag,
+            @NotNull Vector2f @NotNull [] uv
+        ) {
+            this.corners[at] = corners;
+            this.normals[at] = normal;
+            this.debugTags[at] = debugTag;
+            this.uvs[at] = uv;
+        }
+
     }
 
     /**

@@ -70,8 +70,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -455,18 +457,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // at every tick. The build MUST stay inside the callback (the fluid invariant) so an opted-in
         // animated texture is not frozen on frame 0; the Rasterizer is rebuilt per frame for
         // thread-safe parallel strip baking. FeatureContext carries the shared geometry-build frame
-        // (the render frame, textures, pack context, tick) the static feature constants cannot capture.
+        // (the render frame, textures, pack context, tick, and the frame's shared geometry table) the
+        // static feature constants cannot capture.
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
             // The whole subject at this tick, body and every overlay pass, so a pass drawing geometry
             // of its own moves with the body rather than staying where it was authored.
             Entity posedSubject = posed.at(tick);
             PixelBuffer frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(texture.get());
+            // One table per frame build, keyed by mesh reference, so a frame baking on another worker
+            // never reads it: a model overlay drawing the very mesh instance the body drew reuses the
+            // body's corners, normals and tags, and its UVs where it resolves them at the same width and
+            // height, and reads its cull and translucency off its own texture.
+            Map<EntityMesh, Object> sharedGeometry = new IdentityHashMap<>();
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posedSubject.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
-                    kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
+                    kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb()), sharedGeometry).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(posedSubject, options, wings, babyWings, posedSubject.model(),
-                frameTexture, kitFrame, textures, tick);
+                frameTexture, kitFrame, textures, tick, sharedGeometry);
             for (EntityFeature feature : FEATURES)
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
@@ -647,7 +655,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         // mesh: vanilla builds it into the render type's texture matrix, so it moves
                         // where the pass samples and never where it stands.
                         sink.addAll(scrolled(EntityGeometryKit.buildTriangles(overlayMesh, overlayTex,
-                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.pass(), overlayTint)
+                            new EntityGeometryKit.EntityBuildParams(ctx.frame(), overlay.pass(), overlayTint),
+                            ctx.sharedGeometry()
                         ).triangles(), overlay.textureOffsetAt(ctx.tick())));
                     });
                 }
@@ -766,9 +775,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
      * armor pieces), whether the wings draw, whether the subject renders as a baby, and the primary
      * {@link EntityMesh model} (adult or baby), plus the resolved
-     * base texture, the {@link FitFrame} the body was built through, and the
-     * {@link RendererContext}. The scene-frame fields travel here because the static
-     * {@link EntityFeature} constants cannot capture them from the renderer instance.
+     * base texture, the {@link FitFrame} the body was built through, the {@link RendererContext}, and
+     * the table the frame's mesh builds share their geometry through. The scene-frame fields travel
+     * here because the static {@link EntityFeature} constants cannot capture them from the renderer
+     * instance.
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
@@ -783,6 +793,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param context the render's texture context, which answers a texture no pack supplies, or one
      *     that cannot be read, with the checkerboard, and through which the carried-block lookups go
      * @param tick the animation tick every overlay / carried-block texture is sampled at
+     * @param sharedGeometry the per-face geometry table the body build and every model overlay build of
+     *     this frame enter and read back, keyed by mesh reference - one per frame build, never shared
+     *     across threads
      */
     private record FeatureContext(
         @NotNull Entity definition,
@@ -793,7 +806,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer baseTexture,
         @NotNull FitFrame frame,
         @NotNull RendererContext context,
-        int tick
+        int tick,
+        @NotNull Map<EntityMesh, Object> sharedGeometry
     ) { }
 
     /**
