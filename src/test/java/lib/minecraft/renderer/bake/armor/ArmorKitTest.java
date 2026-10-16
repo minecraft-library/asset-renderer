@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.armor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
@@ -12,32 +13,41 @@ import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.ArmorPiece;
 import lib.minecraft.renderer.call.request.ArmorTrim;
 import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
+import lib.minecraft.renderer.vanilla.mesh.PlayerLattice;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of {@link ArmorKit}'s texture resolution and of the shell it builds. Per-layer resolution is
@@ -50,6 +60,11 @@ import static org.hamcrest.Matchers.equalTo;
  * box, which shares no span with it - alongside the {@code humanoid_baby} sheet a baby's armour is read
  * from and the fact that a baby draws no trim. Both trim resolve paths, the entity one and the item one,
  * are held to the same three ids in the same order, differing only in the base id.
+ * <p>
+ * The player half pins that an unarmoured player answers a new, empty list its caller can still add
+ * to, under an armour layer its layer stack still holds, and that an armoured one answers, triangle for
+ * triangle, what a walk over every one of its body rows builds - item-less, since what is worn decides
+ * that and the pack-rule identities do not.
  */
 class ArmorKitTest {
 
@@ -97,6 +112,82 @@ class ArmorKitTest {
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:entity/equipment/humanoid/iron")));
+    }
+
+    @Test
+    @DisplayName("an unarmoured player answers an empty list a caller can still add to, resolving nothing")
+    void unarmouredPlayerAnswersAnEmptyMutableList() {
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
+
+        ConcurrentList<VisibleTriangle> armor = PlayerArmorKit.buildHumanoidArmor3D(
+            PlayerOptions.Type.FULL.lattice().boxes(), Map.of(), Map.of(), ctx);
+
+        assertThat(armor.isEmpty(), equalTo(true));
+        assertThat(ctx.getResolved().isEmpty(), equalTo(true));
+
+        // The armoured answer is a list the caller owns, so the unarmoured one takes an add as well.
+        VisibleTriangle worn = PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
+            Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(),
+            recording(ironLayer(), CitResult.NONE)).getFirst();
+        armor.add(worn);
+        assertThat(armor.size(), equalTo(1));
+
+        // And the list is the caller's alone: the next unarmoured call answers a list of its own, which
+        // the add above leaves empty.
+        ConcurrentList<VisibleTriangle> again = PlayerArmorKit.buildHumanoidArmor3D(
+            PlayerOptions.Type.FULL.lattice().boxes(), Map.of(), Map.of(), ctx);
+        assertThat("each call answers a list of its own", again, not(sameInstance(armor)));
+        assertThat("which an earlier caller's add leaves empty", again.isEmpty(), equalTo(true));
+    }
+
+    @Test
+    @DisplayName("an unarmoured player's layer stack still holds its armour layer, which adds nothing")
+    void unarmouredPlayerKeepsItsArmourLayer() {
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
+        LayerStack<GeometryLayer> stack = new LayerStack<>();
+
+        PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.FULL, PlayerOptions.defaults(), ctx);
+
+        // A caller's geometry decorator is handed this stack, so the layer is there to see even when
+        // nothing is worn.
+        assertThat("the armour layer", stack.size(), equalTo(1));
+        ConcurrentList<VisibleTriangle> sink = Concurrent.newList();
+        stack.ordered().getFirst().contribute(sink);
+        assertThat("adds nothing", sink.isEmpty(), equalTo(true));
+        assertThat("and resolves nothing", ctx.getResolved().isEmpty(), equalTo(true));
+    }
+
+    @Test
+    @DisplayName("an armoured player keeps every triangle the unconditional walk over its body rows builds")
+    void armouredPlayerKeepsTheUnconditionalTriangles() {
+        Map<HumanoidPart, Box> body = PlayerOptions.Type.FULL.lattice().boxes();
+
+        // Every fixture is item-less: a pack-rule identity is not what decides whether armour is worn.
+        for (Map<ArmorSlot, ArmorPiece> equipped : wornMatrix()) {
+            String worn = equipped.keySet().toString();
+            RecordingContext built = recording(ironLayer(), CitResult.NONE);
+            RecordingContext walked = recording(ironLayer(), CitResult.NONE);
+
+            ConcurrentList<VisibleTriangle> actual =
+                PlayerArmorKit.buildHumanoidArmor3D(body, equipped, Map.of(), built);
+            ConcurrentList<VisibleTriangle> expected =
+                unconditionalHumanoidArmor3D(body, equipped, Map.of(), walked);
+
+            assertThat(worn, expected.isEmpty(), equalTo(false));
+            assertThat(worn, geometry(actual), equalTo(geometry(expected)));
+            assertThat(worn, built.getResolved(), equalTo(walked.getResolved()));
+        }
+
+        // All four slots over the full body draw ten boxes - the helmet's two over the head, the
+        // chestplate's torso and arms, the leggings' torso and legs, the boots' legs - of twelve
+        // triangles each.
+        Map<ArmorSlot, ArmorPiece> everySlot = Map.of(
+            ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON),
+            ArmorSlot.CHESTPLATE, ArmorPiece.of(ArmorMaterial.IRON),
+            ArmorSlot.LEGGINGS, ArmorPiece.of(ArmorMaterial.IRON),
+            ArmorSlot.BOOTS, ArmorPiece.of(ArmorMaterial.IRON));
+        assertThat(PlayerArmorKit.buildHumanoidArmor3D(body, everySlot, Map.of(),
+            recording(ironLayer(), CitResult.NONE)).size(), equalTo(120));
     }
 
     @Test
@@ -275,6 +366,68 @@ class ArmorKitTest {
 
     private static @NotNull Map<HumanoidPart, Box> headBounds() {
         return Map.of(HumanoidPart.HEAD, new Box(0f, 0f, 0f, 1f, 1f, 1f));
+    }
+
+    /** Each slot worn alone, then all four worn together and trimmed. */
+    private static @NotNull List<Map<ArmorSlot, ArmorPiece>> wornMatrix() {
+        List<Map<ArmorSlot, ArmorPiece>> matrix = new ArrayList<>();
+        ArmorSlot.forEach(slot -> matrix.add(Map.of(slot, ArmorPiece.of(ArmorMaterial.IRON))));
+        matrix.add(Map.of(
+            ArmorSlot.HELMET, trimmed(), ArmorSlot.CHESTPLATE, trimmed(),
+            ArmorSlot.LEGGINGS, trimmed(), ArmorSlot.BOOTS, trimmed()));
+        return matrix;
+    }
+
+    /**
+     * A frozen copy of the player build that walks its body rows whatever is worn and hands them to
+     * the shared builder with the identity frame and the adult form - the triangles an armoured call
+     * keeps answering.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> unconditionalHumanoidArmor3D(
+        @NotNull Map<HumanoidPart, Box> bodyPositions,
+        @NotNull Map<ArmorSlot, ArmorPiece> equipped,
+        @NotNull Map<ArmorSlot, ItemContext> items,
+        @NotNull RendererContext context
+    ) {
+        return ArmorKit.buildArmor3D(frozenBodyRows(bodyPositions), UnaryOperator.identity(), ArmorForm.ADULT,
+            equipped, items, context);
+    }
+
+    /** A frozen copy of the player's body rows, one per box a slot could draw, in body part order. */
+    private static @NotNull List<WornBox> frozenBodyRows(@NotNull Map<HumanoidPart, Box> bodyPositions) {
+        List<WornBox> rows = new ArrayList<>();
+
+        HumanoidPart.forEach(part -> {
+            Box bounds = bodyPositions.get(part);
+            if (bounds == null) return;
+            ConcurrentSet<ArmorSlot> slots = PlayerLattice.playerSlots(part);
+            if (slots.isEmpty()) return;
+
+            rows.add(new WornBox.Body(part, false, slots, bounds));
+
+            ConcurrentSet<ArmorSlot> second = slots.stream()
+                .filter(ArmorSlot::keepsChildren)
+                .collect(Concurrent.toUnmodifiableSet());
+            if (!second.isEmpty())
+                rows.add(new WornBox.Body(part, true, second, bounds));
+        });
+
+        return rows;
+    }
+
+    /**
+     * Every field of each triangle a render reads, with the sheet it is textured from reduced to its
+     * size, since two builds through two contexts resolve equal sheets as distinct buffers.
+     */
+    private static @NotNull List<List<Object>> geometry(@NotNull List<VisibleTriangle> triangles) {
+        return triangles.stream()
+            .map(triangle -> List.<Object>of(
+                triangle.position0(), triangle.position1(), triangle.position2(),
+                triangle.uv0(), triangle.uv1(), triangle.uv2(),
+                triangle.texture().width(), triangle.texture().height(), triangle.tintArgb(),
+                triangle.normal(), triangle.shading(), triangle.traits(),
+                Optional.ofNullable(triangle.debugTag())))
+            .toList();
     }
 
 }
