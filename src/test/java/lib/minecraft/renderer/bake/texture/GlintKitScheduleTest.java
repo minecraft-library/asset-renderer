@@ -43,7 +43,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * the sampler's four texels with {@code Math.floorMod} and rounds the fade inline. The shipped stamp
  * masks a power-of-two axis and reads its fade from a table, so the copy is compared over glint
  * textures of power-of-two, non-power-of-two and mixed sizes, at coordinates that wrap negative and
- * at a scale whose texel coordinate saturates.
+ * at a scale whose texel coordinate saturates. The copy also computes the rotated coordinate whole at
+ * each pixel, where the shipped stamp tables its column products per call and its row products per
+ * row, so it is compared over canvases whose width and height differ and are not powers of two, under
+ * scales and a sprite rect whose spans are not powers of two either: there a reciprocal in place of
+ * the divide, a scale folded into the divisor or a product regrouped lands on another float.
  */
 @DisplayName("GlintKit schedule bridge")
 class GlintKitScheduleTest {
@@ -220,9 +224,10 @@ class GlintKitScheduleTest {
     }
 
     @Test
-    @DisplayName("every stamped frame matches the frozen floorMod sampler and inline fade, at every glint size")
+    @DisplayName("every stamped frame matches the frozen per-pixel loop, at every glint and canvas size")
     void stampMatchesTheFrozenLoop() {
         int[][] glintSizes = { { 128, 128 }, { 96, 48 }, { 12, 20 }, { 128, 48 }, { 12, 16 } };
+        int[][] baseSizes = { { 24, 20 }, { 24, 40 }, { 100, 60 } };
         GlintKit.GlintOptions[] presets = {
             GlintKit.GlintOptions.itemDefault(30),
             GlintKit.GlintOptions.armorDefault(30),
@@ -233,24 +238,31 @@ class GlintKitScheduleTest {
             new GlintKit.GlintOptions(30, 60, GlintKit.ITEM_GLINT_TEXTURE_ID, 3.0e9f, false,
                 GlintKit.VANILLA_U_LOOP_MILLIS, GlintKit.VANILLA_V_LOOP_MILLIS, ColorMath.WHITE)
         };
-        GlintKit.SpriteUv[] rects = { null, new GlintKit.SpriteUv(0.25f, 0.5f, 0.265625f, 0.53125f) };
+        GlintKit.SpriteUv[] rects = {
+            null,
+            new GlintKit.SpriteUv(0.25f, 0.5f, 0.265625f, 0.53125f),
+            // Spans that are not powers of two, so the lerp across the rect rounds.
+            new GlintKit.SpriteUv(0.1f, 0.2f, 0.37f, 0.61f)
+        };
         long[] times = { 0L, 1L, 1_234L, 29_999L, 37_000L, 109_999L, -1L, -1_234L, -250_001L };
 
-        for (int[] size : glintSizes) {
-            PixelBuffer glint = noisyGlint(size[0], size[1]);
-            for (GlintKit.GlintOptions options : presets) {
-                for (GlintKit.SpriteUv rect : rects) {
-                    for (boolean masked : new boolean[]{ false, true }) {
-                        PixelBuffer base = halfMasked(noisyBase(), masked);
-                        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(base, glint, times, options, rect);
-                        assertThat(frames.size(), is(times.length));
+        for (int[] baseSize : baseSizes) {
+            for (int[] size : glintSizes) {
+                PixelBuffer glint = noisyGlint(size[0], size[1]);
+                for (GlintKit.GlintOptions options : presets) {
+                    for (GlintKit.SpriteUv rect : rects) {
+                        for (boolean masked : new boolean[]{ false, true }) {
+                            PixelBuffer base = halfMasked(noisyBase(baseSize[0], baseSize[1]), masked);
+                            ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(base, glint, times, options, rect);
+                            assertThat(frames.size(), is(times.length));
 
-                        for (int f = 0; f < times.length; f++) {
-                            PixelBuffer expected = base.copy();
-                            frozenStamp(expected, glint, times[f], options, rect, base.mask().orElse(null));
-                            long time = times[f];
-                            assertArrayEquals(expected.data(), frames.get(f).data(), () -> "glint %dx%d, scale %s, rect %s, masked %s, time %d"
-                                .formatted(size[0], size[1], options.textureScale(), rect != null, masked, time));
+                            for (int f = 0; f < times.length; f++) {
+                                PixelBuffer expected = base.copy();
+                                frozenStamp(expected, glint, times[f], options, rect, base.mask().orElse(null));
+                                long time = times[f];
+                                assertArrayEquals(expected.data(), frames.get(f).data(), () -> "canvas %dx%d, glint %dx%d, scale %s, rect %s, masked %s, time %d"
+                                    .formatted(baseSize[0], baseSize[1], size[0], size[1], options.textureScale(), rect, masked, time));
+                            }
                         }
                     }
                 }
@@ -269,9 +281,9 @@ class GlintKitScheduleTest {
     // ---- helpers -------------------------------------------------------------------------------
 
     /**
-     * Stamps a target through the per-pixel loop as it read with a {@code Math.floorMod} on each of the
-     * sampler's four wraps and the fade rounded inline, kept verbatim so the shipped stamp is held to it
-     * byte for byte.
+     * Stamps a target through the per-pixel loop as it read with the rotated coordinate computed whole
+     * at each pixel, a {@code Math.floorMod} on each of the sampler's four wraps and the fade rounded
+     * inline, kept verbatim so the shipped stamp is held to it byte for byte.
      *
      * @param target the buffer stamped in place
      * @param glint the glint texture
@@ -398,15 +410,24 @@ class GlintKitScheduleTest {
     }
 
     /**
-     * Builds a 24x20 base of seeded noise: about one pixel in six transparent with colour left in it,
-     * the rest of varied alpha and colour, some bright enough that the additive blend clamps.
+     * Builds a 24x20 base of seeded noise, as {@link #noisyBase(int, int)} does.
      *
      * @return the base
      */
     private static @NotNull PixelBuffer noisyBase() {
+        return noisyBase(24, 20);
+    }
+
+    /**
+     * Builds a base of seeded noise: about one pixel in six transparent with colour left in it, the rest
+     * of varied alpha and colour, some bright enough that the additive blend clamps.
+     *
+     * @param width the base width
+     * @param height the base height
+     * @return the base
+     */
+    private static @NotNull PixelBuffer noisyBase(int width, int height) {
         Random random = new Random(0x6C1A7L);
-        int width = 24;
-        int height = 20;
         int[] pixels = new int[width * height];
         for (int i = 0; i < pixels.length; i++) {
             int alpha = random.nextInt(6) == 0 ? 0 : 1 + random.nextInt(255);

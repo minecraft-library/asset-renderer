@@ -525,6 +525,10 @@ public class GlintKit {
      * texture through vanilla's UV transform {@code translation(-u, v) . rotateZ(theta) . scale(s)}
      * applied to the pixel-centre normalized icon coordinate, wrapping {@code GL_REPEAT}-style into
      * the glint texture, then blends with the quadratic {@code GLINT} blend.
+     * <p>
+     * The column products of the rotation are tabled once per call from this target's own width and
+     * the row products taken once per row, each rounded to a float on its own as the transform
+     * evaluated whole at one pixel rounds it, so a pixel combines them into the same coordinate.
      */
     private static void stampGlint(
         @NotNull PixelBuffer target,
@@ -558,7 +562,30 @@ public class GlintKit {
         float cos = (float) Math.cos(ROTATION_RADIANS);
         float sin = (float) Math.sin(ROTATION_RADIANS);
 
+        // UV0 source: the real sprite atlas sub-rect when known (lerped across the icon by the
+        // pixel-centre fraction), else the offline pixel-centre normalized icon coordinate standing in
+        // for it (textureScale absorbs the band-frequency difference - see the class javadoc).
+        // TextureMat = translation(-u, v) . rotateZ(theta) . scale(scale) applied to (uv0, 0, 1):
+        // scale first, rotate in the UV plane, then translate by the scroll. Each rotation product
+        // reads one axis alone, so a column's two are held per column and a row's two per row, each
+        // rounded to a float on its own; a pixel only combines them and adds the scroll.
+        float[] cosSx = new float[w];
+        float[] sinSx = new float[w];
+        for (int x = 0; x < w; x++) {
+            float s = (x + 0.5f) / w;
+            float uv0x = rect == null ? s : rect.u0() + s * (rect.u1() - rect.u0());
+            float sx = uv0x * scaleX;
+            cosSx[x] = cos * sx;
+            sinSx[x] = sin * sx;
+        }
+
         for (int y = 0; y < h; y++) {
+            float t = (y + 0.5f) / h;
+            float uv0y = rect == null ? t : rect.v0() + t * (rect.v1() - rect.v0());
+            float sy = uv0y * scaleY;
+            float sinSy = sin * sy;
+            float cosSy = cos * sy;
+
             for (int x = 0; x < w; x++) {
                 int dst = target.getPixel(x, y);
                 if (ColorMath.alpha(dst) == 0) continue;
@@ -567,21 +594,8 @@ public class GlintKit {
                 // correct for whole-subject items and blocks.
                 if (glintMask != null && !glintMask.marked(x, y)) continue;
 
-                // UV0 source: the real sprite atlas sub-rect when known (lerped across the icon by the
-                // pixel-centre fraction), else the offline pixel-centre normalized icon coordinate
-                // standing in for it (textureScale absorbs the band-frequency difference - see the
-                // class javadoc).
-                float s = (x + 0.5f) / w;
-                float t = (y + 0.5f) / h;
-                float uv0x = rect == null ? s : rect.u0() + s * (rect.u1() - rect.u0());
-                float uv0y = rect == null ? t : rect.v0() + t * (rect.v1() - rect.v0());
-
-                // TextureMat = translation(-u, v) . rotateZ(theta) . scale(scale) applied to
-                // (uv0, 0, 1): scale first, rotate in the UV plane, then translate by the scroll.
-                float sx = uv0x * scaleX;
-                float sy = uv0y * scaleY;
-                float rx = cos * sx - sin * sy;
-                float ry = sin * sx + cos * sy;
+                float rx = cosSx[x] - sinSy;
+                float ry = sinSx[x] + cosSy;
                 float tcx = rx - u;
                 float tcy = ry + v;
 
