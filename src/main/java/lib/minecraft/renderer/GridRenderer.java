@@ -192,9 +192,10 @@ public final class GridRenderer implements Renderer<GridOptions> {
 
             // Placement by placement, in stack order: a decorator's layer, a cell two tiles share or cells a
             // negative separation crosses may overlap, and a later placement composites over an earlier
-            // one, as the animated merge composites them. blitScaled splits a large placement's rows
-            // across threads itself. toPixelBuffer() is the direct ImageData -> PixelBuffer conversion,
-            // avoiding the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of
+            // one, as the animated merge composites them. Called off every fork-join pool, blitScaled splits
+            // a large placement's rows across the common pool itself; called on a fork-join worker, it runs
+            // them in order on that worker. toPixelBuffer() is the direct ImageData -> PixelBuffer
+            // conversion, avoiding the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of
             // wrap(toBufferedImage()).
             placements.forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize, BlendMode.PREMULTIPLIED));

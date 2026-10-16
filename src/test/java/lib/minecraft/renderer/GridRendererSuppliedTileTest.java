@@ -49,8 +49,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link BlendMode#PREMULTIPLIED}, one after another. Every tile
  * is pixels built in memory, mixing transparent, part-transparent and opaque texels, at the cell's size
  * and rescaled from a smaller and a larger one, over transparent, part-transparent and checkerboard
- * backgrounds, with and without separation, and at a cell large enough that each draw splits its rows
- * across threads. Counting what an animated tile's content is asked shows which path drew the sheet: the
+ * backgrounds, with and without separation, and at a cell large enough that a draw made off every
+ * fork-join pool splits its rows across threads, while one made on a fork-join worker runs them in order
+ * on that worker. Counting what an animated tile's content is asked shows which path drew the sheet: the
  * streamed pass asks it, finds it animated and hands the sheet to the held path, which asks it again,
  * while a grid held from the start asks it once.
  */
