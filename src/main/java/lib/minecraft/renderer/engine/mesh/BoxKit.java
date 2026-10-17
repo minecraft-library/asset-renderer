@@ -19,6 +19,9 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The geometry every subject is built out of: the box, and the quad it is split into.
  * <p>
@@ -105,7 +108,8 @@ public class BoxKit {
         @NotNull SurfaceTraits surface,
         @Nullable String debugPart
     ) {
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // Two triangles on each of the six faces, filled here alone and adopted once the last face is in.
+        ArrayList<VisibleTriangle> triangles = new ArrayList<>(12);
         // The full [0, 1] rectangle - the UV every face of a box takes. One quartet serves all six
         // faces because Vector2f is immutable, so the instances are shared rather than re-derived.
         Vector2f[] uv = {
@@ -124,7 +128,7 @@ public class BoxKit {
             );
         });
 
-        return triangles;
+        return Concurrent.adoptList(triangles);
     }
 
     /**
@@ -150,7 +154,8 @@ public class BoxKit {
      * over the folded stack resolves. Baking it here instead would make the emitter answer a lighting
      * question only some of its callers ask.
      *
-     * @param out the list both triangles are appended to
+     * @param out the list both triangles are appended to, which takes its own lock on each add where it
+     *     is a {@link ConcurrentList}
      * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them
      * @param uv the four UVs, {@code uv[i]} pairing with {@code corners[i]}
      * @param texture the texture both triangles sample
@@ -162,7 +167,7 @@ public class BoxKit {
      *     dump is not armed
      */
     public static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
+        @NotNull List<VisibleTriangle> out,
         @NotNull Vector3f @NotNull [] corners,
         @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,

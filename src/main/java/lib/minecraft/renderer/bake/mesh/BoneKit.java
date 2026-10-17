@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.bake.mesh;
 
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -20,6 +21,7 @@ import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -382,9 +384,75 @@ public class BoneKit {
         float texWidth,
         float texHeight
     ) {
-        Face strip = cube.isMirror() ? AxisSigns.MIRROR_X.apply(face) : face;
-        Vector2f[] uv = resolveFaceUv(strip, cube, size, texWidth, texHeight);
+        Vector2f[] uv = resolveFaceUv(stripOf(face, cube), cube, size, texWidth, texHeight);
         return CornerPhase.POLYGON.permuteUv(face, uv);
+    }
+
+    /**
+     * Returns the face whose atlas strip a cube's polygon for {@code face} samples: the face itself, or
+     * its counterpart across X on a {@code mirror=true} cube, as {@link #resolvePolygonUv} describes.
+     *
+     * @param face the geometric face being rendered
+     * @param cube the cube the face belongs to
+     * @return the face whose strip the polygon samples
+     */
+    private static @NotNull Face stripOf(@NotNull Face face, @NotNull EntityMesh.Cube cube) {
+        return cube.isMirror() ? AxisSigns.MIRROR_X.apply(face) : face;
+    }
+
+    /**
+     * The atlas UV corners of one cube's faces against one texture size, each face resolved once by
+     * {@link #resolveFaceUv} and answered from then on. A build holds one for each cube it draws,
+     * because its cull test, its translucency test and its emit stage ask the same cube for the same
+     * faces, and a face's corners read nothing but the cube and the texture size.
+     * <p>
+     * It serves one cube of one build on the thread running that build, and nothing else reads it. The
+     * corner arrays it hands out are shared between the asks, so a caller reads them and never writes
+     * into one.
+     */
+    @RequiredArgsConstructor
+    static final class CubeUv {
+
+        /** The cube whose faces are resolved. */
+        private final @NotNull EntityMesh.Cube cube;
+
+        /** The texture width the corners are normalised by. */
+        private final float texWidth;
+
+        /** The texture height the corners are normalised by. */
+        private final float texHeight;
+
+        /** Each resolved face's corners in atlas-position order, at the ordinal of the face resolved. */
+        private final @NotNull Vector2f @NotNull [] @Nullable [] faces = new Vector2f[Face.size()][];
+
+        /**
+         * Returns the raw four-corner UV rectangle of one face, as {@link #resolveFaceUv} resolves it
+         * for this cube at its own size.
+         *
+         * @param face the face whose atlas strip to read
+         * @return the four UV corners in atlas-position order (top-left, bottom-left, bottom-right,
+         *     top-right), shared and read-only
+         */
+        @NotNull Vector2f @NotNull [] face(@NotNull Face face) {
+            Vector2f[] corners = this.faces[face.ordinal()];
+            if (corners == null) {
+                corners = resolveFaceUv(face, this.cube, this.cube.getSize(), this.texWidth, this.texHeight);
+                this.faces[face.ordinal()] = corners;
+            }
+            return corners;
+        }
+
+        /**
+         * Returns the per-vertex UV array of one polygon, as {@link #resolvePolygonUv} resolves it for
+         * this cube at its own size, read off the corners of the face whose strip the polygon samples.
+         *
+         * @param face the geometric face being rendered
+         * @return the four per-vertex UVs in the kit's corner order, in an array of the caller's own
+         */
+        @NotNull Vector2f @NotNull [] polygon(@NotNull Face face) {
+            return CornerPhase.POLYGON.permuteUv(face, this.face(stripOf(face, this.cube)));
+        }
+
     }
 
     /**

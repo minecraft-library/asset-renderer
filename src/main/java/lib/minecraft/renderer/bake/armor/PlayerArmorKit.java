@@ -59,6 +59,10 @@ public class PlayerArmorKit {
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull RendererContext context
     ) {
+        // Nothing worn draws nothing, so the body rows are never walked - and the empty answer stays
+        // as mutable as the armoured one.
+        if (equipped.isEmpty()) return Concurrent.newList();
+
         // The player's rows are its own body boxes in the render scope's frame, which is the frame they
         // are drawn in, so nothing crosses a frame on the way - and the player is always dressed adult.
         return ArmorKit.buildArmor3D(bodyRows(bodyPositions), UnaryOperator.identity(), ArmorForm.ADULT,

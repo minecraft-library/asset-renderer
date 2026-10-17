@@ -23,6 +23,13 @@ public class RasterMath {
     private static final int FIXED_POINT_PRECISION = 256;
 
     /**
+     * Bound the span walk holds an edge value, a column step times a column count and a row step times
+     * a row count under - {@code 2^60}, so an edge value anywhere in a walked box, and every product
+     * the span math forms, stays under {@code 2^62}.
+     */
+    private static final long SPAN_LIMIT = 1L << 60;
+
+    /**
      * Quantizes a screen-space sample coordinate to the {@link #FIXED_POINT_PRECISION 1/256}
      * sub-pixel grid used by the fixed-point coverage test. Public so the rasterizer's
      * incremental edge-function loop can derive its bbox top-left sample value once per
@@ -116,7 +123,7 @@ public class RasterMath {
      * <p>
      * Computed once per triangle in
      * {@link Rasterizer#projectTriangle projectTriangle} (the
-     * parallel Pass-1 map); read by every pixel of the triangle's bbox during Pass-2
+     * parallel Pass-1 map); read by every sample the coverage walk visits during Pass-2
      * rasterization. {@code ~128 bytes} per triangle - amortizes against tens to thousands
      * of pixel tests.
      *
@@ -225,10 +232,14 @@ public class RasterMath {
      * <b>The real second implementation of this rule is not an overload.</b> {@code Rasterizer}'s
      * coverage loop does not call this method: it steps the three edge functions incrementally across
      * a scanline off the same {@link EdgeCoefficients}, because re-evaluating three mul-adds per pixel
-     * is the cost this class exists to avoid. That stepping recurrence and this fresh evaluation are
-     * two spellings of one rule, and nothing in the type system holds them together - the fence is
-     * {@code RasterMathTest}, which drives the stepping form the loop uses and asserts it reaches what
-     * a fresh evaluation computes. Change either side and run it.
+     * is the cost this class exists to avoid, and on a wide enough box it walks only each scanline's
+     * span - the columns {@link #spanStart} and {@link #spanEnd} solve as the ones where all three
+     * edge values are non-negative, every other column failing this test outright. The stepping
+     * recurrence, the span and this fresh evaluation are three spellings of one rule, and nothing in
+     * the type system holds them together - the fence is {@code RasterMathTest}, which drives the span
+     * helpers and the stepping form the loop uses and asserts the span holds exactly the columns a
+     * fresh evaluation finds non-negative, and that the stepped values reach what a fresh evaluation
+     * computes. Change any side and run it.
      *
      * @param ec the triangle's precomputed edge coefficients
      * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})
@@ -285,6 +296,142 @@ public class RasterMath {
         float py
     ) {
         return isInsideTriangle(EdgeCoefficients.of(v0, v1, v2), px, py);
+    }
+
+    /**
+     * Whether the span walk reads a triangle's box exactly - whether every edge value it reaches,
+     * stepped from {@code row12}, {@code row20} and {@code row01} across {@code columns} columns and
+     * down {@code rows} rows, stays inside a {@code long}.
+     * <p>
+     * The coverage walk compares the stepped values as the {@code long}s they are, and the span is
+     * solved over the integers, so the two agree wherever no stepped value wraps. Each edge keeps that
+     * when its value at the box's first sample, its column step times {@code columns} and its row step
+     * times {@code rows} all stay under {@code 2^60}. Every canvas this renderer draws sits far inside
+     * the bound; a corner a perspective lens throws towards infinity can leave it, and its triangle
+     * then walks every column of its box.
+     *
+     * @param ec the triangle's precomputed edge coefficients
+     * @param row12 the edge value opposite the first corner at the box's first sample
+     * @param row20 the edge value opposite the second corner at the box's first sample
+     * @param row01 the edge value opposite the third corner at the box's first sample
+     * @param columns the number of columns in the box, at least {@code 1}
+     * @param rows the number of rows the walk steps the edge values down, at least {@code 1}
+     * @return whether the span walk reads the box exactly
+     */
+    static boolean spanFits(@NotNull EdgeCoefficients ec, long row12, long row20, long row01, int columns, int rows) {
+        long columnBound = SPAN_LIMIT / columns;
+        long rowBound = SPAN_LIMIT / rows;
+        return within(row12, SPAN_LIMIT) && within(ec.stepX12, columnBound) && within(ec.stepY12, rowBound)
+            && within(row20, SPAN_LIMIT) && within(ec.stepX20, columnBound) && within(ec.stepY20, rowBound)
+            && within(row01, SPAN_LIMIT) && within(ec.stepX01, columnBound) && within(ec.stepY01, rowBound);
+    }
+
+    /**
+     * Whether a value lies strictly between {@code -bound} and {@code bound}.
+     *
+     * @param value the value
+     * @param bound the positive bound
+     * @return whether {@code |value| < bound}
+     */
+    private static boolean within(long value, long bound) {
+        return value > -bound && value < bound;
+    }
+
+    /**
+     * Returns an edge's crossing on a scanline, {@code floorDiv(edge, |stepX|)} with {@code 1} standing
+     * in for a zero step, from which {@link #spanStart} and {@link #spanEnd} read the columns the edge
+     * leaves non-negative.
+     * <p>
+     * At column offset {@code k} along the scanline the edge value is {@code edge + k * stepX}. Where
+     * {@code stepX > 0} it is non-negative from {@code -crossing} on, which is
+     * {@code ceilDiv(-edge, stepX)}; where {@code stepX < 0} it is non-negative up to {@code crossing},
+     * which is {@code floorDiv(edge, -stepX)}. A zero step leaves it flat along the scanline, and the
+     * crossing then carries the one thing that matters, its sign: negative exactly when the edge value
+     * is.
+     * <p>
+     * The same quotient of an edge's row step, {@code crossingOf(stepY, stepX)}, is the whole part
+     * {@link #nextCrossing} adds per scanline.
+     *
+     * @param edge the edge value at the scanline's first column
+     * @param stepX the edge's step per column
+     * @return the edge's crossing
+     */
+    static long crossingOf(long edge, long stepX) {
+        return Math.floorDiv(edge, Math.max(1L, Math.abs(stepX)));
+    }
+
+    /**
+     * Returns an edge's crossing on a scanline from its crossing on the scanline above, without
+     * dividing - always equal to {@link #crossingOf crossingOf(edge, stepX)}.
+     * <p>
+     * With {@code d = |stepX|}, the crossing is the edge value's quotient by {@code d} rounded down,
+     * and a scanline down adds the row step to the edge value. Splitting both into a quotient and a
+     * remainder in {@code [0, d)}, the two remainders sum to under {@code 2d}, so the new quotient is
+     * {@code previous + rowStep} or one more, and what that sum leaves of the edge value tells which.
+     *
+     * @param previous the edge's crossing on the scanline above
+     * @param rowStep the crossing of the edge's row step, {@code crossingOf(stepY, stepX)}
+     * @param edge the edge value at this scanline's first column
+     * @param stepX the edge's step per column
+     * @return the edge's crossing on this scanline
+     */
+    static long nextCrossing(long previous, long rowStep, long edge, long stepX) {
+        long divisor = Math.max(1L, Math.abs(stepX));
+        long next = previous + rowStep;
+        return edge - next * divisor >= divisor ? next + 1L : next;
+    }
+
+    /**
+     * Returns the first column offset of a scanline's span - the columns from here to
+     * {@link #spanEnd} inclusive, empty when this passes that, whose samples leave all three edge
+     * values non-negative - from the three edges' {@link #crossingOf crossings} on the scanline.
+     * <p>
+     * Only an edge rising along the scanline ({@code stepX > 0}) bounds the span from the left, at
+     * {@code ceilDiv(-edge, stepX)}, which is minus its crossing. The bound is taken in {@code long}
+     * and clamped to {@code [0, last + 1]} before it narrows to an {@code int}.
+     *
+     * @param ec the triangle's precomputed edge coefficients
+     * @param crossing12 the crossing of the edge opposite the first corner
+     * @param crossing20 the crossing of the edge opposite the second corner
+     * @param crossing01 the crossing of the edge opposite the third corner
+     * @param last the box's last column offset, {@code 0} or above
+     * @return the span's first column offset, {@code last + 1} where the left bounds pass the box
+     */
+    static int spanStart(@NotNull EdgeCoefficients ec, long crossing12, long crossing20, long crossing01, int last) {
+        long first = 0L;
+        if (ec.stepX12 > 0L) first = Math.max(first, -crossing12);
+        if (ec.stepX20 > 0L) first = Math.max(first, -crossing20);
+        if (ec.stepX01 > 0L) first = Math.max(first, -crossing01);
+        return (int) Math.min(first, last + 1L);
+    }
+
+    /**
+     * Returns the last column offset of a scanline's span - the columns from {@link #spanStart} to
+     * here inclusive, empty when that passes this, whose samples leave all three edge values
+     * non-negative - from the three edges' {@link #crossingOf crossings} on the scanline.
+     * <p>
+     * An edge falling along the scanline ({@code stepX < 0}) bounds the span from the right, at
+     * {@code floorDiv(edge, -stepX)}, which is its crossing. An edge flat along it
+     * ({@code stepX == 0}) bounds nothing where its value is non-negative and empties the scanline
+     * where it is negative. The bound is taken in {@code long} and clamped to {@code [-1, last]}
+     * before it narrows to an {@code int}.
+     *
+     * @param ec the triangle's precomputed edge coefficients
+     * @param crossing12 the crossing of the edge opposite the first corner
+     * @param crossing20 the crossing of the edge opposite the second corner
+     * @param crossing01 the crossing of the edge opposite the third corner
+     * @param last the box's last column offset, {@code 0} or above
+     * @return the span's last column offset, {@code -1} where the right bounds or a flat edge empty it
+     */
+    static int spanEnd(@NotNull EdgeCoefficients ec, long crossing12, long crossing20, long crossing01, int last) {
+        long end = last;
+        if (ec.stepX12 < 0L) end = Math.min(end, crossing12);
+        else if (ec.stepX12 == 0L && crossing12 < 0L) return -1;
+        if (ec.stepX20 < 0L) end = Math.min(end, crossing20);
+        else if (ec.stepX20 == 0L && crossing20 < 0L) return -1;
+        if (ec.stepX01 < 0L) end = Math.min(end, crossing01);
+        else if (ec.stepX01 == 0L && crossing01 < 0L) return -1;
+        return (int) Math.max(end, -1L);
     }
 
     /**
@@ -374,10 +521,11 @@ public class RasterMath {
      * <p>
      * A triangle lying entirely off the canvas comes back <b>inverted</b> rather than flagged: each end
      * is clamped independently, so one wholly past the right edge answers {@code minX > maxX} - on a
-     * 16-wide canvas a triangle spanning x 20 to 25 writes {@code [20, .., 15, ..]}. The inclusive
-     * {@code for (x = minX; x <= maxX; x++)} every caller runs then walks it zero times, which is the
-     * right answer arrived at by the ordering rather than by a test. A caller that reads the width as
-     * {@code maxX - minX + 1} gets a negative, and none does.
+     * 16-wide canvas a triangle spanning x 20 to 25 writes {@code [20, .., 15, ..]}. An inclusive
+     * {@code for (x = minX; x <= maxX; x++)} walks it zero times, which is the right answer arrived at
+     * by the ordering rather than by a test. Reading the width as {@code maxX - minX + 1} gives a
+     * negative, so a caller that reads the extent rejects an inverted box first, as
+     * {@code Rasterizer.drawsInOneBand} does.
      *
      * @param a the first vertex
      * @param b the second vertex

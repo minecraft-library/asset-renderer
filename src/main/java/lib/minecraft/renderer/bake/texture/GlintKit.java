@@ -169,6 +169,18 @@ public class GlintKit {
     private static final int GLINT_LOOP_SECONDS = 2;
 
     /**
+     * Each 0-255 glint channel faded by {@link #GLINT_ALPHA}, element {@code c} holding
+     * {@code Math.round(c * GLINT_ALPHA)}. Filled once at class initialisation and never written
+     * afterwards, so every thread that stamps a glint reads it whole.
+     */
+    private static final int[] GLINT_FADE = new int[256];
+
+    static {
+        for (int c = 0; c < GLINT_FADE.length; c++)
+            GLINT_FADE[c] = Math.round(c * GLINT_ALPHA);
+    }
+
+    /**
      * The live atlas sprite's normalized UV sub-rect, the real {@code UV0} source for an exact glint
      * sample in place of the offline normalized-icon approximation.
      *
@@ -513,6 +525,10 @@ public class GlintKit {
      * texture through vanilla's UV transform {@code translation(-u, v) . rotateZ(theta) . scale(s)}
      * applied to the pixel-centre normalized icon coordinate, wrapping {@code GL_REPEAT}-style into
      * the glint texture, then blends with the quadratic {@code GLINT} blend.
+     * <p>
+     * The column products of the rotation are tabled once per call from this target's own width and
+     * the row products taken once per row, each rounded to a float on its own as the transform
+     * evaluated whole at one pixel rounds it, so a pixel combines them into the same coordinate.
      */
     private static void stampGlint(
         @NotNull PixelBuffer target,
@@ -526,6 +542,11 @@ public class GlintKit {
         int h = target.height();
         int glintW = glint.width();
         int glintH = glint.height();
+        // Decided per stamp from the texture it samples, which is whatever the pack stack resolves: a
+        // pack's own or replaced glint at any size on either axis, or the 16x16 missing-texture
+        // checkerboard.
+        boolean powerOfTwoW = isPowerOfTwo(glintW);
+        boolean powerOfTwoH = isPowerOfTwo(glintH);
 
         float u = (float) Math.floorMod(glintTimeMillis, options.uLoopMillis()) / options.uLoopMillis();
         float v = (float) Math.floorMod(glintTimeMillis, options.vLoopMillis()) / options.vLoopMillis();
@@ -541,7 +562,30 @@ public class GlintKit {
         float cos = (float) Math.cos(ROTATION_RADIANS);
         float sin = (float) Math.sin(ROTATION_RADIANS);
 
+        // UV0 source: the real sprite atlas sub-rect when known (lerped across the icon by the
+        // pixel-centre fraction), else the offline pixel-centre normalized icon coordinate standing in
+        // for it (textureScale absorbs the band-frequency difference - see the class javadoc).
+        // TextureMat = translation(-u, v) . rotateZ(theta) . scale(scale) applied to (uv0, 0, 1):
+        // scale first, rotate in the UV plane, then translate by the scroll. Each rotation product
+        // reads one axis alone, so a column's two are held per column and a row's two per row, each
+        // rounded to a float on its own; a pixel only combines them and adds the scroll.
+        float[] cosSx = new float[w];
+        float[] sinSx = new float[w];
+        for (int x = 0; x < w; x++) {
+            float s = (x + 0.5f) / w;
+            float uv0x = rect == null ? s : rect.u0() + s * (rect.u1() - rect.u0());
+            float sx = uv0x * scaleX;
+            cosSx[x] = cos * sx;
+            sinSx[x] = sin * sx;
+        }
+
         for (int y = 0; y < h; y++) {
+            float t = (y + 0.5f) / h;
+            float uv0y = rect == null ? t : rect.v0() + t * (rect.v1() - rect.v0());
+            float sy = uv0y * scaleY;
+            float sinSy = sin * sy;
+            float cosSy = cos * sy;
+
             for (int x = 0; x < w; x++) {
                 int dst = target.getPixel(x, y);
                 if (ColorMath.alpha(dst) == 0) continue;
@@ -550,25 +594,12 @@ public class GlintKit {
                 // correct for whole-subject items and blocks.
                 if (glintMask != null && !glintMask.marked(x, y)) continue;
 
-                // UV0 source: the real sprite atlas sub-rect when known (lerped across the icon by the
-                // pixel-centre fraction), else the offline pixel-centre normalized icon coordinate
-                // standing in for it (textureScale absorbs the band-frequency difference - see the
-                // class javadoc).
-                float s = (x + 0.5f) / w;
-                float t = (y + 0.5f) / h;
-                float uv0x = rect == null ? s : rect.u0() + s * (rect.u1() - rect.u0());
-                float uv0y = rect == null ? t : rect.v0() + t * (rect.v1() - rect.v0());
-
-                // TextureMat = translation(-u, v) . rotateZ(theta) . scale(scale) applied to
-                // (uv0, 0, 1): scale first, rotate in the UV plane, then translate by the scroll.
-                float sx = uv0x * scaleX;
-                float sy = uv0y * scaleY;
-                float rx = cos * sx - sin * sy;
-                float ry = sin * sx + cos * sy;
+                float rx = cosSx[x] - sinSy;
+                float ry = sinSx[x] + cosSy;
                 float tcx = rx - u;
                 float tcy = ry + v;
 
-                int glintPixel = sampleBilinearWrapped(glint, tcx * glintW, tcy * glintH);
+                int glintPixel = sampleBilinearWrapped(glint, tcx * glintW, tcy * glintH, powerOfTwoW, powerOfTwoH);
                 if (ColorMath.alpha(glintPixel) < GLINT_DISCARD_ALPHA_BYTE) continue;
 
                 // Pre-fade by GlintAlpha (vanilla's glint shader multiplies by it before the blend),
@@ -577,9 +608,9 @@ public class GlintKit {
                 // (out.rgb = src.rgb^2 + dst.rgb, dst alpha preserved).
                 int faded = ColorMath.pack(
                     ColorMath.alpha(glintPixel),
-                    Math.round(ColorMath.red(glintPixel) * GLINT_ALPHA),
-                    Math.round(ColorMath.green(glintPixel) * GLINT_ALPHA),
-                    Math.round(ColorMath.blue(glintPixel) * GLINT_ALPHA));
+                    fade(ColorMath.red(glintPixel)),
+                    fade(ColorMath.green(glintPixel)),
+                    fade(ColorMath.blue(glintPixel)));
                 target.setPixel(x, y, ColorMath.blend(faded, dst, BlendMode.QUADRATIC_ADD));
             }
         }
@@ -594,9 +625,12 @@ public class GlintKit {
      * @param texture the glint texture
      * @param texelX the sample X in texel units (pre-wrap, pixel-corner space)
      * @param texelY the sample Y in texel units
+     * @param powerOfTwoW whether the texture's width is a positive power of two
+     * @param powerOfTwoH whether the texture's height is a positive power of two
      * @return the bilinearly-interpolated ARGB sample
      */
-    private static int sampleBilinearWrapped(@NotNull PixelBuffer texture, float texelX, float texelY) {
+    private static int sampleBilinearWrapped(@NotNull PixelBuffer texture, float texelX, float texelY,
+                                             boolean powerOfTwoW, boolean powerOfTwoH) {
         int w = texture.width();
         int h = texture.height();
         // Shift to texel centres so integer coords land mid-texel, then bilerp toward the next texel.
@@ -606,10 +640,10 @@ public class GlintKit {
         int y0 = (int) Math.floor(fy);
         float dx = fx - x0;
         float dy = fy - y0;
-        int xa = Math.floorMod(x0, w);
-        int xb = Math.floorMod(x0 + 1, w);
-        int ya = Math.floorMod(y0, h);
-        int yb = Math.floorMod(y0 + 1, h);
+        int xa = wrap(x0, w, powerOfTwoW);
+        int xb = wrap(x0 + 1, w, powerOfTwoW);
+        int ya = wrap(y0, h, powerOfTwoH);
+        int yb = wrap(y0 + 1, h, powerOfTwoH);
 
         int p00 = texture.getPixel(xa, ya);
         int p10 = texture.getPixel(xb, ya);
@@ -630,6 +664,43 @@ public class GlintKit {
         float top = c00 + (c10 - c00) * dx;
         float bottom = c01 + (c11 - c01) * dx;
         return Math.clamp(Math.round(top + (bottom - top) * dy), 0, 255);
+    }
+
+    /**
+     * Wraps a texel coordinate into {@code 0..size - 1} as {@code GL_REPEAT} does. A power-of-two size
+     * keeps the coordinate's low bits, which is {@code Math.floorMod} for every {@code int}, negative
+     * and overflowed coordinates included; any other size takes {@code Math.floorMod} itself.
+     *
+     * @param coord the texel coordinate
+     * @param size the axis size in texels
+     * @param powerOfTwo whether {@code size} is a positive power of two
+     * @return the wrapped coordinate in {@code 0..size - 1}
+     */
+    private static int wrap(int coord, int size, boolean powerOfTwo) {
+        return powerOfTwo ? coord & (size - 1) : Math.floorMod(coord, size);
+    }
+
+    /**
+     * Tests whether a texture axis is a positive power of two, the one size {@link #wrap} masks. Zero
+     * is not one, so an empty texture fails in {@code Math.floorMod} rather than reading outside its
+     * pixels.
+     *
+     * @param size the axis size in texels
+     * @return whether {@code size} is a positive power of two
+     */
+    private static boolean isPowerOfTwo(int size) {
+        return size > 0 && (size & (size - 1)) == 0;
+    }
+
+    /**
+     * Fades one glint channel by {@link #GLINT_ALPHA}, reading the table filled with
+     * {@code Math.round(channel * GLINT_ALPHA)}.
+     *
+     * @param channel the 0-255 channel value
+     * @return the faded channel value
+     */
+    static int fade(int channel) {
+        return GLINT_FADE[channel];
     }
 
 }

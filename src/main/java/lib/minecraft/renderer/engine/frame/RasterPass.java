@@ -153,12 +153,15 @@ public record RasterPass(
 
     /**
      * Rasters one frame at the given instant through the supersample / FXAA / downscale tail. When
-     * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
-     * down with {@link BlendMode#PREMULTIPLIED} - the hi-res frame is finished, so its pixels are
-     * copied rather than blended a second time - and any mask downsampled; otherwise it is drawn
-     * straight into the output buffer. FXAA reads the frame as {@link AlphaMode#PREMULTIPLIED}, what
-     * source-over drawing onto a transparent buffer leaves, so a filtered frame keeps its colours
-     * carrying their alpha as every other frame does.
+     * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, blit-scaled down with
+     * {@link BlendMode#PREMULTIPLIED} - the hi-res frame is finished, so its pixels are copied rather
+     * than blended a second time - and any mask downsampled. An anti-aliased pass smooths the hi-res
+     * frame with FXAA as it is scaled down, through {@link PixelBuffer#blitScaledFxaa}, which filters
+     * only the hi-res pixels the scale-down reads and leaves the hi-res buffer as it was drawn.
+     * When {@code ssaa} is 1 the frame is drawn straight into the output buffer, and an
+     * anti-aliased pass smooths it there. FXAA reads the frame as {@link AlphaMode#PREMULTIPLIED},
+     * what source-over drawing onto a transparent buffer leaves, so a filtered frame keeps its
+     * colours carrying their alpha as every other frame does.
      * <p>
      * The output buffer is taken before anything is drawn, from the {@link FrameLoan} open on the
      * calling thread when there is one, so a frame the draw renders inside itself never takes the
@@ -178,8 +181,8 @@ public record RasterPass(
                 PixelBuffer hiRes = lease.buffer();
                 if (recordMask) hiRes.enableMask();
                 raster.rasterize(hiRes, tick, ageInTicks);
-                if (antiAlias) hiRes.applyFxaa(AlphaMode.PREMULTIPLIED);
-                output.blitScaled(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED);
+                if (antiAlias) output.blitScaledFxaa(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED, AlphaMode.PREMULTIPLIED);
+                else output.blitScaled(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED);
                 hiRes.mask().map(m -> m.downsample(width, height)).ifPresent(output::attachMask);
                 return output;
             }

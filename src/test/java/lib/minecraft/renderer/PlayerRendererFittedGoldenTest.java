@@ -44,9 +44,10 @@ import static org.hamcrest.Matchers.is;
  *     {@code PlayerArmorKit.buildHumanoidArmor3D} adds around each body part, the order it adds them in, and
  *     which of the shell's parts each slot reaches.</li>
  * </ul>
- * Each case asserts render-twice determinism (parallel Pass 1 + tiled Pass 2 must be stable) then
- * pins a CRC32 over the ARGB pixels. A future rasterization-math change that silently drifts the
- * fitted output breaks the pin.
+ * Each case asserts render-twice determinism then pins a CRC32 over the ARGB pixels. Every case covers
+ * far more of its 256-row canvas than the area under which a frame draws as one band, so Pass 2 draws
+ * each in parallel bands, and the two renders must agree. A future rasterization-math change that
+ * silently drifts the fitted output breaks the pin.
  *
  * <p>Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet. Uses the offline, pack-resolvable vanilla skin, so nothing
