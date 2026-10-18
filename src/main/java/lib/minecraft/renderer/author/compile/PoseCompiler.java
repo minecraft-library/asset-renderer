@@ -97,11 +97,6 @@ import java.util.stream.Collectors;
 public final class PoseCompiler {
 
     /**
-     * The catalog period a compile without a target catalog frames its strip window from.
-     */
-    private static final int DEFAULT_PERIOD_TICKS = 24;
-
-    /**
      * The prefix every synthetic driver field carries, spelled by no vanilla render-state field.
      */
     private static final String FIELD_PREFIX = "style$";
@@ -320,7 +315,7 @@ public final class PoseCompiler {
                                                  @NotNull EntityMesh mesh, @NotNull String layer,
                                                  @NotNull Diagnostics scope) {
         return compileLayer(style, pose, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
-            DEFAULT_PERIOD_TICKS);
+            StyleCatalog.FIGURE_PERIOD_TICKS);
     }
 
     /**
@@ -2298,7 +2293,7 @@ public final class PoseCompiler {
          * @return the window in seconds
          */
         private static double closureWindow(@NotNull PoseScript script) {
-            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / Timeline.TICKS_PER_SECOND);
+            return script.periodSeconds().orElse((double) StyleCatalog.FIGURE_PERIOD_TICKS / Timeline.TICKS_PER_SECOND);
         }
 
         /**

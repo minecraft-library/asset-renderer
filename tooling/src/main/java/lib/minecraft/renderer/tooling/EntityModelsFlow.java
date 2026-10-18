@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
@@ -57,7 +58,7 @@ public final class EntityModelsFlow {
             JsonTree root = TableEnvelope.mint(session.diagnostics().path(),
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain, or no mesh for a type bound to NoopRenderer",
                 session.options().getVersion(), 3);
-            root.putInt("period_ticks", RestStrip.PERIOD_TICKS);
+            root.putInt("period_ticks", StyleCatalog.FIGURE_PERIOD_TICKS);
             GeometryManifest manifest = new GeometryManifest(session.cache());
             EntityRegistryWalk.run(session, registrations, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
@@ -114,7 +115,7 @@ public final class EntityModelsFlow {
             // keys, the minted overlay meshes and the settled no-hat alternates are its join - so
             // it runs after every mesh surgery and ahead of the write.
             StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
-                posed.poses(), posed.clips(), RestStrip.PERIOD_TICKS);
+                posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS);
             GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"));
             TableWriter.write(session, root, "entity_models.json");
             StrictGate.apply(session);

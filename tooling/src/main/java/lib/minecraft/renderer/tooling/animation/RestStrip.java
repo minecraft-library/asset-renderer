@@ -6,18 +6,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * What the model table stops stating once the fold has read it - the resting answer each subject
- * carried into the pose flow, the age a baby or an aged-down size renders at, the render-state field
- * each equipment layer's item getter reads, and the idle period the style catalogs are stated
- * against.
+ * carried into the pose flow, the age a baby or an aged-down size renders at, and the render-state
+ * field each equipment layer's item getter reads.
  */
 @UtilityClass
 public class RestStrip {
-
-    /**
-     * The ticks one whole idle excursion spans, stated once in the table's header for every
-     * family's style catalog rather than restated per row.
-     */
-    public static final int PERIOD_TICKS = 24;
 
     /**
      * Removes the {@code rest} member from every model row, the {@code age_scale} member from every

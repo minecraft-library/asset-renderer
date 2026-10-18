@@ -50,11 +50,17 @@ public record StyleCatalog(
     public static final int STRIP_FRAMES = 8;
 
     /**
+     * The figure period every catalog the shipped file declares, and every catalog it never
+     * mentions, frames at - twenty-four ticks.
+     */
+    public static final int FIGURE_PERIOD_TICKS = 24;
+
+    /**
      * The catalog of an entity the shipped file never mentions - no rows, the synthesized
-     * {@code bind} row alone, at the shipped period of twenty-four ticks.
+     * {@code bind} row alone, at the {@link #FIGURE_PERIOD_TICKS figure period}.
      */
     public static final @NotNull StyleCatalog BIND_ONLY =
-        new StyleCatalog(24, Concurrent.newUnmodifiableList());
+        new StyleCatalog(FIGURE_PERIOD_TICKS, Concurrent.newUnmodifiableList());
 
     /** The synthesized still row - nothing sourced, nothing driven, nothing toggled, either age. */
     private static final @NotNull PoseStyle BIND_ROW = new PoseStyle(PoseStyle.BIND,

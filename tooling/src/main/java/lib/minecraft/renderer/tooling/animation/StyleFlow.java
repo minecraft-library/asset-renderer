@@ -100,7 +100,8 @@ public final class StyleFlow {
      * @param models the model table, rewritten in place ahead of being written
      * @param poses every pose row the pose table carries
      * @param clips every parsed keyframe clip by coordinate
-     * @param periodTicks the ticks one whole excursion spans
+     * @param periodTicks the ticks a sweep or cycle figure wraps at, which is also the window every
+     *     measurement samples
      */
     public static void emit(
         @NotNull Diagnostics diagnostics, @NotNull JsonTree models,

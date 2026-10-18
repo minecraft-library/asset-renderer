@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("style flow emit")
 class StyleFlowEmitTest {
 
-    private static final int PERIOD = 24;
+    private static final int PERIOD = StyleCatalog.FIGURE_PERIOD_TICKS;
 
     /** The four reserved universal ids no selection row may take. */
     private static final @NotNull Set<String> RESERVED = Set.of("bind", "idle", "stride", "animated");

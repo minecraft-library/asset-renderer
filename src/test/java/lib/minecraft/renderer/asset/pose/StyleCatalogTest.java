@@ -50,6 +50,8 @@ class StyleCatalogTest {
         assertFalse(bind.moves(), "and it holds still");
         assertEquals(List.of(PoseStyle.BIND), List.copyOf(StyleCatalog.BIND_ONLY.ids()),
             "bind is the whole of what it lists");
+        assertEquals(StyleCatalog.FIGURE_PERIOD_TICKS, StyleCatalog.BIND_ONLY.periodTicks(),
+            "it frames at the figure period");
         assertEquals(3, StyleCatalog.BIND_ONLY.stripTicksPerFrame(),
             "the shipped period divides across the strip");
     }
