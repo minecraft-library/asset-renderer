@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.data.AnimatedImageData;
-import dev.simplified.image.data.FrameBlend;
-import dev.simplified.image.data.FrameDisposal;
-import dev.simplified.image.data.ImageFrame;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.FrameBlend;
+import dev.simplified.image.frame.FrameDisposal;
+import dev.simplified.image.frame.ImageFrame;
 import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.engine.frame.FramePlacement;

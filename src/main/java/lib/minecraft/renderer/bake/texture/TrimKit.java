@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.annotations.UtilityClass;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.engine.texture.Palette;

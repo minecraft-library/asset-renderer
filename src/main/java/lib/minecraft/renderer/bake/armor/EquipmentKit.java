@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -88,7 +88,7 @@ public class EquipmentKit {
             if (layer.dyeable().isPresent()) {
                 int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
                 if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
-                painted = ColorMath.tint(resolve(context, textureId, tick).orElseThrow(), color);
+                painted = resolve(context, textureId, tick).orElseThrow().tint(color);
             } else {
                 painted = resolve(context, textureId, tick).orElseThrow();
             }

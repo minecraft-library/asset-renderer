@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;

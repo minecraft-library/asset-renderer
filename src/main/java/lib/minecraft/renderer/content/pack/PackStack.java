@@ -9,8 +9,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.exception.ImageException;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -81,8 +81,6 @@ public final class PackStack {
     private final @NotNull RuleSet rules;
 
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
-
-    private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
     /**
      * Per-stack memoisation cache of decoded {@link PixelBuffer}s keyed by the resolved
@@ -306,7 +304,7 @@ public final class PackStack {
             // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
             // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
             // raw byte values on calibrated-gray sources.
-            buffer = this.imageFactory.fromByteArray(bytes).toPixelBuffer();
+            buffer = ImageFactory.fromByteArray(bytes).toPixelBuffer();
         } catch (Exception ex) {
             // A zero-byte or non-image file raises ImageException; a truncated or corrupt PNG raises the
             // checked IIOException ImageIO throws, which the PNG reader rethrows undeclared - so the catch

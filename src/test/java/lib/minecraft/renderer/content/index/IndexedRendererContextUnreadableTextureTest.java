@@ -132,9 +132,8 @@ class IndexedRendererContextUnreadableTextureTest {
     void theFixturesReachBothArms() {
         // Without this the rows below could pass over two files that fail the same way, leaving the
         // checked IIOException a corrupt body raises unexercised.
-        ImageFactory factory = new ImageFactory();
-        assertThrows(ImageException.class, () -> factory.fromByteArray(new byte[0]));
-        assertThrows(IOException.class, () -> factory.fromByteArray(truncated));
+        assertThrows(ImageException.class, () -> ImageFactory.fromByteArray(new byte[0]));
+        assertThrows(IOException.class, () -> ImageFactory.fromByteArray(truncated));
     }
 
     @Test

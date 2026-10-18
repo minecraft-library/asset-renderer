@@ -5,9 +5,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -941,7 +941,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int tint = tintIndexFor(block, direction) >= 0
                 ? resolveBlockTint(this.context, block, options)
                 : ColorMath.WHITE;
-            PixelBuffer tinted = ColorMath.tint(face, tint);
+            PixelBuffer tinted = face.tint(tint);
             int size = options.getOutput().getCanvasSize();
             buffer.blitScaled(tinted, 0, 0, size, size);
 

@@ -5,8 +5,8 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
-import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.StaticImageData;
+import dev.simplified.image.option.GifWriteOptions;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
@@ -76,7 +76,6 @@ public final class BlockFlipbookDriver {
 
         RendererContext context = RendererContext.load(result);
         BlockRenderer renderer = new BlockRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
         Files.createDirectories(OUTPUT_DIR);
 
         for (String blockId : FLIPBOOK_BLOCKS) {
@@ -99,16 +98,16 @@ public final class BlockFlipbookDriver {
                 String extension = animated ? "gif" : "png";
                 File out = OUTPUT_DIR.resolve(blockId.replace(":", "_") + "." + extension).toFile();
                 if (animated)
-                    imageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().isTransparent().build());
+                    ImageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().isTransparent().build());
                 else
-                    imageFactory.toFile(image, ImageFormat.PNG, out);
+                    ImageFactory.toFile(image, ImageFormat.PNG, out);
                 // Dump three sample still frames (first / middle / last) as PNGs so the flipbook can be
                 // LOOK-verified without a GIF viewer - the frames MUST differ for the animation to play.
                 if (animated) {
                     int[] samples = {0, frameCount / 2, frameCount - 1};
                     for (int s : samples) {
                         File frameFile = OUTPUT_DIR.resolve("%s_f%03d.png".formatted(blockId.replace(":", "_"), s)).toFile();
-                        imageFactory.toFile(StaticImageData.of(image.getFrames().get(s).pixels().toBufferedImage()), ImageFormat.PNG, frameFile);
+                        ImageFactory.toFile(StaticImageData.of(image.getFrames().get(s).pixels().toBufferedImage()), ImageFormat.PNG, frameFile);
                     }
                 }
                 System.out.printf("  %-24s -> %s (%d frame%s)%n",

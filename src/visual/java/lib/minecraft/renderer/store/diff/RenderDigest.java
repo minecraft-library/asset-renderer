@@ -2,7 +2,7 @@ package lib.minecraft.renderer.store.diff;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;

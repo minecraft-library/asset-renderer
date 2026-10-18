@@ -2,8 +2,8 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.result.GridResult;

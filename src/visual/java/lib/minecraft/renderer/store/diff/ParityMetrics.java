@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.store.diff;
 
 import dev.simplified.annotations.UtilityClass;
-import dev.simplified.image.Background;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;

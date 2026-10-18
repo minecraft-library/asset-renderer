@@ -102,7 +102,7 @@ final class DumpEnumNameTest {
             + "face -> new JsonPrimitive(face.name())));", Face.class,
             List.of("DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST")),
         new ValueSite("root.addProperty(\"blend\", overlay.pass().blend().name());", BlendMode.class,
-            List.of("NORMAL", "REPLACE", "PREMULTIPLIED", "ADD", "MULTIPLY", "OVERLAY", "QUADRATIC_ADD")),
+            List.of("NORMAL", "REPLACE", "PREMULTIPLIED", "STRAIGHT", "ADD", "MULTIPLY", "OVERLAY", "QUADRATIC_ADD")),
         new ValueSite("root.addProperty(\"value\", age.name());", Age.class,
             List.of("ADULT", "BABY")),
         new ValueSite("root.addProperty(\"value\", size.name());", Size.class,

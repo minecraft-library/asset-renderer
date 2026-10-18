@@ -4,7 +4,7 @@
  *
  * <p>{@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} draws a list of
  * {@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle}s into a
- * {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer} through the
+ * {@link dev.simplified.image.PixelBuffer PixelBuffer} through the
  * {@link lib.minecraft.renderer.engine.camera.Camera Camera} and
  * {@link lib.minecraft.renderer.engine.camera.Placement Placement} it is built with: barycentric
  * coverage with a {@code 1/256} fixed-point edge test, an {@code OpenGL}-style top-left fill rule, a
@@ -26,7 +26,7 @@
  * <p>
  * The per-pixel coverage mask a render records (marking glinted geometry so the foil compositor
  * restricts the enchantment glint to it) is {@link dev.simplified.image.pixel.PixelMask PixelMask}, owned by
- * the {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer} it covers.
+ * the {@link dev.simplified.image.PixelBuffer PixelBuffer} it covers.
  *
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or

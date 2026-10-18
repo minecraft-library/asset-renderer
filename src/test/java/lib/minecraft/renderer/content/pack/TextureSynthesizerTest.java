@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.content.pack;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
 import lib.minecraft.renderer.bake.texture.TrimKit;

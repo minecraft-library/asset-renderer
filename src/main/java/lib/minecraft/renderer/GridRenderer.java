@@ -2,9 +2,9 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.Background;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.result.GridResult;
 import lib.minecraft.renderer.call.result.RenderResult;

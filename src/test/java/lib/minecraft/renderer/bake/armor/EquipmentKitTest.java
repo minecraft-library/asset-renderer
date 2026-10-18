@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.armor;
 
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -59,7 +59,7 @@ class EquipmentKitTest {
             "minecraft:entity/equipment/wolf_body/armadillo_scute",
             "minecraft:entity/equipment/wolf_body/armadillo_scute_overlay")));
         assertThat("the overlay lands tinted over the base",
-            composited.orElseThrow().getPixel(0, 0), is(ColorMath.tint(grey(), DyeColor.Vanilla.RED.argb()).getPixel(0, 0)));
+            composited.orElseThrow().getPixel(0, 0), is(grey().tint(DyeColor.Vanilla.RED.argb()).getPixel(0, 0)));
     }
 
     @Test
@@ -70,7 +70,7 @@ class EquipmentKitTest {
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
-        assertThat(composited.orElseThrow().getPixel(0, 0), is(ColorMath.tint(grey(), fallback).getPixel(0, 0)));
+        assertThat(composited.orElseThrow().getPixel(0, 0), is(grey().tint(fallback).getPixel(0, 0)));
     }
 
     @Test
@@ -82,7 +82,7 @@ class EquipmentKitTest {
             Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty());
 
         assertThat(composited.orElseThrow().getPixel(0, 0),
-            is(ColorMath.tint(grey(), DyeColor.Vanilla.CYAN.argb()).getPixel(0, 0)));
+            is(grey().tint(DyeColor.Vanilla.CYAN.argb()).getPixel(0, 0)));
     }
 
     @Test

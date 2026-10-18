@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.call.request;
 
-import dev.simplified.image.Background;
+import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;

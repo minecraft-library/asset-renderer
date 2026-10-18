@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
@@ -47,7 +47,7 @@ class PlayerRendererSkinCacheTest {
         ConcurrentMap<String, PixelBuffer> cache = skinCache(renderer);
         cache.put(URL, sheet);
 
-        byte[] png = new ImageFactory().toByteArray(Timeline.still(sheet), ImageFormat.PNG);
+        byte[] png = ImageFactory.toByteArray(Timeline.still(sheet), ImageFormat.PNG);
         int[] supplied = RenderDigest.firstFramePixels(renderer.render(skull(TextureOptions.builder()
             .bytes(Optional.of(png))
             .build())).image());

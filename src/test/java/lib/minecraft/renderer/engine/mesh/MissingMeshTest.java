@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.engine.mesh;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.texture.MissingSprite;

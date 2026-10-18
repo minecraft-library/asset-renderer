@@ -2,8 +2,8 @@ package lib.minecraft.renderer.author.install;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.data.ImageFrame;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.pose.EntityPose;

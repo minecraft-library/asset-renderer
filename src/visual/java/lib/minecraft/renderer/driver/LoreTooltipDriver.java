@@ -7,9 +7,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.option.GifWriteOptions;
+import dev.simplified.image.option.WebPWriteOptions;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
@@ -163,7 +163,6 @@ public final class LoreTooltipDriver {
     private static void renderStatic(@NotNull String slug, @NotNull String legacy, @NotNull RendererContext context) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
@@ -176,7 +175,7 @@ public final class LoreTooltipDriver {
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
 
         File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
-        imageFactory.toFile(image, ImageFormat.PNG, out);
+        ImageFactory.toFile(image, ImageFormat.PNG, out);
         int w = image.getFrames().getFirst().pixels().width();
         int h = image.getFrames().getFirst().pixels().height();
         System.out.printf("  %s -> %s (%d ms, %dx%d, 1 frame)%n",
@@ -196,7 +195,6 @@ public final class LoreTooltipDriver {
     private static void renderAnimated(@NotNull String slug, @NotNull String legacy, @NotNull RendererContext context) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
@@ -214,7 +212,7 @@ public final class LoreTooltipDriver {
 
         File gifOut = OUTPUT_DIR.resolve(slug + ".gif").toFile();
         long gifStart = System.nanoTime();
-        imageFactory.toFile(
+        ImageFactory.toFile(
             image,
             ImageFormat.GIF,
             gifOut,
@@ -230,7 +228,7 @@ public final class LoreTooltipDriver {
 
         File webpOut = OUTPUT_DIR.resolve(slug + ".webp").toFile();
         long webpStart = System.nanoTime();
-        imageFactory.toFile(
+        ImageFactory.toFile(
             image,
             ImageFormat.WEBP,
             webpOut,
@@ -251,7 +249,7 @@ public final class LoreTooltipDriver {
         StringBuilder mvThreadTable = new StringBuilder();
         for (int mvThreads : threadSweep) {
             long start = System.nanoTime();
-            imageFactory.toFile(
+            ImageFactory.toFile(
                 image,
                 ImageFormat.WEBP,
                 webpLossyOut,
@@ -276,7 +274,7 @@ public final class LoreTooltipDriver {
         // be isolated from animation-chunk wrapping issues.
         File webpStaticOut = OUTPUT_DIR.resolve(slug + "_static.webp").toFile();
         StaticFirstFrame staticImage = new StaticFirstFrame(image.getFrames().getFirst(), image.hasAlpha());
-        imageFactory.toFile(
+        ImageFactory.toFile(
             staticImage,
             ImageFormat.WEBP,
             webpStaticOut,
@@ -382,7 +380,6 @@ public final class LoreTooltipDriver {
      */
     private static void renderGradient(@NotNull String slug, @NotNull ConcurrentList<LineSegment> lines, @NotNull RendererContext context) throws IOException {
         TextRenderer renderer = new TextRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
@@ -398,11 +395,11 @@ public final class LoreTooltipDriver {
         String name;
         if (image.isAnimated()) {
             File out = OUTPUT_DIR.resolve(slug + ".gif").toFile();
-            imageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().withBackgroundRgb(0x000000).build());
+            ImageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().withBackgroundRgb(0x000000).build());
             name = out.getName();
         } else {
             File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
-            imageFactory.toFile(image, ImageFormat.PNG, out);
+            ImageFactory.toFile(image, ImageFormat.PNG, out);
             name = out.getName();
         }
         System.out.printf("  %s -> %s (%dx%d, %d frame(s))%n", slug, name, w, h, frameCount);

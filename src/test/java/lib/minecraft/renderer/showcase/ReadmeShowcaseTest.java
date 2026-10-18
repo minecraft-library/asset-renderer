@@ -3,11 +3,12 @@ package lib.minecraft.renderer.showcase;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
+import dev.simplified.image.frame.LoopCount;
+import dev.simplified.image.option.GifWriteOptions;
+import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -119,14 +120,14 @@ final class ReadmeShowcaseTest {
 
     /** the GIF shape every animated render in this repository is written with */
     private static final @NotNull GifWriteOptions ANIMATED = GifWriteOptions.builder()
-        .withLoopCount(0)
+        .withLoopCount(LoopCount.Preset.INFINITE)
         .isTransparent(true)
         .withAlphaThreshold(8)
         .build();
 
     /** the GIF shape a wholly translucent subject wants instead - flatten onto black, no transparent slot */
     private static final @NotNull GifWriteOptions FLATTENED = GifWriteOptions.builder()
-        .withLoopCount(0)
+        .withLoopCount(LoopCount.Preset.INFINITE)
         .withBackgroundRgb(0x000000)
         .build();
 
@@ -138,9 +139,6 @@ final class ReadmeShowcaseTest {
 
     /** the file extensions this class writes, so the sidecar of a future subject is not read as an orphan */
     private static final @NotNull List<String> IMAGE_SUFFIXES = List.of(".png", ".gif", ".webp");
-
-    /** the writer every case emits through */
-    private static final @NotNull ImageFactory FACTORY = new ImageFactory();
 
     @Test
     @Order(1)
@@ -400,8 +398,8 @@ final class ReadmeShowcaseTest {
 
         Files.createDirectories(IMAGES);
         Files.write(file, options == null
-            ? FACTORY.toByteArray(image, format)
-            : FACTORY.toByteArray(image, format, options));
+            ? ImageFactory.toByteArray(image, format)
+            : ImageFactory.toByteArray(image, format, options));
     }
 
     /**

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;

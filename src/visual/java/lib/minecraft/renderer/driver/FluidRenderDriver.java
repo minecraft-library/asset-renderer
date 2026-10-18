@@ -5,7 +5,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
+import dev.simplified.image.option.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
 import lib.minecraft.renderer.call.request.AnimationOptions;
@@ -76,29 +76,28 @@ public final class FluidRenderDriver {
 
         RendererContext context = RendererContext.load(result);
         FluidRenderer renderer = new FluidRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         // Source blocks + 2D face.
-        render(renderer, imageFactory, "water_source_iso", FluidOptions.builder()
+        render(renderer, "water_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .build());
-        render(renderer, imageFactory, "lava_source_iso", FluidOptions.builder()
+        render(renderer, "lava_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .build());
-        render(renderer, imageFactory, "water_face_2d", FluidOptions.builder()
+        render(renderer, "water_face_2d", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .type(FluidOptions.Type.FLUID_FACE_2D)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .build());
-        render(renderer, imageFactory, "lava_face_2d", FluidOptions.builder()
+        render(renderer, "lava_face_2d", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .type(FluidOptions.Type.FLUID_FACE_2D)
             .output(OutputOptions.builder()
@@ -108,7 +107,7 @@ public final class FluidRenderDriver {
 
         // Animation. water_still has 32 frames at frametime=2; lava_still has 20 frames at
         // frametime=3. Sample at native frametime so the strip is walked exactly once.
-        render(renderer, imageFactory, "water_animated_iso", FluidOptions.builder()
+        render(renderer, "water_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(ANIMATED_SIZE)
@@ -118,7 +117,7 @@ public final class FluidRenderDriver {
                 .ticksPerFrame(2)
                 .build())
             .build());
-        render(renderer, imageFactory, "lava_animated_iso", FluidOptions.builder()
+        render(renderer, "lava_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .output(OutputOptions.builder()
                 .canvasSize(ANIMATED_SIZE)
@@ -131,7 +130,7 @@ public final class FluidRenderDriver {
 
         // Sloped top + flow direction. The four corner heights are not coplanar, so the top is the
         // one face the kit fans from its own centre rather than splitting on a diagonal.
-        render(renderer, imageFactory, "water_level_4_flow_ne", FluidOptions.builder()
+        render(renderer, "water_level_4_flow_ne", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
@@ -142,35 +141,35 @@ public final class FluidRenderDriver {
 
         // Biome tint. Each of these samples the biome's water colour through TintSource.WATER;
         // the override variant states an ARGB outright and never reaches the colormap.
-        render(renderer, imageFactory, "water_plains", FluidOptions.builder()
+        render(renderer, "water_plains", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .biome(Biome.Vanilla.PLAINS)
             .build());
-        render(renderer, imageFactory, "water_swamp", FluidOptions.builder()
+        render(renderer, "water_swamp", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .biome(Biome.Vanilla.SWAMP)
             .build());
-        render(renderer, imageFactory, "water_cherry_grove", FluidOptions.builder()
+        render(renderer, "water_cherry_grove", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .biome(Biome.Vanilla.CHERRY_GROVE)
             .build());
-        render(renderer, imageFactory, "water_warm_ocean", FluidOptions.builder()
+        render(renderer, "water_warm_ocean", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
             .biome(Biome.Vanilla.WARM_OCEAN)
             .build());
-        render(renderer, imageFactory, "water_override_magenta", FluidOptions.builder()
+        render(renderer, "water_override_magenta", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
@@ -187,14 +186,12 @@ public final class FluidRenderDriver {
      * static renders go to PNG.
      *
      * @param renderer the fluid renderer to drive
-     * @param imageFactory the encoder
      * @param slug the output file stem
      * @param options the render to perform
      * @throws IOException if the file cannot be written
      */
     private static void render(
         @NotNull FluidRenderer renderer,
-        @NotNull ImageFactory imageFactory,
         @NotNull String slug,
         @NotNull FluidOptions options
     ) throws IOException {
@@ -211,7 +208,7 @@ public final class FluidRenderDriver {
         File out = OUTPUT_DIR.resolve(slug + "." + extension).toFile();
 
         if (animated) {
-            imageFactory.toFile(
+            ImageFactory.toFile(
                 image,
                 ImageFormat.GIF,
                 out,
@@ -220,7 +217,7 @@ public final class FluidRenderDriver {
                     .build()
             );
         } else {
-            imageFactory.toFile(image, ImageFormat.PNG, out);
+            ImageFactory.toFile(image, ImageFormat.PNG, out);
         }
 
         System.out.printf("  %-32s -> %s (%d ms, %dx%d, %d frame%s)%n",

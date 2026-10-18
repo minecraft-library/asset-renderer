@@ -2,15 +2,15 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.Background;
+import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
-import dev.simplified.image.data.AnimatedImageData;
-import dev.simplified.image.data.FrameBlend;
-import dev.simplified.image.data.FrameDisposal;
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.FrameBlend;
+import dev.simplified.image.frame.FrameDisposal;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.request.LayoutOptions;
 import lib.minecraft.renderer.call.result.GridResult;
@@ -116,7 +116,7 @@ class PartialFrameCompositingTest {
     @DisplayName("a decoded GIF keeps its partial frames, and a layout and a grid draw the picture they build")
     Stream<DynamicTest> aDecodedGifDrawsThePictureItsFramesBuild() {
         return Arrays.stream(FrameDisposal.values()).map(disposal -> DynamicTest.dynamicTest(disposal.name(), () -> {
-            ImageData decoded = new ImageFactory().fromByteArray(gif(disposal));
+            ImageData decoded = ImageFactory.fromByteArray(gif(disposal));
             assertThat(decoded, is(instanceOf(AnimatedImageData.class)));
 
             ConcurrentList<ImageFrame> frames = decoded.getFrames();

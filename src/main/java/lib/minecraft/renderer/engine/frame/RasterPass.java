@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.BlendMode;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
 

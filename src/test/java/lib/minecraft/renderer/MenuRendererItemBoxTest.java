@@ -2,7 +2,7 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;

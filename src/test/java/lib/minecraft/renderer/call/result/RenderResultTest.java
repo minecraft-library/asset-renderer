@@ -3,7 +3,7 @@ package lib.minecraft.renderer.call.result;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.engine.frame.Timeline;

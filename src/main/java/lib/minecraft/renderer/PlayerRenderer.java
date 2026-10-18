@@ -6,8 +6,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.bake.armor.ElytraKit;
 import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
 import lib.minecraft.renderer.bake.armor.PlayerSprite;
@@ -105,7 +105,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final int SKIN_SHEET_SIZE = 64;
 
     private final @NotNull RendererContext context;
-    private final @NotNull ImageFactory imageFactory;
 
     /**
      * URL-fetched skin and cape textures cached for the renderer's lifetime, keyed by URL (capes use a
@@ -124,25 +123,18 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @param context renderer context for texture resolution and engine setup
      */
     public PlayerRenderer(@NotNull RendererContext context) {
-        this(context, new ImageFactory(), Concurrent.newMap());
+        this(context, Concurrent.newMap());
     }
 
     /**
-     * Constructs a player renderer over the given context that decodes through the given factory and
-     * caches fetched textures in the given map, so the renderer a render builds shares both with the
-     * one the caller holds.
+     * Constructs a player renderer over the given context that caches fetched textures in the given
+     * map, so the renderer a render builds shares it with the one the caller holds.
      *
      * @param context renderer context for texture resolution and engine setup
-     * @param imageFactory the factory decoding skin, cape and elytra bytes
      * @param skinCache the cache of URL-fetched textures
      */
-    private PlayerRenderer(
-        @NotNull RendererContext context,
-        @NotNull ImageFactory imageFactory,
-        @NotNull ConcurrentMap<String, PixelBuffer> skinCache
-    ) {
+    private PlayerRenderer(@NotNull RendererContext context, @NotNull ConcurrentMap<String, PixelBuffer> skinCache) {
         this.context = context;
-        this.imageFactory = imageFactory;
         this.skinCache = skinCache;
         this.skull = new Skull(this);
         this.bust = new Bust(this);
@@ -159,7 +151,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     @Override
     public @NotNull RenderResult render(@NotNull PlayerOptions options) {
-        return this.context.record(context -> new PlayerRenderer(context, this.imageFactory, this.skinCache).draw(options));
+        return this.context.record(context -> new PlayerRenderer(context, this.skinCache).draw(options));
     }
 
     /**
@@ -208,13 +200,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getSkin().getBytes().isPresent())
-            return parent.imageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer();
+            return ImageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer();
 
         if (options.getSkin().getSkin().getUrl().isPresent()) {
             String url = options.getSkin().getSkin().getUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
                 byte[] bytes = SkinFetch.fetchTexture(u);
-                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
+                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
             });
         }
 
@@ -236,13 +228,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (!options.getSkin().isRenderCape()) return Optional.empty();
 
         if (options.getSkin().getCape().getBytes().isPresent())
-            return Optional.of(parent.imageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer());
+            return Optional.of(ImageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer());
 
         if (options.getSkin().getCape().getUrl().isPresent()) {
             String url = options.getSkin().getCape().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
                 byte[] bytes = SkinFetch.fetchTexture(url);
-                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
+                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
 
@@ -266,13 +258,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getElytra().getBytes().isPresent())
-            return Optional.of(parent.imageFactory.fromByteArray(options.getSkin().getElytra().getBytes().get()).toPixelBuffer());
+            return Optional.of(ImageFactory.fromByteArray(options.getSkin().getElytra().getBytes().get()).toPixelBuffer());
 
         if (options.getSkin().getElytra().getUrl().isPresent()) {
             String url = options.getSkin().getElytra().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
                 byte[] bytes = SkinFetch.fetchTexture(url);
-                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
+                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
 

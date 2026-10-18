@@ -1,7 +1,7 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.data.AnimatedImageData;
-import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.AnimatedImageData;
+import dev.simplified.image.StaticImageData;
 import lib.minecraft.renderer.call.request.RenderOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import org.jetbrains.annotations.NotNull;

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

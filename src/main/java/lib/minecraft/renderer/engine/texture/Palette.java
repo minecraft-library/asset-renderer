@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.texture;
 
 import dev.simplified.annotations.UtilityClass;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 

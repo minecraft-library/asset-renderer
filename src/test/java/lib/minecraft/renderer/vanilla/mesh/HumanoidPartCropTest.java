@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.vanilla.mesh;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.engine.geometry.Face;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

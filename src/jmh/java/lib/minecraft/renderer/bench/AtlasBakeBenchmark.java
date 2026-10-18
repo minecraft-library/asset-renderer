@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.bench;
 
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.frame.ImageFrame;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.call.request.AtlasOptions;

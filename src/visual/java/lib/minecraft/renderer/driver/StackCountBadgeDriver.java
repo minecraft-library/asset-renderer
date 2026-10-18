@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.driver;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.bake.gui.ItemStackKit;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;

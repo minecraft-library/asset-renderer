@@ -4,10 +4,10 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
@@ -350,7 +350,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         // buffer, which the caller's blitScaled composites over the prior layers - unlike blitTinted,
         // which blends against the destination and would blank an empty buffer.
         return switch (light) {
-            case FRONT -> tint != ColorMath.WHITE ? ColorMath.tint(layer, tint) : layer;
+            case FRONT -> tint != ColorMath.WHITE ? layer.tint(tint) : layer;
             case SIDE -> Shading.apply(layer, tint, Shading.ITEMS_3D_FACING);
         };
     }

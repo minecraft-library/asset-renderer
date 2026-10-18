@@ -68,7 +68,6 @@ public final class MenuRenderDriver {
         }
         RendererContext context = RendererContext.load(result);
         MenuRenderer renderer = new MenuRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         // One sheet composes every chest row count, and each composition is its own panel - so the
         // four the client can build are four subjects rather than one at four heights. The player's
@@ -84,7 +83,7 @@ public final class MenuRenderDriver {
                     slot(4, "minecraft:iron_ingot"),
                     slot(rows * 9 - 1, "minecraft:diamond_sword")))
                 .build();
-            write("chest_" + rows + "row", renderer.render(chest), imageFactory);
+            write("chest_" + rows + "row", renderer.render(chest));
         }
 
         // The four screens the client ships whole rather than composing. Each carries the title the
@@ -97,21 +96,21 @@ public final class MenuRenderDriver {
                 slot(0, "minecraft:diamond"),
                 slot(13, "minecraft:iron_ingot"),
                 slot(26, "minecraft:diamond_sword")))
-            .build()), imageFactory);
+            .build()));
 
         write("hopper", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.HOPPER)
             .playerInventory(true)
             .title("Item Hopper")
             .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot")))
-            .build()), imageFactory);
+            .build()));
 
         write("dispenser", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.DISPENSER)
             .playerInventory(true)
             .title("Dispenser")
             .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot"), slot(8, "minecraft:diamond")))
-            .build()), imageFactory);
+            .build()));
 
         write("crafting_table", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.CRAFTING_TABLE)
@@ -122,7 +121,7 @@ public final class MenuRenderDriver {
                 slot(4, "minecraft:iron_ingot"),
                 slot(7, "minecraft:iron_ingot"),
                 slot(9, "minecraft:diamond_sword")))
-            .build()), imageFactory);
+            .build()));
 
         write("anvil", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.ANVIL)
@@ -133,7 +132,7 @@ public final class MenuRenderDriver {
                 slot(0, "minecraft:diamond_sword"),
                 slot(1, "minecraft:diamond"),
                 slot(2, "minecraft:diamond_sword")))
-            .build()), imageFactory);
+            .build()));
 
         // The same screen with its field empty and its caret declined, which is the pair of choices
         // no other subject here has to make: a field is the one mark whose content is a caller's and
@@ -143,7 +142,7 @@ public final class MenuRenderDriver {
             .playerInventory(true)
             .title("Repair & Name")
             .caret(false)
-            .build()), imageFactory);
+            .build()));
 
         // A server menu is a chest with the caller's own slot map over it and a filler behind the
         // rest, which is the whole of what makes one: a screen a server dresses is not a shape of its
@@ -160,7 +159,7 @@ public final class MenuRenderDriver {
                 slot(28, "minecraft:iron_ingot"), slot(29, "minecraft:iron_ingot"), slot(30, "minecraft:iron_ingot"),
                 slot(23, "minecraft:barrier"),
                 slot(25, "minecraft:diamond_sword")))
-            .build()), imageFactory);
+            .build()));
 
         // An enchanted slot makes its item render animated, which promotes the whole menu through
         // the compositor's animated branch - the one path that reads a child's declared loop length
@@ -172,7 +171,7 @@ public final class MenuRenderDriver {
                 slot(0, "minecraft:diamond"), enchantedSlot(4, "minecraft:diamond_sword"),
                 enchantedSlot(9, "minecraft:diamond_sword")))
             .build();
-        write("glinted_crafting", renderer.render(glintedCrafting), imageFactory);
+        write("glinted_crafting", renderer.render(glintedCrafting));
 
         // The palette that is not vanilla's, on a shape one of the eight above already draws, so what
         // this is read for is the ink alone - the panel, the two bevels and the cells. It has no
@@ -188,7 +187,7 @@ public final class MenuRenderDriver {
                 slot(0, "minecraft:diamond"),
                 slot(4, "minecraft:iron_ingot"),
                 slot(26, "minecraft:diamond_sword")))
-            .build()), imageFactory);
+            .build()));
 
         // A panel at a size no shipped sheet composes. The frame is four corner blocks and four bars
         // of a one-pixel period, so the same one serves any extent - what is read here is that the
@@ -206,7 +205,7 @@ public final class MenuRenderDriver {
                 slot(123, "minecraft:diamond_sword"),
                 slot(228, "minecraft:iron_ingot"),
                 slot(246, "minecraft:diamond")))
-            .build()), imageFactory);
+            .build()));
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
@@ -258,16 +257,15 @@ public final class MenuRenderDriver {
      *
      * @param slug the output file stem
      * @param result the render to write
-     * @param imageFactory the encoder
      * @throws IOException if the file cannot be written
      */
-    private static void write(@NotNull String slug, @NotNull RenderResult result, @NotNull ImageFactory imageFactory) throws IOException {
+    private static void write(@NotNull String slug, @NotNull RenderResult result) throws IOException {
         ImageData image = result.image();
         // WebP for an animated menu - it stores delays in milliseconds, so a 33 ms glint frame
         // survives the write as itself rather than being rounded onto GIF's centisecond grid.
         ImageFormat format = image.isAnimated() ? ImageFormat.WEBP : ImageFormat.PNG;
         File out = OUTPUT_DIR.resolve(slug + "." + format.name().toLowerCase(Locale.ROOT)).toFile();
-        imageFactory.toFile(image, format, out);
+        ImageFactory.toFile(image, format, out);
         System.out.printf("  %s -> %s (%dx%d, %d frame%s)%n",
             slug, out.getName(), image.getWidth(), image.getHeight(),
             image.getFrames().size(), image.getFrames().size() == 1 ? "" : "s");

@@ -2,8 +2,8 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.engine.camera.Placement;

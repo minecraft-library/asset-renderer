@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.support;
 
 import dev.simplified.annotations.Getter;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.call.request.ItemContext;

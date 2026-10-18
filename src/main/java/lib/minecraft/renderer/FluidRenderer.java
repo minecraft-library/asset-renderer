@@ -4,8 +4,8 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
@@ -260,7 +260,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
             PixelBuffer still = frame(this.context, stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
-            PixelBuffer tinted = ColorMath.tint(still, tint);
+            PixelBuffer tinted = still.tint(tint);
             target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         }
 

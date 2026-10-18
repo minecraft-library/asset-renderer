@@ -3,15 +3,17 @@ package lib.minecraft.renderer.sweep;
 import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.codec.gif.GifImageWriter;
-import dev.simplified.image.codec.gif.GifWriteOptions;
-import dev.simplified.image.data.AnimatedImageData;
-import dev.simplified.image.data.FrameBlend;
-import dev.simplified.image.data.FrameDisposal;
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.FrameBlend;
+import dev.simplified.image.frame.FrameDisposal;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.frame.LoopCount;
+import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.pixel.DiffType;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -397,17 +399,17 @@ public final class EntityAnimationParitySweep {
         AnimatedImageData.Builder builder = AnimatedImageData.builder()
             .withWidth(frames.getFirst().getWidth())
             .withHeight(frames.getFirst().getHeight())
-            .withLoopCount(0);
+            .withLoopCount(LoopCount.Preset.INFINITE);
         for (BufferedImage frame : frames)
             builder.withFrame(ImageFrame.of(PixelBuffer.wrap(frame), GIF_FRAME_DELAY_MS, 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
 
         GifWriteOptions options = GifWriteOptions.builder()
-            .withLoopCount(0)
+            .withLoopCount(LoopCount.Preset.INFINITE)
             .isTransparent(true)
             .withAlphaThreshold(8)
             .build();
-        Files.write(out, new GifImageWriter().write(builder.build(), options));
+        Files.write(out, ImageFactory.toByteArray(builder.build(), ImageFormat.GIF, options));
     }
 
     /**

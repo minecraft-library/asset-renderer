@@ -5,10 +5,12 @@ import api.simplified.mojang.response.MojangProfile;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.codec.gif.GifImageWriter;
-import dev.simplified.image.codec.gif.GifWriteOptions;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.frame.LoopCount;
+import dev.simplified.image.option.GifWriteOptions;
+import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.call.request.ArmorOptions;
 import lib.minecraft.renderer.call.request.ArmorPiece;
@@ -406,7 +408,7 @@ public final class PlayerRenderDriver {
 
     /** GIF encoder preset: infinite loop, transparent background (matches the glint-parity tool). */
     private static final GifWriteOptions GIF_OPTIONS = GifWriteOptions.builder()
-        .withLoopCount(0).isTransparent(true).withAlphaThreshold(8).build();
+        .withLoopCount(LoopCount.Preset.INFINITE).isTransparent(true).withAlphaThreshold(8).build();
 
     /**
      * Renders each config to an animated GIF under {@code <name>/<label>.gif}. Each piece is
@@ -421,14 +423,13 @@ public final class PlayerRenderDriver {
         System.out.printf("Sheet %-16s (%d gifs)...%n", name, configs.size());
         Path dir = OUTPUT_DIR.resolve(name);
         Files.createDirectories(dir);
-        GifImageWriter writer = new GifImageWriter();
         for (Cell cell : configs) {
             try {
                 ImageData image = renderer.render(cell.options()).image();
                 if (!image.isAnimated())
                     System.err.printf("    %-24s NOT animated (%d frame) - glint missing%n",
                         cell.label(), image.getFrames().size());
-                Files.write(dir.resolve(safe(cell.label()) + ".gif"), writer.write(image, GIF_OPTIONS));
+                Files.write(dir.resolve(safe(cell.label()) + ".gif"), ImageFactory.toByteArray(image, ImageFormat.GIF, GIF_OPTIONS));
             } catch (Exception ex) {
                 System.err.printf("    %-24s FAILED: %s%n", cell.label(), ex.getMessage());
             }

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.frame;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.engine.layer.Layer;
 
 /**

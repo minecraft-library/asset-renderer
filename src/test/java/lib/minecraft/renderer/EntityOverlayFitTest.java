@@ -1,8 +1,8 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.data.ImageFrame;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.ImageFrame;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.call.request.AppearanceOptions;

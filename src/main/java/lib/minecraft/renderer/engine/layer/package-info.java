@@ -10,7 +10,7 @@
  *       rasterized in one depth pass. Emission order is load-bearing (coplanar depth tie-break,
  *       translucent sort, emissive depth-skip).</li>
  *   <li>{@link lib.minecraft.renderer.engine.frame.ImageLayer ImageLayer} - mutates a shared
- *       {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer} in stack order.</li>
+ *       {@link dev.simplified.image.PixelBuffer PixelBuffer} in stack order.</li>
  *   <li>{@link lib.minecraft.renderer.engine.frame.FrameLayer FrameLayer} - appends
  *       {@link lib.minecraft.renderer.engine.frame.FramePlacement FramePlacement}s (positioned
  *       sub-renders) to a shared list, merged by
