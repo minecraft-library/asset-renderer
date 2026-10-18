@@ -316,7 +316,7 @@
     },
     {
       "path": "toggles.png",
-      "sha256": "a626292d469024c31d7196abdd506b6eab6bcff86aaf7933848a08e197de2d4e"
+      "sha256": "4f18483c89f8bbf3dd14188a237ab002b9cde24f78be8fda012631bbfcbb6244"
     },
     {
       "path": "toggles/2D_bg_solid.png",
@@ -368,7 +368,7 @@
     },
     {
       "path": "toggles/ssaa_4_fxaa.png",
-      "sha256": "5c816d2c0f1fcc5805f0db925f21a0f1ea7ddfd7cb23884d121e685f469ffb76"
+      "sha256": "9d8d4410704c4a8d76e2c38c4aba9ebcc8734dfb3fee95a6c8cd764cedf4693c"
     },
     {
       "path": "trims.png",
@@ -424,9 +424,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "6922dbb84e2ef9e2abf88144c221d60831ac2c2b4adcd5148782ea30af9390e9",
-    "asset_dirty": true,
-    "asset_sha": "e307384a74077a35071a41947b7ff131a9436995",
+    "asset_content_digest": "3c53921873dc0b79ac928bc7cb89d84de08070db98202edb648b1b52dab8ca7f",
+    "asset_dirty": false,
+    "asset_sha": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
     "counts": {
       "files": 104
     },
@@ -435,7 +435,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "The image library at a79e16b filters FXAA as premultiplied colour, its bilinear taps mixing colour in proportion to alpha and each channel rounded once, and RasterPass hands it each frame as AlphaMode.PREMULTIPLIED in place of a wrapper whose straddling taps came out at about half their colour. Every mover is an FXAA render - the five iso block renders, all 30 entity projections, all 90 entity renders, all 16 projection-smoke tiles, and the player sheet's ssaa 4 + fxaa cell with the sheet that holds it - and every other row held. Against renders of e307384a: 719,560 of 748,862 changed pixels are lighter; partly covered pixels darker than every opaque pixel within 3 px by more than 10 luma fall from 34,789 to 1,743; 72,612 opaque pixels return to alpha 255 from 254; the 587 darker are one-level contact-sheet drops, breeze wind pixels the wrapper had pushed above all their inputs, and 8 last-column pixels whose tap past the canvas edge reads the edge pixel; no pixel carries a colour above its alpha. The capture's digests equal a capture built from the library source before publishing.",
+    "reason": "image b6b3f4a and text f91f52a. FXAA's absolute floors read the 0-255 luma they are compared against, so edges darker than the floor stay sharp: 93 anti-aliased renders move at silhouette and dark texel edges - 64 entity renders, 18 entity projections, 8 projection-smoke tiles, 1 iso block, and the player toggles FXAA cell with its sheet - 10,875 pixels, most by 1 to 3 levels, the largest a near-black tail-tip pixel left opaque where it was softened to alpha 85. The GIF writer rounds its flatten: the animated water, weapon.gif and gradient_scroll.gif move by one level, the gradient's palette entries by up to 12. The VP8 encoder reconstructs keyframes as libwebp does: weapon_lossy.webp scores 26.20 dB against its lossless GIF where it scored 25.43. Every sweep and pin held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -448,8 +448,8 @@
       "walk": 1056
     },
     "root": "cache/visual/player-render",
-    "timestamp": "2026-10-16T01:05:53Z",
+    "timestamp": "2026-10-18T21:01:14Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 7629
+    "wall_time_ms": 11283
   }
 }

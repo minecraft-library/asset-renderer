@@ -16,7 +16,7 @@
     },
     {
       "path": "water_animated_iso.gif",
-      "sha256": "7ba7f98cbc2455139a84fff64e89ebc5b8efe5c13f3d1103a452f40c17e4ac92"
+      "sha256": "c970aed84dc49ff69a4a840664a13d2a477a182dd77b2e94bfe18543a8734f6f"
     },
     {
       "path": "water_cherry_grove.png",
@@ -56,9 +56,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.fluid",
-    "asset_content_digest": "2142a1ff02d34d7faaf35f631a39440d15c1008dc7540af2fa2dc065f2215aac",
-    "asset_dirty": true,
-    "asset_sha": "5d10f5ebc59ea213b59f20f8969251150a173977",
+    "asset_content_digest": "3c53921873dc0b79ac928bc7cb89d84de08070db98202edb648b1b52dab8ca7f",
+    "asset_dirty": false,
+    "asset_sha": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
     "counts": {
       "files": 12
     },
@@ -67,10 +67,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "fluidRenderer",
-    "reason": "A coordinate exactly on a texel boundary reads the texel below it, as the GPU's interpolation never lands such a value above the boundary: 99 sweep rows better and 8 worse, the eight being boundaries the GPU keeps exactly on the boundary; the image manifests and the armoured player pin move with the same texel choices",
+    "reason": "image b6b3f4a and text f91f52a. FXAA's absolute floors read the 0-255 luma they are compared against, so edges darker than the floor stay sharp: 93 anti-aliased renders move at silhouette and dark texel edges - 64 entity renders, 18 entity projections, 8 projection-smoke tiles, 1 iso block, and the player toggles FXAA cell with its sheet - 10,875 pixels, most by 1 to 3 levels, the largest a near-black tail-tip pixel left opaque where it was softened to alpha 85. The GIF writer rounds its flatten: the animated water, weapon.gif and gradient_scroll.gif move by one level, the gradient's palette entries by up to 12. The VP8 encoder reconstructs keyframes as libwebp does: weapon_lossy.webp scores 26.20 dB against its lossless GIF where it scored 25.43. Every sweep and pin held.",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
+      "blocks": 1096,
       "entities": 406,
       "glint": 330,
       "idle": 1056,
@@ -80,8 +80,8 @@
       "walk": 1056
     },
     "root": "cache/visual/fluid-renderer",
-    "timestamp": "2026-10-03T03:45:39Z",
+    "timestamp": "2026-10-18T21:01:13Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 3450
+    "wall_time_ms": 2733
   }
 }
