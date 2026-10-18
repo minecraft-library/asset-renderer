@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;

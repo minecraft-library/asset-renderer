@@ -5,7 +5,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
+import dev.simplified.image.option.WebPWriteOptions;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
@@ -78,7 +78,6 @@ public final class PortalRenderDriver {
 
         RendererContext context = RendererContext.load(result);
         PortalRenderer renderer = new PortalRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
 
         // Matrix: 2 portals x 2 types x 3 variants (static | animated | animated-smooth) = 12 outputs.
         for (PortalOptions.Portal portal : PortalOptions.Portal.values()) {
@@ -86,7 +85,7 @@ public final class PortalRenderDriver {
                 String typeSlug = type == PortalOptions.Type.ISOMETRIC_3D ? "iso" : "2d";
                 String portalSlug = portal.name().toLowerCase(Locale.ROOT);
 
-                render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_static", PortalOptions.builder()
+                render(renderer, portalSlug + "_" + typeSlug + "_static", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
                     .output(
@@ -96,7 +95,7 @@ public final class PortalRenderDriver {
                     )
                     .build());
 
-                render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_animated", PortalOptions.builder()
+                render(renderer, portalSlug + "_" + typeSlug + "_animated", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
                     .output(
@@ -115,7 +114,7 @@ public final class PortalRenderDriver {
                 // The same loop sampled between ticks. Covers the same span of game time at the same
                 // speed, so the two play identically apart from smoothness - a frame per tick caps the
                 // plain loop at 20 a second, which reads as a visible stutter on drifting stars.
-                render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_animated_smooth", PortalOptions.builder()
+                render(renderer, portalSlug + "_" + typeSlug + "_animated_smooth", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
                     .output(
@@ -144,14 +143,12 @@ public final class PortalRenderDriver {
      * PNG.
      *
      * @param renderer the portal renderer to drive
-     * @param imageFactory the encoder
      * @param slug the output file stem
      * @param options the render to perform
      * @throws IOException if the file cannot be written
      */
     private static void render(
         @NotNull PortalRenderer renderer,
-        @NotNull ImageFactory imageFactory,
         @NotNull String slug,
         @NotNull PortalOptions options
     ) throws IOException {
@@ -168,7 +165,7 @@ public final class PortalRenderDriver {
         File out = OUTPUT_DIR.resolve(slug + "." + extension).toFile();
 
         if (animated) {
-            imageFactory.toFile(
+            ImageFactory.toFile(
                 image,
                 ImageFormat.WEBP,
                 out,
@@ -178,7 +175,7 @@ public final class PortalRenderDriver {
                     .build()
             );
         } else {
-            imageFactory.toFile(image, ImageFormat.PNG, out);
+            ImageFactory.toFile(image, ImageFormat.PNG, out);
         }
 
         System.out.printf("  %-32s -> %s (%d ms, %dx%d, %d frame%s)%n",

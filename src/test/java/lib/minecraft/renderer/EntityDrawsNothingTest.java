@@ -1,9 +1,9 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;

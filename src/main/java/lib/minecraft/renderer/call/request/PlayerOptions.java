@@ -4,7 +4,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import dev.simplified.image.Background;
+import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.bake.armor.ArmorKit;
 import lib.minecraft.renderer.bake.texture.TrimKit;

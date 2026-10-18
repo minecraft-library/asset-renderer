@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.bake.gui;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;

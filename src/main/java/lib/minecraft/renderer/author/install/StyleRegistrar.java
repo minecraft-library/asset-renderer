@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -207,7 +207,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * @throws StyleException if this registrar carries no player rig row
      */
     public @NotNull StyleRegistrar skin(byte @NotNull [] pngBytes) {
-        return this.skin(new ImageFactory().fromByteArray(pngBytes).toPixelBuffer());
+        return this.skin(ImageFactory.fromByteArray(pngBytes).toPixelBuffer());
     }
 
     /**

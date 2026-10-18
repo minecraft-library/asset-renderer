@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;

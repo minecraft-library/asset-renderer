@@ -2,10 +2,10 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.Background;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Background;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.call.request.AtlasOptions;
@@ -301,7 +301,7 @@ class AtlasRendererLayoutTest {
 
                 assertThat(label + " refuses both absent ids", skippedIds(rendered), is(List.of(ABSENT_BLOCK, ABSENT_ITEM)));
                 assertThat(label, written, is(rendered.sidecar()));
-                assertArrayEquals(new ImageFactory().toByteArray(rendered.image(), ImageFormat.PNG), Files.readAllBytes(file), label);
+                assertArrayEquals(ImageFactory.toByteArray(rendered.image(), ImageFormat.PNG), Files.readAllBytes(file), label);
                 assertThat(label + " leaves no partial file", Files.exists(directory.resolve("atlas.png.partial")), is(false));
             }
         }

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.engine.raster;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;

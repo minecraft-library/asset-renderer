@@ -3,9 +3,9 @@ package lib.minecraft.renderer.bake.texture;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -472,7 +472,7 @@ public class GlintKit {
     private static @NotNull PixelBuffer tinted(@NotNull PixelBuffer glintTexture, @NotNull GlintOptions options) {
         return options.tintArgb() == ColorMath.WHITE
             ? glintTexture
-            : ColorMath.tint(glintTexture, options.tintArgb());
+            : glintTexture.tint(options.tintArgb());
     }
 
     /**

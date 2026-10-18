@@ -2,8 +2,8 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.data.StaticImageData;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.StaticImageData;
 import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.engine.frame.FrameLayer;

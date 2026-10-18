@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.jetbrains.annotations.NotNull;

@@ -6,7 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
@@ -215,8 +215,7 @@ class StyleRegistrarSkinTest {
      * The sheet as PNG bytes, the shape the byte-decoding knob takes.
      */
     private static byte @NotNull [] pngBytes(@NotNull PixelBuffer sheet) {
-        ImageFactory factory = new ImageFactory();
-        return factory.toByteArray(factory.fromImage(sheet.toBufferedImage()), ImageFormat.PNG);
+        return ImageFactory.toByteArray(ImageFactory.fromImage(sheet.toBufferedImage()), ImageFormat.PNG);
     }
 
     /**

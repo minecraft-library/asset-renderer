@@ -20,7 +20,7 @@
  * <p><b>Layer kinds.</b> The two {@link lib.minecraft.renderer.engine.layer.Layer Layer} kinds whose
  * accumulator is a frame value live here:
  * {@link lib.minecraft.renderer.engine.frame.ImageLayer ImageLayer} draws in stack order onto one
- * shared {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer}, and
+ * shared {@link dev.simplified.image.PixelBuffer PixelBuffer}, and
  * {@link lib.minecraft.renderer.engine.frame.FrameLayer FrameLayer} appends whole placements to the
  * list a compositor merge reads. The layer model itself is
  * {@link lib.minecraft.renderer.engine.layer engine.layer}.

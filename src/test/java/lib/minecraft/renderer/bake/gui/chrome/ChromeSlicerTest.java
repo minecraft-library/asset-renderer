@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.bake.gui.chrome;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Edge;

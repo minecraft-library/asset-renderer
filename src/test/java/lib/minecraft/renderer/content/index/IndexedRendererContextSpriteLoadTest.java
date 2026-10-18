@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;

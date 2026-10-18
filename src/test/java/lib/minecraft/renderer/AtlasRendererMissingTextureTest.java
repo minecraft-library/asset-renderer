@@ -1,6 +1,6 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;

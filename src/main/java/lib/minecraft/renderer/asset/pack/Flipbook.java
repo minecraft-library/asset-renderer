@@ -2,7 +2,7 @@ package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;

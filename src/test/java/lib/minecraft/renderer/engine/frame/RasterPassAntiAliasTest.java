@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.frame;
 
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.content.pack;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -182,7 +182,7 @@ class ClientAcquisitionIntegrationTest {
 
         ResolvedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
-        PixelBuffer grassBuffer = new ImageFactory().fromByteArray(grassTop.bytes()).toPixelBuffer();
+        PixelBuffer grassBuffer = ImageFactory.fromByteArray(grassTop.bytes()).toPixelBuffer();
         assertThat(grassBuffer.width(), is(greaterThanOrEqualTo(16)));
         assertThat(grassBuffer.height(), is(greaterThanOrEqualTo(16)));
         assertThat(grassTop.path(), allOf(

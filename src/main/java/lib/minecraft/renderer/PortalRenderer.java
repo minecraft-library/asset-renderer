@@ -3,8 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.PortalBake;
@@ -108,7 +108,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      */
     private static @NotNull PixelBuffer applyTintIfNeeded(@NotNull PixelBuffer buffer, int argbTint) {
         if (argbTint == ColorMath.WHITE) return buffer;
-        return ColorMath.tint(buffer, argbTint);
+        return buffer.tint(argbTint);
     }
 
     /**

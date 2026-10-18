@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.call.request.ItemContext;

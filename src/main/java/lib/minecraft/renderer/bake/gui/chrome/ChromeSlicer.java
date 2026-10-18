@@ -4,7 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Anchor;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Band;

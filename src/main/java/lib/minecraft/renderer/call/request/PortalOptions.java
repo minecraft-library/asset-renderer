@@ -2,7 +2,7 @@ package lib.minecraft.renderer.call.request;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.image.Background;
+import dev.simplified.image.pixel.Background;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

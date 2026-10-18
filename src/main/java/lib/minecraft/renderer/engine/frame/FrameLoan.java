@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.frame;
 
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -5,9 +5,9 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.gif.GifWriteOptions;
-import dev.simplified.image.data.ImageFrame;
-import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.StaticImageData;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.option.GifWriteOptions;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
@@ -87,7 +87,6 @@ public final class ItemDayCycleDriver {
 
         RendererContext context = RendererContext.load(result);
         ItemRenderer renderer = new ItemRenderer(context);
-        ImageFactory imageFactory = new ImageFactory();
         Files.createDirectories(OUTPUT_DIR);
 
         // By default let each item's own dispatch table set the cadence, which is the path a caller
@@ -123,9 +122,9 @@ public final class ItemDayCycleDriver {
                 // is one PNG rather than a GIF of the same frame over and over.
                 File out = OUTPUT_DIR.resolve(safeName + (moves ? ".gif" : ".png")).toFile();
                 if (moves)
-                    imageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().isTransparent().build());
+                    ImageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().isTransparent().build());
                 else
-                    imageFactory.toFile(StaticImageData.of(image.getFrames().getFirst().pixels().toBufferedImage()),
+                    ImageFactory.toFile(StaticImageData.of(image.getFrames().getFirst().pixels().toBufferedImage()),
                         ImageFormat.PNG, out);
 
                 // Sample stills at the quarter-days, so the sweep can be read without a GIF viewer and
@@ -134,7 +133,7 @@ public final class ItemDayCycleDriver {
                     for (int quarter = 0; quarter < 4; quarter++) {
                         int frame = quarter * frames / 4;
                         File still = OUTPUT_DIR.resolve("%s_f%03d.png".formatted(safeName, frame)).toFile();
-                        imageFactory.toFile(StaticImageData.of(image.getFrames().get(frame).pixels().toBufferedImage()),
+                        ImageFactory.toFile(StaticImageData.of(image.getFrames().get(frame).pixels().toBufferedImage()),
                             ImageFormat.PNG, still);
                     }
 

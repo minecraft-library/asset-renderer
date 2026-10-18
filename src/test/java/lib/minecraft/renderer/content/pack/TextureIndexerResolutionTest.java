@@ -79,7 +79,7 @@ class TextureIndexerResolutionTest {
     void crossPackPriority() {
         ResolvedTexture stone = stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow();
         assertThat(stone.pack(), is(new PackId("hypixel-skyblock")));
-        assertThat(new ImageFactory().fromByteArray(stone.bytes()).toPixelBuffer().width(), is(32));
+        assertThat(ImageFactory.fromByteArray(stone.bytes()).toPixelBuffer().width(), is(32));
 
         ResolvedTexture resolved = stack.resolve(ResourceId.parse("minecraft:block/stone")).orElseThrow();
         assertThat(resolved.pack(), is(new PackId("hypixel-skyblock")));

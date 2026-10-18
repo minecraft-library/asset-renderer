@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.support.ClientAssetsExtension;

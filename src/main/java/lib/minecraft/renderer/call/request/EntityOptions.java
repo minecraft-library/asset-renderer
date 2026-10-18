@@ -3,7 +3,7 @@ package lib.minecraft.renderer.call.request;
 import dev.simplified.annotations.BuildFlag;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import dev.simplified.image.Background;
+import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;

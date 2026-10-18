@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;

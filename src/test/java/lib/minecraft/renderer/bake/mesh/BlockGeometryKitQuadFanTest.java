@@ -3,7 +3,7 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentArrayList;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
