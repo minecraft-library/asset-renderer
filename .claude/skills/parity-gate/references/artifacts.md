@@ -34,20 +34,20 @@ capture named none - a record of a claim rather than a measurement of its own.
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 12217 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 11659 ms | yes |
 | `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 38400 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 125632 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 15169 ms | yes |
 | `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 22310 ms | yes |
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13899 ms | yes |
-| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 132 | 14149 ms | yes |
-| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 132 | 16959 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 132 | 13481 ms | yes |
+| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 132 | 13701 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 4443 | 73473 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 32956 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 35624 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 28454 ms | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5649 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5348 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5866 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5866 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 11283 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2733 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |

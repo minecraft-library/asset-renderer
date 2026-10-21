@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 5348,
-      "promoted_at": "4dd64c65c997227384bf1792ec8ee4877e35a241",
-      "sha256": "e22de1ae535262cda3937671f3864e37503d9307670a1608138e739159c5f4f1"
+      "last_duration_ms": 5866,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "d20e70823f7fa6cb599f505f24131df9a6a522e145051c5ca1112a246d51db8a"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 5649,
-      "promoted_at": "bcb59e6e27d67c0dde05512d6a440c5db5841ac1",
-      "sha256": "11af7cc1c244934132334f0d97b591871abaa04c06fdc2f79e63b85f0b2baada"
+      "last_duration_ms": 5866,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "44fd165c2cd8d77c2ec6ee1525df5788580a30158141aa5f2ded8442561c585f"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 32956,
-      "promoted_at": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
-      "sha256": "c53b730dcfdeb0d6105b5b6c371f95c93ba54c7df1ef4ff3d93eec1d67155137"
+      "last_duration_ms": 35624,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "8ff249d3bccb5329a45ccf2a29be2c0220f23d5c124efbde39176f12d2642ddf"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -222,10 +222,10 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 12217,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "313e4e1f88e4ff66c4efafb4760c856e2a60655e55828f78fa2b63943bf20484",
-      "sum": "16.1137"
+      "last_duration_ms": 11659,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "cdba1667e52723cc9c15b187bf0f0861fd97c978b4fd16313cad4cc456546144",
+      "sum": "16.1129"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 132,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 14149,
-      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
-      "sha256": "36762b36d9a01c17d18740efcafb6b32dbe54fb7f33a608cb6199e9792576bbb",
-      "sum": "2.0039"
+      "last_duration_ms": 13481,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "171c9f11c6b788f551d1c0b40b99e169ee7ee608f7c84849ae5ca5751d8e66bf",
+      "sum": "2.0032"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 132,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 16959,
-      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
-      "sha256": "5df74f88765371fcae64b852ec55f69f5ca5893c983c04f71e20bc35f22c8bda",
-      "sum": "3.9952"
+      "last_duration_ms": 13701,
+      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+      "sha256": "a49b737589314e22a65895f0a3eb4420482d9a3c80028e1b0b00feea9cac1d2a",
+      "sum": "3.9947"
     },
     "sweep.glint": {
       "baselined": true,
