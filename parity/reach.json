@@ -4377,6 +4377,18 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/frame/StripFit": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/StripFitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/StripTrack": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/frame/Timeline": {
       "artifacts": [
         "digest.colormap-lut",
