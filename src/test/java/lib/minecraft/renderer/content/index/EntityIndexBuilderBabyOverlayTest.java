@@ -146,7 +146,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                                  // texture_scroll
             false,                                                 // skip_bounds
             null,                                                  // when
-            typeBabyDelta());                                      // baby
+            typeBabyDelta(),                                       // baby
+            null);                                                 // opacity
     }
 
     /** The {@code type} pass's age delta - the baby texture plus the mesh its suppressed form draws. */
@@ -170,7 +171,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,          // texture_scroll
             true,          // skip_bounds
             null,          // when
-            null);         // baby
+            null,          // baby
+            null);         // opacity
     }
 
     /** The control family's wool pass - tinted by an axis rather than textured by one, and no age delta. */
@@ -186,7 +188,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                              // texture_scroll
             false,                                             // skip_bounds
             null,                                              // when
-            null);                                             // baby
+            null,                                              // baby
+            null);                                             // opacity
     }
 
     /** The saddle equipment row - the other decoration a baby drops wholesale. */
@@ -311,7 +314,8 @@ class EntityIndexBuilderBabyOverlayTest {
             new RawOverlayBaby(
                 BABY_DECOR,                                                              // geometry
                 null,                                                                    // no_hat_geometry
-                "equipment/llama_body/trader_llama_baby"));  // texture
+                "equipment/llama_body/trader_llama_baby"),   // texture
+            null);                                                              // opacity
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                        // renderer

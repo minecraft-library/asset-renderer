@@ -646,9 +646,7 @@ public class AppearanceOptions {
 
         if (passes.stream().noneMatch(pass -> pass.pose() == body)) return passes;
         return passes.stream()
-            .map(pass -> pass.pose() != body ? pass : new Entity.OverlayLayer(pass.model(), pass.textureRef(),
-                pass.pass(), pass.tintArgb(), pass.skipBounds(), pass.tintBy(), pass.textureBy(), pass.gate(),
-                pass.noHatModel(), swapped, pass.textureScroll()))
+            .map(pass -> pass.pose() != body ? pass : pass.withPose(swapped))
             .collect(Concurrent.toUnmodifiableList());
     }
 

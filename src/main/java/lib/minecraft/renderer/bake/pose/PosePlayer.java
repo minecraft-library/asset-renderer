@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -38,7 +39,8 @@ import java.util.stream.Collectors;
  * and that identity is the whole of what makes the authored pose cost nothing: no bone is copied, no
  * float is touched, and a render that asks for nothing draws exactly the bytes it drew before. The
  * same holds for a subject whose model poses nothing, one whose pose could not be read, and one that
- * writes only channels a mesh does not carry.
+ * writes only channels a mesh does not carry - each so long as every pass holds the opacity it loaded
+ * at.
  *
  * <p>Otherwise the bone map is rebuilt <b>in the mesh's own order</b>, because
  * {@link EntityMesh#getBones()} insertion order is the tied-depth priority the depth contract
@@ -57,7 +59,9 @@ import java.util.stream.Collectors;
  * and every pass together - posing the body alone leaves a sheep's wool where the sheep no longer
  * is. The passes that redraw the body's own mesh, the collar and the horse marking, are handed the
  * posed body directly and move with it for free. Each equipment mesh - a saddle, a body armour, the
- * happy ghast's harness - is posed the same way, by the model class its layer is handed.
+ * happy ghast's harness - is posed the same way, by the model class its layer is handed. A pass whose
+ * opacity follows the clock is drawn at each frame's value of it, read off the same binding a bone
+ * channel reads, so a frame can hand back a new subject where no mesh in it moved.
  *
  * <p><b>What the subject's RENDERER composes arrives already composed.</b> Vanilla applies
  * {@code setupRotations} to the pose stack before it submits the body or any layer, so the index
@@ -96,14 +100,15 @@ public final class PosePlayer {
 
     /**
      * The whole subject as its style's drivers leave it at one tick - its own mesh posed, every
-     * overlay pass's mesh posed by the model class that pass belongs to, a suppressed pass's
-     * no-hat alternate posed with the pass it stands in for, and every equipment mesh posed by the
-     * model class its layer is handed, under the wearer's style and tick. The worn humanoid armour
-     * shell is passed through as it stands.
+     * overlay pass's mesh posed by the model class that pass belongs to, each pass whose opacity
+     * follows the clock drawn at that tick's value of it, a suppressed pass's no-hat alternate posed
+     * with the pass it stands in for, and every equipment mesh posed by the model class its layer is
+     * handed, under the wearer's style and tick. The worn humanoid armour shell is passed through as
+     * it stands.
      *
      * <p>The {@code bind} row hands back the very instance it was given - identity, not a copy, so
      * the authored path allocates nothing - and so does any style that moves none of the subject's
-     * meshes.
+     * meshes and leaves every pass at the opacity it loaded at.
      *
      * @param subject the resolved subject
      * @param style the resolved catalog row to pose with
@@ -265,26 +270,52 @@ public final class PosePlayer {
         };
     }
 
-    /** Each overlay pass where a style's drivers leave it, or the list itself when none of them moved. */
+    /**
+     * Each overlay pass where a style's drivers leave it - its meshes posed, and a pass whose opacity
+     * follows the clock at that frame's value - or the list itself when none of them moved.
+     */
     private static @NotNull ConcurrentList<Entity.OverlayLayer> posedOverlays(
         @NotNull Entity subject, @NotNull PoseStyle style, int periodTicks, int tick) {
 
         ConcurrentList<Entity.OverlayLayer> overlays = subject.overlays();
         List<Entity.OverlayLayer> out = new ArrayList<>(overlays.size());
         boolean moved = false;
+        // The frame an opacity reads, built at most once and only where a pass carries one.
+        ToDoubleFunction<String> frame = null;
         for (Entity.OverlayLayer overlay : overlays) {
             EntityMesh mesh = posed(overlay.pose(), overlay.model(), style, periodTicks, tick);
             // The suppressed-pass alternate is the same mesh with a subtree emptied, so it takes the
             // same pose - a villager under a full-hat profession still moves the head it draws none of.
             Optional<EntityMesh> noHat = overlay.noHatModel()
                 .map(alternate -> posed(overlay.pose(), alternate, style, periodTicks, tick));
+            // An opacity reads the very binding a bone channel reads, so the frame's elapsed age and
+            // driven clocks answer it; the declaration it loaded with is what a bind render draws.
+            PassDeclaration pass = overlay.pass();
+            if (overlay.opacity().isPresent()) {
+                if (frame == null) frame = style.frameAt(tick, periodTicks);
+                pass = pass.withAlpha(opacityAt(overlay.opacity().get(), overlay.model(), frame));
+            }
             moved |= mesh != overlay.model()
-                || !noHat.equals(overlay.noHatModel());
-            out.add(new Entity.OverlayLayer(mesh, overlay.textureRef(), overlay.pass(),
-                overlay.tintArgb(), overlay.skipBounds(), overlay.tintBy(), overlay.textureBy(),
-                overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
+                || !noHat.equals(overlay.noHatModel())
+                || pass != overlay.pass();
+            out.add(overlay.posedAs(mesh, noHat, pass));
         }
         return moved ? Concurrent.newUnmodifiableList(out) : overlays;
+    }
+
+    /**
+     * The opacity a pass draws at on one frame - its opacity expression evaluated against the frame,
+     * through the conversion every alpha source a pass draws at takes.
+     *
+     * @param opacity the pass's opacity expression
+     * @param model the pass's mesh, which a channel read would be answered from
+     * @param frame what each render-state figure reads as on the frame
+     * @return the opacity the pass draws at, none at or under {@link PassDeclaration#DRAWN_ALPHA_FLOOR}
+     */
+    static float opacityAt(
+        @NotNull PoseExpr opacity, @NotNull EntityMesh model, @NotNull ToDoubleFunction<String> frame) {
+
+        return PassDeclaration.drawnAlpha(values(List.of(opacity), model, frame).getFirst());
     }
 
     /**

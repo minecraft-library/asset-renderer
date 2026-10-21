@@ -125,7 +125,8 @@ class EntityTextureScrollJoinTest {
                 new RawTextureScroll(u, v),         // texture_scroll
                 false,                              // skip_bounds
                 null,                               // when
-                null)),                             // baby
+                null,                               // baby
+                null)),                             // opacity
             null,                                   // block_overlays
             null,                                   // armor
             null,                                   // wings

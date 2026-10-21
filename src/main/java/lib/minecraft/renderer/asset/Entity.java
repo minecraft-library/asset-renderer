@@ -17,6 +17,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
@@ -441,6 +442,8 @@ public record Entity(
      *     the mesh - vanilla builds it into the pipeline the layer submits through, so it moves the
      *     sample point and never the geometry, which is why the breeze's silhouette holds still while
      *     its wind turns
+     * @param opacity the pass's opacity as an expression over the render state, evaluated at each
+     *     posed frame; empty where the pass draws at its declaration's constant opacity
      */
     public record OverlayLayer(
         @NotNull EntityMesh model,
@@ -453,11 +456,13 @@ public record Entity(
         @NotNull Optional<AppearanceGate> gate,
         @NotNull Optional<EntityMesh> noHatModel,
         @NotNull EntityPose pose,
-        @NotNull Optional<Vector2f> textureScroll
+        @NotNull Optional<Vector2f> textureScroll,
+        @NotNull Optional<PoseExpr> opacity
     ) {
 
         /**
-         * A pass whose render type translates its texture by nothing, which is every pass but one.
+         * A pass whose render type translates its texture by nothing, which is every pass but one, and
+         * whose opacity is its declaration's constant one.
          *
          * @param model the pass's mesh
          * @param textureRef the pass's texture, or empty to reuse the body's
@@ -478,7 +483,66 @@ public record Entity(
             @NotNull EntityPose pose
         ) {
             this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
-                pose, Optional.empty());
+                pose, Optional.empty(), Optional.empty());
+        }
+
+        /**
+         * A pass whose opacity is its declaration's constant one, which is every pass but those whose
+         * opacity follows the clock.
+         *
+         * @param model the pass's mesh
+         * @param textureRef the pass's texture, or empty to reuse the body's
+         * @param pass the declared pipeline state
+         * @param tintArgb the pass's multiplicative tint
+         * @param skipBounds whether the pass is excluded from the canvas-sizing union
+         * @param tintBy the tint axis overriding the tint, or empty
+         * @param textureBy the texture axis overriding the texture, or empty
+         * @param gate the render condition, or empty when unconditional
+         * @param noHatModel the alternate mesh a suppressed pass draws, or empty
+         * @param pose the pose belonging to this pass's own mesh
+         * @param textureScroll the fraction of the sheet the pass's texture translates by each tick, or
+         *     empty where it translates none
+         */
+        public OverlayLayer(
+            @NotNull EntityMesh model, @NotNull Optional<String> textureRef,
+            @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
+            @NotNull Optional<TintAxis> tintBy, @NotNull Optional<TextureAxis> textureBy,
+            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityMesh> noHatModel,
+            @NotNull EntityPose pose, @NotNull Optional<Vector2f> textureScroll
+        ) {
+            this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
+                pose, textureScroll, Optional.empty());
+        }
+
+        /**
+         * This pass carrying another pose, every other component kept.
+         *
+         * @param newPose the pose the pass's mesh takes in place of its own
+         * @return an otherwise-identical pass posed by {@code newPose}
+         */
+        public @NotNull OverlayLayer withPose(@NotNull EntityPose newPose) {
+            return new OverlayLayer(this.model, this.textureRef, this.pass, this.tintArgb, this.skipBounds,
+                this.tintBy, this.textureBy, this.gate, this.noHatModel, newPose, this.textureScroll,
+                this.opacity);
+        }
+
+        /**
+         * This pass as one posed frame draws it - its posed meshes and that frame's declaration - every
+         * other component kept.
+         *
+         * @param posedModel the pass's mesh where the frame's pose leaves it
+         * @param posedNoHatModel the suppressed-pass alternate where the frame's pose leaves it, or empty
+         *     when the pass has none
+         * @param framePass the declaration the frame draws the pass under
+         * @return an otherwise-identical pass carrying the frame's meshes and declaration
+         */
+        public @NotNull OverlayLayer posedAs(
+            @NotNull EntityMesh posedModel, @NotNull Optional<EntityMesh> posedNoHatModel,
+            @NotNull PassDeclaration framePass) {
+
+            return new OverlayLayer(posedModel, this.textureRef, framePass, this.tintArgb, this.skipBounds,
+                this.tintBy, this.textureBy, this.gate, posedNoHatModel, this.pose, this.textureScroll,
+                this.opacity);
         }
 
         /**

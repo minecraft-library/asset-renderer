@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
@@ -542,6 +543,54 @@ class PosePlayerTest {
     }
 
     @Test
+    @DisplayName("an opacity at or under vanilla's skip draws as none, and one above it at vanilla's byte")
+    void anOpacityAtTheFloorDrawsAsNone() {
+        // Vanilla's emissive layer skips a pass whose alpha function answers at most 1.0E-5, and draws
+        // the rest at the vertex colour's byte, floor(alpha * 255) - so a value above the skip and
+        // under one byte step is drawn, at none, and a quarter at 63 / 255 rather than at a quarter.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", bone(null));
+
+        assertEquals(0f, opacity(1.0E-5f, mesh), "exactly at the skip draws nothing");
+        assertEquals(0f, opacity(0f, mesh), "nor does nothing");
+        assertEquals(0f, opacity(-0.25f, mesh), "nor anything below it");
+        assertEquals(0f, opacity(1.1E-5f, mesh), "just above it draws at its byte, which is none under one step");
+        assertEquals(63f / 255f, opacity(0.25f, mesh), "a quarter draws at the byte vanilla floors it to");
+        assertEquals(1f, opacity(1.5f, mesh), "and past one draws at one");
+    }
+
+    @Test
+    @DisplayName("a pass's opacity follows the clock on a posed frame, and a bind render keeps the loaded one")
+    void aPassOpacityFollowsTheClock() {
+        // Elapsed age ramped at one by the standing row, read by a ramp that starts below the skip and
+        // ends past one, so the three frames are the floor, a value inside, and the cap.
+        PoseExpr ramp = new PoseExpr.Op(PoseOperator.SUB, Concurrent.newUnmodifiableList(
+            new PoseExpr.Op(PoseOperator.MUL, Concurrent.newUnmodifiableList(
+                new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.025f, PoseWidth.FLOAT))),
+            new PoseExpr.Constant(0.5f, PoseWidth.FLOAT)));
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+        PassDeclaration loaded = PassDeclaration.DEFAULT.withAlpha(0f);
+        Entity subject = Entity.builder()
+            .id(ResourceId.parse("minecraft:test"))
+            .model(mesh)
+            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(mesh, Optional.empty(), loaded,
+                0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                EntityPose.NONE, Optional.empty(), Optional.of(ramp))))
+            .build();
+
+        assertEquals(PassDeclaration.drawnAlpha(-0.5f), alphaAt(subject, 0), "at tick 0 the ramp is under the skip");
+        assertEquals(PassDeclaration.drawnAlpha(0.375f), alphaAt(subject, 35), "at tick 35 it draws at its value");
+        assertEquals(PassDeclaration.drawnAlpha(1.25f), alphaAt(subject, 70), "and at tick 70 at one");
+        assertNotEquals(alphaAt(subject, 0), alphaAt(subject, 35), "so the pass moves between frames");
+
+        assertSame(subject, PosePlayer.posed(subject, StyleCatalog.bind(), period(subject), 35),
+            "a bind render is the subject it was given");
+        assertSame(loaded, PosePlayer.posed(subject, StyleCatalog.bind(), period(subject), 35)
+            .overlays().getFirst().pass(), "whose pass keeps the opacity it loaded at");
+    }
+
+    @Test
     @DisplayName("the four subjects whose models write visibility outside every branch")
     void theFrameDrivenVisibilityWritersLandWhereVanillaPutsThem() {
         // These four write visibility with nothing a still subject could branch on selecting it.
@@ -895,6 +944,16 @@ class PosePlayerTest {
 
     private static int period(@NotNull Entity entity) {
         return entity.styles().periodTicks();
+    }
+
+    /** What a constant opacity draws at, read against one mesh with every input at rest. */
+    private static float opacity(float value, @NotNull EntityMesh mesh) {
+        return PosePlayer.opacityAt(new PoseExpr.Constant(value, PoseWidth.FLOAT), mesh, PoseEvaluator.AT_REST);
+    }
+
+    /** The opacity a subject's first pass draws at under its idle row at one tick. */
+    private static float alphaAt(@NotNull Entity subject, int tick) {
+        return PosePlayer.posed(subject, idle(subject), period(subject), tick).overlays().getFirst().pass().alpha();
     }
 
     /** The subject's body mesh where one row leaves it at one tick. */

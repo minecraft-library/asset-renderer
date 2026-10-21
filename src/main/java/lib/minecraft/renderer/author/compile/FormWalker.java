@@ -400,7 +400,7 @@ public final class FormWalker {
             String piece = "layer '" + coordinate + LAYER_PREFIX + index + "'";
             if (layer.pose() == form.pose()) {
                 this.guardHatCopy(install, piece, layer, body.model(), body);
-                overlays.add(repointed(layer, body.pose()));
+                overlays.add(layer.withPose(body.pose()));
                 continue;
             }
             Possible<WovenLayer> woven = this.woven(layer.pose());
@@ -413,7 +413,7 @@ public final class FormWalker {
                 this.layers.put(layer.pose(), woven);
             }
             woven.ifPresent(weave -> this.guardHatCopy(install, piece, layer, weave.model(), weave.body()));
-            overlays.add(woven.map(weave -> repointed(layer, weave.pose())).orElse(layer));
+            overlays.add(woven.map(weave -> layer.withPose(weave.pose())).orElse(layer));
         }
         return Concurrent.newUnmodifiableList(overlays);
     }
@@ -876,15 +876,6 @@ public final class FormWalker {
      */
     private static boolean admitsBaby(@NotNull BuiltStyle style) {
         return style.age().map(age -> age == Age.BABY).orElse(true);
-    }
-
-    /**
-     * The same pass carrying a different pose row - every other component untouched.
-     */
-    private static @NotNull Entity.OverlayLayer repointed(@NotNull Entity.OverlayLayer layer, @NotNull EntityPose pose) {
-        return new Entity.OverlayLayer(layer.model(), layer.textureRef(), layer.pass(), layer.tintArgb(),
-            layer.skipBounds(), layer.tintBy(), layer.textureBy(), layer.gate(), layer.noHatModel(),
-            pose, layer.textureScroll());
     }
 
     /**

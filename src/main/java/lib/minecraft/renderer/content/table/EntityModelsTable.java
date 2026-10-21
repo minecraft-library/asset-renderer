@@ -249,6 +249,10 @@ public record EntityModelsTable(
      * @param when the render condition, or {@code null} when unconditional
      * @param baby the age delta a baby render substitutes, or {@code null} when the overlay draws on an
      *     adult only
+     * @param opacity the pass's opacity as an expression in {@code entity_poses.json}'s node grammar,
+     *     reading render-state inputs alone, or {@code null} - or a JSON {@code null}, which the loader
+     *     reads as the same absence - where the pass draws at a constant one. Held as the node it is,
+     *     the grammar being one only that table's reader walks
      */
     public record RawOverlay(
         @Nullable String geometry,
@@ -261,7 +265,8 @@ public record EntityModelsTable(
         @SerializedName("texture_scroll") @Nullable RawTextureScroll textureScroll,
         @SerializedName("skip_bounds") boolean skipBounds,
         @Nullable RawOverlayWhen when,
-        @Nullable RawOverlayBaby baby
+        @Nullable RawOverlayBaby baby,
+        @Nullable JsonElement opacity
     ) {}
 
     /**
@@ -278,8 +283,8 @@ public record EntityModelsTable(
 
     /**
      * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
-     * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. A delta
-     * carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
+     * ({@code texture_by}, tint, pipeline, opacity, bounds skip, gate) inherited from the overlay row. A
+     * delta carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
      * supplies as the base coordinate.
      *
      * <p>A baby form's mesh is its own rather than the adult's under a baby-sized deformation: a baby
@@ -305,7 +310,8 @@ public record EntityModelsTable(
      *
      * @param emissive whether the overlay renders full-bright
      * @param blend the composition token ({@code additive} / {@code translucent} / {@code normal}), or {@code null}
-     * @param alpha the per-fragment opacity, boxed so an absent member falls to {@code 1f}
+     * @param alpha the per-fragment opacity, boxed so an absent member falls to {@code 1f}; absent where
+     *     the overlay declares an {@code opacity}
      * @param depthWrite whether the pass writes the depth buffer, boxed so an absent member falls to
      *     {@code true} - the value {@code DepthStencilState.DEFAULT} carries and all but the eyes-style
      *     passes declare

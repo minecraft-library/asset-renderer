@@ -1117,11 +1117,10 @@ public class Rasterizer {
                     int afterShade = Shading.apply(rawTexel, t.source.tintArgb(),
                         pass.emissive() ? Shading.UNLIT : shading);
                     // Per-overlay opacity multiplier: scale the fragment's alpha before compositing.
-                    // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only an
-                    // overlay declaring an explicit alpha node (the warden pulsating-spots glow at
-                    // 0.25) reduces it. A fractional layer opacity has no home in the overlay tint's
-                    // alpha byte - the MULTIPLY tint blend keeps the texel's alpha - so it rides this
-                    // dedicated path.
+                    // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only a pass
+                    // whose declared or frame-evaluated opacity is below one reduces it. A fractional
+                    // layer opacity has no home in the overlay tint's alpha byte - the MULTIPLY tint
+                    // blend keeps the texel's alpha - so it rides this dedicated path.
                     int afterAlpha = alphaScale == 1f
                         ? afterShade
                         : ColorMath.withAlpha(afterShade, Math.round(ColorMath.alpha(afterShade) * alphaScale));

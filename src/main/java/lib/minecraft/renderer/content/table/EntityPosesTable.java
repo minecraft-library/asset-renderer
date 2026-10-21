@@ -418,6 +418,39 @@ public record EntityPosesTable(
     }
 
     /**
+     * Reads one expression that stands on its own - this file's node grammar over render-state inputs
+     * alone, with no shared table to resolve a {@code ref} against and no mesh to answer a
+     * {@code bone} read from. It is the grammar an overlay's opacity is written in, which evaluates
+     * against one frame's binding and nothing else.
+     *
+     * @param owner what the expression belongs to, named in a refusal
+     * @param node the expression node
+     * @return the expression
+     * @throws ContentException if the node reads a shared entry or a bone anywhere within it, or is
+     *     not an expression this grammar reads
+     */
+    public static @NotNull PoseExpr standaloneExpression(@NotNull String owner, @NotNull JsonElement node) {
+        refuseReads(owner, node);
+        return expression(owner, node, Shared.of(owner, null));
+    }
+
+    /** Refuses a node that names a shared entry or a bone anywhere within it. */
+    private static void refuseReads(@NotNull String owner, @NotNull JsonElement node) {
+        if (node.isJsonArray()) {
+            node.getAsJsonArray().forEach(element -> refuseReads(owner, element));
+            return;
+        }
+        if (!node.isJsonObject()) return;
+        for (Map.Entry<String, JsonElement> member : node.getAsJsonObject().entrySet()) {
+            if ("ref".equals(member.getKey()) || "bone".equals(member.getKey())) {
+                throw new ContentException("Opacity of '%s' reads '%s', which a self-contained expression does not",
+                    owner, member.getKey());
+            }
+            refuseReads(owner, member.getValue());
+        }
+    }
+
+    /**
      * One expression, dispatched on the single member naming what it does.
      *
      * <p>The operator roster is consulted before the leaf names, so a table written by a newer

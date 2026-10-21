@@ -27,7 +27,14 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@link PassDeclaration#withEmissive} carries a derived-value contract of its own: it returns
  * {@code this} when the flag already matches, so a caller re-declaring a pass that is already shaded
  * allocates nothing. That short-circuit is asserted by identity, which is what makes it a contract
- * rather than an implementation detail.
+ * rather than an implementation detail. {@link PassDeclaration#withAlpha} carries the same one, which
+ * is what lets a posed frame whose opacity did not move hand back the pass it was given.
+ * <p>
+ * {@link PassDeclaration#drawnAlpha} is the one conversion from what an alpha source answers to what a
+ * pass draws at, and both of its steps are vanilla's own. {@code LivingEntityEmissiveLayer} skips a
+ * layer whose alpha function answers at most {@code 1.0E-5f}, so a value exactly there draws nothing;
+ * above it vanilla draws the alpha as the vertex colour's byte, {@code floor(alpha * 255)}, so a quarter
+ * draws at {@code 63 / 255} - the floor, where a round to nearest would give {@code 64}.
  */
 @DisplayName("Pass declaration")
 class PassDeclarationTest {
@@ -122,6 +129,30 @@ class PassDeclarationTest {
         assertThat(derived.writesDepth(), equalTo(source.writesDepth()));
         assertThat(derived.sorted(), equalTo(source.sorted()));
         assertThat(derived.wrapsTexture(), equalTo(source.wrapsTexture()));
+    }
+
+    @Test
+    @DisplayName("withAlpha rewrites only the opacity, and returns the same instance when it already matches")
+    void withAlphaKeepsEveryOtherDeclaration() {
+        PassDeclaration source = new PassDeclaration(true, BlendMode.ADD, 0.25f, false, true, true);
+        PassDeclaration derived = source.withAlpha(0.125f);
+
+        assertThat(derived, not(sameInstance(source)));
+        assertThat(derived, equalTo(new PassDeclaration(true, BlendMode.ADD, 0.125f, false, true, true)));
+        assertThat(source.withAlpha(0.25f), sameInstance(source));
+        assertThat(PassDeclaration.DEFAULT.withAlpha(1f), sameInstance(PassDeclaration.DEFAULT));
+    }
+
+    @Test
+    @DisplayName("drawnAlpha draws nothing at or under vanilla's skip, and above it vanilla's byte at most one")
+    void drawnAlphaSkipsTheFloorAndCapsAtOne() {
+        assertThat(PassDeclaration.DRAWN_ALPHA_FLOOR, equalTo(1.0E-5f));
+        assertThat(PassDeclaration.drawnAlpha(1.0E-5f), equalTo(0f));
+        assertThat(PassDeclaration.drawnAlpha(0f), equalTo(0f));
+        assertThat(PassDeclaration.drawnAlpha(-0.25f), equalTo(0f));
+        assertThat(PassDeclaration.drawnAlpha(0.25f), equalTo(63f / 255f));
+        assertThat(PassDeclaration.drawnAlpha(1f), equalTo(1f));
+        assertThat(PassDeclaration.drawnAlpha(1.5f), equalTo(1f));
     }
 
     @Test

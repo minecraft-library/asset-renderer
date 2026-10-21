@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.index;
 
+import com.google.gson.JsonElement;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -35,10 +36,13 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawRender;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawStyleRow;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawTextureScroll;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.engine.pose.PoseEvaluator;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
@@ -56,6 +60,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -66,6 +71,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntUnaryOperator;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -261,8 +268,8 @@ public final class EntityIndexBuilder {
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
         ConcurrentList<OverlayLayer> overlays = form.coordinate()
-            .map(coordinate -> loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
-                pose, coordinate, model, ctx.familyId()))
+            .map(coordinate -> loadOverlays(ctx.familyOverlays(), IntUnaryOperator.identity(), ctx.geometries(),
+                ctx.poses(), pose, coordinate, model, ctx.familyId()))
             .orElseGet(() -> meshlessPasses(ctx));
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
@@ -548,9 +555,14 @@ public final class EntityIndexBuilder {
      * with the base; a distinct coordinate resolves fresh from the geometry table (a missing coordinate
      * warns and drops). A pass vanilla restricts to a subset or deforms names the mesh that is, so the
      * distinct coordinate is what says the two differ.
+     *
+     * <p>A refusal names a row by its place in the list the table declares it in, which
+     * {@code tableIndex} answers for each position in {@code overlays} - a baby form's list holds only
+     * the rows carrying a delta, so its positions are not the table's.
      */
     private static @NotNull ConcurrentList<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
+        @NotNull IntUnaryOperator tableIndex,
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull EntityPose bodyPose,
@@ -559,7 +571,9 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         List<OverlayLayer> out = new ArrayList<>();
-        for (RawOverlay entry : overlays) {
+        for (int position = 0; position < overlays.size(); position++) {
+            RawOverlay entry = overlays.get(position);
+            int index = tableIndex.applyAsInt(position);
             String coord = entry.geometry() == null ? baseCoord : entry.geometry();
             boolean sameGeometry = coord.equals(baseCoord);
             EntityMesh overlayModel;
@@ -600,7 +614,14 @@ public final class EntityIndexBuilder {
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
             BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend());
-            float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
+            Optional<PoseExpr> opacity = opacity(entry, entityId, index);
+            // The declaration's opacity is what a frame posing nothing draws: a constant alpha, or an
+            // opacity's value with every input at rest - both through the one conversion every frame's
+            // opacity takes, so the two spellings of one value draw alike.
+            float declared = opacity.isPresent()
+                ? atRest(opacity.get(), entityId, index)
+                : pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
+            float alpha = PassDeclaration.drawnAlpha(declared);
             // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
             // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
             // (what DepthStencilState.DEFAULT declares) and draws in emission order.
@@ -618,9 +639,54 @@ public final class EntityIndexBuilder {
             PassDeclaration pass =
                 new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, scroll.isPresent());
             out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
-                textureBy, gate, noHatModel, overlayPose, scroll));
+                textureBy, gate, noHatModel, overlayPose, scroll, opacity));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
+    }
+
+    /**
+     * The opacity expression an overlay row declares, read as an expression over the render state
+     * alone.
+     *
+     * <p>A row carries one opacity or none: a constant {@code pipeline.alpha} beside an expression
+     * would leave the pass two values to draw at. A constant at or under zero is refused too, the
+     * generator dropping any pass that would draw nothing, so one in the table is a generator fault
+     * rather than a pass to skip.
+     *
+     * <p>A JSON {@code null} is no opacity, as an absent member is: Gson reads it into the member as a
+     * node rather than as nothing.
+     *
+     * @throws ContentException if the row declares an alpha and an opacity, declares an alpha at or
+     *     under zero, or declares an opacity that reads a bone or a shared entry
+     */
+    private static @NotNull Optional<PoseExpr> opacity(@NotNull RawOverlay entry, @NotNull String entityId, int index) {
+        Float alpha = entry.pipeline() == null ? null : entry.pipeline().alpha();
+        JsonElement node = entry.opacity() == null || entry.opacity().isJsonNull() ? null : entry.opacity();
+        if (alpha != null && node != null) {
+            throw new ContentException("Entity '%s' overlay '%s' declares an alpha and an opacity, and a pass has one",
+                entityId, index);
+        }
+        if (alpha != null && alpha <= 0f) {
+            throw new ContentException("Entity '%s' overlay '%s' declares alpha '%s', and a shipped pass draws",
+                entityId, index, alpha);
+        }
+        if (node == null) return Optional.empty();
+        return Optional.of(EntityPosesTable.standaloneExpression(entityId + " overlay " + index, node));
+    }
+
+    /**
+     * An opacity expression's value with every input at rest - what a frame posing nothing reads.
+     *
+     * <p>Evaluated against no mesh: the expression was refused at its parse if it read a bone, so a
+     * channel read reaching here is a reader that let one through.
+     */
+    private static float atRest(@NotNull PoseExpr opacity, @NotNull String entityId, int index) {
+        PoseEvaluator.BoneChannels unread = (bone, channel) -> {
+            throw new ContentException(
+                "Entity '%s' overlay '%s' reads '%s' of bone '%s' at rest, and an opacity reads no bone",
+                entityId, index, channel.token(), bone);
+        };
+        return PoseEvaluator.values(List.of(opacity), unread, PoseEvaluator.AT_REST).getFirst();
     }
 
     /**
@@ -648,10 +714,11 @@ public final class EntityIndexBuilder {
      * Resolves the baby forms of an {@code overlays} list into the parallel {@link OverlayLayer} list a
      * baby render draws in place of the adult one. Each row carrying a {@code baby} delta is rewritten
      * into an overlay whose meshes and texture come from the delta and whose every other member
-     * ({@code texture_by}, tint, pipeline, bounds skip, gate) is inherited from the row, then handed to
-     * {@link #loadOverlays} against the {@code age.baby} mesh. A row with no delta is absent from the
-     * result, so a pass vanilla itself gates off a baby (the villager profession and profession-level
-     * passes) drops out structurally.
+     * ({@code texture_by}, tint, pipeline, opacity, bounds skip, gate) is inherited from the row, then
+     * handed to {@link #loadOverlays} against the {@code age.baby} mesh, each with the row's place in
+     * {@code overlays} for a refusal to name. A row with no delta is absent from the result, so a pass
+     * vanilla itself gates off a baby (the villager profession and profession-level passes) drops out
+     * structurally.
      *
      * <p>A delta naming no geometry is left naming none rather than given the row's coordinate: the row
      * names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry} false
@@ -678,13 +745,17 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         if (babyModel.getState() == Possible.State.EMPTY) return Concurrent.newUnmodifiableList();
-        ConcurrentList<RawOverlay> forms = overlays.stream()
-            .filter(entry -> entry.baby() != null)
+        int[] rows = IntStream.range(0, overlays.size())
+            .filter(index -> overlays.get(index).baby() != null)
+            .toArray();
+        ConcurrentList<RawOverlay> forms = Arrays.stream(rows)
+            .mapToObj(overlays::get)
             .map(entry -> new RawOverlay(
                 entry.baby().geometry(), entry.baby().noHatGeometry(),
                 entry.baby().texture() == null ? entry.texture() : entry.baby().texture(),
                 entry.tint(), entry.tintBy(), entry.textureBy(),
-                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null))
+                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null,
+                entry.opacity()))
             .collect(Concurrent.toUnmodifiableList());
         if (forms.isEmpty()) return Concurrent.newUnmodifiableList();
         if (babyModel.isAbsent()) {
@@ -693,7 +764,8 @@ public final class EntityIndexBuilder {
                 entityId, babyCoord);
             return Concurrent.newUnmodifiableList();
         }
-        return loadOverlays(forms, geometries, poses, babyPose, babyCoord, babyModel.get(), entityId);
+        return loadOverlays(forms, position -> rows[position], geometries, poses, babyPose, babyCoord,
+            babyModel.get(), entityId);
     }
 
     /**
@@ -1085,8 +1157,8 @@ public final class EntityIndexBuilder {
         String coord = large.geometry();
         EntityMesh model = ctx.geometries().get(coord);
         if (model == null) return Entity.Variation.none();
-        ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
-            poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), IntUnaryOperator.identity(),
+            ctx.geometries(), ctx.poses(), poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
             ctx.familyId());
         Entity largeForm = bare.mutate()
             .model(model)

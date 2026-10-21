@@ -626,6 +626,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // than beside it, so there is one definition of the condition.
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
                         .filter(gate -> !appearance.passes(gate)).isPresent()) continue;
+                    // A pass this frame draws at no opacity emits no triangle. Composited at alpha 0
+                    // a fragment still reaches the composite and, on a pass that writes depth, the
+                    // depth buffer, so drawing nothing is skipping the pass rather than drawing it clear.
+                    if (overlay.pass().alpha() <= PassDeclaration.DRAWN_ALPHA_FLOOR) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     // The texture this pass draws, in one of three states. An axis answering empty
                     // selected nothing to draw - the "none" state (iron golem Crackiness.NONE) - so the
@@ -1340,6 +1344,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // render but don't contribute to bounds, mirroring the vanilla harness's
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
+            // A pass this frame draws at no opacity draws nothing, so it sizes nothing either - the
+            // canvas is measured in what the frame draws.
+            if (overlay.pass().alpha() <= PassDeclaration.DRAWN_ALPHA_FLOOR) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             DebugChannel.overlayBounds(overlay.textureRef().orElse("<unset>"),
                 overlayBounds.minX(), overlayBounds.maxX(), overlayBounds.minY(), overlayBounds.maxY());

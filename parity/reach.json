@@ -196,6 +196,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/EntityRendererOpacityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityRendererStylesTest": {
       "artifacts": [],
       "source": "derived"
@@ -488,6 +492,10 @@
         "sweep.item",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/asset/OverlayLayerCopyTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/asset/equipment/EquipmentModel": {
@@ -2936,6 +2944,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/EntityStyleGrammarLoadTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/EntityTextureScrollJoinTest": {
       "artifacts": [],
       "source": "derived"
@@ -5136,6 +5148,8 @@
     },
     "lib/minecraft/renderer/engine/pose/PoseEvaluator": {
       "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
