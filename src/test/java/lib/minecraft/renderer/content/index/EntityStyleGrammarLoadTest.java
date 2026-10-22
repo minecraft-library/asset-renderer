@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxes;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxis;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawModel;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawOverlayBaby;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawPipeline;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,6 +41,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * declaration through the same conversion a constant {@code pipeline.alpha} takes, so the two spellings
  * of one opacity draw alike. A constant at or under zero is refused, the generator dropping any pass
  * that would draw nothing.
+ *
+ * <p>A stroke's {@code rate} and a trapezoid's four spans load onto the driver's timing, a span the row
+ * does not spell reading zero. A timing member on a wave that does not read it, a stroke that does not
+ * advance and a trapezoid spanning no tick are refused where the row is read, naming the entity and the
+ * row, so the driver never meets a timing it would refuse.
  *
  * <p>A refusal names a row by its place in the table. A baby form is loaded from the rows carrying a
  * delta alone, and loaded first, so a refusal counting the baby forms would name a different row than
@@ -130,6 +137,81 @@ class EntityStyleGrammarLoadTest {
     }
 
     // ------------------------------------------------------------------------------------
+    // drive timing
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a stroke's rate and a trapezoid's spans load onto the driver's timing, an absent span reading zero")
+    void aDrivesTimingLoadsOntoItsDriver() {
+        StyleDriver stroke = driver("{\"field\": \"tentacleAngle\", \"wave\": \"stroke\", \"rest\": 0.0, "
+            + "\"extent\": 0.7853982, \"rate\": 0.11559614}");
+        assertEquals(StyleDriver.Wave.STROKE, stroke.wave());
+        assertEquals(StyleDriver.Timing.stroke(0.11559614f), stroke.timing(), "the stroke reads its rate");
+
+        StyleDriver peek = driver("{\"field\": \"peekAmount\", \"wave\": \"trapezoid\", \"rest\": 0.0, "
+            + "\"extent\": 0.29999998, \"rise\": 6, \"dwell\": 14, \"fall\": 6, \"gap\": 0}");
+        assertEquals(StyleDriver.Timing.trapezoid(6, 14, 6, 0), peek.timing(), "the trapezoid reads its spans");
+
+        StyleDriver heart = driver("{\"field\": \"heartAnimation\", \"wave\": \"trapezoid\", \"rest\": 0.0, "
+            + "\"extent\": 1.0, \"fall\": 10, \"gap\": 30}");
+        assertEquals(StyleDriver.Timing.trapezoid(0, 0, 10, 30), heart.timing(),
+            "a span the row does not spell reads zero");
+
+        StyleDriver held = driver("{\"field\": \"croakAnimationState\", \"wave\": \"hold\", \"extent\": 1.0}");
+        assertEquals(StyleDriver.Timing.NONE, held.timing(), "every other wave reads no timing");
+    }
+
+    @Test
+    @DisplayName("a timing member on a wave that does not read it is refused")
+    void aTimingMemberTheWaveDoesNotReadIsRefused() {
+        ContentException rated = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"croakAnimationState\", \"wave\": \"hold\", \"extent\": 1.0, \"rate\": 0.1}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' drives 'croakAnimationState' by 'hold', which reads no 'rate'",
+            rated.getMessage());
+
+        ContentException spanned = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"tentacleAngle\", \"wave\": \"stroke\", \"extent\": 0.7853982, "
+                + "\"rate\": 0.11559614, \"dwell\": 4}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' drives 'tentacleAngle' by 'stroke', which reads no 'dwell'",
+            spanned.getMessage());
+
+        ContentException shaped = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"peekAmount\", \"wave\": \"trapezoid\", \"extent\": 0.29999998, "
+                + "\"rise\": 6, \"rate\": 0.1}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' drives 'peekAmount' by 'trapezoid', which reads no 'rate'",
+            shaped.getMessage());
+    }
+
+    @Test
+    @DisplayName("a stroke with no rate, or one at most zero, is refused, a stroke being a phase that advances")
+    void aStrokeWithNoRateIsRefused() {
+        ContentException absent = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"tentacleAngle\", \"wave\": \"stroke\", \"extent\": 0.7853982}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' strokes 'tentacleAngle' at 'null' a tick, and a stroke advances",
+            absent.getMessage());
+
+        ContentException still = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"tentacleAngle\", \"wave\": \"stroke\", \"extent\": 0.7853982, \"rate\": 0.0}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' strokes 'tentacleAngle' at '0.0' a tick, and a stroke advances",
+            still.getMessage());
+    }
+
+    @Test
+    @DisplayName("a trapezoid spanning no tick, or carrying a negative span, is refused")
+    void aTrapezoidSpanningNoTickIsRefused() {
+        ContentException empty = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"peekAmount\", \"wave\": \"trapezoid\", \"extent\": 0.29999998}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' shapes 'peekAmount' over '0 + 0 + 0 + 0' ticks, "
+            + "and a trapezoid spans at least one", empty.getMessage());
+
+        ContentException negative = assertThrows(ContentException.class, () ->
+            driver("{\"field\": \"peekAmount\", \"wave\": \"trapezoid\", \"extent\": 0.29999998, "
+                + "\"rise\": -1, \"dwell\": 14, \"fall\": 6}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' shapes 'peekAmount' over '-1 + 14 + 6 + 0' ticks, "
+            + "and a trapezoid spans at least one", negative.getMessage());
+    }
+
+    // ------------------------------------------------------------------------------------
 
     /**
      * The fixture entity's one pass, drawing the body's mesh.
@@ -191,6 +273,25 @@ class EntityStyleGrammarLoadTest {
             null));                                                       // styles
         return EntityIndexBuilder.assemble(Map.of(COORD, mesh()), new EntityModelsTable(models, null), Map.of())
             .get(ENTITY);
+    }
+
+    /**
+     * The one driver a fixture entity's {@code idle} row carries, read through the table's Gson.
+     *
+     * @param drive the row's one drive as JSON
+     * @return the loaded driver of the field the drive names
+     */
+    private static @NotNull StyleDriver driver(@NotNull String drive) {
+        String json = "{\"period_ticks\": 24, \"models\": {\"" + ENTITY + "\": {"
+            + "\"axes\": {\"age\": {\"options\": {\"adult\": {\"geometry\": \"" + COORD + "\", \"texture\": \"test\"}}}}, "
+            + "\"styles\": [{\"id\": \"idle\", \"sources\": [\"figure\"], \"drives\": [" + drive + "]}]"
+            + "}}}";
+        EntityModelsTable table = GsonSettings.defaults().create()
+            .fromJson(JsonParser.parseString(json), EntityModelsTable.class);
+        String field = JsonParser.parseString(drive).getAsJsonObject().get("field").getAsString();
+        PoseStyle idle = EntityIndexBuilder.assemble(Map.of(COORD, mesh()), table, Map.of())
+            .get(ENTITY).styles().styles().getFirst();
+        return idle.drivers().get(field);
     }
 
     /** The fixture body - one bone, which no opacity reads. */

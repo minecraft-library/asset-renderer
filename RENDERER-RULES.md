@@ -1491,9 +1491,10 @@ Pose authoring and compiling:
   different spaces - a field name against a bone, a member and an axis - and one evaluates itself
   where the other's arithmetic is private to the kit that reads it. They are not even peers: a
   clip's own gate and clock ARE drivers, minted three lines above the clip in `Lowering`, so a
-  merged type would take its own output as a precondition. Neither record validates anything and
-  nothing cross-checks the arms, so a merged constructor would accept a held clock carrying
-  keyframes - it would compile, render, and displace nothing. What IS worth taking is the arithmetic:
+  merged type would take its own output as a precondition. `StyleDriver` validates only its timing,
+  refusing one its wave cannot run or does not read; a clip's record validates nothing; and nothing
+  cross-checks the arms, so a merged constructor would accept a held clock carrying keyframes - it
+  would compile, render, and displace nothing. What IS worth taking is the arithmetic:
   `ClipPlayer` holds the keyframe curve and four helpers privately, called from one site, and none of
   them reads anything outside a keyframe, so they would sit on the channel beside the driver's own
   `at` and make the two units and the two rounding schedules legible as a pair for no new state.

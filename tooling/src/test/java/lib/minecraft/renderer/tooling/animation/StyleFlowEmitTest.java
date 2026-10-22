@@ -13,6 +13,8 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -26,17 +28,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The style emitter's contracts: every emitted id unique per entity - two rows sharing one only
  * where disjoint ages split them - and off the reserved ids, every state field earning exactly
- * one choice, every emittable token loader-readable, and the two still-nesses kept apart in the
- * emit log.
+ * one choice, every emittable token loader-readable, every drive filed under the kind that moves it
+ * and measured by the arithmetic the loaded row renders with, and the two still-nesses kept apart in
+ * the emit log.
  *
  * <p>Exercised on hand-built model trees and pose programs rather than a walked corpus, so each
  * contract is pinned per shape independently of any entity's layout; the corpus-wide answers are
@@ -287,9 +293,10 @@ class StyleFlowEmitTest {
         Set.of("id", "base", "age", "sources", "toggles", "drives");
 
     private static final @NotNull Set<String> DRIVE_MEMBERS =
-        Set.of("field", "wave", "rest", "extent", "group");
+        Set.of("field", "wave", "rest", "extent", "group", "rate", "rise", "dwell", "fall", "gap");
 
-    private static final @NotNull Set<String> WAVES = Set.of("hold", "ramp", "sweep", "cycle");
+    private static final @NotNull Set<String> WAVES =
+        Set.of("hold", "ramp", "sweep", "cycle", "stroke", "trapezoid");
 
     private static final @NotNull Set<String> SOURCES =
         Set.of("none", "tick", "figure", "select", "stride", "scroll");
@@ -393,7 +400,134 @@ class StyleFlowEmitTest {
     }
 
     // ------------------------------------------------------------------------------------
-    // 4 - the two still-nesses
+    // 4 - the kind a drive files its variation under
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("an ungrouped drive off the trio files as a figure, whatever its wave; a grouped one as a select")
+    void anUngroupedDriveOffTheTrioFilesAsAFigure() {
+        assertEquals("figure", new StyleFlow.Drive("tailAnimation", "ramp", 0f, 0.125f, Optional.empty()).kind(),
+            "a ramped clock is a render-state scalar, not a one-hot");
+        assertEquals("figure", new StyleFlow.Drive("spikesAnimation", "hold", 0f, 1f, Optional.empty()).kind(),
+            "and so is a level a clock is held at");
+        assertEquals("figure", new StyleFlow.Drive("tentacleAngle", "sweep", 0f, 0.7853982f, Optional.empty()).kind());
+        assertEquals("figure", new StyleFlow.Drive("flapTime", "cycle", 0f, 1f, Optional.empty()).kind());
+        assertEquals("select", new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")).kind(),
+            "a grouped hold is a selection");
+        assertEquals("tick", new StyleFlow.Drive("ageInTicks", "ramp", 0f, 1f, Optional.empty()).kind());
+        assertEquals("stride", new StyleFlow.Drive("walkAnimationSpeed", "hold", 0f, 1f, Optional.empty()).kind());
+        assertEquals("stride", new StyleFlow.Drive("walkAnimationPos", "ramp", 0f, 1f, Optional.empty()).kind());
+    }
+
+    // ------------------------------------------------------------------------------------
+    // 5 - the stroke and the trapezoid
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a stroke and a trapezoid spell their timing as the loader reads it, and every wave measures as it renders")
+    void aStrokeAndATrapezoidSpellTheirTimingAndMeasureAsTheyRender() {
+        StyleFlow.Drive stroke = new StyleFlow.Drive("tentacleAngle", "stroke", 0f, 0.7853982f,
+            StyleDriver.Timing.stroke(0.11559614f), Optional.empty());
+        StyleFlow.Drive peek = new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f,
+            StyleDriver.Timing.trapezoid(6, 14, 6, 0), Optional.empty());
+        StyleFlow.Drive heart = new StyleFlow.Drive("heartAnimation", "trapezoid", 0f, 1f,
+            StyleDriver.Timing.trapezoid(0, 0, 10, 30), Optional.empty());
+
+        JsonTree stroked = stroke.node();
+        assertEquals(List.of("field", "wave", "rest", "extent", "rate"), stroked.keys().toList(),
+            "a stroke spells its rest, then its rate after the extent");
+        assertEquals(0.11559614f, stroked.findFloat("rate").orElseThrow());
+        JsonTree beat = heart.node();
+        assertEquals(List.of("field", "wave", "rest", "extent", "rise", "dwell", "fall", "gap"), beat.keys().toList(),
+            "a trapezoid spells all four spans, a zero span included, so the row reads whole");
+        assertEquals(List.of(0, 0, 10, 30), Stream.of("rise", "dwell", "fall", "gap")
+            .map(span -> beat.findInt(span).orElseThrow()).toList());
+        assertEquals(List.of("field", "wave", "extent", "group"),
+            new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")).node().keys().toList(),
+            "a wave reading no rest and no timing spells neither");
+
+        List<StyleFlow.Drive> waves = List.of(
+            new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")),
+            new StyleFlow.Drive("ageInTicks", "ramp", 0f, 1f, Optional.empty()),
+            new StyleFlow.Drive("movingFactor", "sweep", 0f, 1f, Optional.empty()),
+            new StyleFlow.Drive("flapTime", "cycle", 0f, 1f, Optional.empty()),
+            stroke, peek, heart);
+        JsonTree idle = JsonTree.object().put("id", "idle").put("sources", JsonTree.array());
+        JsonTree drives = idle.childArray("drives");
+        for (StyleFlow.Drive drive : waves) {
+            JsonTree node = drive.node();
+            for (String member : node.keys().toList())
+                assertTrue(DRIVE_MEMBERS.contains(member), "drive member '" + member + "' is not loader-read");
+            assertTrue(WAVES.contains(drive.wave()), "wave '" + drive.wave() + "' is not loader-read");
+            drives.add(node);
+        }
+        JsonTree models = JsonTree.object().put("minecraft:rabbity", entityRow("RabbityModel"));
+        models.child("minecraft:rabbity").childArray("styles").add(idle);
+        PoseStyle loaded = rowOf(load(models).styles(), "idle").orElseThrow();
+
+        for (StyleFlow.Drive drive : waves) {
+            StyleDriver read = loaded.drivers().get(drive.field());
+            assertEquals(drive.driver(), read, "'" + drive.wave() + "' loads as the driver it measures by");
+            for (int tick = -PERIOD; tick < 12 * PERIOD; tick++) {
+                assertEquals(Float.floatToIntBits(read.at(tick, PERIOD)), Float.floatToIntBits(drive.at(tick, PERIOD)),
+                    "'" + drive.wave() + "' measures what it renders at tick " + tick);
+            }
+        }
+
+        ToolingException unknown = assertThrows(ToolingException.class,
+            () -> new StyleFlow.Drive("tentacleAngle", "wobble", 0f, 1f, Optional.empty()).at(0, PERIOD));
+        assertEquals("'tentacleAngle' travels by 'wobble', which is not a wave", unknown.getMessage());
+    }
+
+    @Test
+    @DisplayName("a stroke or a trapezoid given no timing is refused where the drive is built")
+    void aStrokeOrATrapezoidGivenNoTimingIsRefused() {
+        ToolingException stroke = assertThrows(ToolingException.class,
+            () -> new StyleFlow.Drive("tentacleAngle", "stroke", 0f, 0.7853982f, Optional.empty()));
+        assertEquals("Field 'tentacleAngle' travels by 'stroke', which reads a timing, given none",
+            stroke.getMessage());
+        ToolingException trapezoid = assertThrows(ToolingException.class,
+            () -> new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f, StyleDriver.Timing.NONE,
+                Optional.empty()));
+        assertEquals("Field 'peekAmount' travels by 'trapezoid', which reads a timing, given none",
+            trapezoid.getMessage());
+    }
+
+    @Test
+    @DisplayName("two bindings differing only in a drive's timing are measured apart")
+    void twoBindingsDifferingOnlyInTimingKeyApart() {
+        Map<String, StyleFlow.Drive> slow = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
+            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.11559614f), Optional.empty()));
+        Map<String, StyleFlow.Drive> fast = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
+            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.2f), Optional.empty()));
+        assertNotEquals(StyleFlow.bindingKey(slow), StyleFlow.bindingKey(fast),
+            "a stroke's rate is part of what a measurement is memoised under");
+        Map<String, StyleFlow.Drive> again = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
+            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.11559614f), Optional.empty()));
+        assertEquals(StyleFlow.bindingKey(slow), StyleFlow.bindingKey(again),
+            "and one binding spelled twice is one measurement");
+
+        List<StyleDriver.Timing> timings = List.of(
+            StyleDriver.Timing.trapezoid(1, 2, 3, 4), StyleDriver.Timing.trapezoid(2, 2, 3, 4),
+            StyleDriver.Timing.trapezoid(1, 3, 3, 4), StyleDriver.Timing.trapezoid(1, 2, 4, 4),
+            StyleDriver.Timing.trapezoid(1, 2, 3, 5));
+        Set<String> keys = new LinkedHashSet<>();
+        for (StyleDriver.Timing timing : timings) {
+            keys.add(StyleFlow.bindingKey(Map.of("peekAmount",
+                new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f, timing, Optional.empty()))));
+        }
+        assertEquals(timings.size(), keys.size(), "each of a trapezoid's four spans keys a measurement apart");
+
+        Map<String, StyleFlow.Drive> grouped = Map.of("isSitting", new StyleFlow.Drive("isSitting",
+            "hold", 0f, 1f, Optional.of("pose")));
+        Map<String, StyleFlow.Drive> ungrouped = Map.of("isSitting", new StyleFlow.Drive("isSitting",
+            "hold", 0f, 1f, Optional.empty()));
+        assertNotEquals(StyleFlow.bindingKey(grouped), StyleFlow.bindingKey(ungrouped),
+            "a drive's group decides the kind it files under, so it keys a measurement apart too");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // 6 - the two still-nesses
     // ------------------------------------------------------------------------------------
 
     @Test

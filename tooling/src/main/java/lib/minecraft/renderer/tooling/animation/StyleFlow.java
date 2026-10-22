@@ -6,6 +6,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +17,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -53,9 +55,11 @@ import java.util.stream.Collectors;
  * which is how a baby whose clips all rest stays bind-only while its adult moves.
  *
  * <p>Drive spelling is deterministic: {@code field}, {@code wave} and {@code extent} are always
- * spelled, {@code rest} only on a sweep or cycle drive, {@code group} when the field has one, and
- * {@code base} is omitted where the standing row itself is not emitted - a baseless row spells its
- * whole composed driver map.
+ * spelled, {@code rest} only where the wave reads it - a sweep, cycle, stroke or trapezoid - then a
+ * stroke's {@code rate} and all four of a trapezoid's {@code rise}, {@code dwell}, {@code fall} and
+ * {@code gap}, a zero span included, then {@code group} when the field has one; {@code base} is
+ * omitted where the standing row itself is not emitted - a baseless row spells its whole composed
+ * driver map.
  */
 @UtilityClass
 public final class StyleFlow {
@@ -80,6 +84,14 @@ public final class StyleFlow {
     private static final @NotNull String WAVE_SWEEP = "sweep";
 
     private static final @NotNull String WAVE_CYCLE = "cycle";
+
+    private static final @NotNull String WAVE_STROKE = "stroke";
+
+    private static final @NotNull String WAVE_TRAPEZOID = "trapezoid";
+
+    /** The wave tokens whose travel runs from a rest, and so the drives that spell one. */
+    private static final @NotNull Set<String> RESTED_WAVES =
+        Set.of(WAVE_SWEEP, WAVE_CYCLE, WAVE_STROKE, WAVE_TRAPEZOID);
 
     /** The source tokens in emission order; {@code none} is a clip drive and never a row source. */
     private static final @NotNull List<String> SOURCE_ORDER =
@@ -209,39 +221,77 @@ public final class StyleFlow {
      *
      * @param field the render-state field name
      * @param wave the wave token
-     * @param rest what the field holds at the ends of a swept travel
+     * @param rest what the field holds at the near end of a sweep, cycle, stroke or trapezoid
      * @param extent the far end of the travel - the whole of a held one-hot, the per-tick slope of
      *     a ramp
+     * @param timing what a stroke or a trapezoid reads beside its rest and extent -
+     *     {@link StyleDriver.Timing#NONE} on every other wave
      * @param group the exclusion group token, empty for an ungrouped field
      */
-    private record Drive(
+    record Drive(
         @NotNull String field,
         @NotNull String wave,
         float rest,
         float extent,
+        @NotNull StyleDriver.Timing timing,
         @NotNull Optional<String> group
     ) {
 
         /**
-         * What this drive answers at one tick - the excursion arithmetic the reference set is
-         * rendered against, every narrowing a {@code float}.
+         * Constructs a new {@code Drive}, refusing a stroke or a trapezoid given no timing.
+         *
+         * @throws ToolingException if the wave is a stroke or a trapezoid and the timing is
+         *     {@link StyleDriver.Timing#NONE}
+         */
+        Drive {
+            if ((WAVE_STROKE.equals(wave) || WAVE_TRAPEZOID.equals(wave)) && timing.equals(StyleDriver.Timing.NONE))
+                throw new ToolingException("Field '%s' travels by '%s', which reads a timing, given none", field, wave);
+        }
+
+        /**
+         * Constructs a new {@code Drive} reading no timing - every wave but a stroke and a trapezoid.
+         *
+         * @param field the render-state field name
+         * @param wave the wave token
+         * @param rest what the field holds at the near end of a sweep or cycle
+         * @param extent the far end of the travel
+         * @param group the exclusion group token, empty for an ungrouped field
+         * @throws ToolingException if the wave is a stroke or a trapezoid, which read a timing
+         */
+        Drive(@NotNull String field, @NotNull String wave, float rest, float extent, @NotNull Optional<String> group) {
+            this(field, wave, rest, extent, StyleDriver.Timing.NONE, group);
+        }
+
+        /**
+         * The production driver this drive spells - the wave its token names, every other component
+         * carried across.
+         *
+         * @return the driver a loaded row answers this field with
+         * @throws ToolingException if the token names no wave
+         * @throws IllegalArgumentException if the timing is one the wave cannot run or does not read
+         */
+        @NotNull StyleDriver driver() {
+            StyleDriver.Wave resolved;
+            try {
+                resolved = StyleDriver.Wave.valueOf(this.wave.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException unknown) {
+                throw new ToolingException(unknown, "'%s' travels by '%s', which is not a wave", this.field, this.wave);
+            }
+            return new StyleDriver(this.field, resolved, this.rest, this.extent, this.group, this.timing);
+        }
+
+        /**
+         * What this drive answers at one tick - production's own {@link StyleDriver#at}, so a
+         * measurement binds what the loaded row renders.
          *
          * @param tick the tick being posed
-         * @param periodTicks the ticks one whole excursion spans
+         * @param periodTicks the window a sweep or cycle wraps at
          * @return the field's value at that tick
+         * @throws ToolingException if the token names no wave
+         * @throws IllegalArgumentException if the timing is one the wave cannot run or does not read
          */
         float at(int tick, int periodTicks) {
-            return switch (this.wave) {
-                case WAVE_HOLD -> this.extent;
-                case WAVE_RAMP -> tick * this.extent;
-                case WAVE_SWEEP, WAVE_CYCLE -> {
-                    float phase = Math.floorMod(tick, periodTicks) / (float) periodTicks;
-                    float travel = WAVE_CYCLE.equals(this.wave) ? phase : 1f - Math.abs(2f * phase - 1f);
-                    yield this.rest + (this.extent - this.rest) * travel;
-                }
-                default -> throw new ToolingException(
-                    "'%s' travels by '%s', which is not a wave", this.field, this.wave);
-            };
+            return driver().at(tick, periodTicks);
         }
 
         /** Whether this drive answers non-zero at any tick of one period. */
@@ -251,19 +301,28 @@ public final class StyleFlow {
             return false;
         }
 
-        /** The source kind this drive belongs to, which is what a caused variation is filed under. */
+        /**
+         * The source kind this drive belongs to, which is what a caused variation is filed under -
+         * elapsed age the tick, the stride pair the stride, a grouped drive a selection, and every
+         * other drive a render-state scalar.
+         */
         @NotNull String kind() {
             if (AGE_IN_TICKS.equals(this.field)) return "tick";
             if (WALK_SPEED.equals(this.field) || WALK_POS.equals(this.field)) return "stride";
-            if (WAVE_SWEEP.equals(this.wave) || WAVE_CYCLE.equals(this.wave)) return "figure";
-            return "select";
+            if (this.group.isPresent()) return "select";
+            return "figure";
         }
 
         /** This drive spelled as the table carries it. */
         @NotNull JsonTree node() {
             JsonTree node = JsonTree.object().put("field", this.field).put("wave", this.wave);
-            if (WAVE_SWEEP.equals(this.wave) || WAVE_CYCLE.equals(this.wave)) node.put("rest", this.rest);
+            if (RESTED_WAVES.contains(this.wave)) node.put("rest", this.rest);
             node.put("extent", this.extent);
+            if (WAVE_STROKE.equals(this.wave)) node.put("rate", this.timing.rate());
+            if (WAVE_TRAPEZOID.equals(this.wave)) {
+                node.putInt("rise", this.timing.rise()).putInt("dwell", this.timing.dwell())
+                    .putInt("fall", this.timing.fall()).putInt("gap", this.timing.gap());
+            }
             this.group.ifPresent(held -> node.put("group", held));
             return node;
         }
@@ -909,10 +968,13 @@ public final class StyleFlow {
     }
 
     /** One measurement's memo key half - the binding as spelled values, order-independent. */
-    private static @NotNull String bindingKey(@NotNull Map<String, Drive> binding) {
+    static @NotNull String bindingKey(@NotNull Map<String, Drive> binding) {
         return binding.values().stream()
             .map(drive -> drive.field() + ':' + drive.wave() + ':'
-                + Float.floatToIntBits(drive.rest()) + ':' + Float.floatToIntBits(drive.extent()))
+                + Float.floatToIntBits(drive.rest()) + ':' + Float.floatToIntBits(drive.extent()) + ':'
+                + Float.floatToIntBits(drive.timing().rate()) + ':' + drive.timing().rise() + ':'
+                + drive.timing().dwell() + ':' + drive.timing().fall() + ':' + drive.timing().gap() + ':'
+                + drive.group().orElse(""))
             .sorted()
             .collect(Collectors.joining(","));
     }

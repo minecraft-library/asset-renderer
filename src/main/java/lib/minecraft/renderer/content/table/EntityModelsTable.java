@@ -109,18 +109,34 @@ public record EntityModelsTable(
      * One {@code drives} entry - the wave one render-state field travels under a style.
      *
      * @param field the render-state field name the drive answers
-     * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle})
-     * @param rest what the field holds at tick zero, boxed so an absent member falls to {@code 0f}
+     * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle} /
+     *     {@code stroke} / {@code trapezoid})
+     * @param rest the near end of the travel, which a sweep, a cycle and a stroke hold at tick zero,
+     *     boxed so an absent member falls to {@code 0f}
      * @param extent the far end of the travel, boxed so an absent member falls to {@code 1f}
      * @param group the exclusion group under which a composing row's drive replaces its base's, or
      *     {@code null} for an ungrouped field
+     * @param rate the radians of phase a stroke advances a tick, or {@code null} on every other wave
+     * @param rise the ticks a trapezoid climbs from its rest to its extent, boxed so an absent member
+     *     falls to {@code 0}
+     * @param dwell the ticks a trapezoid holds at its extent, boxed so an absent member falls to
+     *     {@code 0}
+     * @param fall the ticks a trapezoid returns to its rest, boxed so an absent member falls to
+     *     {@code 0}
+     * @param gap the ticks a trapezoid holds at its rest before the next rise, boxed so an absent
+     *     member falls to {@code 0}
      */
     public record RawDrive(
         @Nullable String field,
         @Nullable String wave,
         @Nullable Float rest,
         @Nullable Float extent,
-        @Nullable String group
+        @Nullable String group,
+        @Nullable Float rate,
+        @Nullable Integer rise,
+        @Nullable Integer dwell,
+        @Nullable Integer fall,
+        @Nullable Integer gap
     ) {}
 
     /**

@@ -1418,13 +1418,15 @@ public final class EntityIndexBuilder {
 
     /**
      * One drive mapped onto its driver - {@code rest} defaults to {@code 0f} and {@code extent} to
-     * {@code 1f} where the row spells neither.
+     * {@code 1f} where the row spells neither, and the wave's timing is read off the members it
+     * reads.
      *
      * @param raw the drive as the table spells it
      * @param familyId the entity being read, for refusals
      * @param styleId the row the drive belongs to, for refusals
      * @return the driver
-     * @throws ContentException if the drive names no field, or a token that is not a wave
+     * @throws ContentException if the drive names no field, a token that is not a wave, or a timing
+     *     its wave refuses
      */
     private static @NotNull StyleDriver styleDriver(
         @NotNull RawDrive raw, @NotNull String familyId, @NotNull String styleId) {
@@ -1440,7 +1442,68 @@ public final class EntityIndexBuilder {
         return new StyleDriver(raw.field(), wave,
             raw.rest() == null ? 0f : raw.rest(),
             raw.extent() == null ? 1f : raw.extent(),
-            Optional.ofNullable(raw.group()));
+            Optional.ofNullable(raw.group()),
+            styleTiming(raw, wave, familyId, styleId));
+    }
+
+    /**
+     * What a drive's wave reads beside its rest and extent - a stroke's rate, or a trapezoid's four
+     * spans with an absent span reading {@code 0}; {@link StyleDriver.Timing#NONE} for every other
+     * wave.
+     *
+     * @param raw the drive as the table spells it
+     * @param wave the wave its token names
+     * @param familyId the entity being read, for refusals
+     * @param styleId the row the drive belongs to, for refusals
+     * @return the timing the driver is built with
+     * @throws ContentException if the drive spells a timing member its wave does not read, strokes at
+     *     no positive finite rate, or shapes a trapezoid with a negative span or spanning no tick
+     */
+    private static @NotNull StyleDriver.Timing styleTiming(
+        @NotNull RawDrive raw, @NotNull StyleDriver.Wave wave, @NotNull String familyId, @NotNull String styleId) {
+
+        Optional<String> unread = unreadTiming(raw, wave);
+        if (unread.isPresent()) {
+            throw new ContentException("Entity '%s' style '%s' drives '%s' by '%s', which reads no '%s'",
+                familyId, styleId, raw.field(), raw.wave(), unread.get());
+        }
+        if (wave == StyleDriver.Wave.STROKE) {
+            Float rate = raw.rate();
+            if (rate == null || !(rate > 0f && Float.isFinite(rate))) {
+                throw new ContentException("Entity '%s' style '%s' strokes '%s' at '%s' a tick, and a stroke advances",
+                    familyId, styleId, raw.field(), rate);
+            }
+            return StyleDriver.Timing.stroke(rate);
+        }
+        if (wave != StyleDriver.Wave.TRAPEZOID) return StyleDriver.Timing.NONE;
+        int rise = raw.rise() == null ? 0 : raw.rise();
+        int dwell = raw.dwell() == null ? 0 : raw.dwell();
+        int fall = raw.fall() == null ? 0 : raw.fall();
+        int gap = raw.gap() == null ? 0 : raw.gap();
+        if (rise < 0 || dwell < 0 || fall < 0 || gap < 0 || rise + dwell + fall + gap < 1) {
+            throw new ContentException(
+                "Entity '%s' style '%s' shapes '%s' over '%s + %s + %s + %s' ticks, and a trapezoid spans at least one",
+                familyId, styleId, raw.field(), rise, dwell, fall, gap);
+        }
+        return StyleDriver.Timing.trapezoid(rise, dwell, fall, gap);
+    }
+
+    /**
+     * The first timing member a drive spells that its wave does not read - a {@code rate} off a
+     * stroke, a span off a trapezoid.
+     *
+     * @param raw the drive as the table spells it
+     * @param wave the wave its token names
+     * @return the member's name, or empty where the drive spells only what its wave reads
+     */
+    private static @NotNull Optional<String> unreadTiming(@NotNull RawDrive raw, @NotNull StyleDriver.Wave wave) {
+        if (wave != StyleDriver.Wave.STROKE && raw.rate() != null) return Optional.of("rate");
+        if (wave == StyleDriver.Wave.TRAPEZOID) return Optional.empty();
+        if (raw.rise() != null) return Optional.of("rise");
+        if (raw.dwell() != null) return Optional.of("dwell");
+        if (raw.fall() != null) return Optional.of("fall");
+        if (raw.gap() != null) return Optional.of("gap");
+        return Optional.empty();
     }
 
     /**
