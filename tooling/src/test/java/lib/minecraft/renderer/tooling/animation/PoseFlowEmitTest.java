@@ -1,14 +1,19 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,6 +32,8 @@ import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -509,6 +516,219 @@ class PoseFlowEmitTest {
             });
         });
         assertEquals(List.of("minecraft:happy_ghast " + key), named, "the ghast's body layer alone names a wearer pose");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the pose a selected carried block swaps onto its wearer
+    // ------------------------------------------------------------------------------------
+
+    /** The countdown a carried flower's field is answered with - the int the field is, 400 less the age. */
+    private static final @NotNull PoseExpr COUNTDOWN = PoseExpr.operation(PoseOperator.ISUB, new PoseExpr.Constant(400),
+        PoseExpr.operation(PoseOperator.F2I, new PoseExpr.Input("ageInTicks")));
+
+    /** EndermanModel#setupAnim's held block: the arm bobs on the age while nothing is carried and holds forward while a block is. */
+    private static @NotNull PoseOutcome.Extracted holding() {
+        PoseExpr arm = new PoseExpr.Select(new PoseExpr.Answered.InputFn("carriedBlock", "isEmpty").truthy(),
+            PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.05f)),
+            new PoseExpr.Constant(-0.5f));
+        return new PoseOutcome.Extracted(new PoseProgram("EndermanModel", List.of(),
+            Map.of("right_arm", Map.of(PoseChannel.X_ROT, arm)), Map.of(), List.of()));
+    }
+
+    /** IronGolemModel#setupAnim's offer: the right arm raised and swaying while the count runs, the walk swing once it ends. */
+    private static @NotNull PoseOutcome.Extracted offering() {
+        PoseExpr tick = new PoseExpr.Input("offerFlowerTick");
+        PoseExpr raised = PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Constant(-0.8f),
+            PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.025f), PoseExpr.operation(PoseOperator.TRIANGLE_WAVE,
+                PoseExpr.operation(PoseOperator.I2F, tick), new PoseExpr.Constant(70f))));
+        PoseExpr swing = PoseExpr.operation(PoseOperator.MUL,
+            new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Input("walkAnimationSpeed"));
+        PoseExpr arm = new PoseExpr.Select(
+            new PosePredicate(PosePredicate.Comparison.GT, tick, new PoseExpr.Constant(0)), raised, swing);
+        return new PoseOutcome.Extracted(new PoseProgram("IronGolemModel", List.of(),
+            Map.of("right_arm", Map.of(PoseChannel.X_ROT, arm)), Map.of(), List.of()));
+    }
+
+    /** One walked body folded as the resting row ships it. */
+    private static @NotNull PoseOutcome.Extracted rested(@NotNull PoseOutcome.Extracted walked) {
+        return new PoseOutcome.Extracted(PoseFold.fold(walked.program(), Map.of(), Map.of(), Map.of(), Map.of(),
+            StyleRoster.DRIVEN, StyleRoster.DRIVEN_FIGURES, Map.of()));
+    }
+
+    /** A subject whose body is {@code coordinate} and whose one selectable block row's draw is gated on {@code field}. */
+    private static @NotNull JsonTree carrying(@NotNull String coordinate, @NotNull String field) {
+        JsonTree row = family(coordinate);
+        row.childArray("block_overlays").add(JsonTree.object()
+            .put("source", "CarriedBlockLayer")
+            .putInt("layer_index", 1)
+            .put("selectable", true)
+            .put(PoseFlow.CARRIED_FIELD, field));
+        return row;
+    }
+
+    private static @NotNull JsonTree blockRowOf(@NotNull JsonTree models, @NotNull String entity) {
+        return models.child(entity).find("block_overlays").orElseThrow().elements().toList().getFirst();
+    }
+
+    private static @NotNull PoseExpr rightArm(@NotNull Map<String, PoseOutcome> poses, @NotNull String key) {
+        return ((PoseOutcome.Extracted) poses.get(key)).program().bones().get("right_arm").get(PoseChannel.X_ROT);
+    }
+
+    @Test
+    @DisplayName("a body asking the carried block's emptiness gains a row folded with it answered false, and the block row names it")
+    void aCarriedQuestionFoldsItsWearerOnceMore() {
+        JsonTree models = JsonTree.object().put("minecraft:enderman", carrying("EndermanModel#createBodyLayer", "carriedBlock"));
+        Map<String, PoseOutcome> folded = Map.of("EndermanModel", rested(holding()));
+        Diagnostics scope = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
+
+        Map<String, PoseOutcome> out = PoseFlow.foldCarriers(Map.of("EndermanModel", holding()), models, folded,
+            Map.of(), Map.of(), Map.of(), Map.of(), scope);
+
+        String key = "EndermanModel@carriedBlock.isEmpty=false";
+        assertEquals(Set.of("EndermanModel", key), out.keySet(), "exactly one row is added");
+        assertEquals(new PoseExpr.Constant(-0.5f), rightArm(out, key), "the added row holds the arm forward");
+        assertEquals(folded.get("EndermanModel"), out.get("EndermanModel"), "the shipped row is untouched");
+        assertEquals(key, blockRowOf(models, "minecraft:enderman").findString("wearer_pose").orElseThrow(),
+            "the block row names the pose its wearer takes");
+        assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
+                "minecraft:enderman carries '" + key + "' while its block is selected, folded with carriedBlock.isEmpty answered false")),
+            "one line records the variant: " + scope.entries());
+    }
+
+    @Test
+    @DisplayName("a body reading a countdown field gains a row reading the age under a select, the field answered as the int it is")
+    void aCountdownFieldFoldsOnTheAgeClock() {
+        JsonTree models = JsonTree.object().put("minecraft:iron_golem", carrying("IronGolemModel#createBodyLayer", "offerFlowerTick"));
+        Map<String, PoseOutcome> folded = Map.of("IronGolemModel", rested(offering()));
+        Diagnostics scope = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
+
+        Map<String, PoseOutcome> out = PoseFlow.foldCarriers(Map.of("IronGolemModel", offering()), models, folded,
+            Map.of(), Map.of(), Map.of(), Map.of(), scope);
+
+        String key = "IronGolemModel@offerFlowerTick=countdown";
+        assertEquals(Set.of("IronGolemModel", key), out.keySet(), "exactly one row is added");
+        PoseExpr.Select arm = assertInstanceOf(PoseExpr.Select.class, rightArm(out, key),
+            "the offer ends where its count does, so the arm stays a choice on the age");
+        assertEquals(COUNTDOWN, arm.condition().left(),
+            "the field is answered as an int counting down from 400 on the age clock, never a float subtraction");
+        assertEquals(PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Constant(-0.8f),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.025f), PoseExpr.operation(PoseOperator.TRIANGLE_WAVE,
+                    PoseExpr.operation(PoseOperator.I2F, COUNTDOWN), new PoseExpr.Constant(70f)))),
+            arm.whenTrue(), "the raised arm sways on the count");
+        assertEquals(rightArm(folded, "IronGolemModel"), arm.whenFalse(), "and the count's end is the body's own walk swing");
+        assertEquals(key, blockRowOf(models, "minecraft:iron_golem").findString("wearer_pose").orElseThrow());
+        assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
+                "minecraft:iron_golem carries '" + key + "' while its block is selected, folded with offerFlowerTick answered 400 - ageInTicks")),
+            "one line records the variant: " + scope.entries());
+    }
+
+    @Test
+    @DisplayName("a carried question that moves no channel adds no row, and a field read in neither shape adds none either")
+    void aCarrierMovingNothingAddsNoRow() {
+        PoseOutcome.Extracted inert = new PoseOutcome.Extracted(new PoseProgram("EndermanModel", List.of(),
+            Map.of("right_arm", Map.of(PoseChannel.X_ROT, new PoseExpr.Select(
+                new PoseExpr.Answered.InputFn("carriedBlock", "isEmpty").truthy(),
+                new PoseExpr.Constant(0.5f), new PoseExpr.Constant(0.5f)))), Map.of(), List.of()));
+        JsonTree models = JsonTree.object()
+            .put("minecraft:enderman", carrying("EndermanModel#createBodyLayer", "carriedBlock"))
+            .put("minecraft:iron_golem", carrying("IronGolemModel#createBodyLayer", "flowerBlock"));
+        Map<String, PoseOutcome> walked = Map.of("EndermanModel", inert, "IronGolemModel", offering());
+        Map<String, PoseOutcome> folded = Map.of("EndermanModel", rested(inert), "IronGolemModel", rested(offering()));
+        Diagnostics scope = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
+
+        Map<String, PoseOutcome> out = PoseFlow.foldCarriers(walked, models, folded, Map.of(), Map.of(), Map.of(),
+            Map.of(), scope);
+
+        assertEquals(folded.keySet(), out.keySet(), "no row is added");
+        assertTrue(blockRowOf(models, "minecraft:enderman").find("wearer_pose").isEmpty(),
+            "a residual equal to the body's row names nothing");
+        assertTrue(blockRowOf(models, "minecraft:iron_golem").find("wearer_pose").isEmpty(),
+            "a field the body never reads names nothing");
+        assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
+                "IronGolemModel reads 'flowerBlock' in no shape a carrier variant answers - no variant for minecraft:iron_golem")),
+            "the field no shape answers is named: " + scope.entries());
+    }
+
+    @Test
+    @DisplayName("a carrier variant the pose table does not carry is refused, and one it does takes its body's renderer steps")
+    void aCarrierVariantResolvesAndComposesAsItsBody() {
+        String key = "IronGolemModel@offerFlowerTick=countdown";
+        JsonTree models = JsonTree.object().put("minecraft:iron_golem",
+            subject("IronGolemRenderer", "IronGolemModel#createBodyLayer"));
+        models.child("minecraft:iron_golem").childArray("block_overlays").add(JsonTree.object()
+            .put("selectable", true)
+            .put("wearer_pose", key));
+
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.requirePosersResolve(models, Map.of("IronGolemModel", posing("IronGolemModel"))));
+        assertTrue(raised.getMessage().contains(key), raised.getMessage());
+
+        Map<PoseChannel, PoseExpr> lurch = Map.of(PoseChannel.Z_ROT, new PoseExpr.Constant(0.1f));
+        Map<String, PoseOutcome> out = PoseFlow.composeContainers(
+            Map.of("IronGolemModel", posing("IronGolemModel"), key, posing("IronGolemModel")), models,
+            Map.of("IronGolemRenderer", RenderTransform.of("IronGolemRenderer", 0f, List.of(lurch))), diagnostics);
+        assertEquals(((PoseOutcome.Extracted) out.get("IronGolemModel")).program().container(),
+            ((PoseOutcome.Extracted) out.get(key)).program().container(),
+            "the variant stands in for the body, so it takes the body's steps and ground frame");
+    }
+
+    /** One shipped pose row's written channel, evaluated at one frame with every bone read at zero. */
+    private static float shipped(@NotNull EntityPose pose, @NotNull String bone, @NotNull PoseChannel channel,
+                                 @NotNull Map<String, Float> frame) {
+        PoseExpr expr = pose.bones().get(bone).get(channel);
+        return PoseEvaluator.values(List.of(expr), (read, held) -> 0d, field -> frame.getOrDefault(field, 0f)).getFirst();
+    }
+
+    @Test
+    @DisplayName("the shipped tables carry the carried arms - the enderman's held forward, the golem's swaying offer - named by each block row")
+    void theShippedTablesCarryTheCarriedArms() throws Exception {
+        Map<String, EntityPose> poses = new Gson().fromJson(Files.readString(
+            Path.of("src/main/resources/lib/minecraft/renderer/entity_poses.json")), EntityPosesTable.class).poses();
+        JsonObject models = JsonParser.parseString(Files.readString(
+            Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json")))
+            .getAsJsonObject().getAsJsonObject("models");
+        String raised = "EndermanModel@carriedBlock.isEmpty=false";
+        String offered = "IronGolemModel@offerFlowerTick=countdown";
+        EntityPose enderman = poses.get(raised);
+        EntityPose golem = poses.get(offered);
+        assertNotNull(enderman, raised + " is shipped");
+        assertNotNull(golem, offered + " is shipped");
+
+        for (int tick : new int[] {0, 7}) {
+            Map<String, Float> frame = Map.of("ageInTicks", (float) tick);
+            assertEquals(-0.5f, shipped(enderman, "right_arm", PoseChannel.X_ROT, frame), "right arm forward at " + tick);
+            assertEquals(-0.5f, shipped(enderman, "left_arm", PoseChannel.X_ROT, frame), "left arm forward at " + tick);
+            assertEquals(0.05f, shipped(enderman, "right_arm", PoseChannel.Z_ROT, frame), "right arm out at " + tick);
+            assertEquals(-0.05f, shipped(enderman, "left_arm", PoseChannel.Z_ROT, frame), "left arm out at " + tick);
+        }
+
+        Map<Integer, Float> offer = new TreeMap<>(Map.of(0, -0.80357146f, 15, -0.825f, 50, -0.77500004f,
+            70, -0.80357146f, 399, -0.7764286f));
+        offer.forEach((tick, expected) -> {
+            Map<String, Float> frame = Map.of("ageInTicks", (float) tick);
+            assertEquals(expected, shipped(golem, "right_arm", PoseChannel.X_ROT, frame), "the offered arm at tick " + tick);
+            assertEquals(0f, shipped(golem, "left_arm", PoseChannel.X_ROT, frame), "the left arm hangs at tick " + tick);
+        });
+        Map<String, Float> ended = Map.of("ageInTicks", 400f, "walkAnimationPos", 79.29517f, "walkAnimationSpeed", 0.19823793f);
+        EntityPose body = poses.get("IronGolemModel");
+        assertEquals(shipped(body, "right_arm", PoseChannel.X_ROT, ended), shipped(golem, "right_arm", PoseChannel.X_ROT, ended),
+            "at tick 400 the count reaches zero and the arm takes the walk swing back");
+        assertEquals(shipped(body, "left_arm", PoseChannel.X_ROT, ended), shipped(golem, "left_arm", PoseChannel.X_ROT, ended),
+            "and so does the left");
+
+        Map<String, String> named = new TreeMap<>();
+        models.entrySet().forEach(entry -> {
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (!row.has("block_overlays")) return;
+            row.getAsJsonArray("block_overlays").forEach(block -> {
+                assertFalse(block.getAsJsonObject().has(PoseFlow.CARRIED_FIELD),
+                    entry.getKey() + " ships the generation-only carried_field");
+                if (block.getAsJsonObject().has("wearer_pose"))
+                    named.put(entry.getKey(), block.getAsJsonObject().get("wearer_pose").getAsString());
+            });
+        });
+        assertEquals(Map.of("minecraft:enderman", raised, "minecraft:iron_golem", offered), named,
+            "each selectable block row names its wearer's carrier variant, and no other block row names one");
     }
 
     // ------------------------------------------------------------------------------------

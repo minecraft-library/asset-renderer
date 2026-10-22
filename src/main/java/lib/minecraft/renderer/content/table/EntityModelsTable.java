@@ -384,12 +384,15 @@ public record EntityModelsTable(
      *     array and {@code rotate_x} / {@code rotate_y} / {@code rotate_z} carry degrees - the same
      *     shape a pose expression takes
      * @param selectable whether the block is supplied at render from the carried selection
+     * @param wearerPose the pose key the wearer's body takes while a caller selects a block for this
+     *     row, or {@code null} where selecting one changes no pose of the wearer's
      */
     public record RawBlockOverlay(
         @Nullable String block,
         @SerializedName("attached_bone") @Nullable String attachedBone,
         @Nullable List<Map<String, com.google.gson.JsonElement>> transforms,
-        boolean selectable
+        boolean selectable,
+        @SerializedName("wearer_pose") @Nullable String wearerPose
     ) {}
 
     /**

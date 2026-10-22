@@ -47,6 +47,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Each literal is read back here where vanilla writes it, so a version bump that moves one fails as
  * that clock rather than as a strip that runs at the old rate.
  *
+ * <p>The roster's one countdown is held the same way: the count the iron golem's offer starts at, where
+ * vanilla sets it on the offer's event and lowers it a tick at a time.
+ *
  * <p>Two of the roster's values are chosen rather than read, and each is asserted as chosen: the squid
  * strokes at the rate the roster's resting entity id draws, and the shulker loops vanilla's shortest
  * peek with no wait between peeks.
@@ -70,6 +73,7 @@ class ClockRosterJarTest {
     private static final @NotNull String SHULKER = "net/minecraft/world/entity/monster/Shulker";
     private static final @NotNull String SHULKER_PEEK = SHULKER + "$ShulkerPeekGoal";
     private static final @NotNull String WARDEN = "net/minecraft/world/entity/monster/warden/Warden";
+    private static final @NotNull String IRON_GOLEM = "net/minecraft/world/entity/animal/golem/IronGolem";
 
     /** Where every render state the renderers fill is declared. */
     private static final @NotNull String RENDERER_ROOT = "net/minecraft/client/renderer/";
@@ -351,6 +355,34 @@ class ClockRosterJarTest {
         assertEquals(StyleRoster.Motion.trapezoid(beat / divisor, 0, 0, beat, delay - beat), heart.idle(),
             "heartAnimation: the idle half flashes at the beat over the divisor and falls back over the beat, once a delay");
         assertEquals(Optional.empty(), heart.stride(), "heartAnimation: the heart beats alike at both gaits");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the iron golem's offer
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("offerFlowerTick counts down from the start IronGolem.handleEntityEvent sets on event 11, one a tick in aiStep")
+    void theOfferCountsDownFromItsEvent() {
+        MethodNode event = declared(IRON_GOLEM, "handleEntityEvent", "(B)V");
+        FieldInsnNode offer = AsmWalker.over(event).ofType(FieldInsnNode.class)
+            .first(put -> put.getOpcode() == Opcodes.PUTFIELD && put.name.equals("offerFlowerTick")
+                && AsmWalker.intLiteral(AsmWalker.previousReal(put)) instanceof Integer start && start > 0);
+        assertNotNull(offer, "offerFlowerTick: IronGolem.handleEntityEvent starts the offer at a literal count");
+        Integer start = AsmWalker.intLiteral(AsmWalker.previousReal(offer));
+        AbstractInsnNode branch = AsmWalker.before(offer).real().first(node -> node.getOpcode() == Opcodes.IF_ICMPNE);
+        assertNotNull(branch, "offerFlowerTick: the start is stored behind a test of the event id");
+        assertEquals(11, AsmWalker.intLiteral(AsmWalker.previousReal(branch)),
+            "offerFlowerTick: IronGolem.handleEntityEvent starts the offer on event 11");
+
+        assertTrue(AsmWalker.over(declared(IRON_GOLEM, "aiStep", "()V")).ofType(FieldInsnNode.class).any(put ->
+                put.getOpcode() == Opcodes.PUTFIELD && put.name.equals("offerFlowerTick")
+                    && AsmWalker.previousReal(put) instanceof AbstractInsnNode subtract && subtract.getOpcode() == Opcodes.ISUB
+                    && Integer.valueOf(1).equals(AsmWalker.intLiteral(AsmWalker.previousReal(subtract)))),
+            "offerFlowerTick: IronGolem.aiStep counts the offer down a tick at a time");
+
+        assertEquals(List.of(new StyleRoster.Countdown("offerFlowerTick", start)), StyleRoster.COUNTDOWNS,
+            "offerFlowerTick: the roster's one countdown starts at IronGolem.handleEntityEvent's count");
     }
 
     // ------------------------------------------------------------------------------------

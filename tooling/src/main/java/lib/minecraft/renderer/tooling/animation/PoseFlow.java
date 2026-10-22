@@ -6,6 +6,8 @@ import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.EntityMeshShift;
@@ -21,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,6 +97,13 @@ public final class PoseFlow {
     public static final @NotNull String ITEM_FIELD = "item_field";
 
     /**
+     * The generation-only member of a selectable block row naming the render-state field the layer's
+     * draw is gated on, which is the field the body asks of the same selection - read by
+     * {@link #foldCarriers} and removed by {@link RestStrip} before the model table is written.
+     */
+    public static final @NotNull String CARRIED_FIELD = "carried_field";
+
+    /**
      * The generation-only member of the baby age option naming, by internal class name, the class
      * the renderer constructs around the baby's layer where it is not the class that baked the mesh -
      * the class the baby is posed through. The flow files, folds and names the baby by it, and
@@ -101,11 +111,23 @@ public final class PoseFlow {
      */
     public static final @NotNull String BABY_POSER = "poser";
 
-    /** The member of an equipment row naming the pose its wearer's body takes while the slot is filled. */
+    /**
+     * The member of an equipment row naming the pose its wearer's body takes while the slot is filled,
+     * and of a selectable block row naming the pose it takes while a caller selects a block.
+     */
     static final @NotNull String WEARER_POSE = "wearer_pose";
+
+    /** The member of the model table holding each subject's block-model composites. */
+    private static final @NotNull String BLOCK_OVERLAYS = "block_overlays";
 
     /** The question a body model asks of a stack, which rests answering one - the stack is empty. */
     private static final @NotNull String IS_EMPTY = "isEmpty";
+
+    /** The answer a carrier variant's key spells for a field read as a countdown from its selection. */
+    private static final @NotNull String COUNTDOWN = "countdown";
+
+    /** The render-state figure elapsed age is, which a countdown is read against. */
+    private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
 
     /** The render-state figure a living renderer's extraction writes the entity's age scale into. */
     static final @NotNull String AGE_SCALE_FIGURE = "ageScale";
@@ -197,6 +219,8 @@ public final class PoseFlow {
                 coordinate -> siteOf(coordinate, geometries.get(coordinate), shifted.contains(coordinate)),
                 diagnostics);
         poses = foldWearers(walked, models, poses, restingByModel, questionsByModel, defaults,
+            derivedByModel, diagnostics);
+        poses = foldCarriers(walked, models, poses, restingByModel, questionsByModel, defaults,
             derivedByModel, diagnostics);
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
@@ -562,25 +586,11 @@ public final class PoseFlow {
                             body, question, entity);
                         continue;
                     }
-                    Map<Float, Set<String>> reached = ages.getOrDefault(body, Map.of());
-                    Optional<Float> age = foldAge(body, walkedBody, reached, inputDefaults);
-                    Map<String, Float> modelDefaults = age.map(scale -> atAge(inputDefaults, scale)).orElse(inputDefaults);
-                    Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(body, Map.of());
-                    Map<String, String> subjectRest =
-                        reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
                     Map<String, Float> filled = new LinkedHashMap<>(questionsByModel.getOrDefault(body, Map.of()));
                     filled.put(question, 0f);
-                    Function<Map<String, Float>, PoseProgram> foldWith = defaults -> PoseFold.fold(
-                        extracted.program(), subjectRest, restingByModel.getOrDefault(body, Map.of()), filled,
-                        defaults, StyleRoster.DRIVEN, StyleRoster.DRIVEN_FIGURES,
-                        derivedByModel.getOrDefault(body, Map.of()));
-                    // A body reading the age that sites at two ages reach wears one row at both, so
-                    // the filled fold is held to agree at each, as the body's own row is.
-                    SortedSet<Float> scales = new TreeSet<>(reached.keySet());
-                    PoseProgram program = scales.size() > 1 && readsAge(body, walkedBody)
-                        ? agreedFold(body, "row with " + question + " answered filled", scales,
-                            referenceAge(scales, inputDefaults), scale -> foldWith.apply(atAge(inputDefaults, scale)))
-                        : foldWith.apply(modelDefaults);
+                    PoseProgram program = foldBeside(body, walkedBody, extracted.program(),
+                        "row with " + question + " answered filled", filled, frames, ages, restingByModel,
+                        inputDefaults, derivedByModel);
                     PoseProgram resting = rest.program();
                     if (program.container().equals(resting.container()) && program.bones().equals(resting.bones())) {
                         diagnostics.info("%s answers %s filled with no channel moved - no wearer row for %s",
@@ -594,6 +604,246 @@ public final class PoseFlow {
                         entity, key, item.findString("slot").orElse("?"), question);
                 }
             })));
+        return out;
+    }
+
+    /**
+     * Folds each body once more with a selected carried block answered, where the body reads the
+     * field its selectable block row's draw is gated on and the answer moves it - the enderman, whose
+     * arms reach forward to the block it holds, and the iron golem, whose right arm raises its offered
+     * flower and sways while the offer counts down.
+     *
+     * <p>A row carrying {@link #CARRIED_FIELD} {@code F} is answered in one of two shapes, by how the
+     * body's walked program reads {@code F}. Where it asks {@code F.isEmpty}, the question is answered
+     * zero, exactly as {@link #foldWearers} answers a filled slot, and the result is keyed
+     * {@code <Model>@<F>.isEmpty=false}. Where it reads {@code F} as a figure that
+     * {@link StyleRoster#COUNTDOWNS} names, every read of {@code F} is first answered as the count since
+     * the selection - the countdown's start less the elapsed age, spelled as the {@code int} the field
+     * is - and the result is keyed {@code <Model>@<F>=countdown}: the age clock every posed row drives
+     * carries the count, so the body's own test of it stays a choice and ends the raised pose where
+     * vanilla's count does. A body reading {@code F} in neither shape is named in the log and gains
+     * nothing.
+     *
+     * <p>Each is folded beside the body's row by {@link #foldWearers}' rules - the same frame, the same
+     * age, an agreed fold where two ages reach it - and emitted only where its container or bones
+     * differ from that row's. The block row names it as {@link #WEARER_POSE}. No state silhouettes are
+     * placed for it, the selection being a frame rather than a state.
+     *
+     * @param walked every model's pose as the walk left it
+     * @param models the model table, written where a carrier variant is emitted
+     * @param poses the folded rows
+     * @param restingByModel which constant each enum member rests holding, per model
+     * @param questionsByModel what a question rests answering, per model
+     * @param inputDefaults what each figure rests at
+     * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
+     * @param diagnostics the scope each emitted row is recorded against
+     * @return the folded rows, with each carrier variant added
+     * @throws ToolingException if a body reading the age at two ages folds its variant apart by age
+     */
+    static @NotNull Map<String, PoseOutcome> foldCarriers(
+        @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
+        @NotNull Map<String, PoseOutcome> poses,
+        @NotNull Map<String, Map<String, String>> restingByModel,
+        @NotNull Map<String, Map<String, Float>> questionsByModel,
+        @NotNull Map<String, Float> inputDefaults,
+        @NotNull Map<String, Map<String, String>> derivedByModel,
+        @NotNull Diagnostics diagnostics) {
+
+        Map<String, Set<String>> bodies = bodyKeysOf(models);
+        Map<String, Map<Map<String, String>, Set<String>>> frames = framesOf(models, bodies, otherKeysOf(models));
+        Map<String, Map<Float, Set<String>>> ages = ageScalesOf(models);
+        Map<String, PoseOutcome> out = new TreeMap<>(poses);
+        models.members().forEach((entity, row) -> row.find(BLOCK_OVERLAYS).ifPresent(list ->
+            list.elements().toList().forEach(block -> {
+                String field = block.findString(CARRIED_FIELD).orElse(null);
+                if (field == null) return;
+                Set<String> keys = bodies.getOrDefault(entity, Set.of());
+                for (String body : keys) {
+                    PoseOutcome walkedBody = walked.get(body);
+                    if (!(walkedBody instanceof PoseOutcome.Extracted extracted)) continue;
+                    Map<String, PoseOutcome> reading = Map.of(body, walkedBody);
+                    String question = field + '.' + IS_EMPTY;
+                    boolean asks = InputDefaultResolver.questionsNamedBy(reading).contains(question);
+                    Optional<StyleRoster.Countdown> countdown = StyleRoster.COUNTDOWNS.stream()
+                        .filter(held -> held.field().equals(field))
+                        .findFirst()
+                        .filter(held -> InputDefaultResolver.namedBy(reading).contains(field));
+                    if (!asks && countdown.isEmpty()) {
+                        diagnostics.info("%s reads '%s' in no shape a carrier variant answers - no variant for %s",
+                            body, field, entity);
+                        continue;
+                    }
+                    if (keys.size() != 1 || !(poses.get(body) instanceof PoseOutcome.Extracted rest)) {
+                        diagnostics.info("%s reads %s of %s's carried block and has no one folded row to fold beside - no carrier variant",
+                            body, field, entity);
+                        continue;
+                    }
+                    Map<String, Float> answers = new LinkedHashMap<>(questionsByModel.getOrDefault(body, Map.of()));
+                    if (asks) answers.put(question, 0f);
+                    String answered = asks ? question : field;
+                    String answer = asks ? "false" : countdown.get().start() + " - " + AGE_IN_TICKS;
+                    PoseProgram selected = asks
+                        ? extracted.program()
+                        : countedDown(extracted.program(), field, countdown.get().start());
+                    PoseProgram program = foldBeside(body, walkedBody, selected,
+                        "row with " + answered + " answered selected", answers, frames, ages, restingByModel,
+                        inputDefaults, derivedByModel);
+                    PoseProgram resting = rest.program();
+                    if (program.container().equals(resting.container()) && program.bones().equals(resting.bones())) {
+                        diagnostics.info("%s answers %s selected with no channel moved - no carrier variant for %s",
+                            body, answered, entity);
+                        continue;
+                    }
+                    String key = body + SPLIT + (asks ? question + "=false" : field + "=" + COUNTDOWN);
+                    out.put(key, new PoseOutcome.Extracted(program));
+                    block.put(WEARER_POSE, key);
+                    diagnostics.info("%s carries '%s' while its block is selected, folded with %s answered %s",
+                        entity, key, answered, answer);
+                }
+            })));
+        return out;
+    }
+
+    /**
+     * Folds one body's program once more beside its resting row under the answers given - the same
+     * frame, the same age and the same rests {@link #foldAll} folds the body's unsplit row against.
+     *
+     * <p>A body reading the age that sites at two ages reach is folded at each of them, and the folds
+     * have to agree: the one row is worn at both ages, as the body's own row is.
+     *
+     * @param body the body's pose key
+     * @param walkedBody the body's pose as the walk left it, read for whether it reads the age
+     * @param program the program folded - the walked one, or the walked one with a selection read in
+     * @param row what the fold is, for the refusal
+     * @param answers what each question rests answering, the selection's own answer included
+     * @param frames the resting frames each pose key is reached at
+     * @param ages the ages each pose key's sites render at
+     * @param restingByModel which constant each enum member rests holding, per model
+     * @param inputDefaults what each figure rests at
+     * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
+     * @return the folded program
+     * @throws ToolingException if a body reading the age at two ages folds apart by age
+     */
+    private static @NotNull PoseProgram foldBeside(
+        @NotNull String body, @NotNull PoseOutcome walkedBody, @NotNull PoseProgram program,
+        @NotNull String row, @NotNull Map<String, Float> answers,
+        @NotNull Map<String, Map<Map<String, String>, Set<String>>> frames,
+        @NotNull Map<String, Map<Float, Set<String>>> ages,
+        @NotNull Map<String, Map<String, String>> restingByModel,
+        @NotNull Map<String, Float> inputDefaults,
+        @NotNull Map<String, Map<String, String>> derivedByModel) {
+
+        Map<Float, Set<String>> reached = ages.getOrDefault(body, Map.of());
+        Optional<Float> age = foldAge(body, walkedBody, reached, inputDefaults);
+        Map<String, Float> modelDefaults = age.map(scale -> atAge(inputDefaults, scale)).orElse(inputDefaults);
+        Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(body, Map.of());
+        Map<String, String> subjectRest =
+            reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+        Function<Map<String, Float>, PoseProgram> foldWith = defaults -> PoseFold.fold(
+            program, subjectRest, restingByModel.getOrDefault(body, Map.of()), answers,
+            defaults, StyleRoster.DRIVEN, StyleRoster.DRIVEN_FIGURES,
+            derivedByModel.getOrDefault(body, Map.of()));
+        // A body reading the age that sites at two ages reach wears one row at both, so the fold is
+        // held to agree at each, as the body's own row is.
+        SortedSet<Float> scales = new TreeSet<>(reached.keySet());
+        return scales.size() > 1 && readsAge(body, walkedBody)
+            ? agreedFold(body, row, scales, referenceAge(scales, inputDefaults),
+                scale -> foldWith.apply(atAge(inputDefaults, scale)))
+            : foldWith.apply(modelDefaults);
+    }
+
+    /**
+     * One walked program with every read of a countdown field answered as the count since the
+     * selection - the start less the elapsed age, spelled as the {@code int} the field is - memoized by
+     * identity so the graph stays a graph and a node no read reaches is the same node.
+     *
+     * @param program the walked program
+     * @param field the countdown field
+     * @param start the count the selection starts at
+     * @return the program reading the count in place of the field
+     */
+    private static @NotNull PoseProgram countedDown(@NotNull PoseProgram program, @NotNull String field, int start) {
+        PoseExpr count = PoseExpr.operation(PoseOperator.ISUB, new PoseExpr.Constant(start),
+            PoseExpr.operation(PoseOperator.F2I, new PoseExpr.Input(AGE_IN_TICKS)));
+        Map<Object, Object> memo = new IdentityHashMap<>();
+        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(program.container().size());
+        for (Map<PoseChannel, PoseExpr> step : program.container())
+            container.add(countedDown(step, field, count, memo));
+        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
+        program.bones().forEach((bone, channels) -> bones.put(bone, countedDown(channels, field, count, memo)));
+        Map<BoneFlag, Map<String, PoseExpr>> flags = new LinkedHashMap<>();
+        program.flags().forEach((flag, written) -> {
+            Map<String, PoseExpr> counted = new LinkedHashMap<>();
+            written.forEach((bone, expr) -> counted.put(bone, countedDown(expr, field, count, memo)));
+            flags.put(flag, Collections.unmodifiableMap(counted));
+        });
+        List<PoseClipSite> sites = new ArrayList<>(program.clipSites().size());
+        for (PoseClipSite site : program.clipSites()) {
+            sites.add(new PoseClipSite(site.clip(), site.drive(), site.state(),
+                site.arguments().stream()
+                    .map(argument -> countedDown(argument, field, count, memo))
+                    .toList(),
+                countedDown(site.condition(), field, count, memo)));
+        }
+        return new PoseProgram(program.model(), List.copyOf(container), Collections.unmodifiableMap(bones),
+            Collections.unmodifiableMap(flags), List.copyOf(sites));
+    }
+
+    /** One channel map with the countdown read in, in its own order. */
+    private static @NotNull Map<PoseChannel, PoseExpr> countedDown(
+        @NotNull Map<PoseChannel, PoseExpr> written, @NotNull String field, @NotNull PoseExpr count,
+        @NotNull Map<Object, Object> memo) {
+
+        Map<PoseChannel, PoseExpr> out = new LinkedHashMap<>();
+        written.forEach((channel, expr) -> out.put(channel, countedDown(expr, field, count, memo)));
+        return Collections.unmodifiableMap(out);
+    }
+
+    /** One expression with the countdown read in - the node itself where no read of the field reaches it. */
+    private static @NotNull PoseExpr countedDown(
+        @NotNull PoseExpr expr, @NotNull String field, @NotNull PoseExpr count, @NotNull Map<Object, Object> memo) {
+
+        PoseExpr known = (PoseExpr) memo.get(expr);
+        if (known != null) return known;
+        PoseExpr out = switch (expr) {
+            case PoseExpr.Input input -> input.field().equals(field) ? count : input;
+            case PoseExpr.Op op -> {
+                List<PoseExpr> operands = new ArrayList<>(op.operands().size());
+                boolean moved = false;
+                for (PoseExpr operand : op.operands()) {
+                    PoseExpr counted = countedDown(operand, field, count, memo);
+                    moved |= counted != operand;
+                    operands.add(counted);
+                }
+                yield moved ? PoseExpr.operation(op.operator(), operands) : op;
+            }
+            case PoseExpr.Select select -> {
+                PosePredicate condition = countedDown(select.condition(), field, count, memo);
+                PoseExpr whenTrue = countedDown(select.whenTrue(), field, count, memo);
+                PoseExpr whenFalse = countedDown(select.whenFalse(), field, count, memo);
+                yield condition == select.condition() && whenTrue == select.whenTrue() && whenFalse == select.whenFalse()
+                    ? select
+                    : new PoseExpr.Select(condition, whenTrue, whenFalse);
+            }
+            default -> expr;
+        };
+        memo.put(expr, out);
+        return out;
+    }
+
+    /** One condition with the countdown read in, by the rule the expression form states. */
+    private static @NotNull PosePredicate countedDown(
+        @NotNull PosePredicate predicate, @NotNull String field, @NotNull PoseExpr count,
+        @NotNull Map<Object, Object> memo) {
+
+        PosePredicate known = (PosePredicate) memo.get(predicate);
+        if (known != null) return known;
+        PoseExpr left = countedDown(predicate.left(), field, count, memo);
+        PoseExpr right = countedDown(predicate.right(), field, count, memo);
+        PosePredicate out = left == predicate.left() && right == predicate.right()
+            ? predicate
+            : new PosePredicate(predicate.comparison(), left, right);
+        memo.put(predicate, out);
         return out;
     }
 
@@ -901,9 +1151,12 @@ public final class PoseFlow {
             List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
             Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
-            // A wearer row stands in for the body it is folded beside, so it takes that body's steps.
+            // A wearer row stands in for the body it is folded beside, so it takes that body's steps -
+            // a filled slot's and a selected block's alike.
             row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
                 item.findString(WEARER_POSE).ifPresent(reached::add)));
+            row.find(BLOCK_OVERLAYS).ifPresent(list -> list.elements().toList().forEach(block ->
+                block.findString(WEARER_POSE).ifPresent(reached::add)));
             for (String key : reached) {
                 List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
@@ -1154,8 +1407,8 @@ public final class PoseFlow {
      * <p>A missing key is SILENT at render: the reader answers the empty pose, whose refusal is
      * empty, so the mesh draws unposed and unstripped with nothing said. A coordinate the walk never
      * looked at is entitled to answer nothing - a worn shell, a mesh derived under a suffix - but a
-     * name a row DECLARES is a statement that there is a pose there, an equipment row's
-     * {@link #WEARER_POSE} as much as any poser.
+     * name a row DECLARES is a statement that there is a pose there, an equipment row's or a block
+     * row's {@link #WEARER_POSE} as much as any poser.
      *
      * @param models the model table as it will be written
      * @param poses the rows the table carries
@@ -1171,6 +1424,8 @@ public final class PoseFlow {
                 requirePose(poses, entity, namedPoser(item));
                 requirePose(poses, entity, item.findString(WEARER_POSE).orElse(null));
             }));
+            row.find(BLOCK_OVERLAYS).ifPresent(list -> list.elements().toList().forEach(block ->
+                requirePose(poses, entity, block.findString(WEARER_POSE).orElse(null))));
         });
     }
 

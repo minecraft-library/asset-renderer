@@ -6,18 +6,19 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * What the model table stops stating once the fold has read it - the resting answer each subject
- * carried into the pose flow, the age a baby or an aged-down size renders at, and the render-state
- * field each equipment layer's item getter reads.
+ * carried into the pose flow, the age a baby or an aged-down size renders at, the render-state field
+ * each equipment layer's item getter reads, and the one each selectable block row's draw is gated on.
  */
 @UtilityClass
 public class RestStrip {
 
     /**
      * Removes the {@code rest} member from every model row, the {@code age_scale} member from every
-     * axis option - the baby age option and an aged-down size option alike - and the
-     * {@code item_field} member from every equipment row. The fold has taken what each subject rests
-     * at, the age each option renders at and which slot each body asks about, and folded all three
-     * into the rows the pose table ships, so a written row states only what a reader joins on.
+     * axis option - the baby age option and an aged-down size option alike - the {@code item_field}
+     * member from every equipment row and the {@code carried_field} member from every block row. The
+     * fold has taken what each subject rests at, the age each option renders at, which slot each body
+     * asks about and which field a selected block answers, and folded all four into the rows the pose
+     * table ships, so a written row states only what a reader joins on.
      *
      * @param models the model table's {@code models} node
      */
@@ -29,6 +30,8 @@ public class RestStrip {
                     option.remove(PoseFlow.AGE_SCALE)))));
             row.find("equipment").ifPresent(list -> list.elements().toList()
                 .forEach(item -> item.remove(PoseFlow.ITEM_FIELD)));
+            row.find("block_overlays").ifPresent(list -> list.elements().toList()
+                .forEach(block -> block.remove(PoseFlow.CARRIED_FIELD)));
         });
     }
 

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.content.index;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -24,7 +25,8 @@ import static org.hamcrest.Matchers.is;
  * sheared wool, which the fold drops once sheared while deferring the undercoat's tint gate to the
  * render stage. Each case pins both that the shipped row carries the gate and that the fold honours it.
  * It also holds the age a subject renders at, which the armour stand's second-shell gate answers for
- * its small form, read through {@link AppearanceOptions#rendersBaby}.
+ * its small form, read through {@link AppearanceOptions#rendersBaby}, and the pose a selected carried
+ * block swaps in for the enderman's and the iron golem's bodies, with the {@code carried} gate it admits.
  * <p>
  * The class initialiser builds the whole shipped entity index through
  * {@link EntityModelLoader#load()} to reach a handful of subjects, so the class costs a full index load
@@ -57,6 +59,35 @@ class EntityResolveTest {
         assertThat("shearing drops the sheared-flag wool layer", sheared.size(), is(1));
         assertThat("the surviving overlay is the tint-gated undercoat (deferred to render)",
             sheared.getFirst().gate().orElseThrow() instanceof AppearanceGate.TintedGate, is(true));
+    }
+
+    @Test
+    @DisplayName("carried block: the enderman and the iron golem take their carrier pose while a block is selected")
+    void carriedBlockSwapsTheWearerPose() {
+        for (String id : List.of("minecraft:enderman", "minecraft:iron_golem")) {
+            Entity definition = DEFS.get(id);
+            EntityPose carrier = definition.blockOverlays().stream()
+                .filter(Entity.BlockOverlayLayer::selectable)
+                .findFirst()
+                .flatMap(Entity.BlockOverlayLayer::wearerPose)
+                .orElseThrow(() -> new AssertionError(id + " ships no carrier pose on its selectable block row"));
+            assertThat(id + "'s carrier pose is not its body's", carrier == definition.pose(), is(false));
+
+            AppearanceOptions held = AppearanceOptions.builder().carried("minecraft:poppy").build();
+            Entity resolved = held.resolve(definition);
+            assertThat(id + " takes its carrier pose while a block is selected", resolved.pose() == carrier, is(true));
+            assertThat(id + "'s passes sharing the body's pose follow it onto the carrier",
+                resolved.overlays().stream().filter(pass -> pass.pose() == definition.pose()).count(), is(0L));
+            assertThat(id + " carries a pass that follows", resolved.overlays().stream()
+                .anyMatch(pass -> pass.pose() == carrier), is(true));
+            assertThat(id + " admits the carried gate while a block is selected", held.admits("carried"), is(true));
+
+            for (AppearanceOptions empty : List.of(AppearanceOptions.builder().build(),
+                AppearanceOptions.builder().carried("none").build())) {
+                assertThat(id + " keeps its body's pose with no block held", empty.resolve(definition).pose() == definition.pose(), is(true));
+                assertThat(id + " admits no carried gate with no block held", empty.admits("carried"), is(false));
+            }
+        }
     }
 
     @Test

@@ -229,9 +229,9 @@
   "minecraft:enderman": {
     "adult": {
       "idle": {"frames": 44, "ticks_per_frame": 3, "seam": 0.79, "worst_channel": "body.left_arm.x_rot"},
-      "idle~carried=minecraft__grass_block": {"frames": 44, "ticks_per_frame": 3, "seam": 0.79, "worst_channel": "body.left_arm.x_rot"},
+      "idle~carried=minecraft__grass_block": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "stride": {"frames": 32, "ticks_per_frame": 3, "seam": 13.73, "worst_channel": "body.left_leg.x_rot"},
-      "stride~carried=minecraft__grass_block": {"frames": 32, "ticks_per_frame": 3, "seam": 13.73, "worst_channel": "body.left_leg.x_rot"}
+      "stride~carried=minecraft__grass_block": {"frames": 4, "ticks_per_frame": 3, "seam": 1.78, "worst_channel": "body.left_leg.x_rot"}
     }
   },
   "minecraft:endermite": {
@@ -353,7 +353,7 @@
   "minecraft:iron_golem": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "idle~carried=minecraft__poppy": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
+      "idle~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.33, "worst_channel": "body.right_arm.x_rot"},
       "stride": {"frames": 22, "ticks_per_frame": 3, "seam": 0.44, "worst_channel": "body.left_leg.x_rot"},
       "stride~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.44, "worst_channel": "body.left_leg.x_rot"}
     }

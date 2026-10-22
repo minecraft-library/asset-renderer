@@ -68,6 +68,13 @@ public class AppearanceOptions {
     private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
+     * The style gate token a source carries where only a held block moves its row - the iron golem's
+     * offered flower swaying on the age clock - which this appearance admits while a carried block is
+     * selected. No {@link Flag} spells it.
+     */
+    private static final @NotNull String CARRIED_GATE = "carried";
+
+    /**
      * Age selector. {@link Age#BABY} renders the entity's distinct baby mesh when it has one;
      * {@link Age#ADULT} (default) renders the adult mesh. Only affects entities with a dedicated
      * baby model.
@@ -377,13 +384,16 @@ public class AppearanceOptions {
 
     /**
      * Whether this appearance admits the pass a style gate token names - the token is the spelling
-     * the gated pass's {@code when} key uses, so the two filters read one vocabulary. An unknown
-     * token admits nothing.
+     * the gated pass's {@code when} key uses, so the two filters read one vocabulary. The
+     * {@code carried} token is the one that gates a style source alone, and it admits a source while a
+     * carried block is selected: the overlay side reads the same selection through a block row's
+     * {@code selectable} flag. An unknown token admits nothing.
      *
      * @param gateToken the gate token a style source entry carries
      * @return whether this appearance keeps the gated pass
      */
     public boolean admits(@NotNull String gateToken) {
+        if (CARRIED_GATE.equals(gateToken)) return this.carriedBlock().getState() == Possible.State.PRESENT;
         for (Flag flag : Flag.values())
             if (flag.name().equalsIgnoreCase(gateToken)) return this.selects(flag);
         return false;
@@ -470,9 +480,10 @@ public class AppearanceOptions {
      * (4) block overlays resolve against the carried selection; (5) the shape axis swaps to the
      * tropical-fish large body; (6) the size axis swaps to the selected size's mesh and its pose (armor
      * stand, pufferfish, salmon); (7) the size axis multiplies the render scale (slime / magma_cube),
-     * and where no size form swapped a pose of its own in, the first selected equipment slot whose
-     * layer names a pose for its wearer swaps that pose in for the body's, re-pointing any pass
-     * sharing the body's pose (the harnessed happy ghast's smaller body); (8)
+     * and where no size form swapped a pose of its own in, a selected carried block whose row names a
+     * pose for its wearer, and otherwise the first filled equipment slot whose layer names one, swaps
+     * that pose in for the body's, re-pointing any pass sharing the body's pose (the enderman's raised
+     * arms, the iron golem's offered flower, the harnessed happy ghast's smaller body); (8)
      * selected bone toggles flip their bones' visibility once, on the mesh the baby, shape and size swaps
      * leave selected (donkey / mule / llama chest reveal, the goat's horns and the bee's sting hide on a
      * baby as on an adult, the armor stand's arms and plate at either size), each filled slot whose
@@ -572,16 +583,19 @@ public class AppearanceOptions {
                 builder.rendererScale(form.rendererScale());
             }
             equipment = definition.layers().equipment();
-            // A filled slot whose layer names a pose for its wearer swaps that pose in for the body's
-            // - the harnessed happy ghast's smaller body - while the pose in force is still the
-            // row's own. Vanilla's body asks only whether the stack is empty, so a selected slot
-            // swaps whether or not its material names an asset the layer can draw. A pass sharing
-            // the body's pose follows it onto the swapped one.
+            // A selected carried block whose row names a pose for its wearer - the enderman's raised
+            // arms, the iron golem's offered flower - and otherwise a filled slot whose layer names
+            // one - the harnessed happy ghast's smaller body - swaps that pose in for the body's while
+            // the pose in force is still the row's own. The carrier answers first, being the caller's
+            // own selection. Vanilla's body asks only whether the stack is empty, so a selected slot
+            // swaps whether or not its material names an asset the layer can draw. A pass sharing the
+            // body's pose follows it onto the swapped one.
             if (bodyPose == definition.pose()) {
-                Optional<EntityPose> wearer = equipment.stream()
-                    .filter(overlay -> !this.equipmentMaterial(overlay.slot()).isAbsent())
-                    .flatMap(overlay -> overlay.wearerPose().stream())
-                    .findFirst();
+                Optional<EntityPose> wearer = this.carrierPose(definition)
+                    .or(() -> equipment.stream()
+                        .filter(overlay -> !this.equipmentMaterial(overlay.slot()).isAbsent())
+                        .flatMap(overlay -> overlay.wearerPose().stream())
+                        .findFirst());
                 if (wearer.isPresent()) {
                     builder.pose(wearer.get());
                     builder.overlays(repointed(passes, bodyPose, wearer.get()));
@@ -610,6 +624,22 @@ public class AppearanceOptions {
         // (default) keeps the baked base_tint.
         this.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * The pose a selected carried block's row names for its wearer - the first selectable block row's,
+     * while this appearance selects a block, and empty while it selects none.
+     *
+     * @param definition the definition whose block overlays name the pose
+     * @return the wearer pose the selection swaps in, or empty
+     */
+    private @NotNull Optional<EntityPose> carrierPose(@NotNull Entity definition) {
+        if (this.carriedBlock().getState() != Possible.State.PRESENT) return Optional.empty();
+        return definition.blockOverlays()
+            .stream()
+            .filter(Entity.BlockOverlayLayer::selectable)
+            .findFirst()
+            .flatMap(Entity.BlockOverlayLayer::wearerPose);
     }
 
     /**

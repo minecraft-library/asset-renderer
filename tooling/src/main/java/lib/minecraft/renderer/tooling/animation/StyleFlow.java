@@ -39,11 +39,14 @@ import java.util.stream.Collectors;
  *
  * <p><b>A row's {@code sources} member is measured, never asserted.</b> Each composed row is
  * evaluated across one period per contributing mesh - the body, the baby fork, every coat, size
- * and shape option, every overlay pass and its suppressed alternate - and a mechanism is written
- * down only where dropping its drivers changes the shape of some channel's travel, where a play
- * site the row plays runs a clip that moves, where a pass scrolls its sheet, or where a pass's
- * opacity reads a drive that travels. A source only a gated pass contributes carries that pass's
- * gate token. A row ships where a mechanism moves it or where its held output differs from its
+ * and shape option, every overlay pass and its suppressed alternate, and the body a selected
+ * carried block swaps in - and a mechanism is written down only where dropping its drivers changes
+ * the shape of some channel's travel, where a play site the row plays runs a clip that moves, where
+ * a pass scrolls its sheet, or where a pass's opacity reads a drive that travels. A source only a
+ * gated pass contributes carries that pass's gate token, and one only a carried block's body
+ * contributes carries {@code carried} - so the iron golem's offered flower, swaying on the age
+ * clock, earns it a standing row only a selected block admits. A row ships where a mechanism moves
+ * it or where its held output differs from its
  * base's at some tick of the period - a held selection ships {@code sources: []}, a distinct pose
  * nothing travels - so a subject whose every row renders as its base ships no {@code styles}
  * member and stays bind-only.
@@ -653,6 +656,12 @@ public final class StyleFlow {
         /** The gate of a pass nothing conditions. */
         static final @NotNull Gate OPEN = new Gate(Optional.empty(), false);
 
+        /**
+         * The gate of a body a selected carried block swaps in - drawn exactly while a caller selects a
+         * block, which the render-time appearance admits under this token.
+         */
+        static final @NotNull Gate CARRIED = new Gate(Optional.of("carried"), false);
+
         /** Whether this gate admits unconditionally. */
         boolean open() {
             return !this.negative && this.token.isEmpty();
@@ -689,9 +698,11 @@ public final class StyleFlow {
 
     /**
      * Every mesh one entity draws, each with the gate that admits it - the age forms, every coat,
-     * size and shape option through their explicit {@code pose} members, and every overlay pass,
-     * suppressed alternate and baby delta through the class heading its geometry coordinate. Worn
-     * armor and equipment layers are not drawn by a plain render and are not consulted.
+     * size and shape option through their explicit {@code pose} members, every overlay pass,
+     * suppressed alternate and baby delta through the class heading its geometry coordinate, and each
+     * selectable block row's {@code wearer_pose}, the body a selected block swaps in, under the gate
+     * {@link Gate#CARRIED}. Worn armor and equipment layers are not drawn by a plain render and are not
+     * consulted.
      */
     private static @NotNull List<Site> meshSites(@NotNull JsonTree row) {
         LinkedHashMap<String, Site> out = new LinkedHashMap<>();
@@ -704,6 +715,10 @@ public final class StyleFlow {
             }))));
         row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
             overlaySites(out, overlay, false)));
+        row.find("block_overlays").ifPresent(list -> list.elements().toList().forEach(block -> {
+            if (block.findBoolean("selectable").orElse(false))
+                block.findString(PoseFlow.WEARER_POSE).ifPresent(key -> site(out, key, Gate.CARRIED, false));
+        }));
         return List.copyOf(out.values());
     }
 

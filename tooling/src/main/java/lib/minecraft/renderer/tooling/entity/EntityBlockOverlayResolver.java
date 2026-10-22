@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
@@ -19,11 +20,13 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Resolves the {@code block_overlays[]} array - block-model composites on entity bodies
@@ -35,6 +38,12 @@ import java.util.List;
  *
  * <p>Block ids resolve through the {@link BlockRegistryIndex} registration walk, and a
  * {@code Z}-axis rotation is emitted as {@code rotate_z}.
+ *
+ * <p>A selectable row names the render-state field its draw is gated on as the generation-only
+ * {@link PoseFlow#CARRIED_FIELD}, which is the field the wearer's body asks of the same selection: for
+ * a literal bound behind a timer, the field the extraction tests before the bind (the iron golem's
+ * {@code offerFlowerTick}); for a block with no literal at all, the layer's own block-state field (the
+ * enderman's {@code carriedBlock}). The pose flow folds the body once more with it answered as selected.
  */
 public final class EntityBlockOverlayResolver {
 
@@ -119,6 +128,7 @@ public final class EntityBlockOverlayResolver {
                 .putIf("block", source.blockId());
             row.putIf("attached_bone", transforms.findString("attached_bone"));
             if (source.selectable()) row.put("selectable", true);
+            source.carriedField().ifPresent(field -> row.put(PoseFlow.CARRIED_FIELD, field));
             row.put("transforms", transforms.find("transforms").orElse(null));
             rows.add(row);
         }
@@ -130,21 +140,25 @@ public final class EntityBlockOverlayResolver {
      * @param blockId the canonical default block id, or {@code null} for a literal-less
      *     selectable row (the enderman carried block)
      * @param selectable whether the render-time caller supplies the block
+     * @param carriedField the render-state field a selectable row's draw is gated on, which the
+     *     wearer's body asks of the same selection; empty for a fixed row and for a selectable one
+     *     whose gate no read names
      */
-    private record BlockSource(@Nullable String blockId, boolean selectable) {}
+    private record BlockSource(@Nullable String blockId, boolean selectable, @NotNull Optional<String> carriedField) {}
 
     /**
      * Classifies how the layer's block resolves: a {@code $Variant} enum on the render
      * state ({@code DEFAULT} pick - mooshroom), a literal {@code Blocks.X} bind in
-     * {@code extractRenderState} (fixed when presence-gated, selectable when timer-gated),
-     * or fully render-selected (no literal).
+     * {@code extractRenderState} (fixed when presence-gated, selectable when timer-gated, and then
+     * gated on the field the extraction tests before the bind), or fully render-selected (no
+     * literal, gated on the layer's own block-state field).
      */
     private @NotNull BlockSource classifyBlockSource(@NotNull ClassNode cn, @NotNull MethodNode submit) {
         String stateRef = SourceClasses.Descs.ref(SourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         FieldInsnNode stateRead = AsmWalker.over(submit)
             .ofType(FieldInsnNode.class)
             .first(fi -> fi.getOpcode() == Opcodes.GETFIELD && stateRef.equals(fi.desc));
-        if (stateRead == null) return new BlockSource(null, true);
+        if (stateRead == null) return new BlockSource(null, true, Optional.empty());
 
         ClassNode stateCn = this.cache.load(stateRead.owner);
         if (stateCn != null) {
@@ -152,17 +166,18 @@ public final class EntityBlockOverlayResolver {
             for (FieldNode field : stateCn.fields) {
                 if (field.desc == null || !field.desc.startsWith("L") || !field.desc.endsWith(variantSuffix)) continue;
                 String variantClass = field.desc.substring(1, field.desc.length() - 1);
-                return new BlockSource(resolveVariantDefaultBlock(variantClass), false);
+                return new BlockSource(resolveVariantDefaultBlock(variantClass), false, Optional.empty());
             }
         }
 
         LiteralBlock literal = resolveLiteralBlock(stateRead.name);
-        if (literal != null)
+        if (literal != null) {
             // A presence-gated literal is a fixed always-present decoration; a
             // timer-gated one is a selectable held block.
-            return new BlockSource(literal.blockId(),
-                literal.guarded() != EntityOverlayPolicies.PRESENCE_GATE_FIXED_WHEN_GUARDED.booleanValue());
-        return new BlockSource(null, true);
+            boolean selectable = literal.guarded() != EntityOverlayPolicies.PRESENCE_GATE_FIXED_WHEN_GUARDED.booleanValue();
+            return new BlockSource(literal.blockId(), selectable, selectable ? literal.gate() : Optional.empty());
+        }
+        return new BlockSource(null, true, Optional.of(stateRead.name));
     }
 
     /**
@@ -180,8 +195,18 @@ public final class EntityBlockOverlayResolver {
      *
      * @param blockId the registered block id
      * @param guarded whether an entity {@code ()Z} presence predicate gates the bind
+     * @param gate the render-state field the extraction tests before the bind, which a conditional
+     *     jump past it reads; empty where no such test precedes it
      */
-    private record LiteralBlock(@NotNull String blockId, boolean guarded) {}
+    private record LiteralBlock(@NotNull String blockId, boolean guarded, @NotNull Optional<String> gate) {}
+
+    /**
+     * One {@code BlockModelResolver.update(...)} call binding a literal block.
+     *
+     * @param call the update call
+     * @param blocksField the {@code Blocks.X} field it binds
+     */
+    private record LiteralUpdate(@NotNull MethodInsnNode call, @NotNull String blocksField) {}
 
     private @Nullable LiteralBlock resolveLiteralBlock(@Nullable String blockFieldName) {
         if (blockFieldName == null) return null;
@@ -190,11 +215,11 @@ public final class EntityBlockOverlayResolver {
             if (out[0] != null) return;
             for (MethodNode method : cn.methods) {
                 if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
-                String blocksField = findLiteralBlockUpdate(method, blockFieldName);
-                if (blocksField == null) continue;
-                BlockRegistryIndex.Entry entry = this.blocks.byField(blocksField);
+                LiteralUpdate update = findLiteralBlockUpdate(method, blockFieldName);
+                if (update == null) continue;
+                BlockRegistryIndex.Entry entry = this.blocks.byField(update.blocksField());
                 if (entry == null) continue;
-                out[0] = new LiteralBlock(entry.id(), hasEntityBooleanGuard(method));
+                out[0] = new LiteralBlock(entry.id(), hasEntityBooleanGuard(method), bindGate(method, update.call()));
                 return;
             }
         });
@@ -202,11 +227,11 @@ public final class EntityBlockOverlayResolver {
     }
 
     /**
-     * The {@code Blocks.X} field a {@code BlockModelResolver.update(...)} call pairs with a
-     * {@code GETFIELD <blockFieldName>} target; the backward walk stops at the previous
-     * {@code update} so per-statement args never bleed across calls.
+     * The {@code BlockModelResolver.update(...)} call a {@code GETFIELD <blockFieldName>} target
+     * pairs with a {@code Blocks.X} field; the backward walk stops at the previous {@code update} so
+     * per-statement args never bleed across calls.
      */
-    private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
+    private static @Nullable LiteralUpdate findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
         String stateRef = SourceClasses.Descs.ref(SourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         return AsmWalker.over(method)
             .invokeVirtual(SourceClasses.Types.BLOCK_MODEL_RESOLVER, SourceClasses.Methods.UPDATE)
@@ -214,8 +239,32 @@ public final class EntityBlockOverlayResolver {
                 AsmWalker window = AsmWalker.before(update)
                     .until(Insn.invokeVirtual(SourceClasses.Types.BLOCK_MODEL_RESOLVER, SourceClasses.Methods.UPDATE));
                 String blocksField = window.getStatic(SourceClasses.Types.BLOCKS).names().last();
-                return blocksField != null && window.getField(blockFieldName, stateRef).any() ? blocksField : null;
+                return blocksField != null && window.getField(blockFieldName, stateRef).any()
+                    ? new LiteralUpdate(update, blocksField)
+                    : null;
             });
+    }
+
+    /**
+     * The render-state field the extraction tests before binding a literal block - the iron golem's
+     * {@code offerFlowerTick}, whose {@code ifle} skips the poppy's bind - read off the nearest
+     * conditional jump ahead of the bind that lands past it. The walk stops at the previous
+     * {@code update}, so one statement's test never answers for another's bind.
+     *
+     * @param method the extraction
+     * @param update the bind
+     * @return the tested field, or empty where no test of a field precedes the bind
+     */
+    private static @NotNull Optional<String> bindGate(@NotNull MethodNode method, @NotNull MethodInsnNode update) {
+        JumpInsnNode skip = AsmWalker.before(update)
+            .until(Insn.invokeVirtual(SourceClasses.Types.BLOCK_MODEL_RESOLVER, SourceClasses.Methods.UPDATE))
+            .ofType(JumpInsnNode.class)
+            .first(jump -> jump.getOpcode() != Opcodes.GOTO);
+        if (skip == null || method.instructions.indexOf(skip.label) <= method.instructions.indexOf(update))
+            return Optional.empty();
+        return AsmWalker.previousReal(skip) instanceof FieldInsnNode tested && tested.getOpcode() == Opcodes.GETFIELD
+            ? Optional.of(tested.name)
+            : Optional.empty();
     }
 
     /**

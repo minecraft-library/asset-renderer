@@ -2,9 +2,11 @@ package lib.minecraft.renderer.content.index;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxes;
@@ -16,6 +18,8 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawOverlayBaby;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawPipeline;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
@@ -29,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,6 +58,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * that row alone and composes over no base. One on a row that is not the stride, one missing its speed or
  * its rate, and one outside the range a walk pair holds are refused where the row is read, naming the
  * entity, so the ceiling never meets a value it would refuse.
+ *
+ * <p>A selectable block row's {@code wearer_pose} - the body pose its wearer takes while a caller selects a
+ * block - loads as the pose the pose table carries under that key. One the pose table lacks, and one on a
+ * fixed row, are refused where the row is read rather than dropped: dropping the row would lose the held
+ * block itself, and keeping it without its pose would draw the wearer's arms where the table says they
+ * move.
  *
  * <p>A refusal names a row by its place in the table. A baby form is loaded from the rows carrying a
  * delta alone, and loaded first, so a refusal counting the baby forms would name a different row than
@@ -276,6 +287,66 @@ class EntityStyleGrammarLoadTest {
     }
 
     // ------------------------------------------------------------------------------------
+    // a selectable block's wearer pose
+    // ------------------------------------------------------------------------------------
+
+    /** The key a carrier variant is named by in the fixture's pose table. */
+    private static final @NotNull String VARIANT = "TestModel@carriedBlock.isEmpty=false";
+
+    @Test
+    @DisplayName("a selectable block row's wearer_pose loads as the pose the pose table carries, and a row naming none carries none")
+    void aWearerPoseLoadsOntoItsBlockRow() {
+        EntityPose variant = variant();
+        List<Entity.BlockOverlayLayer> rows = blockRows("{\"selectable\": true, \"attached_bone\": \"right_arm\", "
+            + "\"wearer_pose\": \"" + VARIANT + "\"}, {\"block\": \"minecraft:red_mushroom\"}", Map.of(VARIANT, variant));
+
+        assertSame(variant, rows.getFirst().wearerPose().orElseThrow(), "the row carries the pose its key names");
+        assertTrue(rows.getLast().wearerPose().isEmpty(), "a row naming no wearer pose carries none");
+    }
+
+    @Test
+    @DisplayName("a wearer_pose the pose table carries no pose for is refused, never dropped with the block it holds")
+    void anUnresolvedWearerPoseIsRefused() {
+        ContentException raised = assertThrows(ContentException.class, () ->
+            blockRows("{\"selectable\": true, \"wearer_pose\": \"" + VARIANT + "\"}", Map.of()));
+        assertEquals("Entity 'minecraft:test' block overlay names wearer pose 'TestModel@carriedBlock.isEmpty=false', "
+            + "which entity_poses carries no pose for", raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a wearer_pose on a fixed block row is refused, a fixed block being no selection to swap a pose in")
+    void aWearerPoseOnAFixedRowIsRefused() {
+        ContentException raised = assertThrows(ContentException.class, () -> blockRows(
+            "{\"block\": \"minecraft:red_mushroom\", \"wearer_pose\": \"" + VARIANT + "\"}", Map.of(VARIANT, variant())));
+        assertEquals("Entity 'minecraft:test' block overlay 'minecraft:red_mushroom' names a wearer pose, "
+            + "which only a selectable row takes", raised.getMessage());
+    }
+
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The block overlay rows the fixture entity loads, read through the table's Gson.
+     *
+     * @param rows the entity's {@code block_overlays} rows as comma-separated JSON, in table order
+     * @param poses the pose table the load resolves a wearer pose against
+     * @return the loaded rows, in table order
+     */
+    private static @NotNull List<Entity.BlockOverlayLayer> blockRows(@NotNull String rows, @NotNull Map<String, EntityPose> poses) {
+        String json = "{\"models\": {\"" + ENTITY + "\": {"
+            + "\"block_overlays\": [" + rows + "], "
+            + "\"axes\": {\"age\": {\"options\": {\"adult\": {\"geometry\": \"" + COORD + "\", \"texture\": \"test\"}}}}"
+            + "}}}";
+        EntityModelsTable table = GsonSettings.defaults().create()
+            .fromJson(JsonParser.parseString(json), EntityModelsTable.class);
+        return EntityIndexBuilder.assemble(Map.of(COORD, mesh()), table, poses).get(ENTITY).blockOverlays();
+    }
+
+    /** A carrier variant holding the right arm forward, distinct by identity from every other pose. */
+    private static @NotNull EntityPose variant() {
+        return new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("right_arm", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(-0.5f)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+    }
 
     /**
      * The fixture entity's one pass, drawing the body's mesh.

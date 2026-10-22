@@ -357,6 +357,16 @@ stands it with its legs together.
   `<Model>@<field>.isEmpty=false`, named by the equipment row's `wearer_pose`. Only the happy ghast's
   body reshapes on it in 26.1, squeezing to `0.9375` inside its harness; the zombie nautilus's coral
   asks the same question of a flag and gets no row.
+- **A selected carried block folds its wearer's body the same way, through the field its draw is
+  gated on.** `EntityBlockOverlayResolver` writes that field as the selectable block row's
+  `carried_field`, generation-only and taken off by `RestStrip`, and `PoseFlow.foldCarriers` folds
+  the body once more beside its row with it answered as selected, naming the result by the block
+  row's `wearer_pose`: a field the body asks `isEmpty` of is answered zero, keyed
+  `<Model>@<field>.isEmpty=false` - the enderman's raised arms - and one `StyleRoster.COUNTDOWNS`
+  names is read as its start less the elapsed age, the `int` the field is, keyed
+  `<Model>@<field>=countdown` - the iron golem's offered flower, swaying until the count ends. The
+  style flow measures that body as a site gated on `carried`, so a variant moving on the age clock
+  ships a source only a selected block admits.
 - **A bone drawn only while a stack is empty is a toggle, and the filled slot selects it.**
   `ZombieNautilusCoralModel` writes `corals.visible = state.bodyArmorItem.isEmpty()`, which
   `EntityBoneResolver.decodeEmptinessGate` reads as a gate over the stack field, naming the toggle

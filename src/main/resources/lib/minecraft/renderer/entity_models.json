@@ -2383,7 +2383,8 @@
             {
               "rotate_y": 90.0
             }
-          ]
+          ],
+          "wearer_pose": "EndermanModel@carriedBlock.isEmpty=false"
         }
       ],
       "styles": [
@@ -3706,21 +3707,38 @@
                 -0.5
               ]
             }
-          ]
+          ],
+          "wearer_pose": "IronGolemModel@offerFlowerTick=countdown"
         }
       ],
       "styles": [
         {
-          "id": "stride",
+          "id": "idle",
           "sources": [
-            "stride"
+            {
+              "source": "tick",
+              "gate": "carried"
+            }
           ],
           "drives": [
             {
               "field": "ageInTicks",
               "wave": "ramp",
               "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "sources": [
+            {
+              "source": "tick",
+              "gate": "carried"
             },
+            "stride"
+          ],
+          "drives": [
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",

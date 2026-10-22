@@ -82,4 +82,24 @@ class RestStripTest {
             "the wearer pose is what a reader joins on and stays");
     }
 
+    @Test
+    @DisplayName("a block row's carried_field comes off, and its wearer_pose stays")
+    void theCarriedFieldComesOff() {
+        JsonTree row = JsonTree.object();
+        row.childArray("block_overlays").add(JsonTree.object()
+            .put("source", "CarriedBlockLayer")
+            .put("selectable", true)
+            .put(PoseFlow.CARRIED_FIELD, "carriedBlock")
+            .put("wearer_pose", "EndermanModel@carriedBlock.isEmpty=false"));
+        JsonTree models = JsonTree.object().put("minecraft:enderman", row);
+
+        RestStrip.apply(models);
+
+        JsonTree block = models.find("minecraft:enderman").orElseThrow().find("block_overlays").orElseThrow()
+            .elements().toList().getFirst();
+        assertFalse(block.find(PoseFlow.CARRIED_FIELD).isPresent(), "the field the fold read is generation-only");
+        assertEquals(List.of("source", "selectable", "wearer_pose"), block.keys().toList(),
+            "the wearer pose is what a reader joins on and stays, and nothing else moved");
+    }
+
 }

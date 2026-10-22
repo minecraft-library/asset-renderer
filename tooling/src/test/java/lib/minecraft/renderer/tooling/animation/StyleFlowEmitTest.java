@@ -1110,6 +1110,85 @@ class StyleFlowEmitTest {
             "and the stride composing over the idle pulses with it");
     }
 
+    // ------------------------------------------------------------------------------------
+    // the pose a selected carried block swaps in
+    // ------------------------------------------------------------------------------------
+
+    /** A family whose one selectable block row names the pose its wearer takes while a block is selected. */
+    private static @NotNull JsonTree carrying(@NotNull String poseClass, @NotNull String wearerPose) {
+        JsonTree row = entityRow(poseClass);
+        row.childArray("block_overlays").add(JsonTree.object()
+            .put("source", "CarriedLayer")
+            .putInt("layer_index", 1)
+            .put("selectable", true)
+            .put("wearer_pose", wearerPose));
+        return row;
+    }
+
+    /** Legs swinging on the walk pair, which the body and its carrier variant both carry. */
+    private static @NotNull Map<PoseChannel, PoseExpr> swingingLeg() {
+        return Map.of(PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL,
+            new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Input("walkAnimationSpeed")));
+    }
+
+    /** One row's sources spelled as text - a bare kind, or {@code kind@gate} for a gated entry. */
+    private static @NotNull List<String> spelledSources(@NotNull JsonTree row) {
+        return row.find("sources").orElseThrow().elements().toList().stream()
+            .map(source -> source.isPrimitive()
+                ? source.asString().orElseThrow()
+                : source.findString("source").orElseThrow() + "@" + source.findString("gate").orElseThrow())
+            .toList();
+    }
+
+    @Test
+    @DisplayName("a carrier variant moving on the age clock ships an idle only a selected block admits, and the stride bases on it")
+    void aCarrierVariantOnTheAgeClockShipsACarriedIdle() {
+        String golem = "GolemishModel";
+        String countdown = golem + "@offerFlowerTick=countdown";
+        String ender = "EndishModel";
+        String raised = ender + "@carriedBlock.isEmpty=false";
+        JsonTree models = JsonTree.object()
+            .put("minecraft:golemish", carrying(golem, countdown))
+            .put("minecraft:endish", carrying(ender, raised))
+            .put("minecraft:endish_bare", entityRow(ender));
+        Map<String, PoseOutcome> poses = Map.of(
+            golem, posing(golem, Map.of("left_leg", swingingLeg()), List.of()),
+            countdown, posing(countdown, Map.of("left_leg", swingingLeg(),
+                "right_arm", Map.of(PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL,
+                    new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.01f)))), List.of()),
+            ender, posing(ender, Map.of("left_leg", swingingLeg(),
+                "right_arm", Map.of(PoseChannel.Z_ROT, PoseExpr.operation(PoseOperator.MUL,
+                    new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.05f)))), List.of()),
+            raised, posing(raised, Map.of("left_leg", swingingLeg(),
+                "right_arm", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(-0.5f))), List.of()));
+        Map<String, EntityPace> paces = Map.of(
+            "minecraft:golemish", adultPace(0.19823793f, 0.19823793f, 0.55066085f, 0.55066085f),
+            "minecraft:endish", adultPace(0.7929517f, 0.7929517f, 1f, 1f),
+            "minecraft:endish_bare", adultPace(0.7929517f, 0.7929517f, 1f, 1f));
+
+        Diagnostics diagnostics = fresh();
+        StyleFlow.emit(diagnostics, models, poses, Map.of(), PERIOD, paces);
+        assertEquals(List.of(), messages(diagnostics, Diagnostics.Severity.ERROR));
+
+        List<JsonTree> golemStyles = stylesOf(models, "minecraft:golemish");
+        assertEquals(List.of("idle", "stride"), idsOf(golemStyles), "the carrier earns the golem a standing row");
+        JsonTree idle = rowAt(golemStyles, "idle", Optional.empty());
+        assertEquals(List.of("tick@carried"), spelledSources(idle),
+            "the sway is the variant's alone, so its tick is gated on the selection that swaps it in");
+        assertEquals(List.of("ageInTicks"), drivenFields(idle), "the standing row ramps elapsed age");
+        assertEquals(Optional.of(1f), driveOf(idle, "ageInTicks").flatMap(drive -> drive.findFloat("extent")));
+        JsonTree stride = rowAt(golemStyles, "stride", Optional.empty());
+        assertEquals(Optional.of("idle"), stride.findString("base"), "the stride composes over the standing row");
+        assertEquals(List.of("tick@carried", "stride"), spelledSources(stride),
+            "the gated tick rides the stride ahead of the bare walk");
+        assertEquals(List.of("walkAnimationSpeed", "walkAnimationPos"), drivenFields(stride),
+            "elapsed age moves to the standing row the stride bases on");
+
+        assertEquals(stylesOf(models, "minecraft:endish_bare").stream().map(JsonTree::toJson).toList(),
+            stylesOf(models, "minecraft:endish").stream().map(JsonTree::toJson).toList(),
+            "a variant reading no age moves nothing the open body does not, so its rows do not move");
+    }
+
     /** The emitted models tree read back through the pipeline's own loader. */
     private static @NotNull Entity load(@NotNull JsonTree models) {
         JsonTree file = JsonTree.object();

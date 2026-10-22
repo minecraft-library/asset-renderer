@@ -81108,6 +81108,255 @@
         }
       }
     },
+    "EndermanModel@carriedBlock.isEmpty=false": {
+      "shared": [
+        {
+          "mul": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "const": 0.6662
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "y": {
+            "bone": [
+              "body",
+              "y"
+            ]
+          },
+          "x_rot": {
+            "bone": [
+              "body",
+              "x_rot"
+            ]
+          },
+          "y_rot": {
+            "bone": [
+              "body",
+              "y_rot"
+            ]
+          }
+        },
+        "hat": {
+          "y": {
+            "bone": [
+              "hat",
+              "y"
+            ]
+          }
+        },
+        "head": {
+          "y": {
+            "bone": [
+              "head",
+              "y"
+            ]
+          },
+          "x_rot": {
+            "const": 0.0
+          },
+          "y_rot": {
+            "const": 0.0
+          }
+        },
+        "left_arm": {
+          "x": {
+            "bone": [
+              "left_arm",
+              "x"
+            ]
+          },
+          "y": {
+            "bone": [
+              "left_arm",
+              "y"
+            ]
+          },
+          "z": {
+            "bone": [
+              "left_arm",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "const": -0.5
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": -0.05
+          }
+        },
+        "left_leg": {
+          "z": {
+            "bone": [
+              "left_leg",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "clamp": [
+              {
+                "mul": [
+                  {
+                    "div": [
+                      {
+                        "mul": [
+                          {
+                            "mul": [
+                              {
+                                "mth_cos": [
+                                  {
+                                    "f2d": [
+                                      {
+                                        "add": [
+                                          {
+                                            "ref": 0
+                                          },
+                                          {
+                                            "const": 3.1415927
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "const": 1.4
+                              }
+                            ]
+                          },
+                          {
+                            "input": "walkAnimationSpeed"
+                          }
+                        ]
+                      },
+                      {
+                        "const": 1.0
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.5
+                  }
+                ]
+              },
+              {
+                "const": -0.4
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          },
+          "y_rot": {
+            "const": -0.005
+          },
+          "z_rot": {
+            "const": -0.005
+          }
+        },
+        "right_arm": {
+          "x": {
+            "bone": [
+              "right_arm",
+              "x"
+            ]
+          },
+          "y": {
+            "bone": [
+              "right_arm",
+              "y"
+            ]
+          },
+          "z": {
+            "bone": [
+              "right_arm",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "const": -0.5
+          },
+          "y_rot": {
+            "const": 0.0
+          },
+          "z_rot": {
+            "const": 0.05
+          }
+        },
+        "right_leg": {
+          "z": {
+            "bone": [
+              "right_leg",
+              "z"
+            ]
+          },
+          "x_rot": {
+            "clamp": [
+              {
+                "mul": [
+                  {
+                    "div": [
+                      {
+                        "mul": [
+                          {
+                            "mul": [
+                              {
+                                "mth_cos": [
+                                  {
+                                    "f2d": [
+                                      {
+                                        "ref": 0
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "const": 1.4
+                              }
+                            ]
+                          },
+                          {
+                            "input": "walkAnimationSpeed"
+                          }
+                        ]
+                      },
+                      {
+                        "const": 1.0
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.5
+                  }
+                ]
+              },
+              {
+                "const": -0.4
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.005
+          },
+          "z_rot": {
+            "const": 0.005
+          }
+        }
+      }
+    },
     "EndermiteModel": {
       "shared": [
         {
@@ -87777,6 +88026,266 @@
                 "const": 0.017453292
               }
             }
+          }
+        }
+      }
+    },
+    "IronGolemModel@offerFlowerTick=countdown": {
+      "shared": [
+        {
+          "isub": [
+            {
+              "iconst": 400
+            },
+            {
+              "f2i": [
+                {
+                  "input": "ageInTicks"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "le": [
+            {
+              "ref": 0
+            },
+            {
+              "iconst": 0
+            }
+          ]
+        },
+        {
+          "triangle_wave": [
+            {
+              "input": "walkAnimationPos"
+            },
+            {
+              "const": 13.0
+            }
+          ]
+        },
+        {
+          "mul": [
+            {
+              "const": 1.5
+            },
+            {
+              "ref": 2
+            }
+          ]
+        }
+      ],
+      "container": [
+        {
+          "z_rot": {
+            "select": [
+              {
+                "ge": [
+                  {
+                    "input": "walkAnimationSpeed"
+                  },
+                  {
+                    "const": 0.01
+                  }
+                ]
+              },
+              {
+                "mul": [
+                  {
+                    "mul": [
+                      {
+                        "const": 6.5
+                      },
+                      {
+                        "div": [
+                          {
+                            "sub": [
+                              {
+                                "abs": [
+                                  {
+                                    "sub": [
+                                      {
+                                        "rem": [
+                                          {
+                                            "add": [
+                                              {
+                                                "input": "walkAnimationPos"
+                                              },
+                                              {
+                                                "const": 6.0
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "const": 13.0
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "const": 6.5
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "const": 3.25
+                              }
+                            ]
+                          },
+                          {
+                            "const": 3.25
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.017453292
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
+          }
+        },
+        {
+          "y": {
+            "const": -24.016
+          }
+        }
+      ],
+      "bones": {
+        "head": {
+          "x_rot": {
+            "const": 0.0
+          },
+          "y_rot": {
+            "const": 0.0
+          }
+        },
+        "left_arm": {
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "mul": [
+                  {
+                    "sub": [
+                      {
+                        "const": -0.2
+                      },
+                      {
+                        "ref": 3
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "const": 0.0
+              }
+            ]
+          }
+        },
+        "left_leg": {
+          "x_rot": {
+            "mul": [
+              {
+                "ref": 3
+              },
+              {
+                "input": "walkAnimationSpeed"
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
+          }
+        },
+        "right_arm": {
+          "x_rot": {
+            "select": [
+              {
+                "ref": 1
+              },
+              {
+                "mul": [
+                  {
+                    "add": [
+                      {
+                        "const": -0.2
+                      },
+                      {
+                        "ref": 3
+                      }
+                    ]
+                  },
+                  {
+                    "input": "walkAnimationSpeed"
+                  }
+                ]
+              },
+              {
+                "add": [
+                  {
+                    "const": -0.8
+                  },
+                  {
+                    "mul": [
+                      {
+                        "const": 0.025
+                      },
+                      {
+                        "triangle_wave": [
+                          {
+                            "i2f": [
+                              {
+                                "ref": 0
+                              }
+                            ]
+                          },
+                          {
+                            "const": 70.0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "right_leg": {
+          "x_rot": {
+            "mul": [
+              {
+                "mul": [
+                  {
+                    "const": -1.5
+                  },
+                  {
+                    "ref": 2
+                  }
+                ]
+              },
+              {
+                "input": "walkAnimationSpeed"
+              }
+            ]
+          },
+          "y_rot": {
+            "const": 0.0
           }
         }
       }

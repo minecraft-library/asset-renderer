@@ -14,7 +14,8 @@ import java.util.Set;
 /**
  * The curated idle roster the style emitter merges with what the walked poses read - which
  * render-state clocks vanilla's tick advances in plain IDLE or WALK and the wave each gait drives
- * them by, which one-hot states form an exclusion group, which member of each group a resting
+ * them by, which counts a selection starts and the tick lowers, which one-hot states form an
+ * exclusion group, which member of each group a resting
  * subject stands in at either gait, and the rule a state field's style id derives by.
  *
  * <p>The same declaration holds the two sets the fold reads - {@link #DRIVEN}, what the tick moves
@@ -116,6 +117,15 @@ public final class StyleRoster {
         }
 
     }
+
+    /**
+     * One render-state field vanilla's tick counts down from the moment an event sets it - a count a
+     * selection starts, read as that start less the elapsed age.
+     *
+     * @param field the render-state field the body reads
+     * @param start the count the event sets
+     */
+    public record Countdown(@NotNull String field, int start) {}
 
     /**
      * One selectable member of an exclusion group.
@@ -249,6 +259,23 @@ public final class StyleRoster {
         new Clock("tentacleAngle", Motion.stroke(0.7853982f, 0.11559614f), Optional.empty()),
         new Clock("peekAmount", Motion.trapezoid(0.29999998f, 6, 14, 6, 0), Optional.empty()),
         new Clock("heartAnimation", Motion.trapezoid(1f, 0, 0, 10, 30), Optional.empty()));
+
+    /**
+     * The counts vanilla's tick lowers from the moment a selection starts them, each read where its
+     * vanilla value is written:
+     *
+     * <ul>
+     *   <li><b>{@code offerFlowerTick}</b> - {@code IronGolem.handleEntityEvent} sets it to 400 on event
+     *       11, the offered flower, and {@code IronGolem.aiStep} lowers it one a tick while it is above
+     *       zero. The golem's body raises its right arm while it is.</li>
+     * </ul>
+     *
+     * <p>A countdown joins neither {@link #DRIVEN} nor {@link #DRIVEN_FIGURES}: a body folded with its
+     * selection answered reads the field as its start less the elapsed age, so the age clock every posed
+     * row already drives carries it.
+     */
+    public static final @NotNull List<Countdown> COUNTDOWNS = List.of(
+        new Countdown("offerFlowerTick", 400));
 
     /** The thirteen exclusion groups, in roster order, each with its members in roster order. */
     public static final @NotNull List<Group> GROUPS = List.of(

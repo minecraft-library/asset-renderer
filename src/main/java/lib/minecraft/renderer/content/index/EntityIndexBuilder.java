@@ -175,7 +175,7 @@ public final class EntityIndexBuilder {
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
         ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
-            ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
+            ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays(), poses, familyId);
 
         ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, familyId);
         Possible<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
@@ -831,14 +831,53 @@ public final class EntityIndexBuilder {
      * its {@code block} may be omitted entirely (the enderman carried block). A {@code transforms} entry
      * is a single-member object dispatched on the member's own name, the shape a pose expression takes.
      *
-     * @throws ContentException if a transform entry names an op the tooling does not emit
+     * <p>A selectable row's {@code wearer_pose} resolves to the pose the pose table carries under that
+     * key. A name the table lacks is refused rather than dropped, because dropping the row would lose the
+     * held block itself and keeping it without its pose would draw the wearer's body where the table says
+     * the selection moves it.
+     *
+     * @param array the family's {@code block_overlays} rows, in table order
+     * @param poses the pose of each model class and variant, by the key a row names
+     * @param familyId the family's entity id, for the refusals
+     * @return the resolved rows, in table order
+     * @throws ContentException if a transform entry names an op the tooling does not emit, a row names a
+     *     wearer pose the pose table carries no pose for, or a fixed row names a wearer pose at all
      */
-    private static @NotNull ConcurrentList<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
+    private static @NotNull ConcurrentList<BlockOverlayLayer> loadBlockOverlays(
+        @NotNull List<RawBlockOverlay> array,
+        @NotNull Map<String, EntityPose> poses,
+        @NotNull String familyId
+    ) {
         return array.stream()
             .filter(row -> row.block() != null || row.selectable())
             .map(row -> new BlockOverlayLayer(row.block() == null ? "" : row.block(),
-                row.attachedBone(), composedTransform(row), row.selectable()))
+                row.attachedBone(), composedTransform(row), row.selectable(), wearerPoseOf(row, poses, familyId)))
             .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * The pose one block row names for its wearer, or empty where it names none.
+     *
+     * @param row the block-overlay row
+     * @param poses the pose of each model class and variant, by the key a row names
+     * @param familyId the family's entity id, for the refusals
+     * @return the named pose, or empty
+     * @throws ContentException if the row is fixed, or names a key the pose table carries no pose for
+     */
+    private static @NotNull Optional<EntityPose> wearerPoseOf(
+        @NotNull RawBlockOverlay row, @NotNull Map<String, EntityPose> poses, @NotNull String familyId) {
+
+        if (row.wearerPose() == null) return Optional.empty();
+        if (!row.selectable()) {
+            throw new ContentException("Entity '%s' block overlay '%s' names a wearer pose, which only a selectable row takes",
+                familyId, row.block());
+        }
+        EntityPose wearer = poses.get(row.wearerPose());
+        if (wearer == null) {
+            throw new ContentException("Entity '%s' block overlay names wearer pose '%s', which entity_poses carries no pose for",
+                familyId, row.wearerPose());
+        }
+        return Optional.of(wearer);
     }
 
     /**

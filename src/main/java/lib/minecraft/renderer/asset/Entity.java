@@ -336,13 +336,33 @@ public record Entity(
      *     snow golem pumpkin): it renders only when {@link AppearanceOptions#carriedBlock()} answers a
      *     block id, which replaces {@link #blockId}. The default (unselected) render draws no
      *     selectable overlay
+     * @param wearerPose the pose the wearer's body takes while a caller selects a block for this
+     *     selectable row - the enderman's raised arms, the iron golem's offered flower; empty for a
+     *     fixed row and for a selectable one whose wearer keeps its own pose
      */
     public record BlockOverlayLayer(
         @NotNull String blockId,
         @Nullable String attachedBone,
         @NotNull Matrix4f transform,
-        boolean selectable
+        boolean selectable,
+        @NotNull Optional<EntityPose> wearerPose
     ) {
+
+        /**
+         * Constructs a new {@code BlockOverlayLayer} whose wearer keeps its own pose while it draws.
+         *
+         * @param blockId the block id to render
+         * @param attachedBone the entity bone whose pose pre-multiplies the transform, or {@code null}
+         * @param transform the block-unit placement
+         * @param selectable whether the caller's carried selection supplies the block
+         */
+        public BlockOverlayLayer(
+            @NotNull String blockId, @Nullable String attachedBone, @NotNull Matrix4f transform,
+            boolean selectable) {
+
+            this(blockId, attachedBone, transform, selectable, Optional.empty());
+        }
+
         /**
          * Returns a copy with {@link #blockId} replaced by {@code newBlockId}, for resolving a
          * {@link #selectable} overlay against the caller's chosen carried block.
@@ -351,8 +371,10 @@ public record Entity(
          * @return an otherwise-identical overlay rendering {@code newBlockId}
          */
         public @NotNull BlockOverlayLayer withBlockId(@NotNull String newBlockId) {
-            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transform, this.selectable);
+            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transform, this.selectable,
+                this.wearerPose);
         }
+
     }
 
     /**

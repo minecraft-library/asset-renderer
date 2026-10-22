@@ -1085,6 +1085,13 @@ samples the opacity as it draws it, so a pulse longer than the pose's loop lengt
 the pulse is shown whole once; where the strip restarts is judged on the body alone, and the glow may
 jump there.
 
+**A selected carried block takes its wearer's arms with it.** A selectable block row names the body
+pose its wearer takes while a caller selects a block - the enderman's raised arms, the iron golem's
+offered flower, whose offer counts down on the age clock from the moment it is selected - and the
+appearance swaps it in for the body's pose, as a filled equipment slot swaps its own. Only a posed
+render moves; a bind render poses nothing, so a still render and the still references draw the arms
+at rest.
+
 **The canvas is a union of silhouettes, each measured over the frames its own render draws.** The
 subject is measured across every frame of the render's schedule, each through its own posed mesh and
 its own tick's texture. Under the group scope every variant coat, every member and a baby's own adult

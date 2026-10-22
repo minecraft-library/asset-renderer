@@ -211,7 +211,8 @@ class EntityIndexBuilderBabyOverlayTest {
             "minecraft:red_mushroom_block",  // block
             null,                            // attached_bone
             List.of(),                       // transforms
-            false);                          // selectable
+            false,                           // selectable
+            null);                           // wearer_pose
     }
 
     /**
