@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author.compile;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -35,6 +36,7 @@ import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -141,6 +143,18 @@ public final class PoseCompiler {
      * the order {@link Side} declares them.
      */
     private static final int LEADING_SIDE = 1;
+
+    /**
+     * The walk a kept stride falls back to for each field its target's stride does not drive -
+     * elapsed age ramped at slope one, the swing held at one and the walk clock ramped by it.
+     */
+    private static final @NotNull ConcurrentMap<String, StyleDriver> UNIVERSAL_TRIO = Concurrent.newUnmodifiableLinkedMap(
+        Map.entry("ageInTicks",
+            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())),
+        Map.entry("walkAnimationSpeed",
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty())),
+        Map.entry("walkAnimationPos",
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())));
 
     // ------------------------------------------------------------------------------------
     // public surface
@@ -276,7 +290,9 @@ public final class PoseCompiler {
      * an installer reuses so splices stack and subtrees unify across every style added to one
      * row. The evidence pose is the row's pose as it shipped: an installer whose row has been
      * woven by earlier installs hands the pristine one here, so what the joint rule reads as
-     * "the pose turns this bone" is vanilla's articulation and never an author's splice.
+     * "the pose turns this bone" is vanilla's articulation and never an author's splice. A style
+     * keeping the stride carries the row's own {@link #strideOf stride} at the age the style is
+     * compiled at, the adult where it spans both.
      *
      * @param style the built style to lower
      * @param row the target row whose mesh and shipped pose the lowering runs against
@@ -291,7 +307,8 @@ public final class PoseCompiler {
                                      @NotNull GraphInterner pool) {
         double window = row.styles().periodTicks() / (double) Timeline.TICKS_PER_SECOND;
         return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
-            Optional.empty(), window).lower();
+            Optional.empty(), window, strideOf(row.styles(), style.age().orElse(Age.ADULT), row.id().toString()))
+            .lower();
     }
 
     /**
@@ -346,7 +363,60 @@ public final class PoseCompiler {
                                           @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
                                           int periodTicks) {
         double window = periodTicks / (double) Timeline.TICKS_PER_SECOND;
-        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window).lower();
+        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window, Map.of())
+            .lower();
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the kept stride
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The whole driver map of the stride a render of one age draws on a target catalog - its walk
+     * pair, elapsed age, every clock and every selection it holds - the universal stride's where the
+     * catalog carries no stride applying to that age.
+     *
+     * @param target the target row's catalog
+     * @param age the age the stride is drawn at
+     * @param subjectId the target row's id
+     * @return the stride's composed drivers
+     */
+    public static @NotNull ConcurrentMap<String, StyleDriver> strideOf(
+        @NotNull StyleCatalog target, @NotNull Age age, @NotNull String subjectId) {
+
+        return target.resolve(PoseStyle.STRIDE, row -> row.age().map(age::equals).orElse(true), subjectId)
+            .drivers();
+    }
+
+    /**
+     * A row's drivers walking at another stride - every field the one stride drives taken out, then
+     * every driver of the other put in its own order, every other driver kept.
+     *
+     * @param drivers the row's drivers, carrying the one stride
+     * @param from the stride the row carries
+     * @param to the stride the row walks at instead
+     * @return the drivers walking at the other stride
+     */
+    public static @NotNull ConcurrentMap<String, StyleDriver> restrided(@NotNull Map<String, StyleDriver> drivers,
+                                                                        @NotNull Map<String, StyleDriver> from,
+                                                                        @NotNull Map<String, StyleDriver> to) {
+        LinkedHashMap<String, StyleDriver> restrided = new LinkedHashMap<>(drivers);
+        from.keySet().forEach(restrided::remove);
+        restrided.putAll(to);
+        return Concurrent.adoptLinkedMap(restrided).toUnmodifiable();
+    }
+
+    /**
+     * Whether an install appends a style as an adult row and a baby row of one id, so each age walks
+     * at its own stride - the style keeps the stride and spans both ages, and the row carries a baby
+     * form. Every other install appends one row.
+     *
+     * @param style the built style being installed
+     * @param row the row it installs on
+     * @return whether the install appends an adult and baby pair
+     */
+    public static boolean installsAsPair(@NotNull BuiltStyle style, @NotNull Entity row) {
+        return style.script().keepStride() && style.age().isEmpty() && row.axes().baby().isPresent();
     }
 
     // ------------------------------------------------------------------------------------
@@ -448,6 +518,12 @@ public final class PoseCompiler {
         private final @NotNull Optional<EntityPose.Clip> sharedSite;
         private final double windowSeconds;
         private final float flattened;
+
+        /**
+         * The target's stride at the compiled age, which a style keeping the stride copies onto its
+         * row - empty on a layer compile, whose row takes no stride.
+         */
+        private final @NotNull Map<String, StyleDriver> stride;
         private final @NotNull Set<String> drivenFields;
 
         /**
@@ -504,7 +580,8 @@ public final class PoseCompiler {
         private Lowering(@NotNull BuiltStyle style, @NotNull EntityPose shipped, @NotNull EntityPose evidence,
                          @NotNull EntityMesh mesh, @NotNull Optional<String> layer,
                          @NotNull Diagnostics scope, @NotNull GraphInterner pool,
-                         @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow) {
+                         @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow,
+                         @NotNull Map<String, StyleDriver> stride) {
             this.style = style;
             this.script = style.script();
             this.shipped = shipped;
@@ -518,9 +595,18 @@ public final class PoseCompiler {
             this.sharedSite = sharedSite;
             this.windowSeconds = this.script.periodSeconds().orElse(defaultWindow);
             this.flattened = mesh.getFlattenedScale();
-            this.drivenFields = this.script.keepStride()
-                ? Set.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos")
-                : Set.of();
+            this.stride = stride;
+            this.drivenFields = this.script.keepStride() ? keptFields(stride) : Set.of();
+        }
+
+        /**
+         * The fields a kept stride drives - the universal trio's, then every field of the target's
+         * stride.
+         */
+        private static @NotNull Set<String> keptFields(@NotNull Map<String, StyleDriver> stride) {
+            Set<String> driven = new LinkedHashSet<>(UNIVERSAL_TRIO.keySet());
+            driven.addAll(stride.keySet());
+            return driven;
         }
 
         /**
@@ -588,16 +674,14 @@ public final class PoseCompiler {
         }
 
         /**
-         * Copies the universal stride trio onto the built row, so the shipped walk math runs live.
+         * Copies the target's stride at the built row's age onto it - its walk pair, elapsed age,
+         * every clock and every selection it holds - so the vanilla walk runs live under the authored
+         * stances. A field the target's stride does not drive takes the universal trio's driver.
          */
         private void strideDrivers() {
             if (this.layer.isPresent()) return;
-            this.drivers.put("ageInTicks",
-                new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-            this.drivers.put("walkAnimationSpeed",
-                new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-            this.drivers.put("walkAnimationPos",
-                new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+            UNIVERSAL_TRIO.forEach(this.drivers::put);
+            this.stride.forEach(this.drivers::put);
         }
 
         /**

@@ -121,9 +121,12 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     }
 
     /**
-     * Rides the universal stride drivers, so the shipped walking math runs live under the
-     * built style; the additive {@code -By} verbs are the writes that compose with it,
-     * while an absolute rotation over a striding channel refuses at compile.
+     * Keeps the target row's own stride under the built style - the row's whole stride at the row's
+     * age, its walk pair, elapsed age and every clock and selection it holds - so the shipped walking
+     * math runs live beneath it. On a row with a baby form, a style spanning both ages installs once
+     * per age, each row walking at its own age's stride. The additive {@code -By} verbs are the
+     * writes that compose with it, while an absolute rotation over a striding channel refuses at
+     * compile.
      *
      * @return this builder
      */

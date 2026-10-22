@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Gait;
@@ -27,7 +28,9 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +59,7 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.row;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.walker;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -406,6 +410,49 @@ class PoseCompilerTest {
         float landed = posed(compiled, mesh, 6).getBones().get("right_arm").getRotation().pitch();
         float written = (float) (6d + (double) (float) Math.toRadians(-20));
         assertEquals((float) Math.toDegrees(written), landed);
+    }
+
+    @Test
+    @DisplayName("a kept stride copies the target's whole stride at the compiled age - its walk pair, its clocks, and the literal for a field it lacks")
+    void aKeptStrideCopiesTheWholeStrideMap() {
+        // A guardian-shaped walk: the swing and clock at a pace under one, the tail wagging on a clock of
+        // its own and the spikes held at a level - and no elapsed age, which the literal fills in.
+        StyleDriver swing = new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 0.35f, Optional.empty());
+        StyleDriver clock = new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1.05f, Optional.empty());
+        StyleDriver tail = new StyleDriver("tailAnimation", StyleDriver.Wave.RAMP, 0f, 0.5f, Optional.empty());
+        StyleDriver spikes = new StyleDriver("spikesAnimation", StyleDriver.Wave.HOLD, 0f, 0f, Optional.empty());
+        StyleDriver babyClock = new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 3.15f, Optional.empty());
+        Entity target = striding(row(humanoid(), EntityPose.NONE),
+            stride(Optional.of(Age.ADULT), swing, clock, tail, spikes),
+            stride(Optional.of(Age.BABY), swing, babyClock));
+
+        Map<String, StyleDriver> adult = PoseCompiler.compile(
+            Poses.custom("cruise").keepStride().build(), target).style().drivers();
+        assertEquals(swing, adult.get("walkAnimationSpeed"), "the swing the target's stride holds");
+        assertEquals(clock, adult.get("walkAnimationPos"), "the walk clock at the rate it ramps");
+        assertEquals(tail, adult.get("tailAnimation"), "a clock the stride drives beside the walk");
+        assertEquals(spikes, adult.get("spikesAnimation"), "and a level it holds another clock at");
+        assertEquals(new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()),
+            adult.get("ageInTicks"), "elapsed age, which this stride lacks, keeps the literal");
+
+        Map<String, StyleDriver> baby = PoseCompiler.compile(
+            Poses.custom("cruise").keepStride().age(Age.BABY).build(), target).style().drivers();
+        assertEquals(babyClock, baby.get("walkAnimationPos"), "a baby style walks at the baby's stride");
+        assertFalse(baby.containsKey("tailAnimation"), "and carries no clock only the adult's stride drives");
+    }
+
+    @Test
+    @DisplayName("a kept stride refuses an absolute write over a base reading a clock the copy drives, as over a leg")
+    void aKeptStrideRefusesAnAbsoluteWriteOverACopiedClock() {
+        Entity target = striding(row(humanoid(), boneWrite("right_arm", PoseChannel.Y_ROT, input("tailAnimation"))),
+            stride(Optional.empty(), new StyleDriver("tailAnimation", StyleDriver.Wave.RAMP, 0f, 0.5f, Optional.empty())));
+
+        StyleException refusal = assertThrows(StyleException.class, () -> PoseCompiler.compile(
+            Poses.humanoid("brace").keepStride().arm(Side.RIGHT, arm -> arm.yaw(20)).build(), target));
+        assertTrue(refusal.getMessage().contains("driven field 'tailAnimation'"), refusal.getMessage());
+        assertDoesNotThrow(() -> PoseCompiler.compile(
+                Poses.humanoid("brace").arm(Side.RIGHT, arm -> arm.yaw(20)).build(), target),
+            "without the stride nothing drives the clock, so the write rebases against its rest");
     }
 
     @Test
@@ -1059,6 +1106,28 @@ class PoseCompilerTest {
         return new PoseStyle(id, Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
+    }
+
+    /**
+     * A stride row driving the given drivers, in order, applying to one age or to both.
+     */
+    private static @NotNull PoseStyle stride(@NotNull Optional<Age> age, StyleDriver @NotNull ... drivers) {
+        LinkedHashMap<String, StyleDriver> driven = new LinkedHashMap<>();
+        for (StyleDriver driver : drivers)
+            driven.put(driver.field(), driver);
+        return new PoseStyle(PoseStyle.STRIDE,
+            Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty())),
+            Concurrent.adoptLinkedMap(driven).toUnmodifiable(), Concurrent.newUnmodifiableList(), age,
+            Optional.empty());
+    }
+
+    /**
+     * The same row carrying a catalog of the given stride rows alone, at the fixture period.
+     */
+    private static @NotNull Entity striding(@NotNull Entity row, PoseStyle @NotNull ... strides) {
+        return row.mutate()
+            .styles(new StyleCatalog(PERIOD, Concurrent.newUnmodifiableList(strides)))
+            .build();
     }
 
     /**

@@ -21,6 +21,7 @@ import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -42,7 +43,8 @@ import java.util.function.BiFunction;
  * runtime change at all.
  *
  * <p>An install compiles the style against the target row's own mesh and shipped pose, appends
- * one flat catalog row after the shipped rows, and weaves every pose row the runtime evaluates:
+ * one flat catalog row after the shipped rows - an adult row and a baby row of one id where the
+ * style keeps the stride across both ages - and weaves every pose row the runtime evaluates:
  * an overlay pass sharing the body's pose instance is re-pointed at the spliced instance and
  * follows for free, while a pass carrying a distinct pose row takes its own compile against its
  * own mesh, the splices that depend on its mesh reading per-layer fields under a coined
@@ -298,7 +300,8 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Runs the whole install sequence for one row: the id guards, the walk over the row and every
      * form an appearance swaps in for it, and the rebuilt row, whose every form carries the one
-     * catalog the appended row rebuilds.
+     * catalog the appended row rebuilds - a style that keeps the stride and spans both ages appending
+     * an adult row and a baby row of one id, each walking at its own age's stride.
      */
     private @NotNull StyleRegistrar install(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict) {
         Diagnostics scope = this.root.child(entityId).child(style.styleId());
@@ -318,9 +321,18 @@ public final class StyleRegistrar implements AutoCloseable {
         Entity rebuilt = FormWalker.walk(entityId, style, row, this.given.get(entityId), scope, weave);
 
         List<PoseStyle> rows = new ArrayList<>(row.styles().styles());
-        rows.add(new PoseStyle(style.styleId(), style.sources(),
-            Concurrent.newUnmodifiableMap(weave.drivers), style.toggles(), style.age(),
-            weave.declaredPeriod));
+        ConcurrentMap<String, StyleDriver> woven = Concurrent.newUnmodifiableMap(weave.drivers);
+        if (PoseCompiler.installsAsPair(style, row)) {
+            rows.add(new PoseStyle(style.styleId(), style.sources(), woven, style.toggles(),
+                Optional.of(Age.ADULT), weave.declaredPeriod));
+            rows.add(new PoseStyle(style.styleId(), style.sources(),
+                PoseCompiler.restrided(woven, PoseCompiler.strideOf(row.styles(), Age.ADULT, entityId),
+                    PoseCompiler.strideOf(row.styles(), Age.BABY, entityId)),
+                style.toggles(), Optional.of(Age.BABY), weave.declaredPeriod));
+        } else {
+            rows.add(new PoseStyle(style.styleId(), style.sources(), woven, style.toggles(), style.age(),
+                weave.declaredPeriod));
+        }
         StyleCatalog catalog = new StyleCatalog(row.styles().periodTicks(),
             Concurrent.newUnmodifiableList(rows));
 

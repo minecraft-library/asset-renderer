@@ -67,7 +67,9 @@ import java.util.function.Predicate;
  *
  * <p>The audited age is the one the style is compiled at - the adult where the style spans both -
  * and the idle and stride are the shipped rows applying to it. A stride recording no fastest pace
- * enters the envelope at the walk it drives.
+ * enters the envelope at the walk it drives. A style an install appends as an adult row and a baby
+ * row is audited once per row, each walking at its own age's stride against the envelope at that
+ * age, and each of its findings names the age it was measured for.
  */
 @UtilityClass
 @Parity(subject = Subject.ENTITY)
@@ -109,7 +111,8 @@ public final class PoseAuditor {
      * its body's pose follows the body uncompiled, a pass no written bone lands on is left
      * untouched, and a size form lending a mesh resting as its row's does to its row's pose filters
      * a write to a bone it lacks at render, so none of the three reports anything. The clearance is
-     * measured on the row's own body.
+     * measured on the row's own body - twice where the install appends an adult row and a baby row,
+     * the adult's first, each posed by its own row's drivers.
      *
      * <p>What it predicts is the weave. An install refuses ahead of any weave where the row already
      * carries the style's id at its age, and that guard is left to the caller, so a style spelled
@@ -127,7 +130,6 @@ public final class PoseAuditor {
         Prediction prediction = predict(style, row);
         PoseCompiler.Compiled compiled = prediction.body();
         EntityMesh mesh = row.model();
-        int catalogPeriod = row.styles().periodTicks();
 
         // A container step moves the whole figure rigidly, which cannot break a bone coupling
         // but does shift every pair's axis-aligned clearance - so the audit samples the woven
@@ -138,13 +140,56 @@ public final class PoseAuditor {
         Map<String, List<OrientedBox>> bind = worldBoxes(mesh);
         List<String> boneOrder = List.copyOf(bind.keySet());
         List<String[]> pairs = adjacentPairs(bind, boneOrder);
+        Set<String> stanced = carried(mesh, stancedBones(row.pose(), compiled, style.styleId()));
+
+        List<PoseAudit.Finding> findings = new ArrayList<>();
+        if (PoseCompiler.installsAsPair(style, row)) {
+            // The pair's two rows pose the one woven body, each walking at its own age's stride.
+            String entityId = row.id().toString();
+            PoseStyle adult = compiled.style();
+            PoseStyle baby = new PoseStyle(adult.id(), adult.sources(),
+                PoseCompiler.restrided(adult.drivers(), PoseCompiler.strideOf(row.styles(), Age.ADULT, entityId),
+                    PoseCompiler.strideOf(row.styles(), Age.BABY, entityId)),
+                adult.toggles(), Optional.of(Age.BABY), adult.periodTicks());
+            findings.addAll(measured(row, sampled, bind, pairs, stanced, adult, Age.ADULT, Optional.of(Age.ADULT)));
+            findings.addAll(measured(row, sampled, bind, pairs, stanced, baby, Age.BABY, Optional.of(Age.BABY)));
+        } else {
+            findings.addAll(measured(row, sampled, bind, pairs, stanced, compiled.style(), auditedAge(style),
+                Optional.empty()));
+        }
+
+        return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
+            prediction.drops(), Concurrent.newUnmodifiableList(findings));
+    }
+
+    /**
+     * The findings of one installed row - the woven body posed by the row's drivers across the
+     * style's period, measured against the envelope the shipped styles define at one age.
+     *
+     * @param row the shipped row the style would install on
+     * @param sampled the woven bones over the shipped container list
+     * @param bind each cube-bearing bone's oriented cubes at bind
+     * @param pairs the bone pairs adjacent at bind
+     * @param stanced the bones the style moves, and every bone they carry
+     * @param installed the installed row, whose drivers pose the woven body
+     * @param age the age whose shipped styles define the envelope
+     * @param recorded the age each finding records - empty where the install appends one row
+     * @return the row's findings, in mesh order
+     */
+    private static @NotNull List<PoseAudit.Finding> measured(
+        @NotNull Entity row, @NotNull EntityPose sampled, @NotNull Map<String, List<OrientedBox>> bind,
+        @NotNull List<String[]> pairs, @NotNull Set<String> stanced, @NotNull PoseStyle installed,
+        @NotNull Age age, @NotNull Optional<Age> recorded) {
+
+        EntityMesh mesh = row.model();
+        int catalogPeriod = row.styles().periodTicks();
 
         Map<String, float[]> known = new LinkedHashMap<>();
         for (String[] pair : pairs) {
             float at = clearance(bind.get(pair[0]), bind.get(pair[1]));
             known.put(key(pair), new float[]{at, at});
         }
-        for (PoseStyle shipped : knownStyles(row.styles(), auditedAge(style)))
+        for (PoseStyle shipped : knownStyles(row.styles(), age))
             for (int tick : ticks(shipped, catalogPeriod))
                 widen(known, pairs, worldBoxes(PosePlayer.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
         for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
@@ -152,12 +197,10 @@ public final class PoseAuditor {
             widen(known, pairs, worldBoxes(PosePlayer.posed(placedBy(row.pose(), silhouette), mesh, STILL, catalogPeriod, 0)));
         }
 
-        Set<String> stanced = carried(mesh, stancedBones(row.pose(), compiled, style.styleId()));
-
         Map<String, float[]> posed = new LinkedHashMap<>();
         Map<String, int[]> worst = new LinkedHashMap<>();
-        for (int tick : ticks(compiled.style(), catalogPeriod)) {
-            Map<String, List<OrientedBox>> boxes = worldBoxes(PosePlayer.posed(sampled, mesh, compiled.style(), catalogPeriod, tick));
+        for (int tick : ticks(installed, catalogPeriod)) {
+            Map<String, List<OrientedBox>> boxes = worldBoxes(PosePlayer.posed(sampled, mesh, installed, catalogPeriod, tick));
             for (String[] pair : pairs) {
                 List<OrientedBox> a = boxes.get(pair[0]);
                 List<OrientedBox> b = boxes.get(pair[1]);
@@ -184,15 +227,13 @@ public final class PoseAuditor {
             if (range[1] > envelope[1] + margin)
                 findings.add(new PoseAudit.Finding(PoseAudit.Kind.SPLIT, pair[0], pair[1], bindAt,
                     envelope[0], envelope[1], range[0], range[1], worst.get(key(pair))[1],
-                    aStanced, bStanced, parent));
+                    aStanced, bStanced, parent, recorded));
             if (range[0] < envelope[0] - margin)
                 findings.add(new PoseAudit.Finding(PoseAudit.Kind.OVERLAP, pair[0], pair[1], bindAt,
                     envelope[0], envelope[1], range[0], range[1], worst.get(key(pair))[0],
-                    aStanced, bStanced, parent));
+                    aStanced, bStanced, parent, recorded));
         }
-
-        return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
-            prediction.drops(), Concurrent.newUnmodifiableList(findings));
+        return findings;
     }
 
     /**
@@ -319,8 +360,9 @@ public final class PoseAuditor {
     }
 
     /**
-     * The age an audit reads its known-good envelope at - the age the style is compiled at, and the
-     * adult where the style spans both ages.
+     * The age a one-row install is audited at, reading its known-good envelope there - the age the
+     * style is compiled at, and the adult where the style spans both ages. A pair install never
+     * reads it: each of its rows is audited at its own age, the baby row at the baby's.
      *
      * @param style the style being audited
      * @return the audited age
@@ -335,7 +377,7 @@ public final class PoseAuditor {
      * draws, the stride at its {@link #atCeiling ceiling}.
      *
      * @param catalog the shipped catalog of the row being audited
-     * @param age the age the audited style is compiled at
+     * @param age the age the audited row applies to
      * @return the known styles, bind first
      */
     static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog, @NotNull Age age) {

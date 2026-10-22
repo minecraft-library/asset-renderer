@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.HumanoidPose;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -405,6 +407,66 @@ class StyleRegistrarTest {
     }
 
     @Test
+    @DisplayName("a kept stride spanning both ages installs as an adult row and a baby row of one id, each walking at its own age's stride")
+    void aKeptStrideSpanningBothAgesInstallsAsAPair() {
+        PoseStyle adultStride = strideRow(Age.ADULT, 0.35f, 0.35f);
+        PoseStyle babyStride = strideRow(Age.BABY, 0.35f, 1.05f);
+        Entity babyless = entity("minecraft:test", humanoid(), EntityPose.NONE, catalog(adultStride, babyStride));
+        Entity row = withBabyForm(babyless);
+
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        registrar.add("minecraft:test", keptJog(true));
+        StyleCatalog installed = registrar.definitions().get("minecraft:test").styles();
+        List<PoseStyle> jogs = installed.styles().stream().filter(style -> style.id().equals("jog")).toList();
+        assertEquals(List.of(Optional.of(Age.ADULT), Optional.of(Age.BABY)), jogs.stream().map(PoseStyle::age).toList(),
+            "two rows of one id, adult then baby");
+        assertEquals(adultStride.drivers().get("walkAnimationPos"), jogs.getFirst().drivers().get("walkAnimationPos"),
+            "the adult row walks at the adult's stride");
+        assertEquals(babyStride.drivers().get("walkAnimationPos"), jogs.getLast().drivers().get("walkAnimationPos"),
+            "and the baby row at the baby's, its clock three times its swing");
+        for (PoseStyle jog : jogs) {
+            assertEquals(adultStride.drivers().get("walkAnimationSpeed"), jog.drivers().get("walkAnimationSpeed"),
+                "each swinging as its stride holds the swing");
+            assertNotNull(jog.drivers().get("style$jog$right_arm$x_rot"), "and each carrying the authored splice");
+        }
+        assertEquals(List.of("bind", "stride", "jog"), List.copyOf(installed.ids()), "the pair lists once");
+        assertSame(jogs.getLast(), installed.resolve("jog", style -> style.age().map(Age.BABY::equals).orElse(true),
+            "minecraft:test"), "and a baby render resolves the baby row");
+
+        StyleRegistrar adultScoped = StyleRegistrar.of(definitions(row));
+        adultScoped.add("minecraft:test", keptJog(false));
+        assertEquals(List.of(Optional.of(Age.ADULT)), agesOf(adultScoped, "jog"),
+            "the default adult scope appends one adult row");
+        StyleRegistrar noBabyForm = StyleRegistrar.of(definitions(babyless));
+        noBabyForm.add("minecraft:test", keptJog(true));
+        assertEquals(List.of(Optional.empty()), agesOf(noBabyForm, "jog"),
+            "and a row carrying no baby form one ageless row");
+    }
+
+    @Test
+    @DisplayName("a pair's baby row drives none of the fields only the adult's stride drives")
+    void aPairsBabyRowDropsTheAdultOnlyStrideFields() {
+        // The axolotl's shape: the adult's stride composes a moving and an in-water factor beside its
+        // walk, while the baby's drives the walk alone.
+        StyleDriver moving = new StyleDriver("movingFactor", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty());
+        StyleDriver inWater = new StyleDriver("inWaterFactor", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty());
+        Entity row = withBabyForm(entity("minecraft:test", humanoid(), EntityPose.NONE,
+            catalog(strideRow(Age.ADULT, 0.35f, 0.35f, moving, inWater), strideRow(Age.BABY, 0.35f, 1.05f))));
+
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        registrar.add("minecraft:test", keptJog(true));
+        List<PoseStyle> jogs = registrar.definitions().get("minecraft:test").styles().styles().stream()
+            .filter(style -> style.id().equals("jog"))
+            .toList();
+        Map<String, StyleDriver> adult = jogs.getFirst().drivers();
+        assertEquals(moving, adult.get("movingFactor"), "the adult row drives what the adult's stride composes");
+        assertEquals(inWater, adult.get("inWaterFactor"), "both factors of it");
+        Map<String, StyleDriver> baby = jogs.getLast().drivers();
+        assertFalse(baby.containsKey("movingFactor") || baby.containsKey("inWaterFactor"),
+            "while the baby row drives neither, walking at the baby's stride alone: " + baby.keySet());
+    }
+
+    @Test
     @DisplayName("discovery lists bind first, shipped ids in order, custom ids trailing in install order")
     void discoveryListsCustomIdsAsTrailingPeers() {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
@@ -639,6 +701,59 @@ class StyleRegistrarTest {
 
     private static @NotNull BuiltStyle playDead(@NotNull Age age) {
         return Poses.humanoid("play_dead").head(head -> head.yaw(10)).age(age).build();
+    }
+
+    /**
+     * A jog keeping the target's stride under a right arm pitched forward, spanning both ages or
+     * scoped to the adult by default.
+     *
+     * @param bothAges whether the style spans both ages
+     * @return the style
+     */
+    private static @NotNull BuiltStyle keptJog(boolean bothAges) {
+        HumanoidPose.Builder jog = Poses.humanoid("jog").keepStride().arm(Side.RIGHT, arm -> arm.pitchBy(-20));
+        return (bothAges ? jog.allAges() : jog).build();
+    }
+
+    /**
+     * A stride row applying to one age, its swing held at one speed and its walk clock ramped at one
+     * rate beside elapsed age, then every driver given beside them, in order.
+     */
+    private static @NotNull PoseStyle strideRow(@NotNull Age age, float speed, float rate,
+                                                StyleDriver @NotNull ... beside) {
+        Map<String, StyleDriver> drivers = new LinkedHashMap<>();
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationSpeed",
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, speed, Optional.empty()));
+        drivers.put("walkAnimationPos",
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, rate, Optional.empty()));
+        for (StyleDriver driver : beside)
+            drivers.put(driver.field(), driver);
+        return new PoseStyle(PoseStyle.STRIDE,
+            Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty())),
+            Concurrent.newUnmodifiableMap(drivers), Concurrent.newUnmodifiableList(), Optional.of(age),
+            Optional.empty());
+    }
+
+    /**
+     * The same row carrying a baby form drawn over the humanoid mesh.
+     */
+    private static @NotNull Entity withBabyForm(@NotNull Entity row) {
+        Entity.Axes axes = row.axes();
+        return row.mutate()
+            .axes(new Entity.Axes(Optional.of(row.mutate().model(humanoid()).build()), axes.shape(),
+                axes.state(), axes.size(), axes.variant()))
+            .build();
+    }
+
+    /**
+     * The ages of every installed row of one id, in catalog order.
+     */
+    private static @NotNull List<Optional<Age>> agesOf(@NotNull StyleRegistrar registrar, @NotNull String id) {
+        return registrar.definitions().get("minecraft:test").styles().styles().stream()
+            .filter(style -> style.id().equals(id))
+            .map(PoseStyle::age)
+            .toList();
     }
 
     /**

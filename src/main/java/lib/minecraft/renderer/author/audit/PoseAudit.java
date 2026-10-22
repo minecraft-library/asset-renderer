@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -20,7 +21,8 @@ import java.util.Optional;
  * @param drops the addresses a strict install of the style on the row would refuse over - on the
  * row's body, its forms and every pass the install compiles - in first-written order and each
  * recorded once
- * @param findings the pairs that left the shipped envelope, in mesh order
+ * @param findings the pairs that left the shipped envelope, in mesh order - where the install appends
+ * one row per age, the adult row's findings first and then the baby row's
  */
 @Parity(subject = Subject.ENTITY)
 public record PoseAudit(
@@ -63,6 +65,8 @@ public record PoseAudit(
      * @param aStanced whether the audited style moves the first bone
      * @param bStanced whether the audited style moves the second bone
      * @param sharedParent the parent both bones hang under, when they hang under one
+     * @param age the age of the installed row the finding was measured for, where the install appends
+     *     one per age; empty where it appends one row
      */
     public record Finding(
         @NotNull Kind kind,
@@ -76,20 +80,23 @@ public record PoseAudit(
         int worstTick,
         boolean aStanced,
         boolean bStanced,
-        @NotNull Optional<String> sharedParent
+        @NotNull Optional<String> sharedParent,
+        @NotNull Optional<Age> age
     ) {
 
         /**
-         * Renders the finding as its two report lines - the measured excursion, then the
+         * Renders the finding as its two report lines - the measured excursion, the age it was
+         * measured for named after the pair where the install appends one row per age, then the
          * reading of which side the author moved and what usually closes the fault.
          *
          * @return the two-line description
          */
         public @NotNull String describe() {
             String measure = String.format(Locale.ROOT,
-                "[%s] %s <-> %s: bind %.1fpx, shipped [%.1f .. %.1f]px, posed [%.1f .. %.1f]px, worst at tick %d",
-                this.kind, this.boneA, this.boneB, this.bindClearance,
-                this.knownMin, this.knownMax, this.posedMin, this.posedMax, this.worstTick);
+                "[%s] %s <-> %s%s: bind %.1fpx, shipped [%.1f .. %.1f]px, posed [%.1f .. %.1f]px, worst at tick %d",
+                this.kind, this.boneA, this.boneB,
+                this.age.map(measured -> " (" + measured.name().toLowerCase(Locale.ROOT) + ")").orElse(""),
+                this.bindClearance, this.knownMin, this.knownMax, this.posedMin, this.posedMax, this.worstTick);
 
             return measure + "\n        " + this.reading();
         }

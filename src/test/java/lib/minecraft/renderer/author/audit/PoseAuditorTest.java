@@ -28,12 +28,14 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -384,6 +386,32 @@ class PoseAuditorTest {
     }
 
     @Test
+    @DisplayName("a kept stride spanning both ages audits each row at its own age's stride, adult then baby - scoped to the adult it audits once, as ever")
+    void aPairAuditsEachAgeAtItsOwnStride() {
+        Entity piglin = ageSplitStride(row("minecraft:piglin"), 0.35f, 1.05f);
+        assertTrue(piglin.axes().baby().isPresent(), "the shipped piglin carries a baby form");
+
+        PoseAudit pair = PoseAuditor.validate(keptBuried(Optional.empty()), piglin);
+        PoseAudit adult = PoseAuditor.validate(keptBuried(Optional.of(Age.ADULT)), piglin);
+        PoseAudit baby = PoseAuditor.validate(keptBuried(Optional.of(Age.BABY)), piglin);
+        assertFalse(adult.findings().isEmpty(), "an arm three units into the torso reads, or the case is vacuous");
+        assertNotEquals(adult.findings(), baby.findings(),
+            "the two ages' strides set apart what each reads, or the case cannot tell them apart");
+
+        List<PoseAudit.Finding> expected = new ArrayList<>();
+        adult.findings().forEach(finding -> expected.add(aged(finding, Age.ADULT)));
+        baby.findings().forEach(finding -> expected.add(aged(finding, Age.BABY)));
+        assertEquals(expected, List.copyOf(pair.findings()),
+            "each row reads as its own age's style does, the adult's first:\n" + pair.report());
+        assertTrue(pair.report().contains(" (adult): ") && pair.report().contains(" (baby): "),
+            "and each finding names its age after the pair:\n" + pair.report());
+
+        assertTrue(adult.findings().stream().allMatch(finding -> finding.age().isEmpty()),
+            "a style installing as one row reports no age");
+        assertFalse(adult.report().contains("(adult)"), "so its report reads as it always has:\n" + adult.report());
+    }
+
+    @Test
     @DisplayName("an audit reads the age its style is compiled at, the adult where it spans both")
     void theAuditedAgeIsTheStylesOwn() {
         assertEquals(Age.BABY, PoseAuditor.auditedAge(Poses.custom("probe").age(Age.BABY).build()));
@@ -475,6 +503,49 @@ class PoseAuditorTest {
             new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, rate, Optional.empty()));
         return new PoseStyle(stride.id(), stride.sources(), Concurrent.newUnmodifiableMap(drivers),
             stride.toggles(), stride.age(), stride.periodTicks(), ceiling);
+    }
+
+    /**
+     * The same row with its shipped stride split by age - the adult swinging at one speed with its
+     * walk clock ramped by it, the baby at the same swing with its clock at another rate - every other
+     * row kept.
+     */
+    private static @NotNull Entity ageSplitStride(@NotNull Entity row, float speed, float babyRate) {
+        StyleCatalog catalog = row.styles();
+        return row.mutate()
+            .styles(new StyleCatalog(catalog.periodTicks(), catalog.styles().stream()
+                .flatMap(style -> style.id().equals(PoseStyle.STRIDE)
+                    ? Stream.of(walking(scoped(style, Age.ADULT), speed, speed, Optional.empty()),
+                        walking(scoped(style, Age.BABY), speed, babyRate, Optional.empty()))
+                    : Stream.of(style))
+                .collect(Concurrent.toUnmodifiableList())))
+            .build();
+    }
+
+    /**
+     * The same row applying to one age alone, every other component kept.
+     */
+    private static @NotNull PoseStyle scoped(@NotNull PoseStyle style, @NotNull Age age) {
+        return new PoseStyle(style.id(), style.sources(), style.drivers(), style.toggles(), Optional.of(age),
+            style.periodTicks(), style.ceiling());
+    }
+
+    /**
+     * A right arm driven three units into the torso under the target's kept stride, scoped to one age
+     * or, where none is given, spanning both.
+     */
+    private static @NotNull BuiltStyle keptBuried(@NotNull Optional<Age> age) {
+        CustomPose.Builder buried = Poses.custom("buried").keepStride().bone("right_arm", arm -> arm.offset(3, 0, 0));
+        return age.map(buried::age).orElseGet(buried::allAges).build();
+    }
+
+    /**
+     * The same finding measured for the installed row of one age.
+     */
+    private static @NotNull PoseAudit.Finding aged(@NotNull PoseAudit.Finding finding, @NotNull Age age) {
+        return new PoseAudit.Finding(finding.kind(), finding.boneA(), finding.boneB(), finding.bindClearance(),
+            finding.knownMin(), finding.knownMax(), finding.posedMin(), finding.posedMax(), finding.worstTick(),
+            finding.aStanced(), finding.bStanced(), finding.sharedParent(), Optional.of(age));
     }
 
     /**
