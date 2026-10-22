@@ -19,8 +19,8 @@
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
       "last_duration_ms": 9418,
-      "promoted_at": "0eef484e054e668e974374c2d542e9e0e7871bd2",
-      "sha256": "b9a6e307d685fdad7481ec678b91ebd2f56b8a37de04361c89863caee631dc6c"
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "5a7cbde6263eae368fb2746c8ce4046010f1d6daa9637dfd2b99c1b898586ee0"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 5866,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "d20e70823f7fa6cb599f505f24131df9a6a522e145051c5ca1112a246d51db8a"
+      "last_duration_ms": 5950,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "720447ccb37e08b13162df9ce53aff8c097f233a5217f746bf550954721cf492"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 5866,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "44fd165c2cd8d77c2ec6ee1525df5788580a30158141aa5f2ded8442561c585f"
+      "last_duration_ms": 5950,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "0d48f621e14ecce7d0dea5ab2a0712f6753e4d42606599998c6a6eff6c13ffed"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -85,12 +85,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 4443,
+      "entries": 8131,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 73473,
-      "promoted_at": "37110d0067fac464f82e1c74a8035fa93d06fc23",
-      "sha256": "a73554c7d333fcb5ec95bf139ba8a0d5a0640f30e1afb3e967e03f7d0e741a48"
+      "last_duration_ms": 109072,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "aea01009252fee2949466a67618fc01299833a6ee3a065f0eebac4304e43bd15"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -98,9 +98,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 11793,
-      "promoted_at": "0eef484e054e668e974374c2d542e9e0e7871bd2",
-      "sha256": "e742bb4d12c4c2b4bbee199c66896bf7c97e9da10b8157357a5731aff9b90288"
+      "last_duration_ms": 16609,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "69c10c6011480039ddbcc38c0b626de84159c2d3e633e65866fc9823e7f1661c"
     },
     "manifest.visual": {
       "baselined": true,
@@ -230,24 +230,24 @@
     "sweep.entity-animation": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 132,
+      "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13481,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "171c9f11c6b788f551d1c0b40b99e169ee7ee608f7c84849ae5ca5751d8e66bf",
-      "sum": "2.0032"
+      "last_duration_ms": 21332,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "1ccb1b68066f2c9e3f66e31e632376a1461c92e002ea980db4b4b439ac4a0def",
+      "sum": "2.1441"
     },
     "sweep.entity-walk": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 132,
+      "entries": 134,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13701,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "a49b737589314e22a65895f0a3eb4420482d9a3c80028e1b0b00feea9cac1d2a",
-      "sum": "3.9947"
+      "last_duration_ms": 33543,
+      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
+      "sha256": "eecbde66a9ea81b3a598f0243d4cc8e2e239a77697cfdbf9427f52e379c1ce1a",
+      "sum": "2.4877"
     },
     "sweep.glint": {
       "baselined": true,

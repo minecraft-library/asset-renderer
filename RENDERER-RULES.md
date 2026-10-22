@@ -732,9 +732,9 @@ phase and a value that moved on one side puts the two at different points of dif
 `asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
 divergence in how they were measured.
 
-- **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 90
-  subjects render byte-identical between `idle/` and `walk/`, and `rabbit_brown` and `bat` carry
-  the same delta to the digit under both presets.
+- **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 134
+  stems render byte-identical between `idle/` and `walk/`, and `bat` carries the same delta to the
+  digit under both gaits.
 - **A walk-gated clip carries the branch it sits inside, where a state-gated one needs none.** A
   state's gate names the clip that is running, so the exclusion is the selection; a walk's gate is
   the stride, which answers for every site at once, so a model choosing between two walk clips

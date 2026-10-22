@@ -17,15 +17,15 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0eef484e054e668e974374c2d542e9e0e7871bd2` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 4443 | 4443 entries | `37110d0067fac464f82e1c74a8035fa93d06fc23` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0eef484e054e668e974374c2d542e9e0e7871bd2` | yes |
+| `manifest.references` | `manifests/references.json` | 8131 | 8131 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
@@ -39,8 +39,8 @@ Values this store holds, one file each.
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.block` | `sweeps/block.json` | 1063 | sum 7.6024 | `addedec7a23b08d02a4f18bc83d435010e342988` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 16.1129 | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 2.0032 | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
-| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 3.9947 | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 2.1441 | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 2.4877 | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7254 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
