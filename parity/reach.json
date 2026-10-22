@@ -6012,6 +6012,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/animation/AgePace": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/animation/AnimationValue": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6028,6 +6032,10 @@
       "artifacts": [
         "manifest.tooling-tables"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/EntityPace": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/InputDefaultResolver": {
@@ -6134,6 +6142,10 @@
       "artifacts": [
         "manifest.tooling-tables"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/WalkPace": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/asm/ClassKit": {
@@ -6340,6 +6352,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityCeilingResolver": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityContext": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6376,6 +6392,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityMovementSpeedResolver": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityNamingPolicies": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6392,6 +6412,14 @@
       "artifacts": [
         "manifest.tooling-tables"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPacePolicies": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPaceResolver": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityPoseClass": {
@@ -6484,10 +6512,18 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityWanderResolver": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/NoopRegistration": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/PaceChain": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/VariantBlockTable": {
