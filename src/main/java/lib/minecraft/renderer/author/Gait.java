@@ -71,8 +71,8 @@ public final class Gait {
     /**
      * States how long one whole cycle runs.
      *
-     * <p>This is the period the gait's waves sweep over, so the strip frames it: a length the
-     * strip does not tile refuses, as a period stated any other way does.
+     * <p>This is the period the gait's waves sweep over: a length that is not positive or rounds to
+     * no whole tick refuses, as a period stated any other way does.
      *
      * @param seconds the seconds one cycle spans
      * @return this gait

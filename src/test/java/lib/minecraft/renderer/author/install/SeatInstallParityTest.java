@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * A seat lowers as a held displacement on the follower's own field, which every style but the
  * one that stanced the leader leaves at zero - so an install that weaves seats leaves every
  * shipped style of the row, bind, idle and stride, at the bits it posed before the install,
- * across the whole strip. The render path is blind to the silhouettes the seats derive from;
+ * at every sample tick. The render path is blind to the silhouettes the seats derive from;
  * this asks the same question of an install.
  *
  * <p>The raw hatch keeps that promise by a gate rather than by a field resting at zero - the
@@ -44,6 +44,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @DisplayName("an install leaves the shipped styles, and every style beside its own, at their bits")
 class SeatInstallParityTest {
+
+    /**
+     * Eight sample ticks across one figure period - the law holds at every tick.
+     */
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     /**
      * The cookbook's begging wolf - the chain whose seats this asks the question of.
@@ -148,7 +153,7 @@ class SeatInstallParityTest {
 
     /**
      * Holds every shipped style the pristine row's catalog carries - bind, idle and stride - to
-     * bone-for-bone identical bits across the strip's ticks on the woven row.
+     * bone-for-bone identical bits at every sample tick on the woven row.
      */
     private static void assertShippedStylesHold(@NotNull Entity pristine, @NotNull Entity woven) {
         int period = pristine.styles().periodTicks();
@@ -163,7 +168,7 @@ class SeatInstallParityTest {
     }
 
     /**
-     * Poses both rows under one shipped style at every strip tick and holds every bone the
+     * Poses both rows under one shipped style at every sample tick and holds every bone the
      * pristine row poses to the same pivot, rotation, scale and pose-scale bits, the two zero signs
      * identified. A woven row that appended a container step to a pose carrying none poses one
      * seat bone more, which every former root hangs from and which rests as identity under a
@@ -172,8 +177,7 @@ class SeatInstallParityTest {
     private static void assertParity(@NotNull EntityPose before, @NotNull EntityPose after,
                                      @NotNull EntityMesh mesh, @NotNull PoseStyle style,
                                      @NotNull PoseStyle wovenStyle, int period) {
-        for (int frame = 0; frame < StyleCatalog.STRIP_FRAMES; frame++) {
-            int tick = frame * period / StyleCatalog.STRIP_FRAMES;
+        for (int tick : SAMPLE_TICKS) {
             String context = style.id() + " at tick " + tick + ": ";
             Map<String, EntityMesh.Bone> pristine = PosePlayer.posed(before, mesh, style, period, tick).getBones();
             Map<String, EntityMesh.Bone> woven = PosePlayer.posed(after, mesh, wovenStyle, period, tick).getBones();

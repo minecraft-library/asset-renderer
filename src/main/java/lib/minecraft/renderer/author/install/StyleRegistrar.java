@@ -454,7 +454,7 @@ public final class StyleRegistrar implements AutoCloseable {
         private final @NotNull GraphInterner pool;
 
         /**
-         * The row's catalog period, framing every compile's default strip window.
+         * The row's catalog period, the figure period every compile frames at.
          */
         private final int periodTicks;
 

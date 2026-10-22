@@ -22,6 +22,7 @@ import lib.minecraft.renderer.author.mesh.LimbRoster;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -318,7 +319,7 @@ public final class PoseCompiler {
      * this compile's splices read - per-layer spellings for a rebased turn, a seat carry, a scale
      * and a position delta, the shared spelling for a turn's delta - so the result stands alone,
      * and an installer merging rows first-wins keeps the body compile's copy of a shared field.
-     * With no catalog in reach the strip window frames at the default catalog period.
+     * With no catalog in reach the compile frames at the default figure period.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -338,9 +339,9 @@ public final class PoseCompiler {
     /**
      * Compiles a built style against one distinct layer row over a caller-held interner pool
      * and, when given, the body compile's play site - so the layer's woven row carries the very
-     * clip and site instances the body's does. The target catalog's period frames the default
-     * strip window exactly as the body compile's does, and the evidence pose is the layer's as
-     * it shipped, for the reason the body compile takes one.
+     * clip and site instances the body's does. The target catalog's period is the figure period
+     * the compile frames at, exactly as the body compile's is, and the evidence pose is the layer's
+     * as it shipped, for the reason the body compile takes one.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -352,7 +353,7 @@ public final class PoseCompiler {
      * @param playSite the body compile's play site to carry by instance - empty where the site is a
      *     body rather than a pass, where the body a pass is drawn over keys no timeline, or where the
      *     caller holds no body compile; each builds an identical site of this compile's own
-     * @param periodTicks the target catalog's period in ticks - the strip window where the
+     * @param periodTicks the target catalog's period in ticks - the figure period where the
      *     script declares none
      * @return the compiled layer arm
      * @throws StyleException if any lowering rule refuses the authored content
@@ -1462,9 +1463,11 @@ public final class PoseCompiler {
                         channels.add(new PoseClip.Channel("hat", channel.target(), channel.keyframes()));
             this.clipChannelCount = channels.size();
 
-            if (length > this.windowSeconds)
-                this.events.warn("strip truncation: the clip runs '%s' seconds against a '%s' second strip window - frames beyond the window render truncated",
-                    length, this.windowSeconds);
+            double coverSeconds = StripFit.MAX_FRAMES * StripFit.COARSE_STEP / (double) Timeline.TICKS_PER_SECOND;
+            if (length > coverSeconds) {
+                this.events.warn("strip truncation: the clip runs '%s' seconds, past the '%s' seconds a derived strip covers - a render naming no frame count shows part of it",
+                    length, coverSeconds);
+            }
 
             String gate = FIELD_PREFIX + this.style.styleId();
             String clock = gate + "$clock";
@@ -2014,7 +2017,8 @@ public final class PoseCompiler {
     private static final class Rules {
 
         /**
-         * Refuses a declared period the strip cannot frame or a still style cannot read.
+         * Refuses a declared period that is not positive, rounds to no whole tick, or rides a style
+         * that holds still.
          */
         static void period(@NotNull BuiltStyle style, @NotNull Diagnostics events) {
             if (style.script().periodSeconds().isEmpty()) return;
@@ -2022,10 +2026,10 @@ public final class PoseCompiler {
             if (seconds <= 0d)
                 throw refuse(events, "Style '%s' declares a period of '%s' seconds, which is not positive",
                     style.styleId(), seconds);
-            long ticks = Math.round(seconds * Timeline.TICKS_PER_SECOND);
-            if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
-                throw refuse(events, "Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
-                    style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
+            if (Math.round(seconds * Timeline.TICKS_PER_SECOND) <= 0) {
+                throw refuse(events, "Style '%s' declares a period of '%s' seconds, which rounds to no whole tick",
+                    style.styleId(), seconds);
+            }
             if (style.sources().isEmpty())
                 throw refuse(events, "Style '%s' declares a period but holds still - only a moving style reads one",
                     style.styleId());

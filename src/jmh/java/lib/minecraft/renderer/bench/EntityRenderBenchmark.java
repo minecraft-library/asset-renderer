@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.EntityRenderer;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerProfession;
@@ -28,9 +28,9 @@ import java.util.function.UnaryOperator;
  * <li>{@code MULTI_LAYER} - {@code minecraft:villager} as a librarian: the body plus three model-overlay
  * passes (biome robe, profession clothes and hat, level badge), each building its triangles from its
  * own texture into one shared depth pass</li>
- * <li>{@code ANIMATED} - {@code minecraft:zombie} in its {@code stride} style, an 8-frame walk strip
- * ({@link StyleCatalog#STRIP_FRAMES}) that measures the canvas across every frame and rebuilds and
- * rasterizes the posed geometry once per frame</li>
+ * <li>{@code ANIMATED} - {@code minecraft:zombie} in its {@code stride} style, its derived walk strip
+ * ({@link PoseStrips#of}), whose canvas is measured across every frame and whose posed geometry is
+ * rebuilt and rasterized once per frame</li>
  * </ul>
  * Every subject renders at {@code 256} px on {@link EntityOptions#DEFAULT_OUTPUT} - the
  * {@code VANILLA_ISO} projection with no supersampling and no FXAA - under

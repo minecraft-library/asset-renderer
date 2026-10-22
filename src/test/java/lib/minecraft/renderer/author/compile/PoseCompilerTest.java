@@ -1038,18 +1038,33 @@ class PoseCompilerTest {
     }
 
     @Test
-    @DisplayName("a clip outrunning the strip window records the truncation warning")
+    @DisplayName("a clip outrunning what a derived strip covers records the truncation warning")
     void longClipRecordsTheTruncationWarning() {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
             Poses.humanoid("stretch")
-                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(2.4)))
+                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(10.5)))
                 .build(),
             row(humanoid(), EntityPose.NONE));
 
         assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
                 entry.severity() == Diagnostics.Severity.WARN
                     && entry.message().contains("truncat")),
-            "frames beyond the window render truncated, and the compile says so");
+            "a 210-tick clip runs past the 198 ticks a derived strip covers, and the compile says so");
+    }
+
+    @Test
+    @DisplayName("a clip inside what a derived strip covers warns nothing")
+    void aClipInsideTheStripCoverWarnsNothing() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("stretch")
+                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(2.4)))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+
+        assertFalse(compiled.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.WARN
+                    && entry.message().contains("truncat")),
+            "a 48-tick clip is shown whole by a render naming no frame count");
     }
 
     @Test

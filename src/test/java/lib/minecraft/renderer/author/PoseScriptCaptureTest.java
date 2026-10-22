@@ -161,14 +161,14 @@ class PoseScriptCaptureTest {
     }
 
     @Test
-    @DisplayName("a bare timeline defaults to the strip window, LINEAR and looping")
+    @DisplayName("a bare timeline defaults to the figure period, LINEAR and looping")
     void timelineDefaults() {
         PoseScript script = new PoseScript.Capture()
             .stance("head", PoseScript.AimAxis.FACING, s -> s.timeline(t -> t.swing(Turn.PITCH, -5, 5)))
             .script();
 
         PoseScript.Track track = script.stances().getFirst().of(PoseScript.Track.class).getFirst();
-        assertEquals(OptionalDouble.empty(), track.overSeconds(), "unset length defaults to the strip window");
+        assertEquals(OptionalDouble.empty(), track.overSeconds(), "unset length defaults to the figure period");
         assertEquals(PoseClip.Interpolation.LINEAR, track.curve());
         assertTrue(track.looping());
     }

@@ -377,13 +377,24 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a period the eight-frame strip does not tile refuses")
-    void untileablePeriodRefuses() {
+    @DisplayName("a period under one tick refuses - it rounds to no whole tick")
+    void aPeriodUnderOneTickRefuses() {
         StyleException refusal = refusalOf(Poses.humanoid("breathe")
             .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
-            .period(1.0)
+            .period(0.02)
             .build());
-        assertTrue(refusal.getMessage().contains("does not tile"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("rounds to no whole tick"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a twenty-tick period installs - a period need not divide into any frame count")
+    void aTwentyTickPeriodInstalls() {
+        PoseCompiler.Compiled compiled = assertDoesNotThrow(() -> PoseCompiler.compile(Poses.humanoid("breathe")
+                .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
+                .period(1.0)
+                .build(), row(humanoid(), EntityPose.NONE)),
+            "a one-second period frames the sway over twenty ticks");
+        assertEquals(Optional.of(20), compiled.style().periodTicks(), "and lands as twenty ticks");
     }
 
     @Test

@@ -55,9 +55,9 @@ class PoseCookbookCreatureTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     /**
      * The one-entry inventory every moving style infers.
@@ -425,7 +425,7 @@ class PoseCookbookCreatureTest {
         @Test
         @DisplayName("at every strip tick the wings hold exact antiphase")
         void wingsMoveInAntiphase() {
-            for (int tick : STRIP_TICKS) {
+            for (int tick : SAMPLE_TICKS) {
                 EntityMesh posed = posed(this.allay, this.installed, tick);
                 assertEquals(-posed.getBones().get("right_wing").getRotation().yaw(),
                     posed.getBones().get("left_wing").getRotation().yaw(), 0f,

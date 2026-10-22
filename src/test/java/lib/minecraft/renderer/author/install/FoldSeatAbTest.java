@@ -52,9 +52,9 @@ class FoldSeatAbTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     @Test
     @DisplayName("on the camel the walk roll and the hover ride one seat, each contribution exact")
@@ -71,7 +71,7 @@ class FoldSeatAbTest {
         PoseStyle hoverOnly = styleRow("hover_rig", hoverFields(installed, "levitate"));
 
         boolean rolled = false;
-        for (int tick : STRIP_TICKS) {
+        for (int tick : SAMPLE_TICKS) {
             EntityMesh.Bone folded = seat(PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, tick));
             EntityMesh.Bone walkAlone = seat(PosePlayer.posed(shipped.pose(), shipped.model(), strideOnly, PERIOD, tick));
             EntityMesh.Bone hoverAlone = seat(PosePlayer.posed(woven.pose(), woven.model(), hoverOnly, PERIOD, tick));
@@ -99,7 +99,7 @@ class FoldSeatAbTest {
         StyleDriver bob = installed.drivers().get("style$levitate_rest$$container$y_bob");
         assertNotNull(bob);
 
-        for (int tick : STRIP_TICKS) {
+        for (int tick : SAMPLE_TICKS) {
             EntityMesh.Bone folded = seat(PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, tick));
             assertEquals(0f, folded.getRotation().roll(),
                 "tick " + tick + ": nothing drives the walk, so nothing rolls");
@@ -171,7 +171,7 @@ class FoldSeatAbTest {
         Entity woven = registrar.definitions().get("minecraft:test");
 
         assertEquals(1, woven.pose().container().size(), "no step appends below a shipped seat");
-        for (int tick : STRIP_TICKS)
+        for (int tick : SAMPLE_TICKS)
             assertSameBones(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
                 PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),

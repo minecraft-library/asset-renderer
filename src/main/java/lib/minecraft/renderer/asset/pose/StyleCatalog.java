@@ -27,27 +27,20 @@ import java.util.function.Predicate;
  *
  * <p>The catalog answers its own queries: which row a style id {@link #resolve resolves} to for the
  * subject being rendered, the row a canvas-union member is {@link #memberRow measured} under, the
- * ids it {@link #ids() lists}, the view one resolved subject holds {@link #inForce in force}, and the
- * tick step a strip samples it at. The synthesized {@code bind} row and the two universal rows are
- * fixed before any run - none is parsed and none varies by subject - so they are constants here
- * rather than rows of any one catalog. Resolution asks the subject nothing but whether a row applies
- * to it, which the caller answers with a predicate, so any options that can say that can select a
- * row.
+ * ids it {@link #ids() lists}, and the view one resolved subject holds {@link #inForce in force}. The
+ * synthesized {@code bind} row and the two universal rows are fixed before any run - none is parsed
+ * and none varies by subject - so they are constants here rather than rows of any one catalog.
+ * Resolution asks the subject nothing but whether a row applies to it, which the caller answers with
+ * a predicate, so any options that can say that can select a row.
  *
- * @param periodTicks the ticks one whole excursion spans - what a sweeping or cycling driver wraps
- *     at, and the span one strip divides
+ * @param periodTicks the figure period - what a sweeping or cycling driver wraps at where a row
+ *     declares no window of its own
  * @param styles the shipped rows in shipped order; never carries the synthesized {@code bind} row
  */
 public record StyleCatalog(
     int periodTicks,
     @NotNull ConcurrentList<PoseStyle> styles
 ) {
-
-    /**
-     * The frames one shipped strip samples across {@link #periodTicks}, so a strip shows one whole
-     * excursion, its last frame does not repeat its first, and an animated render loops.
-     */
-    public static final int STRIP_FRAMES = 8;
 
     /**
      * The figure period every catalog the shipped file declares, and every catalog it never
@@ -246,28 +239,6 @@ public record StyleCatalog(
         for (PoseStyle style : this.styles())
             out.add(style.id());
         return Concurrent.newUnmodifiableList(new ArrayList<>(out));
-    }
-
-    /**
-     * The ticks between two frames of one shipped strip - this catalog's
-     * {@link #periodTicks() period} divided across {@link #STRIP_FRAMES}.
-     *
-     * @return the per-frame tick step
-     */
-    public int stripTicksPerFrame() {
-        return this.periodTicks() / STRIP_FRAMES;
-    }
-
-    /**
-     * The ticks between two frames of one strip under one resolved row - the row's own
-     * {@link PoseStyle#periodTicks() period} where it declares one, this catalog's
-     * {@link #periodTicks() period} otherwise, divided across {@link #STRIP_FRAMES}.
-     *
-     * @param style the resolved row the strip samples
-     * @return the per-frame tick step
-     */
-    public int stripTicksPerFrame(@NotNull PoseStyle style) {
-        return style.periodTicks().orElse(this.periodTicks()) / STRIP_FRAMES;
     }
 
     /**

@@ -565,6 +565,7 @@
         "src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java",
         "src/main/java/lib/minecraft/renderer/bake/pose/PoseStrips.java",
         "src/main/java/lib/minecraft/renderer/bake/pose/StripSampler.java",
+        "src/main/java/lib/minecraft/renderer/bake/pose/StyleResolution.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/BannerKit.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/GlintKit.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java",

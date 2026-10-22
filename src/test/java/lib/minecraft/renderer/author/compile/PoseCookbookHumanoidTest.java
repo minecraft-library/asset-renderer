@@ -55,9 +55,9 @@ class PoseCookbookHumanoidTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     /**
      * The one-entry inventory every moving style infers.
@@ -205,9 +205,9 @@ class PoseCookbookHumanoidTest {
         }
 
         @Test
-        @DisplayName("at every strip tick the left arm is the right under x, -y, -z")
-        void mirrorLawHoldsAtEveryStripTick() {
-            for (int tick : STRIP_TICKS) {
+        @DisplayName("at every sample tick the left arm is the right under x, -y, -z")
+        void mirrorLawHoldsAtEverySampleTick() {
+            for (int tick : SAMPLE_TICKS) {
                 EulerRotation right = turned(this.compiled, this.mesh, tick, "right_arm");
                 EulerRotation left = turned(this.compiled, this.mesh, tick, "left_arm");
                 assertEquals(right.pitch(), left.pitch(), 0f, "tick " + tick + " pitch holds");

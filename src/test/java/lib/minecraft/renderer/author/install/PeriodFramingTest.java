@@ -6,6 +6,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
@@ -14,10 +15,12 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import org.jetbrains.annotations.NotNull;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
@@ -39,10 +43,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The per-style period's whole travel path - the builder verb lowered onto the compiled row, the
- * frame oracle resolving the row's own window over the caller's, the strip schedule stepping at
- * the declared window, the rendered strip holding each frame for that window's own tick span,
- * and the narrowed-catalog rebuild keeping a declared period where an appearance drops a gated
- * source.
+ * frame oracle resolving the row's own window over the caller's, the derived strip covering the
+ * declared window, the rendered strip drawing that strip, and the narrowed-catalog rebuild keeping a
+ * declared period where an appearance drops a gated source.
  */
 @DisplayName("a declared period reframes one style's own window")
 class PeriodFramingTest {
@@ -101,28 +104,30 @@ class PeriodFramingTest {
     // ---- strip framing -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("the schedule steps at the declared window - six ticks per frame, not three")
-    void theScheduleStepsAtTheDeclaredWindow() {
-        PoseStyle breathe = breathe().style();
-        StyleCatalog catalog = RegistrarFixtures.catalog(breathe);
-        assertEquals(6, catalog.stripTicksPerFrame(breathe),
-            "48 ticks divide across the eight-frame strip");
-        assertEquals(3, catalog.stripTicksPerFrame(),
-            "while the catalog's own step is untouched");
-        assertEquals(3, catalog.stripTicksPerFrame(undeclared(breathe)),
-            "and the same row with the component empty frames at the catalog step");
+    @DisplayName("the declared window sets the derived strip - sixteen frames over 48 ticks, eight over 24")
+    void theDeclaredWindowSetsTheDerivedStrip() {
+        Entity installed = installedBreathe();
+        PoseStyle breathe = installed.styles().byId("breathe").orElseThrow();
+        int period = installed.styles().periodTicks();
+        StripFit declared = PoseStrips.of(installed, breathe, period);
+        assertEquals(List.of(16, 3), List.of(declared.frames(), declared.ticksPerFrame()),
+            "the sweep comes back to rest at its 48-tick window, three ticks a frame");
+        assertTrue(declared.closes(), "and closes there");
+        StripFit framed = PoseStrips.of(installed, undeclared(breathe), period);
+        assertEquals(List.of(8, 3), List.of(framed.frames(), framed.ticksPerFrame()),
+            "and the same row with the component empty closes at the catalog's 24 ticks");
     }
 
     @Test
-    @DisplayName("every shipped row schedules exactly as the catalog does")
-    void everyShippedRowSchedulesAsTheCatalogDoes() {
+    @DisplayName("every universal row is the still strip")
+    void everyUniversalRowIsStill() {
         EntityOptions options = EntityOptions.of("minecraft:test");
+        Entity subject = entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY);
         for (String id : new String[] { PoseStyle.BIND, PoseStyle.IDLE, PoseStyle.STRIDE, PoseStyle.ANIMATED }) {
             PoseStyle resolved = StyleCatalog.BIND_ONLY
                 .resolve(id, options.getAppearance()::applies, options.getEntityId());
-            assertEquals(StyleCatalog.BIND_ONLY.stripTicksPerFrame(),
-                StyleCatalog.BIND_ONLY.stripTicksPerFrame(resolved),
-                "'" + id + "' resolves an empty component, so its schedule is the catalog's own");
+            assertSame(StripFit.STILL, PoseStrips.of(subject, resolved, StyleCatalog.BIND_ONLY.periodTicks()),
+                "'" + id + "' resolves a row with no source in force, so it draws one frame");
         }
     }
 
@@ -144,8 +149,6 @@ class PeriodFramingTest {
         assertEquals(1, kept.sources().size(), "the refused gate narrows the row");
         assertEquals(Optional.of(DECLARED), kept.periodTicks(),
             "and the rebuilt row still declares its own window");
-        assertEquals(6, narrowed.stripTicksPerFrame(kept),
-            "so the narrowed subject schedules at the declared step");
     }
 
     // ---- install propagation -------------------------------------------------------------------
@@ -153,16 +156,10 @@ class PeriodFramingTest {
     @Test
     @DisplayName("an install carries the declared period onto the appended catalog row")
     void anInstallCarriesTheDeclaredPeriod() {
-        StyleRegistrar registrar = StyleRegistrar.of(definitions(
-            entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        registrar.add("minecraft:test", breatheStyle());
-
-        StyleCatalog catalog = registrar.definitions().get("minecraft:test").styles();
+        StyleCatalog catalog = installedBreathe().styles();
         PoseStyle installed = catalog.byId("breathe").orElseThrow();
         assertEquals(Optional.of(DECLARED), installed.periodTicks(),
             "the appended row declares the authored window");
-        assertEquals(6, catalog.stripTicksPerFrame(installed),
-            "and schedules at it");
         assertTrue(installed.moves(), "a declared period rides a moving style");
         assertSame(installed.periodTicks(),
             catalog.inForce(false, gate -> true).byId("breathe").orElseThrow().periodTicks(),
@@ -172,8 +169,8 @@ class PeriodFramingTest {
     // ---- the rendered strip --------------------------------------------------------------------
 
     @Test
-    @DisplayName("a rendered strip holds each frame for the declared window's own tick span")
-    void aRenderedStripHoldsTheDeclaredWindowsSpan() {
+    @DisplayName("a rendered strip covers the declared window at three ticks a frame")
+    void aRenderedStripCoversTheDeclaredWindow() {
         assumeTrue(!EntityModelLoader.load().isEmpty(),
             "entity_models.json not present - run entityModels first");
         EntityRenderer renderer = new EntityRenderer(StyleRegistrar.of(definitions(PlayerRig.entityRow()))
@@ -184,22 +181,22 @@ class PeriodFramingTest {
             .context(RendererContext.builder().textures(textureId -> Possible.of(sheet())).build()));
 
         ImageData declared = renderer.render(rendered("breathe")).image();
-        assertEquals(StyleCatalog.STRIP_FRAMES, declared.getFrames().size(),
-            "a moving style renders the whole strip");
+        assertEquals(16, declared.getFrames().size(),
+            "a moving style renders its whole derived strip - the 48-tick window at three ticks a frame");
         for (ImageFrame frame : declared.getFrames())
-            assertEquals(300, frame.delayMs(),
-                "every frame of the 48-tick window plays for six ticks");
+            assertEquals(150, frame.delayMs(),
+                "every frame of the 48-tick window plays for three ticks");
         assertFalse(Arrays.equals(
                 declared.getFrames().getFirst().pixels().data(),
-                declared.getFrames().get(StyleCatalog.STRIP_FRAMES / 2).pixels().data()),
-            "the excursion moves pixels between its rest and its peak");
+                declared.getFrames().get(8).pixels().data()),
+            "the excursion moves pixels between its rest at frame 0 and its peak at frame 8");
 
         ImageData framed = renderer.render(rendered("sway")).image();
-        assertEquals(StyleCatalog.STRIP_FRAMES, framed.getFrames().size(),
-            "an undeclared moving row renders the same strip");
+        assertEquals(8, framed.getFrames().size(),
+            "an undeclared moving row renders the strip its 24-tick window derives");
         for (ImageFrame frame : framed.getFrames())
             assertEquals(150, frame.delayMs(),
-                "and its frames play for the catalog's three ticks");
+                "and its frames play for three ticks too");
     }
 
     // ---- fixtures ------------------------------------------------------------------------------
@@ -210,6 +207,16 @@ class PeriodFramingTest {
      */
     private static @NotNull PoseCompiler.Compiled breathe() {
         return PoseCompiler.compile(breatheStyle(), row(humanoid(), EntityPose.NONE));
+    }
+
+    /**
+     * A bare biped carrying the breathe style, installed through the registrar.
+     */
+    private static @NotNull Entity installedBreathe() {
+        return StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)))
+            .add("minecraft:test", breatheStyle())
+            .definitions()
+            .get("minecraft:test");
     }
 
     /**

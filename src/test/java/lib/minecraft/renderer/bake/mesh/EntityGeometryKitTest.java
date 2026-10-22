@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -22,6 +23,7 @@ import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
@@ -687,9 +689,9 @@ class EntityGeometryKitTest {
             rows.add(entity.styles().resolve(PoseStyle.STRIDE, row -> false, entity.id().toString()));
             for (PoseStyle style : rows) {
                 String id = style.id();
-                int ticksPerFrame = Math.max(1, entity.styles().stripTicksPerFrame(style));
-                for (int frame = 0; frame < StyleCatalog.STRIP_FRAMES; frame++) {
-                    int tick = frame * ticksPerFrame;
+                StripFit strip = PoseStrips.of(entity, style, entity.styles().periodTicks());
+                for (int frame = 0; frame < strip.frames(); frame++) {
+                    int tick = frame * strip.ticksPerFrame();
                     EntityMesh posed = PosePlayer.posed(entity, style, entity.styles().periodTicks(), tick).model();
                     Optional<String> seat = PosePlayer.seat(posed);
                     for (Entity.BlockOverlayLayer overlay : entity.blockOverlays()) {

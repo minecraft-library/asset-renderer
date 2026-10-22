@@ -17,7 +17,9 @@ import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.mesh.BoneKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
@@ -39,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 /**
  * Validates a built style against a target row's known-good motion - the shipped bind, idle and
@@ -48,14 +51,14 @@ import java.util.function.Predicate;
  * rides its head's neck assembly.
  *
  * <p>The audit compiles the style at every site a strict install of it on the row compiles,
- * evaluates the row's woven pose across its period through the same kit the renderer uses,
+ * evaluates the row's woven pose across its strip through the same kit the renderer uses,
  * measures each adjacent pair's world-space clearance, and reports every pair whose excursion
  * leaves the shipped envelope by more than a margin scaled to how much that pair already moves
  * under shipped motion - a tight pair (a socket) is held tight, a free pair (a striding arm) keeps
  * its swing room.
  *
  * <p><b>The envelope is what the shipped table draws of the subject and what its seats
- * reproduce</b> - the bind and idle styles across their periods, the stride across its period at
+ * reproduce</b> - the bind and idle styles across their strips, the stride across its strip at
  * the fastest pace vanilla walks the subject at the audited age, and each state silhouette that
  * witnesses a seat the row derives, which is a placement vanilla makes by hand of parts that move
  * together. A sitting wolf's body and mane interpenetrate by the amount vanilla sat them at, and a
@@ -100,7 +103,7 @@ public final class PoseAuditor {
 
     /**
      * Validates a built style against one target row - predicts what a strict install of it on the
-     * row would refuse over, evaluates the woven pose across its period, and reports every
+     * row would refuse over, evaluates the woven pose across its strip, and reports every
      * bind-adjacent bone pair whose clearance leaves the envelope the shipped styles define.
      *
      * <p>The audit PREDICTS an install on the row rather than measuring a fit against the body. It
@@ -164,7 +167,7 @@ public final class PoseAuditor {
 
     /**
      * The findings of one installed row - the woven body posed by the row's drivers across the
-     * style's period, measured against the envelope the shipped styles define at one age.
+     * style's strip, measured against the envelope the shipped styles define at one age.
      *
      * @param row the shipped row the style would install on
      * @param sampled the woven bones over the shipped container list
@@ -190,7 +193,7 @@ public final class PoseAuditor {
             known.put(key(pair), new float[]{at, at});
         }
         for (PoseStyle shipped : knownStyles(row.styles(), age))
-            for (int tick : ticks(shipped, catalogPeriod))
+            for (int tick : ticks(row, shipped, catalogPeriod))
                 widen(known, pairs, worldBoxes(PosePlayer.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
         for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
             EntityPose.Silhouette silhouette = row.pose().states().get(state);
@@ -199,7 +202,7 @@ public final class PoseAuditor {
 
         Map<String, float[]> posed = new LinkedHashMap<>();
         Map<String, int[]> worst = new LinkedHashMap<>();
-        for (int tick : ticks(installed, catalogPeriod)) {
+        for (int tick : ticks(row.mutate().pose(sampled).build(), installed, catalogPeriod)) {
             Map<String, List<OrientedBox>> boxes = worldBoxes(PosePlayer.posed(sampled, mesh, installed, catalogPeriod, tick));
             for (String[] pair : pairs) {
                 List<OrientedBox> a = boxes.get(pair[0]);
@@ -278,7 +281,7 @@ public final class PoseAuditor {
         private final @NotNull BuiltStyle style;
 
         /**
-         * The row's catalog period, framing every compile's default strip window.
+         * The row's catalog period, the figure period every compile frames at.
          */
         private final int periodTicks;
 
@@ -427,16 +430,12 @@ public final class PoseAuditor {
     }
 
     /**
-     * The ticks a style is sampled at - the strip's schedule across the style's own period for
-     * a mover, tick zero alone for a statue.
+     * The ticks a style is sampled at - the strip a render of it draws, tick zero alone for a
+     * statue.
      */
-    private static int @NotNull [] ticks(@NotNull PoseStyle style, int catalogPeriod) {
-        if (!style.moves()) return new int[]{0};
-        int period = style.periodTicks().orElse(catalogPeriod);
-        int[] ticks = new int[StyleCatalog.STRIP_FRAMES];
-        for (int frame = 0; frame < ticks.length; frame++)
-            ticks[frame] = frame * period / StyleCatalog.STRIP_FRAMES;
-        return ticks;
+    private static int @NotNull [] ticks(@NotNull Entity subject, @NotNull PoseStyle style, int catalogPeriod) {
+        StripFit strip = PoseStrips.of(subject, style, catalogPeriod);
+        return IntStream.range(0, strip.frames()).map(frame -> frame * strip.ticksPerFrame()).toArray();
     }
 
     /**

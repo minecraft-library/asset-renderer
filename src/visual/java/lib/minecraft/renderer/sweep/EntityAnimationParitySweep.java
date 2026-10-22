@@ -17,7 +17,6 @@ import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
@@ -267,8 +266,8 @@ public final class EntityAnimationParitySweep {
                 return Row.failed(stem);
             }
 
-            // ticksPerFrame is deliberately unnamed - the render fills it from the shipped period,
-            // while the named count forces a still subject to render eight identical frames, which
+            // Both knobs named, so every subject renders the harness's schedule rather than the
+            // strip derived for its row, and a still subject renders eight identical frames, which
             // is what keeps the sweep population's shape.
             EntityOptions.Builder options = EntityOptions.builder()
                 .entityId(subject.key().entityId())
@@ -277,7 +276,8 @@ public final class EntityAnimationParitySweep {
                 .style(GAIT.style())
                 .animation(AnimationOptions.builder()
                     .startTick(START_TICK)
-                    .frameCount(StyleCatalog.STRIP_FRAMES)
+                    .frameCount(FRAME_COUNT)
+                    .ticksPerFrame(TICKS_PER_FRAME)
                     .build());
             subject.key().armor().ifPresent(options::armor);
             ImageData rendered = javaRenderer.render(options.build()).image();

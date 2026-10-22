@@ -1005,7 +1005,7 @@ render-state field name.
   rendering rather than reasoned from bone channels: each of the four that ship one - frog `jump`,
   bat `rest`, and the axolotl's `play_dead` at each age - differs from its base over 29.8% to 39.4%
   of a 128x128 canvas at frame 0, at a full alpha delta, and the three whose base moves render one
-  frame where the base renders eight.
+  frame where the base renders its strip.
 - **A flag is folded against the FIGURES alone, which is what lets a state gate one.** Nothing at
   render reads a flag channel, so a bone's visibility has to be settled where the table is written -
   but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
@@ -1051,12 +1051,26 @@ agree by construction. Two thirds of the corpus lands under `0.25` there, which 
 own bar; what the rest names is listed by the sweep and is a divergence per subject rather than a
 property of the mechanism.
 
-**The canvas is measured across every frame the schedule samples**, each through its own posed mesh
-and its own tick's texture, unioned by `EntityRenderer.computeScreenBoundsAcrossFrames`. It wraps the
-scope dispatch from OUTSIDE, so the group union and the frame union compose rather than one swallowing
-the other. A one-frame schedule measures the one frame it draws and draws the geometry it already
-built for the empty-canvas early-out; a schedule with frames to spare builds each of them, nothing
-about a posed tick being carryable to its neighbour.
+**A render naming no frame count draws the strip derived for its in-force row.** `PoseStrips.of`
+samples every channel the row moves - the pose expressions of the body, every overlay pass and every
+equipment mesh, each clip site apart, each scrolling sheet, each pass opacity that follows the clock -
+and `StripFit.fit` takes the shortest loop whose restart jumps by no more than one tolerance on any
+channel, at three ticks a frame or one where a visible motion is too fast for three, capped at
+sixty-six frames; a one-shot that does not end where it starts stops the strip at its own length, and
+a row whose motion is too small to see is one frame. It is worked out the first time a row is drawn
+in a process and held for the process, so shipped, universal and authored rows take one derivation
+and the table ships no frame count. Named alone, a frame count keeps the row's step and a step fills
+as many frames as cover the loop; named together, both are the caller's. `PoseStripsCorpusTest` pins
+every shipped row's strip at each age, in-force gate set and axis form whose pose program differs.
+
+**The canvas is a union of silhouettes, each measured over the frames its own render draws.** The
+subject is measured across every frame of the render's schedule, each through its own posed mesh and
+its own tick's texture. Under the group scope every variant coat, every member and a baby's own adult
+is measured over its own strip, resolved through the caller's animation options exactly as the
+subject's is - so the canvas is the same whichever member is drawn, and a caller naming both knobs
+measures every silhouette at their ticks. A one-frame schedule measures the one frame it draws and
+draws the geometry it already built for the empty-canvas early-out; a schedule with frames to spare
+builds each of them, nothing about a posed tick being carryable to its neighbour.
 
 ## Block icons
 

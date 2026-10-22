@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -408,6 +409,17 @@ public final class PosePlayer {
                 key -> posed(key.subject(),
                     key.subject().styles().memberRow(this.style.id(), this.style),
                     this.periodTicks, key.tick()));
+        }
+
+        /**
+         * The strip a group member or variant coat is measured over - the one its own row, answered
+         * as {@link #at(Entity, int)} answers it, derives.
+         *
+         * @param member the member or coat
+         * @return its derived strip
+         */
+        public @NotNull StripFit memberStrip(@NotNull Entity member) {
+            return PoseStrips.of(member, member.styles().memberRow(this.style.id(), this.style), this.periodTicks);
         }
 
         /**

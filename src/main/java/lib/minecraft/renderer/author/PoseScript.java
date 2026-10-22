@@ -285,7 +285,7 @@ public record PoseScript(
      * every keyframe they emit.
      *
      * @param motions the captured motion fragments, in call order
-     * @param overSeconds the timeline length in seconds; empty defaults to the strip window
+     * @param overSeconds the timeline length in seconds; empty defaults to the figure period
      * @param curve how every emitted keyframe is joined to its neighbours
      * @param looping whether the timeline restarts rather than holding its last frame
      */

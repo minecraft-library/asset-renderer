@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * roster (group and field, held at extent one); the member each group rests at and moves at against
  * the rows the {@code idle} and {@code stride} ids carry; the stride pair against the harness's
  * declared amplitude; the file's period against the harness's frame schedule and
- * {@link StyleCatalog#STRIP_FRAMES}; and the network id the generator folds against the one the
- * harness renders every subject at.
+ * {@link StyleCatalog#FIGURE_PERIOD_TICKS}; and the network id the generator folds against the one
+ * the harness renders every subject at.
  */
 class StyleCatalogMirrorTest {
 
@@ -293,7 +293,7 @@ class StyleCatalogMirrorTest {
     }
 
     @Test
-    @DisplayName("the shipped period is the harness frame schedule, and the strip divides it")
+    @DisplayName("the shipped period is the figure period, and the harness frame schedule spans it")
     void theShippedPeriodIsTheHarnessSchedule() throws IOException {
         int frames = (int) valueOf(HARNESS_SCHEDULE, FRAME_COUNT);
         int ticksPerFrame = (int) valueOf(HARNESS_SCHEDULE, TICKS_PER_FRAME);
@@ -303,10 +303,9 @@ class StyleCatalogMirrorTest {
         assertEquals(frames * ticksPerFrame, period,
             "the ticks one shipped excursion spans and the span the harness strip covers have "
                 + "parted, so a strip either stops short of the excursion or runs past its own start");
-        assertEquals(StyleCatalog.STRIP_FRAMES, frames,
-            "the frames one shipped strip samples and the frames the harness renders have parted");
-        assertEquals(ticksPerFrame, period / StyleCatalog.STRIP_FRAMES,
-            "the per-frame tick step the catalog derives and the harness's cadence have parted");
+        assertEquals(StyleCatalog.FIGURE_PERIOD_TICKS, period,
+            "the period the shipped file declares and the figure period a catalog it never mentions "
+                + "frames at have parted");
         assertEquals(0, start,
             "the harness strip starts at a tick other than zero, and tick zero is what every "
                 + "driver rests at - a later seat poses frame 0 away from the authored rest");
