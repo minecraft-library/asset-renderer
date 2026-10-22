@@ -32,8 +32,10 @@ import java.util.OptionalDouble;
  *     the cap is {@link #MAX_FRAMES} frames at either;</li>
  *     <li><b>sets a floor</b> every length must reach, so each visible part is shown whole once: a
  *     one-shot's full length, a looping part's period, an expression's slowest visible period read off its
- *     spectrum. An exact part longer than the cap sets none and is judged at the restart instead, where a
- *     one-shot the length cuts short counts as the cut it is;</li>
+ *     spectrum and rounded up. The search for a restart starts a little short of the period of an expression
+ *     the restart judges, since the reading is approximate and the restart then measures what a near-loop
+ *     just under it leaves out. An exact part longer than the cap sets none and is judged at the restart
+ *     instead, where a one-shot the length cuts short counts as the cut it is;</li>
  *     <li><b>stops at the floor</b> where a one-shot does not end where it started, since its own jump hides
  *     the rest of the restart - a floor in which a part too long to show whole counts at the cap. The seam
  *     reported is then that jump, or the rest's at the floor where that is larger, so the strip does not
@@ -87,7 +89,11 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
     /** The amplitude, in tolerances, that motion faster than two coarse frames needs to buy the fine step. */
     private static final double VISIBILITY_FLOOR = 1d;
 
-    /** The factor on an expression's period read off its spectrum before it sets a floor, the reading being approximate. */
+    /**
+     * The factor on the spectral period of an expression the restart judges that gives the length the search
+     * starts from, the reading being approximate and a near-loop just under the period coming back within a
+     * tolerance.
+     */
     private static final double COVERAGE_SLACK = 0.95;
 
     /** The factor the floor's spectrum zero-pads the window by, so a period over half the window still reads finely. */
@@ -167,14 +173,14 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
         int step = channels.values().stream().anyMatch(Channel::tooFastForCoarseFrames) ? FINE_STEP : COARSE_STEP;
         int capTicks = MAX_FRAMES * step;
 
-        // The floor every part sets, and the one an exact part too long to show whole is left out of.
+        // The floor that shows every part whole, and the one the search starts from.
         int cover = 0;
         int searchCover = 0;
         for (StripTrack track : tracks) {
             if (!travels(track.values(), wrapOf(track.wrap()), track.kind().tolerance())) continue;
-            int coverage = coverage(track, capTicks);
-            cover = Math.max(cover, coverage);
-            if (coverage <= capTicks) searchCover = Math.max(searchCover, coverage);
+            Coverage coverage = coverage(track, capTicks);
+            cover = Math.max(cover, coverage.whole());
+            searchCover = Math.max(searchCover, coverage.searched());
         }
 
         // A one-shot that does not end where it started stops the strip at the floor.
@@ -215,21 +221,27 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
     }
 
     /**
-     * Measures the least length a part asks to be shown whole in - none where its period is unknown, and
-     * for an expression its spectral period trimmed by the slack and clamped to the cap.
+     * Measures the least length a part asks to be shown whole in, and the least the search for a restart
+     * starts from over it. A one-shot asks for its length and a looping part for its period, none where that
+     * is unknown, and the search leaves out either where it is longer than the cap. An expression asks for
+     * its spectral period clamped to the cap and rounded up; where the restart judges it, as it does every
+     * kind but an opacity, the search starts from that period trimmed by the slack.
      *
      * @param track the part
      * @param capTicks the longest strip at the chosen step
      * @return the part's coverage in ticks
      */
-    private static int coverage(@NotNull StripTrack track, int capTicks) {
+    private static @NotNull Coverage coverage(@NotNull StripTrack track, int capTicks) {
         return switch (track.role()) {
-            case Role.OneShot(double lengthTicks) -> (int) Math.ceil(lengthTicks - TIE_EPSILON);
+            case Role.OneShot(double lengthTicks) -> Coverage.exact((int) Math.ceil(lengthTicks - TIE_EPSILON), capTicks);
             case Role.Looping(double periodTicks) -> periodTicks > 0d && Double.isFinite(periodTicks)
-                ? (int) Math.ceil(periodTicks - TIE_EPSILON)
-                : 0;
-            case Role.Expression() -> (int) Math.floor(COVERAGE_SLACK
-                * Math.min(slowestPeriod(track.values(), wrapOf(track.wrap()), track.kind().tolerance()), capTicks));
+                ? Coverage.exact((int) Math.ceil(periodTicks - TIE_EPSILON), capTicks)
+                : new Coverage(0, 0);
+            case Role.Expression() -> {
+                double period = Math.min(slowestPeriod(track.values(), wrapOf(track.wrap()), track.kind().tolerance()), capTicks);
+                int whole = (int) Math.ceil(period - TIE_EPSILON);
+                yield new Coverage(whole, track.kind() == Kind.OPACITY ? whole : (int) Math.floor(COVERAGE_SLACK * period));
+            }
         };
     }
 
@@ -759,6 +771,27 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
      * @param strongestHarmonic the largest amplitude of the other harmonics, zero where there are none
      */
     private record Harmonics(double bin, double residual, double fundamental, double strongestHarmonic) {}
+
+    /**
+     * The least lengths one part asks a strip to run, in ticks.
+     *
+     * @param whole the length that shows the part whole once, which a strip that stops at its floor runs
+     * @param searched the length the search for a restart starts from - zero for an exact part too long to show whole, and the period trimmed by the slack for an expression the restart judges
+     */
+    private record Coverage(int whole, int searched) {
+
+        /**
+         * Builds the coverage of an exact part, whose whole length the search starts from where it fits under the cap.
+         *
+         * @param whole the part's length or period, rounded up to whole ticks
+         * @param capTicks the longest strip at the chosen step
+         * @return the coverage
+         */
+        static @NotNull Coverage exact(int whole, int capTicks) {
+            return new Coverage(whole, whole <= capTicks ? whole : 0);
+        }
+
+    }
 
     /**
      * The tracks of one channel key: what they carry, and their contributions summed - the repeating parts

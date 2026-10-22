@@ -184,6 +184,28 @@ class StripFitTest {
     }
 
     @Test
+    @DisplayName("a one-shot that jumps stops the strip at the whole period of every expression beside it")
+    void aOneShotThatJumpsStopsAtEveryExpressionsWholePeriod() {
+        // The warden's dig: a 100-tick one-shot that ends 90 degrees from its start, beside the spots' two
+        // layers - a quarter of a cosine's positive half each, half a turn apart, every 2 pi / 0.045 = 139.6
+        // ticks. A strip that stops judges no restart, so the floor alone shows the pulse: 140 ticks, its whole
+        // period read and rounded up, and 141 at the step.
+        StripFit digging = StripFit.fit(List.of(
+            rotation("body.x_rot", new Role.OneShot(100), tick -> tick < 100 ? 90d * tick / 100 : 90d),
+            opacity("pass1.opacity", tick -> 0.25 * Math.max(0d, StrictMath.cos(0.045 * tick))),
+            opacity("pass2.opacity", tick -> 0.25 * Math.max(0d, StrictMath.cos(0.045 * tick + StrictMath.PI)))
+        ));
+        assertEquals(new StripFit(3, 47, 90d, Optional.of("body.x_rot")), digging);
+
+        // A swing beside such a one-shot is shown whole the same way, at its own period rounded up to the step.
+        StripTrack turn = rotation("head.x_rot", new Role.OneShot(20), tick -> tick < 20 ? 30d * tick / 20 : 30d);
+        for (int period : new int[] { 50, 64, 100, 139, 150 }) {
+            StripFit fit = StripFit.fit(List.of(rotation("body.x_rot", expression(), sine(30d, period)), turn));
+            assertEquals(new StripFit(3, roundUp(period, 3) / 3, 30d, Optional.of("head.x_rot")), fit, period + " ticks");
+        }
+    }
+
+    @Test
     @DisplayName("an exact part longer than the fine cap sets no floor; a one-shot still running is in the seam")
     void anExactPartPastTheCapSetsNoFloorAndARunningOneShotIsInTheSeam() {
         StripTrack beat = rotation("wing.x_rot", new Role.Looping(4), sine(10d, 4));
@@ -224,7 +246,8 @@ class StripFitTest {
 
         StripFit pulsing = StripFit.fit(List.of(body,
             opacity("pass1.opacity", tick -> 0.125 - 0.125 * StrictMath.cos(2 * StrictMath.PI * (tick % 60) / 60))));
-        assertEquals(new StripFit(3, 19, 0d, Optional.empty()), pulsing, "a 60-tick pulse from 0 to 0.25, floored at 57");
+        // The pulse reads a hair over its 60 ticks, so its whole period rounds up to 61 and the step to 63.
+        assertEquals(new StripFit(3, 21, 0d, Optional.empty()), pulsing, "a 60-tick pulse from 0 to 0.25, shown whole");
 
         StripFit faint = StripFit.fit(List.of(body,
             opacity("pass1.opacity", tick -> 0.005 - 0.005 * StrictMath.cos(2 * StrictMath.PI * (tick % 60) / 60))));
@@ -241,9 +264,9 @@ class StripFitTest {
         };
 
         StripFit fit = StripFit.fit(List.of(rotation("body.x_rot", expression(), sine(30d, 24)), opacity("pass1.opacity", flash)));
-        // The flash floors the strip at 39; the body closes next at 48, where the flash is 8 ticks into
-        // its fall - a jump of 51 opacity tolerances the restart does not read. With the flash in the
-        // seam the first close would be 120.
+        // The flash, read at 40.005, floors the strip at 42 - its whole period rounded up, then up to the
+        // step; the body closes next at 48, where the flash is 8 ticks into its fall - a jump of 51 opacity
+        // tolerances the restart does not read. With the flash in the seam the first close would be 120.
         assertEquals(new StripFit(3, 16, 0d, Optional.empty()), fit);
         assertTrue(Math.abs(flash.applyAsDouble(48) - flash.applyAsDouble(0)) > Kind.OPACITY.tolerance());
 
@@ -302,6 +325,49 @@ class StripFitTest {
     }
 
     @Test
+    @DisplayName("a swing the restart judges closes at a near-loop a fraction of a tick short of its period")
+    void aJudgedSwingClosesJustShortOfItsPeriod() {
+        // 15 degrees every 24.27 ticks is back within a degree at 24, where the first length past its period, 27,
+        // jumps by several degrees. The restart judges what a strip leaves out of such a swing, so the search
+        // starts short of its period by the slack, and the near-loop under it is the strip.
+        double[] near = samples(cosine(15d, 24.27));
+        StripFit fit = swing(near);
+        assertEquals(3, fit.ticksPerFrame());
+        assertEquals(24, fit.loopTicks());
+        assertTrue(fit.closes(), "seam " + fit.seam());
+        assertEquals(seamAt(24, 3, 1d, near), fit.seam(), 1e-12);
+        assertTrue(seamAt(27, 3, 1d, near) > 1d, "seam at 27 " + seamAt(27, 3, 1d, near));
+    }
+
+    @Test
+    @DisplayName("a visible term no restart judges is shown at least one whole period, at any period, size or phase")
+    void aTermNoRestartJudgesIsShownWhole() {
+        // Beside a one-shot that jumps, and as an opacity beside a still body, nothing measures the restart, so
+        // the floor alone decides how much of the term a strip shows. A whole-tick period reads within a tick
+        // of itself, so its strip holds it whole; one between whole ticks can read under its last whole tick,
+        // and its strip then stops short by the fraction past it - half a tick at the most here.
+        StripTrack jump = rotation("head.x_rot", new Role.OneShot(2), tick -> tick < 2 ? 45d * tick : 90d);
+        StripTrack still = rotation("body.x_rot", expression(), tick -> 10d);
+        for (boolean stopping : new boolean[] { true, false }) {
+            for (int period = 6; period <= StripFit.MAX_FRAMES * 3; period++)
+                for (double amplitude : new double[] { 2d, 30d })
+                    for (int eighth = 0; eighth < 2; eighth++) {
+                        StripFit fit = unjudged(stopping, jump, still, sineAt(amplitude, period, eighth * StrictMath.PI / 4));
+                        assertTrue(fit.loopTicks() >= period, (stopping ? "stopping, " : "opacity, ") + amplitude
+                            + " tolerances at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit);
+                    }
+
+            for (int quarters = 25; quarters < 4 * StripFit.MAX_FRAMES * 3; quarters++) {
+                if (quarters % 4 == 0) continue;
+                double period = quarters / 4d;
+                StripFit fit = unjudged(stopping, jump, still, sineAt(16d, period, StrictMath.PI / 8));
+                assertTrue(fit.loopTicks() >= period - 0.5, (stopping ? "stopping, " : "opacity, ") + "16 tolerances at "
+                    + period + " ticks: " + fit);
+            }
+        }
+    }
+
+    @Test
     @DisplayName("a slow swing falls back past its own period's floor, and a mixture is floored by its slower part")
     void aSlowSwingAndAMixtureAreFlooredByTheirSlowerPart() {
         // 30 degrees at 170 ticks meets the lattice within a degree nowhere from its floor to the cap.
@@ -341,12 +407,13 @@ class StripFitTest {
     void aSlowPulseWithASecondHarmonicIsFlooredAtItsOwnLoop() {
         // The warden's spot shape, 0.25 max(0, cos), at slower rates. Under two cycles in the window its second
         // harmonic sits inside its own lobe, which a lone sinusoid leans on and reads short. The body closes at
-        // every length, so the floor alone decides the strip.
+        // every length, so the floor alone decides the strip: the period read, rounded up to the step. A read
+        // short of the loop can leave the strip short by as much, which on such a shape stays under 5 ticks.
         StripTrack body = rotation("body.x_rot", expression(), tick -> 10d);
         for (int period : new int[] { 152, 160, 170, 180, 190 })
             for (int sixteenths = 0; sixteenths < 16; sixteenths++) {
                 StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(HALF_WAVE, period, sixteenths))));
-                int bound = roundUp((int) Math.floor(0.95 * period), 3) - 3;
+                int bound = period - 4;
                 assertTrue(fit.loopTicks() >= bound, period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
             }
     }
@@ -366,7 +433,8 @@ class StripFitTest {
     @DisplayName("a slow flash with only odd harmonics, beside a still body, is floored at its own loop at every phase")
     void aSlowOddFlashIsFlooredAtItsOwnLoop() {
         // A square flash, a clamped sine and a triangle hold no second harmonic; a fit of two harmonics leans on
-        // their third and reads them short.
+        // their third and reads them short. As with the pulse, the strip is the period read, rounded up to the
+        // step, and stays under 5 ticks short of the loop.
         StripTrack body = rotation("body.x_rot", expression(), tick -> 10d);
         Map<String, DoubleUnaryOperator> shapes = new LinkedHashMap<>();
         shapes.put("square", turn -> turn < 0.5 ? 0.25 : 0d);
@@ -376,7 +444,7 @@ class StripFitTest {
             for (int period : new int[] { 152, 170, 190 })
                 for (int sixteenths = 0; sixteenths < 16; sixteenths++) {
                     StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(entry.getValue(), period, sixteenths))));
-                    int bound = roundUp((int) Math.floor(0.95 * period), 3) - 3;
+                    int bound = period - 4;
                     assertTrue(fit.loopTicks() >= bound,
                         entry.getKey() + " at " + period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
                 }
@@ -542,6 +610,11 @@ class StripFitTest {
         return tick -> amplitude * StrictMath.sin(2 * StrictMath.PI * tick / period);
     }
 
+    /** Samples a sine of any period off the tick itself, started a phase on. */
+    private static @NotNull IntToDoubleFunction sineAt(double amplitude, double period, double phase) {
+        return tick -> amplitude * StrictMath.sin(2 * StrictMath.PI * tick / period + phase);
+    }
+
     /** Samples a cosine of any period off the tick itself - at its peak at tick 0, as a walk's swing is. */
     private static @NotNull IntToDoubleFunction cosine(double amplitude, double period) {
         return tick -> amplitude * StrictMath.cos(2 * StrictMath.PI * tick / period);
@@ -574,6 +647,16 @@ class StripFitTest {
     /** Fits one expression track of rotation from its samples. */
     private static @NotNull StripFit swing(double @NotNull [] degrees) {
         return StripFit.fit(List.of(rotation("body.x_rot", expression(), degrees)));
+    }
+
+    /**
+     * Fits a term no restart judges: a swing of that many degrees beside a one-shot that jumps, or an opacity of
+     * that many tolerances about one half beside a still body.
+     */
+    private static @NotNull StripFit unjudged(boolean stopping, @NotNull StripTrack jump, @NotNull StripTrack still, @NotNull IntToDoubleFunction term) {
+        return stopping
+            ? StripFit.fit(List.of(rotation("body.x_rot", expression(), term), jump))
+            : StripFit.fit(List.of(still, opacity("pass1.opacity", tick -> 0.5 + term.applyAsDouble(tick) * Kind.OPACITY.tolerance())));
     }
 
     /**
