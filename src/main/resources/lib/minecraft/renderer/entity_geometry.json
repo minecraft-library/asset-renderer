@@ -35141,6 +35141,123 @@
         }
       }
     },
+    "WardenModel#createHeartLayer": {
+      "source": {
+        "class": "net/minecraft/client/model/monster/warden/WardenModel",
+        "method": "createHeartLayer"
+      },
+      "texture_size": [
+        128,
+        128
+      ],
+      "bones": {
+        "bone": {
+          "pivot": [
+            0.0,
+            24.0,
+            0.0
+          ]
+        },
+        "body": {
+          "pivot": [
+            0.0,
+            -21.0,
+            0.0
+          ],
+          "parent": "bone",
+          "cubes": [
+            {
+              "origin": [
+                -9.0,
+                -13.0,
+                -4.0
+              ],
+              "size": [
+                18.0,
+                21.0,
+                11.0
+              ],
+              "uv": [
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "right_ribcage": {
+          "pivot": [
+            -7.0,
+            -2.0,
+            -4.0
+          ],
+          "parent": "body"
+        },
+        "left_ribcage": {
+          "pivot": [
+            7.0,
+            -2.0,
+            -4.0
+          ],
+          "parent": "body"
+        },
+        "head": {
+          "pivot": [
+            0.0,
+            -13.0,
+            0.0
+          ],
+          "parent": "body"
+        },
+        "right_tendril": {
+          "pivot": [
+            -8.0,
+            -12.0,
+            0.0
+          ],
+          "parent": "head"
+        },
+        "left_tendril": {
+          "pivot": [
+            8.0,
+            -12.0,
+            0.0
+          ],
+          "parent": "head"
+        },
+        "right_arm": {
+          "pivot": [
+            -13.0,
+            -13.0,
+            1.0
+          ],
+          "parent": "body"
+        },
+        "left_arm": {
+          "pivot": [
+            13.0,
+            -13.0,
+            1.0
+          ],
+          "parent": "body"
+        },
+        "right_leg": {
+          "pivot": [
+            -5.9,
+            -13.0,
+            0.0
+          ],
+          "parent": "bone"
+        },
+        "left_leg": {
+          "pivot": [
+            5.9,
+            -13.0,
+            0.0
+          ],
+          "parent": "bone"
+        }
+      }
+    },
     "WitchModel#createBodyLayer@scaled=0.9375": {
       "source": {
         "class": "net/minecraft/client/model/monster/witch/WitchModel",

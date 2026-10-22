@@ -13,9 +13,9 @@ import java.util.Set;
 
 /**
  * The curated idle roster the style emitter merges with what the walked poses read - which
- * render-state figures vanilla's tick sweeps and over what range, which one-hot states form an
- * exclusion group, which member of each group a resting subject stands in at either gait, and the
- * rule a state field's style id derives by.
+ * render-state clocks vanilla's tick advances in plain IDLE or WALK and the wave each gait drives
+ * them by, which one-hot states form an exclusion group, which member of each group a resting
+ * subject stands in at either gait, and the rule a state field's style id derives by.
  *
  * <p>The same declaration holds the two sets the fold reads - {@link #DRIVEN}, what the tick moves
  * and the fold therefore keeps symbolic, and {@link #DRIVEN_FIGURES}, the half of it a flag is
@@ -23,26 +23,99 @@ import java.util.Set;
  * settles it.
  *
  * <p>These are behavioural facts of vanilla's own {@code tick} that no bytecode walk can read - a
- * bat rests flying, a tentacle sweeps a quarter turn - so they are declared here, once, and the
- * emitter joins them to the fields each entity's poses actually read. The float literals are the
- * excursion arithmetic's own and are held character-identical with the harness's deliberate copy,
- * which a mirror test pins against the shipped file.
+ * bat rests flying, a tentacle strokes a quarter turn - so they are declared here, once, and the
+ * emitter joins them to the fields each entity's poses and pass opacities actually read. Each
+ * clock's numbers are vanilla's own, read where its javadoc names them, and a jar test holds every
+ * one of them there.
  *
- * <p><b>Everything here is ordered data.</b> Group and member order is emission order for the
- * per-entity select rows, so the lists are {@link List#of} in declaration order and nothing is
- * keyed through a hash-ordered map.
+ * <p><b>Everything here is ordered data.</b> Clock, group and member order is emission order for the
+ * per-entity rows, so the lists are {@link List#of} in declaration order and nothing is keyed
+ * through a hash-ordered map.
  */
 public final class StyleRoster {
 
     /**
-     * A swept render-state scalar the tick drives - a figure in the roster's sense.
+     * One render-state field vanilla's tick advances in plain IDLE or WALK, and the wave each gait
+     * drives it by.
      *
-     * @param field the render-state field name a pose reads it under
-     * @param rest what the figure holds at the ends of its travel
-     * @param extent what the figure reaches at the middle of a sweep, or wraps at over a cycle
-     * @param wave the wave token the drive is emitted with ({@code sweep} or {@code cycle})
+     * @param field the render-state field a pose or a pass opacity reads
+     * @param idle the half the idle row carries, which every row composing over idle inherits
+     * @param stride the half the stride row spells where it differs from the idle half, empty where
+     *     the stride inherits it
      */
-    public record Figure(@NotNull String field, float rest, float extent, @NotNull String wave) {}
+    public record Clock(@NotNull String field, @NotNull Motion idle, @NotNull Optional<Motion> stride) {}
+
+    /**
+     * One half of a clock - the wave a gait drives its field by, in the table's own tokens.
+     *
+     * @param wave the wave token the drive is emitted with
+     * @param rest what the field holds at the near end of a stroke or a trapezoid
+     * @param extent the held level, the slope of a ramp, or the far end of a stroke or a trapezoid
+     * @param rate the radians of stroke phase a tick, zero on every other wave
+     * @param rise the ticks a trapezoid climbs from its rest to its extent
+     * @param dwell the ticks a trapezoid holds at its extent
+     * @param fall the ticks a trapezoid returns to its rest
+     * @param gap the ticks a trapezoid holds at its rest before the next rise
+     */
+    public record Motion(
+        @NotNull String wave,
+        float rest,
+        float extent,
+        float rate,
+        int rise,
+        int dwell,
+        int fall,
+        int gap
+    ) {
+
+        /**
+         * Creates a level held at every tick.
+         *
+         * @param extent the level
+         * @return the held half
+         */
+        public static @NotNull Motion hold(float extent) {
+            return new Motion("hold", 0f, extent, 0f, 0, 0, 0, 0);
+        }
+
+        /**
+         * Creates a field advanced by a fixed step every tick.
+         *
+         * @param extent the step a tick
+         * @return the ramped half
+         */
+        public static @NotNull Motion ramp(float extent) {
+            return new Motion("ramp", 0f, extent, 0f, 0, 0, 0, 0);
+        }
+
+        /**
+         * Creates vanilla's squid stroke - a flare from rest to the extent and back, then a hang at
+         * rest for as long again.
+         *
+         * @param extent the far end of the flare
+         * @param rate the radians of stroke phase a tick
+         * @return the stroked half
+         */
+        public static @NotNull Motion stroke(float extent, float rate) {
+            return new Motion("stroke", 0f, extent, rate, 0, 0, 0, 0);
+        }
+
+        /**
+         * Creates a climb from rest to the extent, a hold there, a return and a hold at rest, each in
+         * whole ticks.
+         *
+         * @param extent the level the climb reaches
+         * @param rise the ticks the climb takes
+         * @param dwell the ticks the extent is held
+         * @param fall the ticks the return takes
+         * @param gap the ticks the rest is held before the next climb
+         * @return the trapezoid half
+         */
+        public static @NotNull Motion trapezoid(float extent, int rise, int dwell, int fall, int gap) {
+            return new Motion("trapezoid", 0f, extent, 0f, rise, dwell, fall, gap);
+        }
+
+    }
 
     /**
      * One selectable member of an exclusion group.
@@ -138,12 +211,44 @@ public final class StyleRoster {
 
     }
 
-    /** The four swept figures, in roster order. */
-    public static final @NotNull List<Figure> FIGURES = List.of(
-        new Figure("tentacleAngle", 0f, 0.7853982f, "sweep"),
-        new Figure("flapTime", 0f, 1f, "cycle"),
-        new Figure("peekAmount", 0f, 1f, "sweep"),
-        new Figure("movingFactor", 0f, 1f, "sweep"));
+    /**
+     * The clocks vanilla's tick advances in plain IDLE or WALK, in roster order, each read where its
+     * vanilla value is written:
+     *
+     * <ul>
+     *   <li><b>{@code tailAnimation}</b> - {@code Guardian.aiStep} eases the tail speed to 0.125 a
+     *       tick still in water and to 0.5 a tick moving, and adds it to the tail every tick.</li>
+     *   <li><b>{@code spikesAnimation}</b> - the same method eases the spikes to 1 still and to 0
+     *       moving.</li>
+     *   <li><b>{@code flapTime}</b> - {@code EnderDragon.aiStep} adds 0.1 a tick while the phase
+     *       sits, and a spawned dragon's phase is {@code HOVERING}, which sits.</li>
+     *   <li><b>{@code movingFactor}</b> - the axolotl's moving animator settles at 0 still and 1
+     *       swimming, the two ends of the {@code BinaryAnimator} {@code Axolotl}'s constructor
+     *       builds.</li>
+     *   <li><b>{@code tentacleAngle}</b> - {@code Squid.aiStep}'s stroke, a quarter turn at most, at
+     *       the rate {@code Squid}'s constructor draws for entity id 9 -
+     *       {@code 1 / (nextFloat() + 1) * 0.2f} after {@code setSeed(9)}, 9 being the id
+     *       {@link #DECLARED_RESTS} rests every subject at. <b>The rate is chosen with the id</b>:
+     *       each entity draws its own.</li>
+     *   <li><b>{@code peekAmount}</b> - {@code ShulkerPeekGoal} raises the peek to 30 and lowers it
+     *       20, 40 or 60 ticks after the raise, and {@code Shulker.updatePeekAmount} moves the lid
+     *       0.05 a tick toward {@code 30 * 0.01f}, the extent: the shortest peek rises for 6 ticks,
+     *       holds for 14 and falls for 6. <b>The shortest peek and the gap of 0 are chosen</b>:
+     *       vanilla draws one of the three holds and waits a random interval between peeks, and this
+     *       row loops the shortest with no wait.</li>
+     *   <li><b>{@code heartAnimation}</b> - {@code Warden.tick} sets the heart to 10 every 40 ticks
+     *       at no anger and counts it down a tick at a time, read as tenths. No pose reads it; the
+     *       heart layer's opacity does.</li>
+     * </ul>
+     */
+    public static final @NotNull List<Clock> CLOCKS = List.of(
+        new Clock("tailAnimation", Motion.ramp(0.125f), Optional.of(Motion.ramp(0.5f))),
+        new Clock("spikesAnimation", Motion.hold(1f), Optional.of(Motion.hold(0f))),
+        new Clock("flapTime", Motion.ramp(0.1f), Optional.empty()),
+        new Clock("movingFactor", Motion.hold(0f), Optional.of(Motion.hold(1f))),
+        new Clock("tentacleAngle", Motion.stroke(0.7853982f, 0.11559614f), Optional.empty()),
+        new Clock("peekAmount", Motion.trapezoid(0.29999998f, 6, 14, 6, 0), Optional.empty()),
+        new Clock("heartAnimation", Motion.trapezoid(1f, 0, 0, 10, 30), Optional.empty()));
 
     /** The thirteen exclusion groups, in roster order, each with its members in roster order. */
     public static final @NotNull List<Group> GROUPS = List.of(
@@ -156,7 +261,7 @@ public final class StyleRoster {
         new Group("DOLPHIN", List.of(
             new Member("MOVING", "isMoving"),
             new Member("STILL", "")),
-            "MOVING", "MOVING", ""),
+            "STILL", "MOVING", ""),
         new Group("BAT", List.of(
             new Member("FLYING", "flyAnimationState"),
             new Member("RESTING", "restAnimationState")),
@@ -215,7 +320,7 @@ public final class StyleRoster {
             new Member("BABY_IDLING_ON_GROUND", "idleOnGroundAnimationState"),
             new Member("BABY_PLAYING_DEAD", "playDeadAnimationState"),
             new Member("BABY_AXOLOTL_STILL", "")),
-            "BABY_AXOLOTL_STILL", "BABY_AXOLOTL_STILL", "baby"),
+            "BABY_IDLING_UNDERWATER", "BABY_SWIMMING", "baby"),
         new Group("ACTION_CLIP", List.of(
             new Member("ATTACKING", "attackAnimationState"),
             new Member("DIGGING", "diggingAnimationState"),
@@ -248,12 +353,17 @@ public final class StyleRoster {
      * described no gait. Everything else an offline subject answers at rest.
      *
      * <p>The rest of this set is what vanilla's own {@code tick} would have filled and a never-ticked
-     * subject leaves at zero - a tentacle's angle, a wing phase, a lid, an axolotl's four mixing
-     * factors, whether a dolphin is under way. Folding one to its resting zero holds still something
-     * vanilla animates, so they stay symbolic too and a caller drives each over the range vanilla's
-     * arithmetic bounds it to. <b>None of them needs the entity ticked</b>: what a draw decides on
+     * subject leaves at zero - a tentacle's angle, a wing phase, a lid, a guardian's tail and spikes,
+     * a warden's heart, an axolotl's four mixing factors, whether a dolphin is under way. Folding one
+     * to its resting zero holds still something vanilla animates, so they stay symbolic too: each of
+     * {@link #CLOCKS} is driven at the rate vanilla's tick advances it, and each selection at the
+     * member a gait stands in. <b>None of them needs the entity ticked</b>: what a draw decides on
      * these paths is a rate or an interval, and every draw but the squid's sits behind a gate an
      * offline subject never passes.
+     *
+     * <p><b>A field only a pass's opacity reads belongs here as one a pose reads does.</b> The
+     * warden's heart is read by its layer's alpha alone, and the alpha is folded against this set
+     * like a pose, so leaving the heart off would fold its pass to the never-ticked dark.
      *
      * <p><b>A boolean belongs on this list exactly as a float does.</b> A render-state field the
      * walk keeps symbolic arrives as a number wherever the body reads it, and a body that branches
@@ -287,6 +397,7 @@ public final class StyleRoster {
     public static final @NotNull Set<String> DRIVEN = Set.of(
         "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
         "tentacleAngle", "flapTime", "peekAmount",
+        "tailAnimation", "spikesAnimation", "heartAnimation",
         "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
         "flyAnimationState", "restAnimationState", "idleAnimationState",
         "idleHeadTiltAnimationState", "hopAnimationState", "croakAnimationState",
@@ -315,14 +426,14 @@ public final class StyleRoster {
      * Keeping both halves symbolic refused a frog whose croaking body is exactly the first case.
      *
      * <p>The membership is the split the emitted style rows are derived from: the three fields the
-     * universal rows drive, plus every swept render-state scalar. Everything else in {@code DRIVEN}
-     * is a one-hot state, and the shipped catalog those rows land in is held to the harness
-     * contract by {@code StyleCatalogMirrorTest} - so a figure filed on the wrong side ships as a
-     * held selection rather than a wave, and the mirror reports it.
+     * universal rows drive, plus every field of {@link #CLOCKS}. Everything else in {@code DRIVEN}
+     * is a one-hot state, and {@code StyleFlowEmitTest} holds the set to the roster, so a clock
+     * added to one and not the other fails there rather than folding a flag it reads at rest.
      */
     public static final @NotNull Set<String> DRIVEN_FIGURES = Set.of(
         "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
-        "tentacleAngle", "flapTime", "peekAmount", "movingFactor");
+        "tailAnimation", "spikesAnimation", "flapTime", "movingFactor", "tentacleAngle", "peekAmount",
+        "heartAnimation");
 
     /**
      * What a render-state figure rests at where no constructor settles it and a zero would be wrong.
@@ -353,9 +464,10 @@ public final class StyleRoster {
      *       one frequency in ten at which the bob is a constant, which drew a nose that never moves
      *       on both sides and agreed about it. <b>Nine because the excursion is the point</b>: the
      *       frequency is a multiplier, so the highest of the ten shows the most of the cycle inside
-     *       one strip and every lower one is a fraction of the same curve - the same argument the
-     *       stride amplitude rests on. It is a caller's coinage, legitimate on the same terms as an
-     *       idle excursion: the harness answers the identical number, and
+     *       one strip and every lower one is a fraction of the same curve. The squid's stroke rate in
+     *       {@link #CLOCKS} is the draw this same id seeds, so the one choice sets both. It is a
+     *       caller's coinage, legitimate on the same terms as an idle excursion: the harness answers
+     *       the identical number, and
      *       {@code StyleCatalogMirrorTest} holds the two together.</li>
      * </ul>
      *
@@ -424,18 +536,6 @@ public final class StyleRoster {
      */
     public static @NotNull Set<String> driven() {
         return DRIVEN_FIELDS;
-    }
-
-    /**
-     * The figure one field sweeps, or empty for a field no figure drives.
-     *
-     * @param field the render-state field
-     * @return the figure
-     */
-    public static @NotNull Optional<Figure> figureOf(@NotNull String field) {
-        return FIGURES.stream()
-            .filter(figure -> figure.field().equals(field))
-            .findFirst();
     }
 
     /** The declared rests in the order this class documents them, which is the order they ship in. */

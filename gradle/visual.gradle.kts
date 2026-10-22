@@ -190,7 +190,7 @@ register<JavaExec>("entityParityVanilla") {
 }
 
 register<JavaExec>("entityAnimationParityVanilla") {
-    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the shared schedule against the harness idle references at cache/.../references/idle/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
+    description = "Per-entity animated parity report comparing the Java pipeline posed at each tick of the strip it derives, held to the harness's schedule sidecar, against the harness idle references at cache/.../references/idle/<entity>/frame_NNN.png. Writes per-frame vanilla/java/diff PNGs, a per-subject contact sheet and a TSV to cache/visual/entity-animation-parity-vanilla/. Run renderVanillaAnimationReferences first. -PentityId=minecraft:zombie"
     group = "visual"
     mainClass.set("lib.minecraft.renderer.sweep.EntityAnimationParitySweep")
     classpath = sourceSets["visual"].runtimeClasspath
@@ -201,11 +201,12 @@ register<JavaExec>("entityAnimationParityVanilla") {
 }
 
 register<JavaExec>("entityWalkParityVanilla") {
-    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with the stride driven on both sides, comparing the Java pipeline at the walk gait (asset.parity.gait=walk) against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
+    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with each subject walking at its own pace on both sides, comparing the Java pipeline at the walk gait (asset.parity.gait=walk) against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
     group = "visual"
-    // ONE driver and a gait property, never a second class: the subjects, the schedule, the naming
-    // and every artifact written are the same, so two copies could only ever differ in how they
-    // measured rather than in what they measured.
+    // ONE driver and a gait property, never a second class: the subjects, the checks, the naming
+    // and every artifact written are the same, and each subject's schedule is resolved by the same
+    // code, so two copies could only ever differ in how they measured rather than in what they
+    // measured.
     mainClass.set("lib.minecraft.renderer.sweep.EntityAnimationParitySweep")
     classpath = sourceSets["visual"].runtimeClasspath
     systemProperty("asset.parity.gait", "walk")

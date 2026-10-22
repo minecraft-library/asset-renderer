@@ -2,6 +2,9 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.tooling.animation.PoseJson;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
@@ -14,6 +17,7 @@ import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.interp.Interpreter;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -88,6 +93,17 @@ public final class EntityOverlayResolver {
 
     /** The caller label a stale eye-overlay factory coordinate is reported under. */
     private static final @NotNull String EYE_FACTORY = "the eye-overlay render type";
+
+    /** The render-state input an alpha lambda's float argument stands for - the age the frame is posed at. */
+    private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
+
+    /** The calls an alpha lambda may make, each to the pose grammar's own operator, keyed by owner, name and descriptor. */
+    private static final @NotNull Map<String, PoseOperator> ALPHA_INTRINSICS = Map.of(
+        SourceClasses.Types.MTH + ".cos(D)F", PoseOperator.MTH_COS,
+        SourceClasses.Types.MTH + ".sin(D)F", PoseOperator.MTH_SIN,
+        SourceClasses.Types.JAVA_MATH + ".max(FF)F", PoseOperator.MAX,
+        SourceClasses.Types.JAVA_MATH + ".min(FF)F", PoseOperator.MIN,
+        SourceClasses.Types.MTH + ".clamp(FFF)F", PoseOperator.CLAMP);
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -1094,13 +1110,39 @@ public final class EntityOverlayResolver {
     // ------------------------------------------------------------------------------------
 
     /**
+     * What a provider's alpha draws its pass at.
+     */
+    sealed interface Alpha {
+
+        /**
+         * An alpha that still reads a driven input once every other input is rested - the pass's
+         * opacity, evaluated per frame.
+         *
+         * @param expression the folded alpha, reading only inputs the tick drives
+         */
+        record Opacity(@NotNull PoseExpr expression) implements Alpha {}
+
+        /**
+         * An alpha the fold settles to a number, or one the walk cannot read, evaluated once at the
+         * frozen frame.
+         *
+         * @param value the alpha at the frozen frame
+         */
+        record Frozen(float value) implements Alpha {}
+
+    }
+
+    /**
      * The provider-driven emissive layer shape (warden, creaking, copper golem): the layer
      * ctor takes two {@code Function}-typed providers (texture + render type), a functional
      * alpha hook, and a model - detected by ctor descriptor, never by class name. Per
-     * allocation: the alpha provider evaluates at the frozen frame (a non-positive result
-     * drops the pass - the anti-phase spots, the creaking's glow-gated eyes); the texture
-     * provider resolves a static field or a state-driven dispatch (the weathering axis); the
-     * model argument picks same-geometry, full-mesh reuse, or the retain-subset registration.
+     * allocation: the alpha provider is folded into an opacity where it reads a driven input,
+     * which ships whatever it answers at the first frame (the anti-phase spots, the heart), and
+     * is otherwise evaluated at the frozen frame, a non-positive result dropping the pass (the
+     * creaking's glow-gated eyes); the texture provider resolves a static field or a state-driven
+     * dispatch (the weathering axis); the model argument picks same-geometry, full-mesh reuse, or
+     * the retain-subset registration - an opacity never the full-mesh reuse, which is exact only
+     * at full opacity.
      *
      * @return the emitted rows, or {@code null} when the site is not provider-shaped
      */
@@ -1144,8 +1186,10 @@ public final class EntityOverlayResolver {
             return List.of();
         }
 
-        float alpha = evaluateFrozenAlpha(providers.get(1));
-        if (alpha <= 0f) {
+        Alpha drawn = alphaOf(providers.get(1));
+        Optional<PoseExpr> opacity = drawn instanceof Alpha.Opacity follows ? Optional.of(follows.expression()) : Optional.empty();
+        float alpha = drawn instanceof Alpha.Frozen frozen ? frozen.value() : 1f;
+        if (opacity.isEmpty() && alpha <= 0f) {
             this.diagnostics.info("provider layer '%s' frozen-frame alpha 0 - pass drops", simpleName(site.layerClass()));
             return List.of();
         }
@@ -1168,9 +1212,10 @@ public final class EntityOverlayResolver {
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
                 .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted));
+            putOpacity(node, opacity, site);
             return List.of(node);
         }
-        if (alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
+        if (opacity.isEmpty() && alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
             // Full-opacity glow reuses the FAMILY mesh - exact because the glow texture is
             // transparent outside its retained parts (a deliberate policy call, not a fallback).
             node.putIf("geometry", this.geometryRef.primaryKey())
@@ -1194,11 +1239,35 @@ public final class EntityOverlayResolver {
         node.put("geometry", key)
             .put("texture", texture.path())
             .putIf("texture_by", texture.textureBy())
-            .putIf("pipeline", pipelineNode(emissive, blend, alpha, writesDepth, sorted))
-            .put("skip_bounds", true);
+            .putIf("pipeline", pipelineNode(emissive, blend, alpha, writesDepth, sorted));
+        putOpacity(node, opacity, site);
+        node.put("skip_bounds", true);
         JsonTree bones = node.childArray("retain_bones");
         for (String bone : retain) bones.add(bone);
         return List.of(node);
+    }
+
+    /**
+     * Writes a pass's opacity beside its pipeline, spelled self-contained in the pose table's
+     * grammar, and says which inputs it reads; a pass with none writes nothing.
+     */
+    private void putOpacity(
+        @NotNull JsonTree node, @NotNull Optional<PoseExpr> opacity, @NotNull EntityRendererResolver.LayerSite site) {
+
+        opacity.ifPresent(expression -> {
+            Set<String> inputs = new LinkedHashSet<>();
+            inputsOf(expression, inputs);
+            node.put("opacity", PoseJson.inline(expression));
+            this.diagnostics.info("provider layer '%s' index %d ships an opacity reading [%s]",
+                simpleName(site.layerClass()), site.layerIndex(), String.join(", ", inputs));
+        });
+    }
+
+    /** Collects every input an expression reads, in the order it reads them. */
+    private static void inputsOf(@NotNull PoseExpr expression, @NotNull Set<String> out) {
+        if (expression instanceof PoseExpr.Input input) out.add(input.field());
+        else if (expression instanceof PoseExpr.Op operation)
+            operation.operands().forEach(operand -> inputsOf(operand, out));
     }
 
     /**
@@ -1512,6 +1581,182 @@ public final class EntityOverlayResolver {
                 case Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> operand;
                 default -> null;
             };
+        }
+
+    }
+
+    /**
+     * What an alpha provider draws its pass at - the opacity its lambda folds to where it still reads
+     * a driven input, and its frozen-frame answer otherwise.
+     *
+     * <p>The fold is the pose's: the lambda is walked into an expression, every input outside
+     * {@link StyleRoster#DRIVEN} rests at the frozen frame, and the arithmetic over literals collapses
+     * at each operator's own width. An alpha left reading an input is the pass's opacity. Every other
+     * one - a constant, one reading only resting inputs, one the walk cannot read - is evaluated at
+     * the frozen frame, so no constant is ever sent through a second arithmetic.
+     *
+     * @param provider the alpha provider's lambda
+     * @return how the pass's alpha is drawn
+     */
+    @NotNull Alpha alphaOf(@NotNull Handle provider) {
+        Optional<PoseExpr> folded = alphaExpression(provider)
+            .map(expression -> rested(expression, EntityOverlayPolicies.FROZEN_FRAME.floatValue()));
+        if (folded.isPresent() && !(folded.get() instanceof PoseExpr.Constant))
+            return new Alpha.Opacity(folded.get());
+        return new Alpha.Frozen(evaluateFrozenAlpha(provider));
+    }
+
+    /**
+     * One expression with every input outside {@link StyleRoster#DRIVEN} rested at the frozen frame,
+     * rebuilt so each operation over literals alone folds to one.
+     */
+    private static @NotNull PoseExpr rested(@NotNull PoseExpr expression, float frozen) {
+        return switch (expression) {
+            case PoseExpr.Input input -> StyleRoster.DRIVEN.contains(input.field()) ? input : new PoseExpr.Constant(frozen);
+            case PoseExpr.Op operation -> PoseExpr.operation(operation.operator(), operation.operands().stream()
+                .map(operand -> rested(operand, frozen))
+                .toList());
+            default -> expression;
+        };
+    }
+
+    /**
+     * Walks an alpha-provider lambda into the expression it computes, over the render state and the
+     * age it is handed.
+     *
+     * <p>The lambda is {@code (state, ageInTicks)}, static, as vanilla compiles one. A float literal
+     * is a constant, the age argument the {@code ageInTicks} input, a float field read off the state
+     * that field's input; {@code fmul}, {@code fadd}, {@code fsub} and the width conversions are the
+     * pose grammar's operators, and so are {@code Mth.cos}, {@code Mth.sin}, {@code Math.max},
+     * {@code Math.min} and {@code Mth.clamp}. Anything else - a branch, any other call, any other
+     * load - answers empty, and so does a lambda of any other shape.
+     *
+     * @param alphaProvider the alpha provider's lambda
+     * @return the expression, or empty where the lambda is not one this reads
+     */
+    private @NotNull Optional<PoseExpr> alphaExpression(@NotNull Handle alphaProvider) {
+        ClassNode owner = this.cache.load(alphaProvider.getOwner());
+        MethodNode lambda = owner == null ? null
+            : ClassKit.findMethod(owner, alphaProvider.getName(), alphaProvider.getDesc());
+        if (lambda == null || (lambda.access & Opcodes.ACC_STATIC) == 0) return Optional.empty();
+        Type[] parameters = ClassKit.argTypes(lambda.desc);
+        if (parameters.length != 2 || parameters[0].getSort() != Type.OBJECT || parameters[1].getSort() != Type.FLOAT)
+            return Optional.empty();
+
+        Interpreter<Object> machine = Interpreter.of(new AlphaExpressionDomain(), Interpreter.OnUnknown.POISON,
+            Interpreter.Width.FLOAT_AS_FLOAT);
+        machine.store(0, AlphaExpressionDomain.Marker.STATE);
+        machine.store(1, new PoseExpr.Input(AGE_IN_TICKS));
+        // The machine owns the stack - the literal pushes, the two loads it holds the slots for, the
+        // fmul / fadd / fsub arithmetic and the width conversions all land in its step, a load of
+        // any other slot answering the unknown marker - before the dispatch below sees the node. The
+        // dispatch reads what the machine cannot: a field off the state, the five intrinsics and the
+        // return, and it answers empty on everything else.
+        Optional<PoseExpr> walked = AsmWalker.over(lambda)
+            .drive(machine)
+            .firstNotNull(in -> {
+                if (machine.poisoned()) return Optional.<PoseExpr>empty();
+                int op = in.getOpcode();
+                if (op < 0 || AsmWalker.floatLiteral(in) != null) return null;
+                switch (op) {
+                    case Opcodes.ALOAD -> {
+                        return machine.peek() == AlphaExpressionDomain.Marker.STATE ? null : Optional.<PoseExpr>empty();
+                    }
+                    case Opcodes.FLOAD, Opcodes.FMUL, Opcodes.FADD, Opcodes.FSUB,
+                         Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> {
+                        return machine.poisoned() || AlphaExpressionDomain.isMarker(machine.peek())
+                            ? Optional.<PoseExpr>empty() : null;
+                    }
+                    case Opcodes.GETFIELD -> {
+                        Object receiver = machine.pop();
+                        if (receiver != AlphaExpressionDomain.Marker.STATE || !(in instanceof FieldInsnNode read)
+                            || !"F".equals(read.desc)) return Optional.<PoseExpr>empty();
+                        machine.push(new PoseExpr.Input(read.name));
+                        return null;
+                    }
+                    case Opcodes.INVOKESTATIC -> {
+                        PoseOperator intrinsic = in instanceof MethodInsnNode call ? ALPHA_INTRINSICS.get(
+                            call.owner + '.' + call.name + call.desc) : null;
+                        if (intrinsic == null) return Optional.<PoseExpr>empty();
+                        List<PoseExpr> operands = new ArrayList<>();
+                        for (Object operand : machine.popArguments(intrinsic.arity())) {
+                            if (!(operand instanceof PoseExpr expression)) return Optional.<PoseExpr>empty();
+                            operands.add(expression);
+                        }
+                        machine.push(PoseExpr.operation(intrinsic, operands));
+                        return null;
+                    }
+                    case Opcodes.FRETURN -> {
+                        return machine.pop() instanceof PoseExpr returned ? Optional.of(returned) : Optional.<PoseExpr>empty();
+                    }
+                    default -> {
+                        return Optional.<PoseExpr>empty();
+                    }
+                }
+            });
+        return walked == null ? Optional.empty() : walked;
+    }
+
+    /**
+     * The alpha-expression value model: a float literal is a constant, the pose grammar's own
+     * arithmetic and width conversions build operations over expressions, and the state reference and
+     * every value the machine cannot model are markers no operation accepts - an operation reaching
+     * one is unmodelled, and the machine stops.
+     */
+    private static final class AlphaExpressionDomain implements Interpreter.Domain<Object> {
+
+        /** The two values that are not expressions - the render state, and whatever could not be modelled. */
+        enum Marker { STATE, UNKNOWN }
+
+        /**
+         * Whether a value is one of the markers rather than an expression.
+         *
+         * @param value the value
+         * @return {@code true} for a marker
+         */
+        static boolean isMarker(@NotNull Object value) {
+            return value instanceof Marker;
+        }
+
+        @Override
+        public @Nullable Object decode(@NotNull AbstractInsnNode node) {
+            Float constant = AsmWalker.floatLiteral(node);
+            return constant == null ? null : new PoseExpr.Constant(constant);
+        }
+
+        @Override
+        public @NotNull Object unknown() {
+            return Marker.UNKNOWN;
+        }
+
+        @Override
+        public @NotNull Object underflow() {
+            return Marker.UNKNOWN;
+        }
+
+        @Override
+        public @Nullable Object binary(int opcode, @NotNull Object left, @NotNull Object right) {
+            if (!(left instanceof PoseExpr leftExpression) || !(right instanceof PoseExpr rightExpression)) return null;
+            PoseOperator operator = switch (opcode) {
+                case Opcodes.FMUL -> PoseOperator.MUL;
+                case Opcodes.FADD -> PoseOperator.ADD;
+                case Opcodes.FSUB -> PoseOperator.SUB;
+                default -> null;
+            };
+            return operator == null ? null : PoseExpr.operation(operator, leftExpression, rightExpression);
+        }
+
+        @Override
+        public @Nullable Object unary(int opcode, @NotNull Object operand) {
+            if (!(operand instanceof PoseExpr expression)) return null;
+            PoseOperator operator = switch (opcode) {
+                case Opcodes.F2D -> PoseOperator.F2D;
+                case Opcodes.D2F -> PoseOperator.D2F;
+                case Opcodes.I2F -> PoseOperator.I2F;
+                case Opcodes.F2I -> PoseOperator.F2I;
+                default -> null;
+            };
+            return operator == null ? null : PoseExpr.operation(operator, expression);
         }
 
     }

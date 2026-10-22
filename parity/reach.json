@@ -5958,6 +5958,13 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/EntityScheduleRoster": {
+      "artifacts": [
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/GlintParitySweep": {
       "artifacts": [
         "sweep.glint"
@@ -6078,7 +6085,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/AgePace": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/AnimationValue": {
@@ -6100,7 +6109,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/EntityPace": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/InputDefaultResolver": {
@@ -6210,7 +6221,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/WalkPace": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/asm/ClassKit": {
@@ -6418,7 +6431,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityCeilingResolver": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityContext": {
@@ -6458,7 +6473,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityMovementSpeedResolver": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityNamingPolicies": {
@@ -6480,11 +6497,15 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityPacePolicies": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityPaceResolver": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityPoseClass": {
@@ -6578,7 +6599,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityWanderResolver": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/NoopRegistration": {
@@ -6588,7 +6611,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/PaceChain": {
-      "artifacts": [],
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/VariantBlockTable": {

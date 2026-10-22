@@ -554,7 +554,7 @@ manifest.visual and manifest.player-raw both take cache/visual as their source a
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
 
-Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest, ShippedTableCapacityTest and BoneRestRadianTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.
+Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest, ShippedTableCapacityTest, BoneRestRadianTest and EntityPaceJarTest - which holds the pace reads at every side the model table offers - do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.
 
 *Probe:* run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical
 
@@ -753,7 +753,7 @@ The pitch-roll, depth-quantum, pack-source and pack-icon sweeps refresh no refer
 ## B61 - The animated sweep poses every subject and writes idle/ alone
 
 - **mode** demote
-- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/AnimatedEntityFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java`
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/AnimatedEntityFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/ScheduleRoster.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/SubjectSchedule.java`
 - **sees** `sweep.entity-animation`, `sweep.entity-walk`, `manifest.references`
 - **blind** `manifest.player-raw`, `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`
 - **source** declared from the mode and from the write site: HarnessMode.resolve answers ANIMATION for this sweep and no other, and SweepRunner resolves every path as outputRoot / sweep.outputDir(), so a sub-tree written under the opposite mixin configuration is unreachable from here by construction rather than by measurement

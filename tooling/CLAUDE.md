@@ -210,6 +210,21 @@ root project.
   evaluated at one tick would emit a rate for a pass that swings and animate it wrongly at every tick
   but the first. The wrap the factory is handed carries a rate through unchanged, because it is the
   same wrap the renderer applies at the offset rather than a second operation.
+- **A layer alpha that reads a driven input ships as the overlay's `opacity`, an expression, never
+  as a number.** `EntityOverlayResolver` walks the alpha lambda into the pose grammar and folds it
+  against `StyleRoster.DRIVEN` as a pose is folded; what still reads an input - the warden's spots
+  on the age, its heart on its clock - is written self-contained by `PoseJson.inline` and kept
+  whatever it answers at the first frame, and the style flow drives every input it reads. A
+  constant, an alpha reading only resting inputs and one the walk cannot read keep the frozen-frame
+  number in `pipeline.alpha`.
+- **A stride walks at its subject's vanilla pace, and the pace is read, not declared.**
+  `EntityPaceResolver` joins the jar reads - the movement speed, the idle stroll, the walk feed, the
+  move control and the fastest behaviour - with the rows of `EntityPacePolicies` where the jar
+  cannot answer, into a wander and a ceiling per (entity, age). `StyleFlow` drives a stride side
+  whose sources read the walk clock at its wander - the swing held at its speed, the clock ramped at
+  its rate - and writes its ceiling, the fastest walk, as the row's `ceiling` member; a side reading
+  no walk clock keeps hold 1 / ramp 1 and carries none. A side reading the walk clock with no pace
+  stops the flow rather than shipping the literal pair.
 - **A renderer's `setupRotations` is a self-refusing walk of its own, not an extension of
   `PoseWalk`.** It reads ten statements against a closed grammar and refuses the whole body on
   anything outside it, where the pose walk follows both arms of everything it cannot decide - so the
@@ -314,6 +329,9 @@ illager and only the pillager hangs its arms. `EntityRestStateResolver` reads th
 **subject's** entity class - a renderer shared by several calls the accessor on the type they have in
 common, so reading the owner off the instruction gives every illager `AbstractIllager`'s
 unconditional `CROSSED`. Answering no constant at all drew three illagers with the wrong pair of arms.
+A field filled by a static helper handed the entity alone answers that helper's fall-through constant,
+read on the helper's own owner since a static does not dispatch - which rests the parrot `STANDING`
+off `ParrotModel.getPose`.
 
 **A question asked of a reference the render state holds rests at what that reference was built
 with, and `question_defaults` carries it**, keyed per MODEL for the reason `rest_defaults` is and
@@ -520,21 +538,21 @@ The pose walk keeps what the fold reads:
 
 `./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
 hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
-classes; seven walks read the real client jar - `EnumConstantTableTest`,
+classes; eight walks read the real client jar - `EnumConstantTableTest`,
 `KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest`, `GeometryParserTest`,
-`BoneRestRadianTest` and `EntityPaceJarTest`. The renderer's `check` schedules it as `toolingTest`,
-which is the name it had when this was a build of its own.
+`BoneRestRadianTest`, `EntityPaceJarTest` and `ClockRosterJarTest`. The renderer's `check` schedules
+it as `toolingTest`, which is the name it had when this was a build of its own.
 
 **A walk reads the jar the cache already holds and never downloads one.** Each gates on
 `ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
 has cached one, so the suite reaches no network and costs a stat rather than 25MB.
-`ClientJarGuardTest` is the one test that FAILS on an absent jar, because seven classes assuming
+`ClientJarGuardTest` is the one test that FAILS on an absent jar, because eight classes assuming
 away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
 naming only tooling classes fails on the renderer's own `test` and the other way round.
 
-**Four of those seven are the only pins holding the geometry table to the jar.**
+**Four of those eight are the only pins holding the geometry table to the jar.**
 `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
 `PoseWalkTest` hold class rosters the table's coordinates feed. Those three used to sit in a
 `slowTest` of their own that nothing scheduled - not `check`, not the renderer's `check`, not any

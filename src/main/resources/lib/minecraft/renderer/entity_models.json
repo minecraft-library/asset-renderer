@@ -42,14 +42,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.4444446
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.4444446
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -84,6 +88,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -96,14 +101,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.17268725
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.17268725
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.690749,
+            "rate": 0.690749
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.17268725
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.51806176
+            }
+          ],
+          "ceiling": {
+            "speed": 0.690749,
+            "rate": 2.072247
+          }
         },
         {
           "id": "roll_up",
@@ -273,7 +310,6 @@
           "age": "adult",
           "sources": [
             "tick",
-            "figure",
             "select"
           ],
           "drives": [
@@ -284,15 +320,34 @@
             },
             {
               "field": "movingFactor",
-              "wave": "sweep",
-              "rest": 0.0,
-              "extent": 1.0
+              "wave": "hold",
+              "extent": 0.0
             },
             {
               "field": "inWaterFactor",
               "wave": "hold",
               "extent": 1.0,
               "group": "axolotl"
+            }
+          ]
+        },
+        {
+          "id": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "idleUnderWaterAnimationState",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
             }
           ]
         },
@@ -315,6 +370,37 @@
               "field": "walkAnimationPos",
               "wave": "ramp",
               "extent": 1.0
+            },
+            {
+              "field": "movingFactor",
+              "wave": "hold",
+              "extent": 1.0
+            }
+          ]
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "swimAnimation",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "axolotl_clip"
             }
           ]
         },
@@ -338,7 +424,6 @@
           "age": "adult",
           "sources": [
             "tick",
-            "figure",
             "select"
           ],
           "drives": [
@@ -347,22 +432,6 @@
               "wave": "hold",
               "extent": 1.0,
               "group": "axolotl"
-            }
-          ]
-        },
-        {
-          "id": "swim",
-          "base": "idle",
-          "age": "baby",
-          "sources": [
-            "select"
-          ],
-          "drives": [
-            {
-              "field": "swimAnimation",
-              "wave": "hold",
-              "extent": 1.0,
-              "group": "axolotl_clip"
             }
           ]
         },
@@ -376,22 +445,6 @@
           "drives": [
             {
               "field": "idleUnderWaterOnGroundAnimationState",
-              "wave": "hold",
-              "extent": 1.0,
-              "group": "axolotl_clip"
-            }
-          ]
-        },
-        {
-          "id": "idle_under_water",
-          "base": "idle",
-          "age": "baby",
-          "sources": [
-            "select"
-          ],
-          "drives": [
-            {
-              "field": "idleUnderWaterAnimationState",
               "wave": "hold",
               "extent": 1.0,
               "group": "axolotl_clip"
@@ -660,14 +713,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -882,6 +939,7 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
           "sources": [
             "select",
             "stride"
@@ -890,14 +948,43 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.42819393
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.42819393
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "select",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.42819393
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.2845818
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         },
         {
           "id": "sit",
@@ -1022,14 +1109,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.42819393
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.42819393
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         },
         {
           "id": "sit",
@@ -1207,6 +1298,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -1219,14 +1311,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5074891
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5074891
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.5074891
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.5224673
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -1271,14 +1395,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5074891
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5074891
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -1328,6 +1456,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -1340,14 +1469,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.55066085
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.6519825
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -1457,14 +1618,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         },
         {
           "id": "interaction_get_item",
@@ -1575,6 +1740,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -1587,14 +1753,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.35242295
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0572689
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -1626,14 +1824,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         },
         {
           "id": "attack",
@@ -1759,14 +1961,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -1790,7 +1996,7 @@
       },
       "styles": [
         {
-          "id": "idle",
+          "id": "stride",
           "sources": [
             "tick",
             "select"
@@ -1802,22 +2008,6 @@
               "extent": 1.0
             },
             {
-              "field": "isMoving",
-              "wave": "hold",
-              "extent": 1.0,
-              "group": "dolphin"
-            }
-          ]
-        },
-        {
-          "id": "stride",
-          "base": "idle",
-          "sources": [
-            "tick",
-            "select"
-          ],
-          "drives": [
-            {
               "field": "walkAnimationSpeed",
               "wave": "hold",
               "extent": 1.0
@@ -1826,6 +2016,12 @@
               "field": "walkAnimationPos",
               "wave": "ramp",
               "extent": 1.0
+            },
+            {
+              "field": "isMoving",
+              "wave": "hold",
+              "extent": 1.0,
+              "group": "dolphin"
             }
           ]
         }
@@ -1868,6 +2064,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -1880,14 +2077,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.13221367
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.13221367
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.42159972,
+            "rate": 0.42159972
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.13221367
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.39664102
+            }
+          ],
+          "ceiling": {
+            "speed": 0.42159972,
+            "rate": 1.2647991
+          }
         }
       ]
     },
@@ -1973,6 +2202,32 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.46607938
+            }
+          ],
+          "ceiling": {
+            "speed": 0.46607938,
+            "rate": 0.46607938
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
           "sources": [
             "tick",
             "stride"
@@ -1986,9 +2241,13 @@
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 3.0
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -2009,12 +2268,23 @@
         {
           "id": "idle",
           "sources": [
-            "tick"
+            "tick",
+            "figure"
           ],
           "drives": [
             {
               "field": "ageInTicks",
               "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "tailAnimation",
+              "wave": "ramp",
+              "extent": 0.125
+            },
+            {
+              "field": "spikesAnimation",
+              "wave": "hold",
               "extent": 1.0
             }
           ]
@@ -2023,7 +2293,8 @@
           "id": "stride",
           "base": "idle",
           "sources": [
-            "tick"
+            "tick",
+            "figure"
           ],
           "drives": [
             {
@@ -2035,6 +2306,16 @@
               "field": "walkAnimationPos",
               "wave": "ramp",
               "extent": 1.0
+            },
+            {
+              "field": "tailAnimation",
+              "wave": "ramp",
+              "extent": 0.5
+            },
+            {
+              "field": "spikesAnimation",
+              "wave": "hold",
+              "extent": 0.0
             }
           ]
         }
@@ -2130,14 +2411,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -2228,9 +2513,8 @@
             },
             {
               "field": "flapTime",
-              "wave": "cycle",
-              "rest": 0.0,
-              "extent": 1.0
+              "wave": "ramp",
+              "extent": 0.1
             }
           ]
         },
@@ -2283,14 +2567,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -2315,6 +2603,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -2327,14 +2616,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.7929517
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 2.3788552
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -2388,14 +2709,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5506609
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5506609
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         },
         {
           "id": "jump",
@@ -2654,14 +2979,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.46607938
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.46607938
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.46607938,
+            "rate": 0.46607938
+          }
         }
       ]
     },
@@ -2701,9 +3030,10 @@
             },
             {
               "field": "tentacleAngle",
-              "wave": "sweep",
+              "wave": "stroke",
               "rest": 0.0,
-              "extent": 0.7853982
+              "extent": 0.7853982,
+              "rate": 0.11559614
             }
           ]
         },
@@ -2749,6 +3079,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -2761,14 +3092,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.35242295
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0572689
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -2789,12 +3152,23 @@
         {
           "id": "idle",
           "sources": [
-            "tick"
+            "tick",
+            "figure"
           ],
           "drives": [
             {
               "field": "ageInTicks",
               "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "tailAnimation",
+              "wave": "ramp",
+              "extent": 0.125
+            },
+            {
+              "field": "spikesAnimation",
+              "wave": "hold",
               "extent": 1.0
             }
           ]
@@ -2803,7 +3177,8 @@
           "id": "stride",
           "base": "idle",
           "sources": [
-            "tick"
+            "tick",
+            "figure"
           ],
           "drives": [
             {
@@ -2815,6 +3190,16 @@
               "field": "walkAnimationPos",
               "wave": "ramp",
               "extent": 1.0
+            },
+            {
+              "field": "tailAnimation",
+              "wave": "ramp",
+              "extent": 0.5
+            },
+            {
+              "field": "spikesAnimation",
+              "wave": "hold",
+              "extent": 0.0
             }
           ]
         }
@@ -2845,6 +3230,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -2857,14 +3243,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.12687227
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.12687227
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.12687227
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.3806168
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -2996,6 +3414,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3008,14 +3427,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.2185573
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.2185573
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.69693017,
+            "rate": 0.69693017
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.2185573
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.6556719
+            }
+          ],
+          "ceiling": {
+            "speed": 0.69693017,
+            "rate": 2.0907905
+          }
         }
       ]
     },
@@ -3087,6 +3538,32 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.46607938
+            }
+          ],
+          "ceiling": {
+            "speed": 0.46607938,
+            "rate": 0.46607938
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
           "sources": [
             "tick",
             "stride"
@@ -3100,9 +3577,13 @@
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 3.0
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -3134,14 +3615,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -3239,14 +3724,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.19823793
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.19823793
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.55066085,
+            "rate": 0.55066085
+          }
         }
       ]
     },
@@ -3332,6 +3821,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3344,14 +3834,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.13221367
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.13221367
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.13221367
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.39664102
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -3535,6 +4057,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3547,14 +4070,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.35242295
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0572689
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -3595,6 +4150,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3607,14 +4163,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.13221367
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.13221367
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.42159972,
+            "rate": 0.42159972
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.13221367
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.39664102
+            }
+          ],
+          "ceiling": {
+            "speed": 0.42159972,
+            "rate": 1.2647991
+          }
         }
       ]
     },
@@ -3681,6 +4269,7 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
           "sources": [
             "tick",
             "stride"
@@ -3689,14 +4278,43 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.44
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.44
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.44
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.3199999
+            }
+          ],
+          "ceiling": {
+            "speed": 0.704,
+            "rate": 2.112
+          }
         }
       ]
     },
@@ -3721,6 +4339,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3733,14 +4352,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5074891
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5074891
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.5074891
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.5224673
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -3817,6 +4468,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -3829,14 +4481,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.19823793
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.19823793
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.19823793
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.5947138
+            }
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 2.3788552
+          }
         }
       ]
     },
@@ -3891,14 +4575,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -3930,14 +4618,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.35242295
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.35242295
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.55066085,
+            "rate": 0.55066085
+          }
         }
       ]
     },
@@ -4061,6 +4753,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -4073,14 +4766,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.8604076,
+            "rate": 0.8604076
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.55066085
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.6519825
+            }
+          ],
+          "ceiling": {
+            "speed": 0.8604076,
+            "rate": 2.5812228
+          }
         }
       ]
     },
@@ -4148,6 +4873,7 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
           "sources": [
             "tick",
             "stride"
@@ -4156,14 +4882,43 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.38854635
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.38854635
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.5595067
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.6785202
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -4223,14 +4978,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.38854635
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.38854635
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -4262,14 +5021,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.3885463
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.3885463
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -4294,6 +5057,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -4306,14 +5070,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.55066085
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.6519825
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -4523,14 +5319,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.12687226
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.12687226
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -4651,6 +5451,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -4663,14 +5464,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.46607938
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.46607938
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.72824895,
+            "rate": 0.72824895
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.3982382
+            }
+          ],
+          "ceiling": {
+            "speed": 0.72824895,
+            "rate": 2.1847467
+          }
         }
       ]
     },
@@ -4691,7 +5524,6 @@
         {
           "id": "idle",
           "sources": [
-            "tick",
             "figure"
           ],
           "drives": [
@@ -4702,9 +5534,13 @@
             },
             {
               "field": "peekAmount",
-              "wave": "sweep",
+              "wave": "trapezoid",
               "rest": 0.0,
-              "extent": 1.0
+              "extent": 0.29999998,
+              "rise": 6,
+              "dwell": 14,
+              "fall": 6,
+              "gap": 0
             }
           ]
         },
@@ -4712,7 +5548,6 @@
           "id": "stride",
           "base": "idle",
           "sources": [
-            "tick",
             "figure"
           ],
           "drives": [
@@ -4833,14 +5668,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -4897,6 +5736,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -4909,14 +5749,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.17268725
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.17268725
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.5074891,
+            "rate": 0.5074891
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.17268725
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.51806176
+            }
+          ],
+          "ceiling": {
+            "speed": 0.35242295,
+            "rate": 1.0572689
+          }
         }
       ]
     },
@@ -4981,6 +5853,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -4993,14 +5866,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.08810574
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.08810574
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.35242295,
+            "rate": 0.35242295
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.08810574
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.2643172
+            }
+          ],
+          "ceiling": {
+            "speed": 0.35242295,
+            "rate": 1.0572689
+          }
         },
         {
           "id": "digging",
@@ -5188,14 +6093,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5074891
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5074891
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -5235,9 +6144,10 @@
             },
             {
               "field": "tentacleAngle",
-              "wave": "sweep",
+              "wave": "stroke",
               "rest": 0.0,
-              "extent": 0.7853982
+              "extent": 0.7853982,
+              "rate": 0.11559614
             }
           ]
         },
@@ -5328,14 +6238,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -5387,6 +6301,7 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
           "sources": [
             "tick",
             "stride"
@@ -5395,14 +6310,43 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.26982382
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.26982382
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.73459536,
+            "rate": 0.73459536
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.26982382
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.8094715
+            }
+          ],
+          "ceiling": {
+            "speed": 0.73459536,
+            "rate": 2.2037861
+          }
         }
       ]
     },
@@ -5549,6 +6493,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -5561,14 +6506,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.13221367
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.13221367
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.13221367
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.39664102
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -5682,6 +6659,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -5694,14 +6672,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.405
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.405
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.33499998
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.0049999
+            }
+          ],
+          "ceiling": {
+            "speed": 0.36,
+            "rate": 1.08
+          }
         }
       ]
     },
@@ -5806,6 +6816,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -5818,14 +6829,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.55066085
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.6519825
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -5857,14 +6900,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.3885463
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.3885463
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -5874,6 +6921,11 @@
         "age": {
           "options": {
             "adult": {
+              "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
+              "pose": "VillagerModel",
+              "texture": "wandering_trader/wandering_trader"
+            },
+            "baby": {
               "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
               "pose": "VillagerModel",
               "texture": "wandering_trader/wandering_trader"
@@ -5888,6 +6940,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -5900,14 +6953,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.5288547
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.5288547
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.5288547
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 1.5865642
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -5944,9 +7029,106 @@
           "texture": "warden/warden_pulsating_spots_1",
           "pipeline": {
             "blend": "translucent",
-            "alpha": 0.25,
             "depth_write": false,
             "sorted": true
+          },
+          "opacity": {
+            "max": [
+              {
+                "const": 0.0
+              },
+              {
+                "mul": [
+                  {
+                    "mth_cos": [
+                      {
+                        "f2d": [
+                          {
+                            "mul": [
+                              {
+                                "input": "ageInTicks"
+                              },
+                              {
+                                "const": 0.045
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.25
+                  }
+                ]
+              }
+            ]
+          },
+          "skip_bounds": true
+        },
+        {
+          "source": "LivingEntityEmissiveLayer",
+          "layer_index": 2,
+          "geometry": "WardenModel#createPulsatingSpotsLayer",
+          "texture": "warden/warden_pulsating_spots_2",
+          "pipeline": {
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
+          },
+          "opacity": {
+            "max": [
+              {
+                "const": 0.0
+              },
+              {
+                "mul": [
+                  {
+                    "mth_cos": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "mul": [
+                                  {
+                                    "input": "ageInTicks"
+                                  },
+                                  {
+                                    "const": 0.045
+                                  }
+                                ]
+                              },
+                              {
+                                "const": 3.1415927
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "const": 0.25
+                  }
+                ]
+              }
+            ]
+          },
+          "skip_bounds": true
+        },
+        {
+          "source": "LivingEntityEmissiveLayer",
+          "layer_index": 4,
+          "geometry": "WardenModel#createHeartLayer",
+          "texture": "warden/warden_heart",
+          "pipeline": {
+            "blend": "translucent",
+            "depth_write": false,
+            "sorted": true
+          },
+          "opacity": {
+            "input": "heartAnimation"
           },
           "skip_bounds": true
         }
@@ -5955,13 +7137,24 @@
         {
           "id": "idle",
           "sources": [
-            "tick"
+            "tick",
+            "figure"
           ],
           "drives": [
             {
               "field": "ageInTicks",
               "wave": "ramp",
               "extent": 1.0
+            },
+            {
+              "field": "heartAnimation",
+              "wave": "trapezoid",
+              "rest": 0.0,
+              "extent": 1.0,
+              "rise": 0,
+              "dwell": 0,
+              "fall": 10,
+              "gap": 30
             }
           ]
         },
@@ -5970,26 +7163,32 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "stride"
           ],
           "drives": [
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.19823793
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.19823793
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         },
         {
           "id": "attack",
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6006,6 +7205,7 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6022,6 +7222,7 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6038,6 +7239,7 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6054,6 +7256,7 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6070,6 +7273,7 @@
           "base": "idle",
           "sources": [
             "tick",
+            "figure",
             "select"
           ],
           "drives": [
@@ -6121,14 +7325,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.6071035,
+            "rate": 0.6071035
+          }
         }
       ]
     },
@@ -6252,14 +7460,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.55066085
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.55066085
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
         }
       ]
     },
@@ -6402,6 +7614,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -6414,14 +7627,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.7929517
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.7929517
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.7929517
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 2.3788552
+            }
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -6450,6 +7695,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -6462,14 +7708,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.12687227
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.12687227
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 0.7929517
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.12687227
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.3806168
+            }
+          ],
+          "ceiling": {
+            "speed": 0.7929517,
+            "rate": 2.3788552
+          }
         }
       ]
     },
@@ -6540,6 +7818,32 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.46607938
+            }
+          ],
+          "ceiling": {
+            "speed": 0.46607938,
+            "rate": 0.46607938
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
           "sources": [
             "tick",
             "stride"
@@ -6553,9 +7857,13 @@
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 3.0
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -6612,6 +7920,7 @@
       "styles": [
         {
           "id": "stride",
+          "age": "adult",
           "sources": [
             "stride"
           ],
@@ -6624,14 +7933,46 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.26777974
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.26777974
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 0.8538894,
+            "rate": 0.8538894
+          }
+        },
+        {
+          "id": "stride",
+          "age": "baby",
+          "sources": [
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "ageInTicks",
+              "wave": "ramp",
+              "extent": 1.0
+            },
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.26777974
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.80333924
+            }
+          ],
+          "ceiling": {
+            "speed": 0.8538894,
+            "rate": 2.5616682
+          }
         }
       ]
     },
@@ -6719,14 +8060,18 @@
             {
               "field": "walkAnimationSpeed",
               "wave": "hold",
-              "extent": 1.0
+              "extent": 0.484
             },
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 0.484
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 1.0
+          }
         }
       ]
     },
@@ -6825,6 +8170,32 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.46607938
+            }
+          ],
+          "ceiling": {
+            "speed": 0.46607938,
+            "rate": 0.46607938
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
           "sources": [
             "tick",
             "stride"
@@ -6838,9 +8209,13 @@
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 3.0
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     },
@@ -6908,6 +8283,32 @@
         {
           "id": "stride",
           "base": "idle",
+          "age": "adult",
+          "sources": [
+            "tick",
+            "stride"
+          ],
+          "drives": [
+            {
+              "field": "walkAnimationSpeed",
+              "wave": "hold",
+              "extent": 0.46607938
+            },
+            {
+              "field": "walkAnimationPos",
+              "wave": "ramp",
+              "extent": 0.46607938
+            }
+          ],
+          "ceiling": {
+            "speed": 0.690749,
+            "rate": 0.690749
+          }
+        },
+        {
+          "id": "stride",
+          "base": "idle",
+          "age": "baby",
           "sources": [
             "tick",
             "stride"
@@ -6921,9 +8322,13 @@
             {
               "field": "walkAnimationPos",
               "wave": "ramp",
-              "extent": 1.0
+              "extent": 3.0
             }
-          ]
+          ],
+          "ceiling": {
+            "speed": 1.0,
+            "rate": 3.0
+          }
         }
       ]
     }

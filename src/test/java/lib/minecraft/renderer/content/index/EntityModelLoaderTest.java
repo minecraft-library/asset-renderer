@@ -327,7 +327,7 @@ class EntityModelLoaderTest {
             babyPasses.getFirst().tintBy(), is(Optional.of(TintAxis.WOOL)));
 
         assertThat("a family with no baby mesh at all carries no baby form",
-            defs.get("minecraft:wandering_trader").axes().baby(), is(Optional.empty()));
+            defs.get("minecraft:creeper").axes().baby(), is(Optional.empty()));
     }
 
     @Test

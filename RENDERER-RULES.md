@@ -711,20 +711,23 @@ does with them.
 drivers in force.** A pose is a function of what the caller says about the subject, so naming a row
 is naming the figures that stop resting - it is not a second mechanism, and every row goes through
 `PosePlayer` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
-on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the amplitude
-once a tick rather than deriving it from the clock, so the phase is the tick times the amplitude and
-a caller setting one without the other has described no gait. The amplitude is the full one, vanilla
-clamping what it accumulates to one. `animated` resolves to the first shipped row the subject's
-in-force inventory moves, so a caller asking for movement names no mechanism - and a subject nothing
-moves answers `bind` and stays a single frame. The universal ids are a coinage rather than
-vanilla's - vanilla carries `walkAnimationPos` and `walkAnimationSpeed` and no `stride` constant -
-and an entity's own ids ship in its catalog beside them.
+on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the speed once
+a tick rather than deriving it from the clock, so the phase is the tick times the speed, and a caller
+setting one without the other has described no gait. The speed is the subject's own ambling wander
+pace and it is the swing's amplitude as well as the phase's rate; a baby's walk clock runs three
+times as fast as its speed, which vanilla applies as a position scale and the table ships as the baby
+row's ramp extent, so no renderer code holds the three. `animated` resolves to the first shipped row
+the subject's in-force inventory moves, so a caller asking for movement names no mechanism - and a
+subject nothing moves answers `bind` and stays a single frame. The universal ids are a coinage
+rather than vanilla's - vanilla carries `walkAnimationPos` and `walkAnimationSpeed` and no `stride`
+constant - and an entity's own ids ship in its catalog beside them.
 
 **`stride` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
-figures at the same amplitude under `-Drefharness.walking=true`, which is the animated run with a
-stride rather than a run of its own - `AnimationClock.WALK_AMPLITUDE` and the shipped stride extent
-are held to one another by `StyleCatalogMirrorTest`, because the amplitude is the phase as well as
-the speed and a value that moved on one side puts the two at different points of different strides.
+figures at the speed and rate the asset side resolves for each subject - the roster
+`entityScheduleRoster` writes from `StyleResolution` - under `-Drefharness.walking=true`, which is the
+animated run with a stride rather than a run of its own. `StyleCatalogMirrorTest` holds the harness to
+arming what the roster names and nothing of its own, because the speed is the swing as well as the
+phase and a value that moved on one side puts the two at different points of different strides.
 `entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver at
 `asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
 divergence in how they were measured.
@@ -934,18 +937,26 @@ is nothing a caller can leave out and be wrong about. That is what
 `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone read,
 an operation and a choice, and a choice turns on a numeric comparison alone.
 
-**The roster is elapsed age, the stride pair, and what a never-ticked subject leaves at zero.** The
-last of those is the one that grows, and it ships as catalog drivers: a swept scalar is a
-`StyleDriver` at `sweep` or `cycle`, moved from the rest it names to the extent it reaches across
-one strip, its decimals shipped; a one-hot selection is a `hold` driver on the row that selects it,
-whose field answers one while every other member's rests at zero. They are two wave shapes rather
-than two mechanisms, and what they share is that the resolved row's driver map answers both by
-render-state field name.
+**The roster is elapsed age, the stride pair, the clocks a plain IDLE or WALK advances, and the
+selections a subject rests in.** Each ships as a catalog driver: elapsed age is a `ramp`; the stride
+pair a `hold` and a `ramp` at the subject's own pace; a clock - a field vanilla's own tick advances
+while the subject stands or walks, such as a guardian's tail and spikes, a dragon's wings, a squid's
+tentacles, a shulker's lid, an axolotl's swim blend and a warden's heart - a `hold`, `ramp`, `stroke`
+or `trapezoid` per gait, the stride row spelling its half where it differs from the idle row's; and a
+one-hot selection a `hold` on the row that selects it, whose field answers one while every other
+member's rests at zero. A `sweep` or `cycle` moves a field from the rest it names to its extent
+across one figure period, which authored styles use and no shipped row does. They are wave shapes
+rather than mechanisms, and what they share is that the resolved row's driver map answers each by
+render-state field name. A motion vanilla starts at random or on an event - a slime's hop, a horse's
+tail flick - is no clock and is not drawn.
 
-- **A figure's excursion runs from rest, so tick zero is free.** Frame 0 of a strip, every authored
-  render and every frozen reference answer exactly what they answered before the figure was driven.
-  **A selection has no such property** and does not need one: `bind` hands back the mesh it was given
-  and every still sweep renders there, so the animated sweep is the only gate a selection reaches.
+- **A `sweep` or `cycle` runs from rest, so tick zero is free for them; a clock need not.** Frame 0
+  of an authored strip driving only those answers what the mesh answered before the figure was
+  driven. A clock answers vanilla's settled state for the gait from its first tick - a held level, or
+  a beat already lit - so frame 0 of a posed strip is not the bind frame for a subject that carries
+  one. **A selection has no such property either**, and neither needs one: `bind` hands back the mesh
+  it was given and every still sweep renders there, so the posed sweeps are the only gates a clock or
+  a selection reaches.
 - **A boolean render-state field is a figure of this kind, not a flag.** A flag is a bone's
   visibility, which folds to a literal at generation; a boolean the walk keeps symbolic arrives as a
   number wherever the body reads it, and a body that branches on one leaves a select comparing that
@@ -985,15 +996,11 @@ render-state field name.
 - **An age whose group rests on a member driving no field ships no `idle` row, and resolving one
   through the universal row is the answer rather than a gap.** A group's idle default earns the
   standing row and no row of its own, so a default naming a field builds one and a default naming
-  none leaves the age without an `idle` to resolve. The axolotl is the only entity this can reach,
-  being the only one of the corpus shipping an age-scoped row at all: its adult group rests on
-  `IN_WATER` and derives an adult `idle`, where its baby group rests on `BABY_AXOLOTL_STILL`, which
-  names no field because a resting baby plays no clip. So `resolve("idle", <baby>)` falls through to
-  the universal standing row and renders the mesh as authored - which is what vanilla draws for the
-  same subject, measured at `0.0000` on both the still and the animated sweep, against `0.0647` and
-  `0.0208` for the adult beside it. Deriving a row there instead would emit one that drives nothing,
-  which is the shape the emitter already declines. The age axis itself is much wider than this - 41
-  of the 90 entities carry a baby form - and only the style ROW's `age` member is the axolotl's alone.
+  none leaves the age without an `idle` to resolve; the universal standing row then renders the mesh
+  as authored, which is what vanilla draws for a resting subject. Deriving a row there instead would
+  emit one that drives nothing, which is the shape the emitter already declines. The age axis is much
+  wider than the axolotl: every entity whose baby walks at a pace of its own ships its `stride` split
+  by age, so a row's `age` member is an ordinary column.
 - **A value-constant clip is half of what earns `sources: []`, never the whole of it.** A row ships
   an empty source inventory when nothing travels across its whole composed binding, which needs the
   clip it selects to hold one value per channel AND the binding to leave no moving sibling
@@ -1022,16 +1029,19 @@ render-state field name.
   the `croak` appearance - which is the same pair an armour stand's arms already take.
 - **The roster ships once, and the contract copies are held to the shipped file.** The generator's
   `StyleRoster.DRIVEN` / `DRIVEN_FIGURES` are derivation input: what they split is emitted as the
-  style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps its
-  deliberate copy in `IdleFigures` - pinned against the shipped rows, field for field and bit for
-  bit, by `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and
-  reports as a defect in this renderer. Generator drift is silent a different way: **a field the
-  roster names and the generator folds ships the arm a never-ticked subject takes whatever a caller
-  selects**, which is what cost the rabbit's head 55.73 of delta - and a field kept symbolic that
-  no shipped row drives reads zero at every tick. `EntityPoseLoadTest` pins that the shipped poses
-  read nothing outside the driven set, because that failure mode is a silent zero: the arm a switch
-  ends at is not the arm a subject stands in, and it cost the skeleton family a forty-four degree
-  forward swing at rest before the fold reached it.
+  style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps a deliberate
+  copy of each group's per-gait default in `IdleFigures`, pinned against the shipped rows by
+  `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and reports as
+  a defect in this renderer. The harness reads every clock as the value the schedule roster carries
+  for each frame - computed by `StyleDriver.at` on this side, so a clock has one implementation and
+  no copy; the mirror holds instead that every clock a shipped row drives has a harness consumer
+  writing it. Generator drift is silent a different way: **a field the roster names and the
+  generator folds ships the arm a never-ticked subject takes whatever a caller selects**, which is
+  what cost the rabbit's head 55.73 of delta - and a field kept symbolic that no shipped row drives
+  reads zero at every tick. `EntityPoseLoadTest` pins that the shipped poses read nothing outside
+  the driven set, because that failure mode is a silent zero: the arm a switch ends at is not the
+  arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at rest
+  before the fold reached it.
 
 **Nothing at render reads a flag channel.** Every flag in the corpus folds to a literal at
 generation, so which bones a subject rests without is written onto the mesh it rests in - a bone
@@ -1043,9 +1053,10 @@ four legs `true` - before any branch, leaving only `setSleepingPose` behind an `
 rests false.
 
 **The ground truth for a posed subject is `idle/`, and it is a second reference set rather than
-a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row over the same
-schedule the harness stepped - `EntityAnimationSweep`'s `START_TICK`, `FRAME_COUNT` and
-`TICKS_PER_FRAME` are pinned on both sides - and diffs frame by frame. It is the only gate that can
+a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row naming no
+frame count, so it draws the strip `StyleResolution` answers, and the harness steps the same subject
+over the schedule the roster carries from that same resolution, both from tick zero - and it diffs
+frame by frame. It is the only gate that can
 see the pose table at all: everything else compares the mesh as authored, where both sides freeze and
 agree by construction. Two thirds of the corpus lands under `0.25` there, which is the still sweep's
 own bar; what the rest names is listed by the sweep and is a divergence per subject rather than a
@@ -1061,7 +1072,18 @@ a row whose motion is too small to see is one frame. It is worked out the first 
 in a process and held for the process, so shipped, universal and authored rows take one derivation
 and the table ships no frame count. Named alone, a frame count keeps the row's step and a step fills
 as many frames as cover the loop; named together, both are the caller's. `PoseStripsCorpusTest` pins
-every shipped row's strip at each age, in-force gate set and axis form whose pose program differs.
+every shipped row's strip at each age, in-force gate set, axis form whose pose program differs and
+posed trait subject.
+
+**A pass's opacity may follow the clock.** Where the layer vanilla draws scales its colour by a
+function of the render state, the overlay row ships that function as its `opacity`, evaluated at
+every posed frame through the frame the bone channels read - so a warden's spots pulse and its heart
+beats on the ticks the pose is drawn at. A bind render evaluates it with nothing driven, which is the
+frame a never-ticked subject draws. A frame whose opacity is at most `1.0E-5` - where vanilla's own
+layer skips its draw - draws no fragment of the pass and measures none of its silhouette. The strip
+samples the opacity as it draws it, so a pulse longer than the pose's loop lengthens the strip until
+the pulse is shown whole once; where the strip restarts is judged on the body alone, and the glow may
+jump there.
 
 **The canvas is a union of silhouettes, each measured over the frames its own render draws.** The
 subject is measured across every frame of the render's schedule, each through its own posed mesh and
@@ -1306,28 +1328,29 @@ Renderer-wide:
   An undecoded special-model field changes only what a malformed definition does, which loads here
   where vanilla refuses it.
 - **Do not derive a style row's `age` from which fields a form's pose reads, and do not remove the
-  member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
-  generated row, which reads as one subject's special case sitting in general code - but the member
-  carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
-  hand-authored pose, defaulting every custom style to the adult alone because an install weaves a
-  style whose age admits a baby onto the baby form too, and a baby mesh can lack a bone its adult
-  declares, which refuses a strict install. So `AppearanceOptions.applies`
-  and the filters in `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated
-  rows do, and what is actually the axolotl's is the emitted column, the two roster strings and the
-  loader's parse of them.
-  Deriving it is also not available on its own terms: applicability follows from the group-member
-  fields a form's pose reads for eight of the axolotl's nine rows, and `stride` drives the universal
-  walk pair that NEITHER axolotl pose reads, so no overlap rule answers `adult` for it.
+  member from the rows that carry it.** Every entity whose baby walks at a pace of its own - 35 of
+  them - ships its `stride` split by age, and the axolotl splits its `idle`, `stride` and `play_dead`
+  by what each age's model reads; but the member carries a second thing that has nothing to do with
+  either. `PoseBuilder.age` / `allAges` scope a hand-authored pose, defaulting every custom style to
+  the adult alone because an install weaves a style whose age admits a baby onto the baby form too,
+  and a baby mesh can lack a bone its adult declares, which refuses a strict install - and a style
+  that keeps the stride and spans both ages installs as an adult row and a baby row, each walking at
+  its own age's pace, which makes authored rows the column's second producer. So
+  `AppearanceOptions.applies` and the filters in `adultRow`, `inForce` and `carries` stay
+  load-bearing whatever the generated rows do, and what is the axolotl's alone is the two roster
+  strings that cross-check its split.
+  Deriving it is also not available on its own terms: the two sides of a paced stride drive the same
+  fields - the walk pair, at two paces - and every form of the subject reads them, so no rule over
+  which fields a pose reads tells the baby's row from its adult's.
 
   **And the emitted column is already derived, which is the whole of why there is nothing to move.**
   `StyleFlow` measures every row of a subject carrying a baby form TWICE, once per age side and each
   against that side's own meshes, and emits an age-split pair only where the two sides measure apart -
-  in what they source, or in whether they render apart from their base at all. The roster's declared
-  age is a cross-check against what the entity's forms say rather than the column's source. So the
-  column records a measurement over meshes, clips, pose programs and evaluated channel series, and a
-  loader re-deriving it from the shipped drives would be answering the same question from strictly
-  less. `stride` is what that costs: its two sides measured apart, which no rule over driven fields
-  can see.
+  in what they source, in the drives they carry, or in whether they render apart from their base at
+  all. The roster's declared age is a cross-check against what the entity's forms say rather than the
+  column's source. So the column records a measurement over meshes, clips, pose programs, paces and
+  evaluated channel series, and a loader re-deriving it from the shipped drives would be answering
+  the same question from strictly less.
 - **Do not drop the axolotl's adult `play_dead` row, and do not widen the baby one over both ages.**
   Vanilla gates playing dead on no age at all - `PlayDead.checkExtraStartConditions` is
   `return axolotl.isInWater();`, the arming site sets `PLAY_DEAD_TICKS` without reading an age, and

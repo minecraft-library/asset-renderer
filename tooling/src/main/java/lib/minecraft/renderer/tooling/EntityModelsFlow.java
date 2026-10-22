@@ -5,9 +5,11 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.EntityPace;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.animation.RestStrip;
 import lib.minecraft.renderer.tooling.animation.StyleFlow;
+import lib.minecraft.renderer.tooling.entity.EntityPaceResolver;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistration;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
@@ -111,11 +113,16 @@ public final class EntityModelsFlow {
             // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
             // deriving before either would leave behind on a mesh nobody then draws.
             EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries, manifest);
+            // Each subject's ambling and fastest walk, by age, read off the jar - after the registry
+            // walk has written every age a subject offers, and logged beside the style lines that
+            // drive the strides with them.
+            Map<String, EntityPace> paces = EntityPaceResolver.resolve(session, subjects, root.child("models"),
+                session.diagnostics().child("styles").child("pace"));
             // The style catalog is derived over the table as it finally stands - the explicit pose
             // keys, the minted overlay meshes and the settled no-hat alternates are its join - so
             // it runs after every mesh surgery and ahead of the write.
             StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
-                posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS);
+                posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS, paces);
             GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"));
             TableWriter.write(session, root, "entity_models.json");
             StrictGate.apply(session);

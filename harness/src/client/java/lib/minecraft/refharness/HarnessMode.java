@@ -13,6 +13,7 @@ import lib.minecraft.refharness.sweep.PackIconSweep;
 import lib.minecraft.refharness.sweep.PackSourceSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
+import lib.minecraft.refharness.sweep.ScheduleRoster;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -50,19 +51,21 @@ public enum HarnessMode {
     /** Only the container-screen references. */
     MENUS,
     /**
-     * Only the animated entity references, with vanilla's own animation running.
+     * Only the animated entity references, with vanilla's own animation running, written to
+     * {@code idle/}.
      *
-     * <p>Alone by construction rather than by choice: the freezes the other seven sweeps are defined
-     * by are off for the whole boot, so no sweep that wants them can share it.
+     * <p>The freeze is lifted per sweep rather than per boot, so this shares a boot with the frozen
+     * sweeps, which run before it. Each subject is rendered at its idle schedule from the asset side's
+     * roster, read when the run starts.
      */
     ANIMATION,
     /**
      * Only the animated entity references with a stride under them, written to {@code walk/}.
      *
-     * <p>{@link #ANIMATION}'s run at a gait: the same sweep, the same schedule and the same
-     * subjects, with the two figures a stride is carried on driven rather than held at the zero a
-     * subject nothing has moved holds them at. Alone in its boot for {@link #ANIMATION}'s reason and
-     * separate from it because a subject cannot be standing still and walking in one client.
+     * <p>{@link #ANIMATION}'s sweep at the walking gait: the same subjects, each rendered at its walk
+     * schedule from the roster read when the run starts, the walk speed and the walk-clock rate it
+     * names armed under it. It shares a boot with the frozen sweeps and with {@link #ANIMATION}, every
+     * one of which runs before it.
      */
     WALK,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
@@ -183,7 +186,12 @@ public enum HarnessMode {
     /**
      * Returns the sweeps this mode runs, in the order they run.
      *
+     * <p>The two posed modes read the entity schedule roster beside the output root here, at the start
+     * of the run and ahead of every sweep, so a roster that is absent, malformed or resolved for
+     * another client stops the run before any reference is written.
+     *
      * @return the sweeps
+     * @throws IllegalStateException if a posed mode's schedule roster cannot be read
      */
     public List<Sweep<?>> sweeps() {
         return switch (this) {
@@ -194,8 +202,8 @@ public enum HarnessMode {
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
-            case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE));
-            case WALK -> List.of(new EntityAnimationSweep(Gait.WALK));
+            case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
+            case WALK -> List.of(new EntityAnimationSweep(Gait.WALK, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
             case PACK_SOURCES -> List.of(new PackSourceSweep());

@@ -86,9 +86,6 @@ class EntityPaceJarTest {
     /** The fastest-speed reader, reached by name for its census run without the age exclusions. */
     private static final @NotNull String CEILING_READER = "lib.minecraft.renderer.tooling.entity.EntityCeilingResolver";
 
-    /** The subject the shipped table offers no baby option, so this test grafts one onto its own copy. */
-    private static final @NotNull String TRADER = "minecraft:wandering_trader";
-
     /** One side of the census line, with the rows deciding it. */
     private static final @NotNull Pattern DECIDED_SIDE = Pattern.compile("(minecraft:\\w+ \\w+) \\(([^)]*)\\)");
 
@@ -122,12 +119,6 @@ class EntityPaceJarTest {
             .map(EntitySubject.class::cast)
             .toList();
         models = JsonTree.parse(Files.readAllBytes(MODELS)).find("models").orElseThrow();
-        // The wandering trader ages down with no baby mesh of its own, and vanilla walks the baby it
-        // draws on the adult's mesh. The shipped table offers it no baby option, so the test grafts
-        // one onto its own copy of the table, only where the row holds none, and the side is paced.
-        JsonTree trader = models.find(TRADER).orElseThrow();
-        if (trader.findPath("axes", "age", "options", "baby").isEmpty())
-            trader.child("axes").child("age").child("options").put("baby", JsonTree.object());
         paces = EntityPaceResolver.resolve(run, subjects, models, run.diagnostics().child("styles").child("pace"));
     }
 

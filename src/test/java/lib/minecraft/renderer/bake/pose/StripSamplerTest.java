@@ -45,6 +45,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -309,40 +310,34 @@ class StripSamplerTest {
     }
 
     @Test
-    @DisplayName("one pose over a mesh at its own scale and one flattened at 2.35 samples one set of tracks")
+    @DisplayName("a guardian and an elder guardian, one pose over meshes at scales 1 and 2.35, sample one set of tracks")
     void positionsAreInTheModelsOwnUnits() {
-        // A whole-mesh scale is flattened into the bones, so the scaled mesh stores its pivot at the
-        // factor times vanilla's field plus the feet-anchor shift. The model's own units read the field
-        // back on both; a mesh's drawn units would read the scaled one 2.35 times as far.
-        float factor = 2.35f;
-        float field = 10f;
-        EntityMesh own = new EntityMesh();
-        own.getBones().put("body", bone(new Vector3f(0f, field, 0f), 1f));
-        EntityMesh flattened = new EntityMesh();
-        flattened.getBones().put("body",
-            bone(new Vector3f(0f, factor * field + EntityMesh.flattenedShift(factor), 0f), factor));
+        // The elder guardian is the guardian's own pose over a mesh flattened at 2.35, so its stored
+        // pivots are the factor times vanilla's field plus the feet-anchor shift. The model's own units
+        // read the field back on both, to the float division that undoes the factor; a mesh's drawn
+        // units would read every elder position 2.35 times as far. Both rows wag the tail and hold the
+        // spikes on their clocks, so the positions compared are ones that move.
+        Entity guardian = adult("minecraft:guardian");
+        Entity elder = adult("minecraft:elder_guardian");
+        assertSame(guardian.pose(), elder.pose(), "one pose poses both meshes");
+        assertEquals(1f, guardian.model().getFlattenedScale(), "the guardian's mesh is at its own scale");
+        assertEquals(2.35f, elder.model().getFlattenedScale(), "and the elder's is flattened at 2.35");
 
-        Map<PoseChannel, PoseExpr> channels = new EnumMap<>(PoseChannel.class);
-        channels.put(PoseChannel.Y, op(PoseOperator.ADD, new PoseExpr.BoneRead("body", PoseChannel.Y),
-            op(PoseOperator.MUL, wave("walkAnimationPos", 0.6662f), constant(2f))));
-        channels.put(PoseChannel.X_ROT, op(PoseOperator.MUL, wave("walkAnimationPos", 0.6662f), constant(0.5f)));
-        EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(),
-            Concurrent.newUnmodifiableMap(Map.of("body", channels)), Concurrent.newUnmodifiableList(), Optional.empty());
+        for (String id : List.of(PoseStyle.IDLE, PoseStyle.STRIDE)) {
+            List<StripTrack> unscaled = StripSampler.tracks(guardian, row(guardian, id), guardian.styles().periodTicks());
+            List<StripTrack> scaled = StripSampler.tracks(elder, row(elder, id), elder.styles().periodTicks());
 
-        List<StripTrack> unscaled = StripSampler.tracks(subject(own, pose), STRIDING, period());
-        List<StripTrack> scaled = StripSampler.tracks(subject(flattened, pose), STRIDING, period());
-
-        StripTrack lift = only(unscaled, "body.body.y");
-        assertEquals(StripTrack.Kind.POSITION, lift.kind(), "the pose lifts the body");
-        assertTrue(range(lift.values()) > 3d, "by more than three model pixels top to bottom");
-        assertEquals(unscaled.size(), scaled.size(), "both meshes sample the same channels");
-        for (int index = 0; index < unscaled.size(); index++) {
-            StripTrack expected = unscaled.get(index);
-            StripTrack actual = scaled.get(index);
-            assertEquals(expected.channel(), actual.channel(), "track " + index + " names one channel on both");
-            for (int tick = 0; tick < StripFit.WINDOW_TICKS; tick++) {
-                assertEquals(expected.values()[tick], actual.values()[tick], MODEL_UNIT_EPSILON,
-                    expected.channel() + " at tick " + tick + " reads the model's own value on the scaled mesh");
+            assertTrue(unscaled.stream().anyMatch(track -> track.kind() == StripTrack.Kind.POSITION && range(track.values()) > 0d),
+                id + " moves a position, or the case reads nothing a unit could part");
+            assertEquals(unscaled.stream().map(StripTrack::channel).toList(), scaled.stream().map(StripTrack::channel).toList(),
+                id + " samples the same channels on both meshes");
+            for (int index = 0; index < unscaled.size(); index++) {
+                StripTrack expected = unscaled.get(index);
+                StripTrack actual = scaled.get(index);
+                for (int tick = 0; tick < StripFit.WINDOW_TICKS; tick++) {
+                    assertEquals(expected.values()[tick], actual.values()[tick], MODEL_UNIT_EPSILON,
+                        id + " " + expected.channel() + " at tick " + tick + " reads the model's own value on the scaled mesh");
+                }
             }
         }
     }
@@ -396,11 +391,6 @@ class StripSamplerTest {
     /** A row elapsed age drives, ramped at one - the shape of every shipped standing row. */
     private static final @NotNull PoseStyle TICKING = style("idle", StyleClock.TICK,
         new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-
-    /** A row walking at the full stride - the amplitude held at one and the phase ramped by it. */
-    private static final @NotNull PoseStyle STRIDING = style("stride", StyleClock.STRIDE,
-        new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()),
-        new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
 
     /** A row an authored timeline selects - its gate held at one and its clock ramped at one, beside elapsed age. */
     private static final @NotNull PoseStyle AUTHORED = style("authored", StyleClock.SELECT,
@@ -565,16 +555,6 @@ class StripSamplerTest {
     /** A cubeless top-level bone at a pivot, resting at a scale. */
     private static @NotNull EntityMesh.Bone bone(@NotNull Vector3f pivot, float scale) {
         return new EntityMesh.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, scale, Concurrent.newList(), null);
-    }
-
-    /** A subject drawing one mesh under one pose, with nothing else. */
-    private static @NotNull Entity subject(@NotNull EntityMesh mesh, @NotNull EntityPose pose) {
-        return Entity.builder().id(ResourceId.parse("minecraft:test")).model(mesh).pose(pose).build();
-    }
-
-    /** The figure period a subject with no catalog of its own frames at. */
-    private static int period() {
-        return subject(mesh(), EntityPose.NONE).styles().periodTicks();
     }
 
     /** How far a series runs from its lowest sample to its highest. */

@@ -33,10 +33,10 @@ public enum Gait {
     IDLE(true, false),
 
     /**
-     * {@link #IDLE} with a stride under it - the same subjects, schedule and canvases, with
-     * {@code walkAnimationPos} and {@code walkAnimationSpeed} driven at the amplitude vanilla clamps
-     * its own accumulation to. A subject cannot be standing still and walking at one tick, which is
-     * why this is a second sub-tree rather than a second reading of the first.
+     * {@link #IDLE} with a stride under it - the same subjects, each at the walk schedule the roster
+     * names for it, with {@code walkAnimationPos} and {@code walkAnimationSpeed} driven at that
+     * schedule's walk speed and walk-clock rate. A subject cannot be standing still and walking at one
+     * tick, which is why this is a second sub-tree rather than a second reading of the first.
      */
     WALK(true, true);
 

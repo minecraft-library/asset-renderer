@@ -2,6 +2,8 @@ package lib.minecraft.refharness.frame;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
+import lib.minecraft.refharness.AnimationClock;
+import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
@@ -20,6 +22,7 @@ import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +104,7 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
      * @param out where to write the PNG; parent directories are created on demand
      * @return whether a PNG was written; entities are never declined
      * @throws IOException if the PNG file write fails
+     * @throws IllegalStateException if the run poses and no frame is armed for the entity
      */
     @Override
     public boolean render(Minecraft client, Entity entity, Canvas canvas, Path out) throws IOException {
@@ -117,6 +121,7 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
      * @param rotation the pose to present the entity at
      * @return whether a PNG was written
      * @throws IOException if the PNG file write fails
+     * @throws IllegalStateException if the run poses and no frame is armed for the entity
      */
     public boolean renderAtRotation(Minecraft client, Entity entity, Canvas canvas, Path out, Quaternionf rotation)
         throws IOException {
@@ -129,8 +134,11 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
      * returned bounds are in entity-local screen coords (post-iso, pre-canvas-scale) and
      * are the same units the bounds walker collects internally - the sweeper unions these
      * across family members to size the family canvas.
+     *
+     * <p>A posed run measures only an entity a frame is armed for, the same as it draws.
      */
     public Bounds measureBounds(Minecraft client, Entity entity) {
+        refuseUnarmed(entity);
         EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
         EntityRenderer<? super Entity, ?> renderer = renderer(dispatcher, entity);
         EntityRenderState state = createRenderState(renderer, entity);
@@ -173,6 +181,7 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
         Canvas canvas,
         Path outputPath
     ) throws IOException {
+        refuseUnarmed(entity);
         EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
         EntityRenderer<? super Entity, ?> renderer = renderer(dispatcher, entity);
         EntityRenderState state = createRenderState(renderer, entity);
@@ -238,6 +247,26 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
                 poseStack, scope.storage());
             return true;
         });
+    }
+
+    /**
+     * Refuses a capture on a posed run of an entity no frame is armed for.
+     *
+     * <p>A posed render state takes the armed frame's walk and clocks only where
+     * {@link AnimationClock#isSubject} answers true, and every other entity keeps what vanilla's own
+     * extract gave it - right for a mob in the level behind the capture, and wrong for the one being
+     * captured. So the capture asks before it extracts: a subject armed under another instance, or
+     * under none, would otherwise be measured and drawn as vanilla draws a stray, and nothing further
+     * along refuses it. A frozen run arms no frame and is never refused.
+     *
+     * @param entity the entity about to be measured or drawn
+     * @throws IllegalStateException if the run poses and no frame is armed for the entity
+     */
+    private static void refuseUnarmed(Entity entity) {
+        if (PoseState.posed() && !AnimationClock.isSubject(entity)) {
+            throw new IllegalStateException(String.format(
+                "A posed capture of '%s' has no frame armed for it", EntityType.getKey(entity.getType())));
+        }
     }
 
     @SuppressWarnings("unchecked")

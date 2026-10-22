@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -53,8 +54,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * field rests at but the harnessed happy ghast's body, every bone it poses to its rest scale and no
  * pose scale but its clips' and that same squeeze, every part's own field to resting at one on
  * every form but the small armour stand, and the salmon's flattened sizes to placing their
- * container where vanilla's pose stack places it. The last holds a harnessed happy ghast's body
- * inside the harness it wears.
+ * container where vanilla's pose stack places it. The last two hold a harnessed happy ghast's body
+ * inside the harness it wears, and the warden's glowing passes at the opacity vanilla draws each at
+ * on every posed tick.
  */
 @DisplayName("the resolved style row applied to a subject")
 class PosePlayerStyleTest {
@@ -67,6 +69,10 @@ class PosePlayerStyleTest {
 
     /** The form whose mesh the baby transform bakes, resting its parts' own fields off one. */
     private static final @NotNull String SMALL_STAND = "minecraft:armor_stand size=small";
+
+    /** The warden's glowing passes whose opacity follows the clock, by texture, in its renderer's order. */
+    private static final @NotNull List<String> WARDEN_GLOW = List.of(
+        "warden/warden_pulsating_spots_1", "warden/warden_pulsating_spots_2", "warden/warden_heart");
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -138,6 +144,9 @@ class PosePlayerStyleTest {
     @Test
     @DisplayName("a union member is measured under its own answer to the style id")
     void aUnionMemberIsMeasuredUnderItsOwnRow() {
+        // Each age of the axolotl ships an idle of its own - the baby floating through its clip, the
+        // adult holding its blend factors - so the adult measured beside a baby answers a row the
+        // baby's is not.
         Entity axolotl = subject("minecraft:axolotl");
         EntityOptions baby = EntityOptions.builder()
             .entityId("minecraft:axolotl")
@@ -145,14 +154,19 @@ class PosePlayerStyleTest {
             .build();
         Entity resolved = baby.getAppearance().resolve(axolotl);
         PoseStyle row = resolved.styles().resolve(PoseStyle.IDLE, baby.getAppearance()::applies, baby.getEntityId());
-        assertEquals(Set.of("ageInTicks"), Set.copyOf(row.drivers().keySet()),
-            "the baby answers the universal row, its family's idle applying to the adult alone");
+        assertEquals(Set.of("ageInTicks", "idleUnderWaterAnimationState"), Set.copyOf(row.drivers().keySet()),
+            "the baby answers its own idle, which plays its float clip");
+        PoseStyle adultRow = axolotl.styles().resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:axolotl");
+        int period = resolved.styles().periodTicks();
+        assertNotEquals(PosePlayer.posed(axolotl, row, period, 0).model().getBones(),
+            PosePlayer.posed(axolotl, adultRow, period, 0).model().getBones(),
+            "the adult stands apart under the baby's row and its own, or the case cannot tell them apart");
 
-        PosePlayer.PosedFrames frames = PosePlayer.frames(resolved, row, resolved.styles().periodTicks());
-        assertSame(resolved, frames.at(0),
-            "nothing the universal row drives moves the baby's meshes");
-        assertNotSame(axolotl.model(), frames.at(axolotl, 0).model(),
-            "while the adult measured beside it stands in its own idle stance");
+        PosePlayer.PosedFrames frames = PosePlayer.frames(resolved, row, period);
+        Entity adult = frames.at(axolotl, 0);
+        assertNotSame(axolotl.model(), adult.model(), "the adult measured beside the baby is posed");
+        assertEquals(PosePlayer.posed(axolotl, adultRow, period, 0).model().getBones(), adult.model().getBones(),
+            "and stands in its own idle stance rather than the baby's");
     }
 
     @Test
@@ -372,7 +386,50 @@ class PosePlayerStyleTest {
             1e-4f, "an unharnessed ghast draws its body at full size");
     }
 
+    @Test
+    @DisplayName("the warden's spots pulse and its heart beats at each posed tick, and a bind render draws the spots at rest")
+    void theWardensGlowFollowsTheClock() {
+        // Vanilla's three alpha functions: the first spot layer max(0, cos(age * 0.045) * 0.25), the
+        // second the same half a turn on, and the heart its own clock - lit at one on every fortieth
+        // tick and falling a tenth a tick. Each value below is vanilla's, drawn at vanilla's byte.
+        Entity warden = subject("minecraft:warden");
+        PoseStyle idle = warden.styles().resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:warden");
+        int period = warden.styles().periodTicks();
+        Map<Integer, List<Float>> glow = new LinkedHashMap<>();
+        glow.put(0, List.of(0.25f, 0f, 1f));
+        glow.put(21, List.of(0.14644946f, 0f, 0f));
+        glow.put(35, List.of(0f, 0.0010306404f, 0f));
+        glow.put(70, List.of(0f, 0.2499913f, 0f));
+        glow.forEach((tick, expected) -> {
+            Entity posed = PosePlayer.posed(warden, idle, period, tick);
+            for (int index = 0; index < WARDEN_GLOW.size(); index++) {
+                assertEquals(PassDeclaration.drawnAlpha(expected.get(index)), alphaOf(posed, WARDEN_GLOW.get(index)),
+                    WARDEN_GLOW.get(index) + " at tick " + tick);
+            }
+        });
+        for (int tick = 0; tick <= 10; tick++) {
+            assertEquals(PassDeclaration.drawnAlpha((10 - tick) / 10f),
+                alphaOf(PosePlayer.posed(warden, idle, period, tick), WARDEN_GLOW.getLast()), "the heart at tick " + tick);
+        }
+
+        Entity bound = PosePlayer.posed(warden, StyleCatalog.bind(), period, 70);
+        assertEquals(PassDeclaration.drawnAlpha(0.25f), alphaOf(bound, WARDEN_GLOW.getFirst()),
+            "a bind render draws the first spots at their rest");
+        assertEquals(0f, alphaOf(bound, WARDEN_GLOW.get(1)), "the second spots not at all");
+        assertEquals(0f, alphaOf(bound, WARDEN_GLOW.getLast()), "and the heart not at all");
+    }
+
     // ------------------------------------------------------------------------------------
+
+    /** The opacity one posed subject's pass drawing a texture is declared at. */
+    private static float alphaOf(@NotNull Entity posed, @NotNull String texture) {
+        return posed.overlays().stream()
+            .filter(overlay -> overlay.textureRef().equals(Optional.of(texture)))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(posed.id() + " draws no pass of " + texture))
+            .pass()
+            .alpha();
+    }
 
     /** Whether one recorded scale entry is the harnessed adult happy ghast's body squeeze. */
     private static boolean isHarnessSqueeze(@NotNull String entry) {

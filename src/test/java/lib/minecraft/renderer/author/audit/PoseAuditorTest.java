@@ -83,12 +83,6 @@ class PoseAuditorTest {
         .legs(Rank.HIND, leg -> leg.pitch(15))
         .build();
 
-    /**
-     * The fastest steady walk vanilla gives an adult horse - tempted, at its mean spawn speed - as a
-     * stride row records it.
-     */
-    private static final @NotNull PaceCeiling HORSE_CEILING = new PaceCeiling(0.69693f, 0.69693f);
-
     @Test
     @DisplayName("the wolf beg audits clean - the tail and hind legs ride the seated body")
     void begAuditsCleanWithTheWolfSeated() {
@@ -320,16 +314,16 @@ class PoseAuditorTest {
     @DisplayName("the envelope reads the stride at its ceiling, not at the walk it drives - an ambling horse audits as one at full stride")
     void theEnvelopeReadsTheCeilingNotTheWander() {
         Entity horse = row("minecraft:horse");
-        assumeTrue(horse.styles().byId(PoseStyle.STRIDE).isPresent(), "the horse ships a stride, or the case is vacuous");
+        PoseStyle stride = horse.styles().byId(PoseStyle.STRIDE).orElseThrow(() -> new AssertionError("the horse ships a stride"));
+        assertTrue(stride.ceiling().isPresent(), "the shipped stride records the horse's fastest walk");
         assertNotEquals(PoseAuditor.validate(REAR, horse).report(),
-            PoseAuditor.validate(REAR, withStride(horse, stride -> walking(stride, 0.25f, 0.25f, Optional.empty()))).report(),
+            PoseAuditor.validate(REAR, withStride(horse, shipped -> walking(shipped, 0.25f, 0.25f, Optional.empty()))).report(),
             "the horse's leg swing sets a range the rear's report prints, or the case is vacuous");
 
-        Entity atFullStride = withStride(horse, stride -> walking(stride, 1f, 1f, Optional.of(HORSE_CEILING)));
-        Entity ambling = withStride(horse, stride -> walking(stride, 0.25f, 0.25f, Optional.of(HORSE_CEILING)));
+        Entity ambling = withStride(horse, shipped -> walking(shipped, 0.25f, 0.25f, shipped.ceiling()));
 
-        assertEquals(PoseAuditor.validate(REAR, atFullStride).report(), PoseAuditor.validate(REAR, ambling).report(),
-            "both strides enter the envelope at the horse's fastest walk, whatever walk each drives");
+        assertEquals(PoseAuditor.validate(REAR, horse).report(), PoseAuditor.validate(REAR, ambling).report(),
+            "the shipped stride and one ambling under the same ceiling enter the envelope at the horse's fastest walk");
     }
 
     @Test

@@ -148,6 +148,44 @@ public final class PoseJson {
         return node;
     }
 
+    /**
+     * Writes one expression self-contained - every node inline and none shared - for a member read
+     * on its own rather than beside a pose, as a pass's opacity is.
+     *
+     * <p>Nothing is shared because there is no table to share it in: such a member is evaluated
+     * against one frame's render state alone, and an expression folded from a short lambda is a tree
+     * small enough to read whole.
+     *
+     * @param expr the expression
+     * @return the node, spelled in the pose table's own grammar
+     * @throws ToolingException if the expression reads a bone, which only a pose answers, or carries
+     *     a node the fold settles
+     */
+    public static @NotNull JsonTree inline(@NotNull PoseExpr expr) {
+        return switch (expr) {
+            case PoseExpr.Constant held -> literal(held);
+            case PoseExpr.Input input -> JsonTree.object().put("input", input.field());
+            case PoseExpr.Op operation -> JsonTree.object().put(operation.operator().token(),
+                JsonTree.array().addAll(operation.operands().stream().map(PoseJson::inline).toList()));
+            case PoseExpr.Select select -> JsonTree.object().put("select", JsonTree.array()
+                .add(inline(select.condition()))
+                .add(inline(select.whenTrue()))
+                .add(inline(select.whenFalse())));
+            case PoseExpr.BoneRead read -> throw new ToolingException(
+                "An inline expression reads bone '%s', which only a pose answers",
+                read.bone() + "." + read.channel().token());
+            case PoseExpr.Answered answered -> throw new ToolingException(
+                "An inline expression carries '%s', which the fold settles and the renderer refuses at load",
+                answered.getClass().getSimpleName());
+        };
+    }
+
+    /** One condition written self-contained, by the rule {@link #inline(PoseExpr)} states. */
+    private static @NotNull JsonTree inline(@NotNull PosePredicate predicate) {
+        return JsonTree.object().put(predicate.comparison().token(),
+            JsonTree.array().add(inline(predicate.left())).add(inline(predicate.right())));
+    }
+
     /** The step sequence, each step's channels in the vocabulary's own order, or nothing for none. */
     private static void container(
         @NotNull JsonTree node, @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull Shared shared) {

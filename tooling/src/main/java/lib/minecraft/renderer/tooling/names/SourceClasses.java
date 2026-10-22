@@ -149,6 +149,9 @@ public final class SourceClasses {
         /** {@code LivingEntity} - the mob-discovery {@code extendsClass} predicate target. */
         public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
 
+        /** {@code Mob} - the base every subject that can age down descends from, its own {@code setBaby} a bare return. */
+        public static final @NotNull String MOB = "net/minecraft/world/entity/Mob";
+
         /**
          * The base every fish extends, and the one entity family a reference render puts in water.
          */

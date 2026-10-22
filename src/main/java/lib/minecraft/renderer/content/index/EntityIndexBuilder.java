@@ -1326,8 +1326,9 @@ public final class EntityIndexBuilder {
      *
      * <p>Two rows may share one id where their {@code age} members split them - the axolotl ships
      * {@code play_dead} as a baby clip row beside an adult factor row. Each composes its own
-     * drives, and a {@code base} naming a shared id resolves to its first row, the row
-     * {@link StyleCatalog#byId} answers.
+     * drives, and a {@code base} naming a shared id resolves at the age of the row naming it: to the
+     * row of that id at the same age where one ships, otherwise to its ageless row, otherwise to its
+     * first row.
      *
      * @param family the raw model
      * @param familyId the entity being read, for refusals
@@ -1346,14 +1347,14 @@ public final class EntityIndexBuilder {
             throw new ContentException(
                 "Entity '%s' ships styles but the file header names no period_ticks", familyId);
 
-        Map<String, RawStyleRow> byId = new LinkedHashMap<>();
+        Map<String, List<RawStyleRow>> byId = new LinkedHashMap<>();
         for (RawStyleRow row : rows) {
             if (row.id() == null)
                 throw new ContentException("Entity '%s' ships a style row naming no id", familyId);
-            byId.putIfAbsent(row.id(), row);
+            byId.computeIfAbsent(row.id(), id -> new ArrayList<>()).add(row);
         }
 
-        Map<String, ConcurrentMap<String, StyleDriver>> composed = new LinkedHashMap<>();
+        Map<RawStyleRow, ConcurrentMap<String, StyleDriver>> composed = new IdentityHashMap<>();
         List<PoseStyle> styles = new ArrayList<>(rows.size());
         for (RawStyleRow row : rows)
             styles.add(new PoseStyle(row.id(),
@@ -1369,40 +1370,40 @@ public final class EntityIndexBuilder {
      * One row's drivers composed flat against its {@code base} chain: the base's composed map is
      * copied, then each own drive is put by its field - a drive naming a {@code group} first evicts
      * any still-inherited driver carrying that group, and an own drive always wins its own field
-     * key. Composed per row, so the rows of an age-split pair each keep their own drives; memoized
-     * by id for an id's first row, which is the row a {@code base} resolves through.
+     * key. The base is the row {@link #baseRow} picks among the rows of the id it names, at this
+     * row's own age. Composed per row and memoized by row, so the rows of an age-split pair each keep
+     * their own drives, each composes once, and each is found by its own key.
      *
      * @param row the row being composed
-     * @param rows the first row of each id, which is what a base names
-     * @param composed the rows already composed, by id
+     * @param rows the rows of each id in shipped order, which is what a base names
+     * @param composed the rows already composed, keyed by row
      * @param familyId the entity being read, for refusals
      * @param resolving the ids on the current chain, for the cycle refusal
      * @return the row's whole driver map, keyed by field
-     * @throws ContentException if the base names no sibling row, or the chain cycles
+     * @throws ContentException if the base names no sibling row, a row names a token that is not an
+     *     age, or the chain cycles
      */
     private static @NotNull ConcurrentMap<String, StyleDriver> composedDrivers(
         @NotNull RawStyleRow row,
-        @NotNull Map<String, RawStyleRow> rows,
-        @NotNull Map<String, ConcurrentMap<String, StyleDriver>> composed,
+        @NotNull Map<String, List<RawStyleRow>> rows,
+        @NotNull Map<RawStyleRow, ConcurrentMap<String, StyleDriver>> composed,
         @NotNull String familyId,
         @NotNull Set<String> resolving) {
 
+        ConcurrentMap<String, StyleDriver> held = composed.get(row);
+        if (held != null) return held;
         String id = row.id();
-        boolean first = rows.get(id) == row;
-        if (first) {
-            ConcurrentMap<String, StyleDriver> held = composed.get(id);
-            if (held != null) return held;
-        }
         if (!resolving.add(id))
             throw new ContentException("Entity '%s' style '%s' composes over itself", familyId, id);
 
         Map<String, StyleDriver> inherited = Map.of();
         if (row.base() != null) {
-            RawStyleRow over = rows.get(row.base());
+            List<RawStyleRow> over = rows.get(row.base());
             if (over == null)
                 throw new ContentException("Entity '%s' style '%s' composes over '%s', which no row carries",
                     familyId, id, row.base());
-            inherited = composedDrivers(over, rows, composed, familyId, resolving);
+            inherited = composedDrivers(baseRow(over, styleAge(row, familyId), familyId),
+                rows, composed, familyId, resolving);
         }
 
         LinkedHashMap<String, StyleDriver> out = new LinkedHashMap<>(inherited);
@@ -1415,8 +1416,28 @@ public final class EntityIndexBuilder {
             out.put(driver.field(), driver);
         }
         ConcurrentMap<String, StyleDriver> built = Concurrent.adoptLinkedMap(out).toUnmodifiable();
-        if (first) composed.put(id, built);
+        composed.put(row, built);
         return built;
+    }
+
+    /**
+     * The row a base resolves to among the rows of the id it names - the row at the age of the row
+     * naming it where one ships, otherwise the ageless row, otherwise the first.
+     *
+     * @param over the rows of the base id, in shipped order
+     * @param age the age of the row naming the base, empty where it names none
+     * @param familyId the entity being read, for refusals
+     * @return the row the base resolves to
+     * @throws ContentException if a row of the base id names a token that is not an age
+     */
+    private static @NotNull RawStyleRow baseRow(
+        @NotNull List<RawStyleRow> over, @NotNull Optional<Age> age, @NotNull String familyId) {
+
+        return over.stream()
+            .filter(candidate -> styleAge(candidate, familyId).equals(age))
+            .findFirst()
+            .or(() -> over.stream().filter(candidate -> styleAge(candidate, familyId).isEmpty()).findFirst())
+            .orElse(over.getFirst());
     }
 
     /**

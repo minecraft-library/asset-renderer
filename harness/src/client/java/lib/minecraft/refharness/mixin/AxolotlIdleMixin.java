@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import lib.minecraft.refharness.AnimationClock;
 import lib.minecraft.refharness.IdleFigures;
 import net.minecraft.client.renderer.entity.AxolotlRenderer;
 import net.minecraft.client.renderer.entity.state.AxolotlRenderState;
@@ -28,11 +29,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * the four members of vanilla's own {@code AxolotlAnimationState}, exactly one answering one, and
  * {@code IN_AIR} names no field so selecting it rests the group.
  *
- * <p>{@code movingFactor} is swept on top of whichever member is selected rather than joining the
- * one-hot, being the other axis each blend is weighted by. {@code playingDeadFactor} is a member
- * like the rest, and the arm it opens is layered over the blend rather than part of it -
- * {@code setupPlayDeadAnimation} takes the factor alone where the other four arms each take
- * {@code ageInTicks} too, so it is the one pose of the five that reads no clock.
+ * <p>{@code movingFactor} sits on top of whichever member is selected rather than joining the
+ * one-hot, being the other axis each blend is weighted by. It is the roster's clock where the
+ * subject's schedule carries one - {@code 0} still and {@code 1} under way, the adult's two settled
+ * levels - written into the axolotl a posed frame draws; the baby, whose mesh reads clips, carries
+ * none, so its frames keep vanilla's never-ticked value, and an axolotl no posed frame draws keeps the
+ * value vanilla's own extract gave it. {@code playingDeadFactor} is a member like the rest, and the
+ * arm it opens is layered over the blend rather than part of it - {@code setupPlayDeadAnimation} takes
+ * the factor alone where the other four arms each take {@code ageInTicks} too, so it is the one pose of
+ * the five that reads no clock.
  */
 @Mixin(AxolotlRenderer.class)
 public abstract class AxolotlIdleMixin {
@@ -45,7 +50,8 @@ public abstract class AxolotlIdleMixin {
         state.inWaterFactor = IdleFigures.select(selected, IdleFigures.State.IN_WATER);
         state.onGroundFactor = IdleFigures.select(selected, IdleFigures.State.ON_GROUND);
         state.playingDeadFactor = IdleFigures.select(selected, IdleFigures.State.PLAYING_DEAD);
-        state.movingFactor = IdleFigures.at(IdleFigures.Continuous.MOVING_FACTOR);
+        if (AnimationClock.isSubject(entity) && AnimationClock.drives("movingFactor"))
+            state.movingFactor = AnimationClock.clock("movingFactor");
 
         // The BABY mesh of the same animal answers through keyframe clips where the adult weights
         // these factors, so one render state carries both encodings and they are two selectors. The

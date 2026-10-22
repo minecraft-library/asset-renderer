@@ -75,8 +75,7 @@ class EntityRendererAnimatedTest {
      * Every shipped row carrying an empty source inventory, each against the row it composes over.
      *
      * <p>The frog's {@code jump} names no base at all, so {@code bind} is what it stands apart
-     * from. The axolotl's two name {@code idle}, which for the baby resolves to the universal
-     * standing row, its own shipped idle applying to the adult alone.
+     * from. The axolotl's two name {@code idle}, each age's own.
      */
     private static final @NotNull List<Held> HELD_ROWS = List.of(
         new Held("minecraft:bat", "rest", PoseStyle.IDLE, Optional.empty()),
@@ -222,9 +221,14 @@ class EntityRendererAnimatedTest {
     @DisplayName("a group's canvas is the same whichever member is drawn")
     void aGroupCanvasDoesNotDependOnWhichMemberIsDrawn() {
         // Each member and each coat is measured over its own strip rather than at the drawn
-        // subject's ticks, so the union is one set of silhouettes whichever member leads it.
-        assertOneCanvas(PoseStyle.STRIDE, "minecraft:camel", "minecraft:camel_husk");
-        assertOneCanvas(PoseStyle.IDLE, "minecraft:piglin", "minecraft:piglin_brute", "minecraft:zombified_piglin");
+        // subject's ticks, so the union is one set of silhouettes whichever member leads it. The
+        // villager and the wandering trader amble at paces of their own, so their strides part - and
+        // each baby is framed with the whole adult cohort, which the baby trader's six frames at a
+        // tick a frame would catch short of its full swing.
+        assertOneCanvas(PoseStyle.STRIDE, Age.ADULT, "minecraft:camel", "minecraft:camel_husk");
+        assertOneCanvas(PoseStyle.IDLE, Age.ADULT, "minecraft:piglin", "minecraft:piglin_brute", "minecraft:zombified_piglin");
+        assertOneCanvas(PoseStyle.STRIDE, Age.ADULT, "minecraft:villager", "minecraft:wandering_trader");
+        assertOneCanvas(PoseStyle.STRIDE, Age.BABY, "minecraft:villager", "minecraft:wandering_trader");
     }
 
     @Test
@@ -272,13 +276,14 @@ class EntityRendererAnimatedTest {
         return StyleResolution.of(context.findEntity(id), id, style, AppearanceOptions.defaults()).strip();
     }
 
-    /** Renders one style of each member under the group scope and holds every canvas to the first's. */
-    private static void assertOneCanvas(@NotNull String style, @NotNull String @NotNull ... members) {
+    /** Renders one style of each member at one age under the group scope and holds every canvas to the first's. */
+    private static void assertOneCanvas(@NotNull String style, @NotNull Age age, @NotNull String @NotNull ... members) {
         List<String> sizes = new ArrayList<>(members.length);
         for (String member : members) {
             PixelBuffer first = renderer.render(EntityOptions.builder()
                     .entityId(member)
                     .style(style)
+                    .appearance(AppearanceOptions.builder().age(age).build())
                     .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
                     .pixelsPerBlock(32)
                     .build())
@@ -286,7 +291,7 @@ class EntityRendererAnimatedTest {
             sizes.add(first.width() + "x" + first.height());
         }
         assertEquals(1, new LinkedHashSet<>(sizes).size(),
-            "every member of one group is expected to share one canvas under '" + style + "': "
+            "every member of one group is expected to share one canvas under '" + style + "' at " + age + ": "
                 + List.of(members) + " drew " + sizes);
     }
 

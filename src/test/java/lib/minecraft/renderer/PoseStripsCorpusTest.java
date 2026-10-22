@@ -11,6 +11,7 @@ import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.StripFit;
+import lib.minecraft.renderer.sweep.EntityScheduleRoster;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
@@ -61,15 +62,20 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *     creeper's scroll;</li>
  *     <li><b>{@code <row>~<axis>=<option>}</b> for every option of a form axis whose resolved body pose
  *     is a different program from the default's, so a form posed by a model class of its own is pinned
- *     however its row is spelled.</li>
+ *     however its row is spelled;</li>
+ *     <li><b>{@code <row>~<trait>=<value>}</b> for every posed trait subject
+ *     {@link EntityScheduleRoster#POSED_TRAITS} names, at {@code idle} and {@code stride} of the adult,
+ *     so each subject the posed references render apart is pinned at the strip they render it over -
+ *     the list read rather than copied, so the golden, the roster and the harness name one set.</li>
  * </ul>
  * The golden holds each row on one line - frames, step, the restart's seam to two places and the
  * channel it is on - so a moved row is a one-line diff.
  *
  * <p>Beside the pin: every derived strip keeps the cap and the two steps whatever the golden says; no
- * shipped row carries two gates, and every gate and form axis is one the test can spell, so a new one
- * arrives as a failure rather than as a row left unpinned; and a variant coat measured beside its family
- * is measured over the strip a render of that coat draws.
+ * shipped row carries two gates, and every gate, form axis and trait is one the test can spell, so a new
+ * one arrives as a failure rather than as a row left unpinned; a row gated on a trait is pinned through
+ * its entity's trait keys, so every entity carrying one is a posed trait subject; and a variant coat
+ * measured beside its family is measured over the strip a render of that coat draws.
  *
  * <p>Nothing is drawn and no texture is read, so the class runs wherever the shipped tables are.
  */
@@ -96,6 +102,15 @@ class PoseStripsCorpusTest {
         "size", (builder, option) -> builder.size(Size.valueOf(option.toUpperCase(Locale.ROOT))),
         "shape", (builder, option) -> builder.pattern(firstPattern(option)));
 
+    /**
+     * How an appearance takes each posed trait, the value spelled as a reference stem spells it - a
+     * namespaced id with its {@code :} written {@code __}. A gate token named here is pinned through
+     * the trait keys of its entity rather than as a gate key of its own, which would resolve the very
+     * subject a trait key does.
+     */
+    private static final @NotNull Map<String, BiFunction<AppearanceOptions.Builder, String, AppearanceOptions.Builder>> TRAITS = Map.of(
+        "carried", (builder, value) -> builder.carried(value.replace("__", ":")));
+
     /** The ages a key is pinned at, in the golden's order. */
     private static final @NotNull List<Age> AGES = List.of(Age.ADULT, Age.BABY);
 
@@ -117,8 +132,11 @@ class PoseStripsCorpusTest {
     /** Every shipped row carrying more than one distinct gate token, one line each. */
     private static List<String> doubleGated;
 
-    /** Every gate token or form axis the corpus needs that the test cannot spell, one line each. */
+    /** Every gate token, form axis or posed trait the corpus needs that the test cannot spell, one line each. */
     private static List<String> unspelled;
+
+    /** Every entity whose shipped rows carry a source gated on a trait, sorted. */
+    private static Set<String> traitGated;
 
     @BeforeAll
     static void derive() {
@@ -129,6 +147,7 @@ class PoseStripsCorpusTest {
         derived = new TreeMap<>();
         doubleGated = new ArrayList<>();
         unspelled = new ArrayList<>();
+        traitGated = new TreeSet<>();
         for (String id : new TreeMap<>(entities).keySet())
             derive(renderer, id);
     }
@@ -219,17 +238,20 @@ class PoseStripsCorpusTest {
     }
 
     @Test
-    @DisplayName("every form axis a shipped entity carries is one the test can select")
+    @DisplayName("every form axis a shipped entity carries and every posed trait is one the test can select")
     void everyFormAndTraitKeyIsSpelled() {
         assertEquals(List.of(), unspelled.stream().filter(line -> line.contains("~")).toList(),
-            "an axis the test cannot select leaves every form on it unpinned - spell it in AXES");
+            "an axis or a trait the test cannot select leaves every key on it unpinned - spell it in AXES or TRAITS");
+        assertTrue(EntityScheduleRoster.POSED_TRAITS.keySet().containsAll(traitGated),
+            "a row gated on a trait is pinned through its entity's trait keys, so every entity carrying one "
+                + "is a posed trait subject: " + traitGated + " against " + EntityScheduleRoster.POSED_TRAITS.keySet());
     }
 
     // ------------------------------------------------------------------------------------
 
     /**
-     * Derives every key of one entity into {@link #derived}, recording each gate and axis it cannot
-     * spell and each row carrying two gates.
+     * Derives every key of one entity into {@link #derived}, recording each gate, axis and trait it
+     * cannot spell and each row carrying two gates.
      */
     private static void derive(@NotNull EntityRenderer renderer, @NotNull String id) {
         Entity definition = entities.get(id);
@@ -245,6 +267,8 @@ class PoseStripsCorpusTest {
                 if (found.isPresent()) gates(found, id, rowId, age, rows);
             }
             if (found.isPresent()) forms(found, id, rowIds, age, rows);
+            // The posed references render a trait subject at the adult alone, so that is where it is pinned.
+            if (age == Age.ADULT && EntityScheduleRoster.POSED_TRAITS.containsKey(id)) traits(found, id, rows);
             ages.put(spelled(age), rows);
         }
         derived.put(id, ages);
@@ -264,7 +288,10 @@ class PoseStripsCorpusTest {
         return List.copyOf(out);
     }
 
-    /** Pins one row under each gate its shipped sources carry, recording a row carrying two. */
+    /**
+     * Pins one row under each gate its shipped sources carry, recording a row carrying two and an
+     * entity whose row is gated on a trait, which its trait keys pin instead.
+     */
     private static void gates(@NotNull Possible<Entity> found, @NotNull String id, @NotNull String rowId,
                               @NotNull Age age, @NotNull SortedMap<String, StripFit> rows) {
         PoseStyle shipped = found.get().styles().resolve(rowId, AppearanceOptions.builder().age(age).build()::applies, id);
@@ -273,6 +300,10 @@ class PoseStripsCorpusTest {
             source.gate().ifPresent(tokens::add);
         if (tokens.size() > 1) doubleGated.add(id + " " + spelled(age) + " " + rowId + " " + tokens);
         for (String token : tokens) {
+            if (TRAITS.containsKey(token)) {
+                traitGated.add(id);
+                continue;
+            }
             UnaryOperator<AppearanceOptions.Builder> admits = GATES.get(token);
             if (admits == null) {
                 unspelled.add(id + " " + spelled(age) + " " + rowId + "@" + token);
@@ -307,6 +338,25 @@ class PoseStripsCorpusTest {
                         StyleResolution.of(found, id, rowId, selecting).strip());
                 }
             }
+        }
+    }
+
+    /**
+     * Pins {@code idle} and {@code stride} under each posed trait the schedule roster names for one
+     * entity, recording a trait the test cannot select.
+     */
+    private static void traits(@NotNull Possible<Entity> found, @NotNull String id, @NotNull SortedMap<String, StripFit> rows) {
+        for (String key : EntityScheduleRoster.POSED_TRAITS.get(id)) {
+            int split = key.indexOf('=');
+            BiFunction<AppearanceOptions.Builder, String, AppearanceOptions.Builder> take =
+                split < 0 ? null : TRAITS.get(key.substring(0, split));
+            if (take == null) {
+                unspelled.add(id + " " + spelled(Age.ADULT) + " ~" + key);
+                continue;
+            }
+            AppearanceOptions taking = take.apply(AppearanceOptions.builder().age(Age.ADULT), key.substring(split + 1)).build();
+            for (String rowId : List.of(PoseStyle.IDLE, PoseStyle.STRIDE))
+                rows.put(rowId + "~" + key, StyleResolution.of(found, id, rowId, taking).strip());
         }
     }
 

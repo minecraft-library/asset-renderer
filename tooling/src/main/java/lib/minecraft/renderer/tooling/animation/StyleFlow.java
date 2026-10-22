@@ -22,37 +22,47 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * Emits each entity's style catalog - the {@code styles} member of the model table, one row per
  * uniquely identifiable output.
  *
- * <p>A row's drivers are the join of the curated roster with what the entity's poses actually
- * read: the standing row ramps elapsed age and adds every figure and resting selection its forms
- * consult, the walking row composes the stride pair over it, and every non-default selectable
- * member earns a row of its own. The {@code bind} row is never emitted - every catalog synthesizes
- * it. Row ids are unique per entity, except that two rows may share one id where disjoint
- * {@code age} members split them - the axolotl's adult factor and baby clip both spell
- * {@code play_dead}.
+ * <p>A row's drivers are the join of the curated roster with what the entity's poses and pass
+ * opacities actually read: the standing row ramps elapsed age and adds the idle half of every clock
+ * and every resting selection its forms consult, the walking row composes the stride pair and each
+ * clock's stride half over it, and every non-default selectable member earns a row of its own. The
+ * {@code bind} row is never emitted - every catalog synthesizes it. Row ids are unique per entity,
+ * except that two rows may share one id where disjoint {@code age} members split them - the
+ * axolotl's adult factor and baby clip both spell {@code play_dead}.
  *
  * <p><b>A row's {@code sources} member is measured, never asserted.</b> Each composed row is
  * evaluated across one period per contributing mesh - the body, the baby fork, every coat, size
  * and shape option, every overlay pass and its suppressed alternate - and a mechanism is written
  * down only where dropping its drivers changes the shape of some channel's travel, where a play
- * site the row plays runs a clip that moves, or where a pass scrolls its sheet. A source only a
- * gated pass contributes carries that pass's gate token. A row ships where a mechanism moves it or
- * where its held output differs from its base's at some tick of the period - a held selection
- * ships {@code sources: []}, a distinct pose nothing travels - so a subject whose every row
- * renders as its base ships no {@code styles} member and stays bind-only.
+ * site the row plays runs a clip that moves, where a pass scrolls its sheet, or where a pass's
+ * opacity reads a drive that travels. A source only a gated pass contributes carries that pass's
+ * gate token. A row ships where a mechanism moves it or where its held output differs from its
+ * base's at some tick of the period - a held selection ships {@code sources: []}, a distinct pose
+ * nothing travels - so a subject whose every row renders as its base ships no {@code styles}
+ * member and stays bind-only.
+ *
+ * <p><b>A stride walks at its subject's vanilla pace.</b> The walking row is measured first under
+ * the literal pair - hold 1, ramp 1 - and a side whose sources then hold {@code stride} reads the
+ * walk clock: it is driven at its age's wander, re-measured to the same sources, and carries its
+ * ceiling, the fastest walk its subject's own behaviours reach. A side reading no walk clock keeps
+ * the literal pair and carries none, and a reading side with no pace stops the flow.
  *
  * <p>A state-gated play site plays where the binding holds its gate field non-zero; a walk-driven
  * one runs unconditionally, as vanilla applies it, and moves a row wherever its resolved clock or
  * capped amplitude travels under that row's binding - the nautilus feeds its clock elapsed age and
  * floors its amplitude, so its swim moves the standing row with nothing walking. The two universal
- * rows are measured per age side where the subject draws a baby mesh, and a subject whose sides
- * measure apart is emitted an age-split pair - a side with no distinct output shipping no row,
- * which is how a baby whose clips all rest stays bind-only while its adult moves.
+ * rows are measured per age side where the subject draws a baby mesh, each side keeping only the
+ * selections and clocks its own forms read, and a subject whose sides measure apart - by their
+ * sources, their drives or their ceilings - is emitted an age-split pair, a side with no distinct
+ * output shipping no row, which is how a baby whose clips all rest stays bind-only while its adult
+ * moves.
  *
  * <p>Drive spelling is deterministic: {@code field}, {@code wave} and {@code extent} are always
  * spelled, {@code rest} only where the wave reads it - a sweep, cycle, stroke or trapezoid - then a
@@ -68,6 +78,14 @@ public final class StyleFlow {
     private static final @NotNull String IDLE = "idle";
 
     private static final @NotNull String STRIDE = "stride";
+
+    /** The age tokens a side is measured at; {@code adult} also names the side of a row with no baby. */
+    private static final @NotNull String ADULT = "adult";
+
+    private static final @NotNull String BABY = "baby";
+
+    /** The source token the walk clock files its variation under. */
+    private static final @NotNull String STRIDE_SOURCE = "stride";
 
     /** The three universally driven fields - elapsed age, and the stride pair. */
     private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
@@ -106,7 +124,9 @@ public final class StyleFlow {
      *
      * <p>Two census lines close the pass, telling the two still-nesses apart: a select site whose
      * field no roster member answers is a figure to add, where a subject no row moves is simply
-     * still - flattening the first into the second is what the lines exist to prevent.
+     * still - flattening the first into the second is what the lines exist to prevent. The pace
+     * scope beneath it logs each paced side's wander and fastest walk, and closes with a count of
+     * the stride sides paced and the ones reading no walk clock.
      *
      * @param diagnostics the scope the pass is recorded against
      * @param models the model table, rewritten in place ahead of being written
@@ -114,23 +134,28 @@ public final class StyleFlow {
      * @param clips every parsed keyframe clip by coordinate
      * @param periodTicks the ticks a sweep or cycle figure wraps at, which is also the window every
      *     measurement samples
+     * @param paces each subject's walks by age, keyed by entity id - a subject missing from the map
+     *     walks at no pace
      */
     public static void emit(
         @NotNull Diagnostics diagnostics, @NotNull JsonTree models,
         @NotNull Map<String, PoseOutcome> poses, @NotNull Map<String, KeyframeClip> clips,
-        int periodTicks) {
+        int periodTicks, @NotNull Map<String, EntityPace> paces) {
 
+        Diagnostics paceLog = diagnostics.child("pace");
         Map<String, Set<String>> reads = new LinkedHashMap<>();
         Map<String, PoseProgram> grounded = new LinkedHashMap<>();
         Map<String, Set<String>> measured = new LinkedHashMap<>();
         Set<String> unanswered = new TreeSet<>();
         Set<String> still = new TreeSet<>();
         int[] subjects = {0};
+        int[] sides = {0, 0};
 
         models.members().forEach((entity, row) -> {
             subjects[0]++;
             List<Site> sites = meshSites(row);
             List<Scroll> scrolls = scrollSites(row);
+            List<Opacity> opacities = opacitySites(row);
             Set<String> read = new LinkedHashSet<>();
             Set<String> babyRead = new LinkedHashSet<>();
             Set<String> adultRead = new LinkedHashSet<>();
@@ -139,9 +164,17 @@ public final class StyleFlow {
                 read.addAll(held);
                 (site.baby() ? babyRead : adultRead).addAll(held);
             }
+            for (Opacity opacity : opacities) {
+                read.addAll(opacity.inputs());
+                if (opacity.adultDrawn()) adultRead.addAll(opacity.inputs());
+                if (opacity.babyDrawn()) babyRead.addAll(opacity.inputs());
+            }
             recordUnanswered(entity, sites, poses, unanswered);
 
             boolean hasBaby = sites.stream().anyMatch(Site::baby);
+            EntityPace pace = paces.getOrDefault(entity, EntityPace.NONE);
+            Function<Row, List<JsonTree>> measure = side -> sourcesOf(entity, side, sites, scrolls, opacities,
+                poses, clips, periodTicks, grounded, measured, diagnostics);
             List<Row> rows = deriveRows(entity, read, babyRead, adultRead, hasBaby, diagnostics);
             Row idle = rows.getFirst();
             List<JsonTree> written = new ArrayList<>();
@@ -153,47 +186,143 @@ public final class StyleFlow {
                     continue;
                 }
                 Map<String, Drive> base = IDLE.equals(held.id()) ? Map.of() : idle.composed();
+                boolean stride = STRIDE.equals(held.id());
+                Row emitted = held;
+                List<JsonTree> sources;
+                List<Sided> walked = List.of();
                 if (!held.select() && hasBaby) {
-                    Row adult = aged(held, "adult");
-                    Row baby = aged(held, "baby");
-                    List<JsonTree> adultSources = sourcesOf(entity, adult, sites, scrolls, poses,
-                        clips, periodTicks, grounded, measured, diagnostics);
-                    List<JsonTree> babySources = sourcesOf(entity, baby, sites, scrolls, poses,
-                        clips, periodTicks, grounded, measured, diagnostics);
-                    boolean adultShips = !adultSources.isEmpty()
-                        || distinct(adult, base, sites, poses, clips, periodTicks, grounded);
-                    boolean babyShips = !babySources.isEmpty()
-                        || distinct(baby, base, sites, poses, clips, periodTicks, grounded);
+                    Sided adult = sided(entity, ADULT, aged(held, ADULT, adultRead), stride, pace, measure, paceLog);
+                    Sided baby = sided(entity, BABY, aged(held, BABY, babyRead), stride, pace, measure, paceLog);
+                    boolean adultShips = !adult.sources().isEmpty()
+                        || distinct(adult.row(), base, sites, poses, clips, periodTicks, grounded);
+                    boolean babyShips = !baby.sources().isEmpty()
+                        || distinct(baby.row(), base, sites, poses, clips, periodTicks, grounded);
                     if (adultShips != babyShips
-                        || !spelled(adultSources).equals(spelled(babySources))) {
+                        || !spelled(adult.sources()).equals(spelled(baby.sources()))
+                        || !bindingKey(adult.row().composed()).equals(bindingKey(baby.row().composed()))
+                        || !adult.row().ceiling().equals(baby.row().ceiling())) {
                         diagnostics.info("%s style '%s' measures apart by age and is emitted age-split",
                             entity, held.id());
                         if (adultShips) {
-                            written.add(rowNode(adult, adultSources, idleEmitted));
+                            written.add(rowNode(adult.row(), adult.sources(), idleEmitted));
                             idleEmitted |= IDLE.equals(held.id());
+                            if (stride) tally(adult, sides);
                         }
                         if (babyShips) {
-                            written.add(rowNode(baby, babySources, idleEmitted));
+                            written.add(rowNode(baby.row(), baby.sources(), idleEmitted));
                             idleEmitted |= IDLE.equals(held.id());
+                            if (stride) tally(baby, sides);
                         }
                         continue;
                     }
-                }
-                List<JsonTree> sources = sourcesOf(entity, held, sites, scrolls, poses, clips,
-                    periodTicks, grounded, measured, diagnostics);
+                    // The two sides measure alike, so their drives are the row's own; what one side
+                    // was paced at is what the ageless row walks at.
+                    emitted = unaged(adult.row());
+                    sources = measure.apply(emitted);
+                    if (stride) walked = List.of(adult, baby);
+                } else if (stride) {
+                    Sided only = sided(entity, ADULT, held, true, pace, measure, paceLog);
+                    emitted = only.row();
+                    sources = only.sources();
+                    walked = List.of(only);
+                } else
+                    sources = measure.apply(held);
                 if (sources.isEmpty()
-                    && !distinct(held, base, sites, poses, clips, periodTicks, grounded)) continue;
-                written.add(rowNode(held, sources, idleEmitted));
+                    && !distinct(emitted, base, sites, poses, clips, periodTicks, grounded)) continue;
+                written.add(rowNode(emitted, sources, idleEmitted));
                 if (IDLE.equals(held.id())) idleEmitted = true;
+                walked.forEach(side -> tally(side, sides));
             }
             if (written.isEmpty()) still.add(entity);
             else row.put("styles", JsonTree.array().addAll(written));
         });
 
+        paceLog.info("%d stride side(s) walk at a vanilla pace; %d read no walk clock and keep hold 1 / ramp 1",
+            sides[0], sides[1]);
         diagnostics.info("%d select site(s) read a figure nothing answers: %s",
             unanswered.size(), unanswered);
         diagnostics.info("%d of %d subject(s) ship no style row - nothing shipped moves them: %s",
             still.size(), subjects[0], still);
+    }
+
+    /**
+     * One side of a universal row as it is measured to ship.
+     *
+     * @param row the side's row, paced where it walks
+     * @param sources its measured sources
+     * @param reads whether it is a stride side whose probe reads the walk clock
+     */
+    private record Sided(@NotNull Row row, @NotNull List<JsonTree> sources, boolean reads) {}
+
+    /**
+     * One side measured to ship - a stride side driven at its age's wander where its probe, the
+     * measurement under the literal pair, reads the walk clock, then re-measured under that pace and
+     * logged with its wander and its fastest walk. A reading side with no pace keeps the literal pair
+     * and records an error, as does a pace that moves the side's sources or a fastest walk under its
+     * wander.
+     *
+     * @param entity the subject measured
+     * @param age the side's age token, {@code adult} for a row that names none
+     * @param side the side's row under the literal pair
+     * @param stride whether the side is the stride row's
+     * @param pace the subject's walks by age
+     * @param measure what measures one row's sources
+     * @param diagnostics the pace scope
+     * @return the side as it ships
+     */
+    private static @NotNull Sided sided(
+        @NotNull String entity, @NotNull String age, @NotNull Row side, boolean stride,
+        @NotNull EntityPace pace, @NotNull Function<Row, List<JsonTree>> measure,
+        @NotNull Diagnostics diagnostics) {
+
+        List<JsonTree> probe = measure.apply(side);
+        if (!stride || !readsWalkClock(probe)) return new Sided(side, probe, false);
+        Optional<AgePace> walks = pace.at(age);
+        if (walks.isEmpty()) {
+            diagnostics.error("%s style 'stride' moves by the walk clock at %s and has no pace", entity, age);
+            return new Sided(side, probe, true);
+        }
+        Row paced = paced(side, walks.get());
+        List<JsonTree> sources = measure.apply(paced);
+        if (!spelled(sources).equals(spelled(probe)))
+            diagnostics.error("%s style 'stride' %s sources move under the pace: [%s] -> [%s]",
+                entity, age, spelled(probe), spelled(sources));
+        WalkPace wander = walks.get().wander();
+        WalkPace ceiling = walks.get().ceiling();
+        diagnostics.info("%s %s walks at speed %s, clock %s a tick - %s", entity, age,
+            Float.toString(wander.speed()), Float.toString(wander.rate()), wander.basis());
+        diagnostics.info("%s %s reaches speed %s, clock %s a tick at its fastest - %s", entity, age,
+            Float.toString(ceiling.speed()), Float.toString(ceiling.rate()), ceiling.basis());
+        if (ceiling.speed() < wander.speed() || ceiling.rate() < wander.rate())
+            diagnostics.error("%s %s ceiling [%s, %s] is under its wander [%s, %s]", entity, age,
+                Float.toString(ceiling.speed()), Float.toString(ceiling.rate()),
+                Float.toString(wander.speed()), Float.toString(wander.rate()));
+        return new Sided(paced, sources, true);
+    }
+
+    /** Counts one shipped stride side as paced or as reading no walk clock; a reading side with no pace is neither. */
+    private static void tally(@NotNull Sided side, int @NotNull [] sides) {
+        if (side.row().ceiling().isPresent()) sides[0]++;
+        else if (!side.reads()) sides[1]++;
+    }
+
+    /** Whether a measured source list holds the walk clock, bare or under a gate. */
+    private static boolean readsWalkClock(@NotNull List<JsonTree> sources) {
+        return sources.stream().anyMatch(source -> source.isPrimitive()
+            ? source.asString().filter(STRIDE_SOURCE::equals).isPresent()
+            : source.findString("source").filter(STRIDE_SOURCE::equals).isPresent());
+    }
+
+    /** One stride row driven at an age's wander - the swing held, the clock ramped - carrying its ceiling. */
+    private static @NotNull Row paced(@NotNull Row row, @NotNull AgePace pace) {
+        LinkedHashMap<String, Drive> own = new LinkedHashMap<>(row.own());
+        own.put(WALK_SPEED, new Drive(WALK_SPEED, WAVE_HOLD, 0f, pace.wander().speed(), Optional.empty()));
+        own.put(WALK_POS, new Drive(WALK_POS, WAVE_RAMP, 0f, pace.wander().rate(), Optional.empty()));
+        LinkedHashMap<String, Drive> composed = new LinkedHashMap<>(row.composed());
+        composed.put(WALK_SPEED, own.get(WALK_SPEED));
+        composed.put(WALK_POS, own.get(WALK_POS));
+        return new Row(row.id(), row.select(), row.age(), row.toggles(), own, composed,
+            Optional.of(pace.ceiling()));
     }
 
     /**
@@ -301,6 +430,14 @@ public final class StyleFlow {
             return false;
         }
 
+        /** Whether this drive's value moves at all across one period. */
+        boolean travels(int periodTicks) {
+            float first = at(0, periodTicks);
+            for (int tick = 1; tick < periodTicks; tick++)
+                if (Float.compare(at(tick, periodTicks), first) != 0) return true;
+            return false;
+        }
+
         /**
          * The source kind this drive belongs to, which is what a caused variation is filed under -
          * elapsed age the tick, the stride pair the stride, a grouped drive a selection, and every
@@ -338,6 +475,7 @@ public final class StyleFlow {
      * @param toggles the bone toggles the selection entails
      * @param own the drives the row declares itself
      * @param composed the whole driver map after base composition and group replacement
+     * @param ceiling the fastest walk a paced stride side reaches, empty on every other row
      */
     private record Row(
         @NotNull String id,
@@ -345,12 +483,20 @@ public final class StyleFlow {
         @NotNull Optional<String> age,
         @NotNull List<String> toggles,
         @NotNull LinkedHashMap<String, Drive> own,
-        @NotNull LinkedHashMap<String, Drive> composed
+        @NotNull LinkedHashMap<String, Drive> composed,
+        @NotNull Optional<WalkPace> ceiling
     ) {}
 
     /**
      * The entity's derived rows in emission order - standing, walking, then one row per
      * non-default driven member whose field its poses read, in roster order.
+     *
+     * <p>Each clock a form or a pass opacity reads puts its idle half on the standing row, after
+     * elapsed age and before the resting selections, and its stride half - where it has one - on the
+     * walking row, after the stride pair and before the forked selections. A stride half is spelled
+     * wherever it differs, a held zero included, since the walking row would otherwise inherit the
+     * standing row's half. The walking row's stride pair is the literal hold 1, ramp 1 a side is
+     * probed under before it takes a pace.
      *
      * @param entity the subject being derived, for the refusal
      * @param reads every field the entity's poses read
@@ -366,10 +512,8 @@ public final class StyleFlow {
 
         LinkedHashMap<String, Drive> idle = new LinkedHashMap<>();
         idle.put(AGE_IN_TICKS, new Drive(AGE_IN_TICKS, WAVE_RAMP, 0f, 1f, Optional.empty()));
-        for (StyleRoster.Figure figure : StyleRoster.FIGURES)
-            if (reads.contains(figure.field()))
-                idle.put(figure.field(),
-                    new Drive(figure.field(), figure.wave(), figure.rest(), figure.extent(), Optional.empty()));
+        for (StyleRoster.Clock clock : StyleRoster.CLOCKS)
+            if (reads.contains(clock.field())) idle.put(clock.field(), drive(clock.field(), clock.idle()));
         for (StyleRoster.Group group : StyleRoster.GROUPS) {
             if (!group.readBy(reads)) continue;
             StyleRoster.Member selected = group.selected(false);
@@ -381,6 +525,9 @@ public final class StyleFlow {
         LinkedHashMap<String, Drive> strideOwn = new LinkedHashMap<>();
         strideOwn.put(WALK_SPEED, new Drive(WALK_SPEED, WAVE_HOLD, 0f, 1f, Optional.empty()));
         strideOwn.put(WALK_POS, new Drive(WALK_POS, WAVE_RAMP, 0f, 1f, Optional.empty()));
+        for (StyleRoster.Clock clock : StyleRoster.CLOCKS)
+            if (reads.contains(clock.field()))
+                clock.stride().ifPresent(half -> strideOwn.put(clock.field(), drive(clock.field(), half)));
         for (StyleRoster.Group group : StyleRoster.GROUPS) {
             if (!group.forked() || !group.readBy(reads)) continue;
             StyleRoster.Member selected = group.selected(true);
@@ -390,8 +537,9 @@ public final class StyleFlow {
         }
 
         List<Row> out = new ArrayList<>();
-        out.add(new Row(IDLE, false, Optional.empty(), List.of(), idle, idle));
-        out.add(new Row(STRIDE, false, Optional.empty(), List.of(), strideOwn, compose(idle, strideOwn)));
+        out.add(new Row(IDLE, false, Optional.empty(), List.of(), idle, idle, Optional.empty()));
+        out.add(new Row(STRIDE, false, Optional.empty(), List.of(), strideOwn, compose(idle, strideOwn),
+            Optional.empty()));
         for (StyleRoster.Group group : StyleRoster.GROUPS)
             for (StyleRoster.Member member : group.members()) {
                 if (!member.drives() || !reads.contains(member.field()) || group.isDefault(member)) continue;
@@ -408,18 +556,64 @@ public final class StyleFlow {
                     new Drive(member.field(), WAVE_HOLD, 0f, 1f, Optional.of(group.token())));
                 out.add(new Row(StyleRoster.styleId(member.field()), true,
                     age.isEmpty() ? Optional.empty() : Optional.of(age),
-                    StyleRoster.togglesOf(member.field()), own, compose(idle, own)));
+                    StyleRoster.togglesOf(member.field()), own, compose(idle, own), Optional.empty()));
             }
         return out;
     }
 
+    /** One clock half as the drive it spells - a stroke or a trapezoid carrying its timing, every other wave none. */
+    private static @NotNull Drive drive(@NotNull String field, @NotNull StyleRoster.Motion motion) {
+        StyleDriver.Timing timing = switch (motion.wave()) {
+            case WAVE_STROKE -> StyleDriver.Timing.stroke(motion.rate());
+            case WAVE_TRAPEZOID -> StyleDriver.Timing.trapezoid(motion.rise(), motion.dwell(), motion.fall(), motion.gap());
+            default -> StyleDriver.Timing.NONE;
+        };
+        return new Drive(field, motion.wave(), motion.rest(), motion.extent(), timing, Optional.empty());
+    }
+
     /**
-     * One universal row narrowed to a single age side, everything else its own - the age is what
-     * {@link #skips} filters the meshes by, so the side measures over its own forms alone.
+     * One universal row narrowed to a single age side - the age is what {@link #skips} filters the
+     * meshes by, so the side measures over its own forms alone, and the drives are narrowed with it:
+     * the side keeps the stride pair and elapsed age, every selection whose roster group declares no
+     * age or this one, and every other drive whose field its own forms read.
+     *
+     * @param row the universal row
+     * @param age the side's age token
+     * @param reads every field that side's forms and pass opacities read
+     * @return the side's row
      */
-    private static @NotNull Row aged(@NotNull Row row, @NotNull String age) {
-        return new Row(row.id(), row.select(), Optional.of(age), row.toggles(), row.own(),
-            row.composed());
+    private static @NotNull Row aged(@NotNull Row row, @NotNull String age, @NotNull Set<String> reads) {
+        return new Row(row.id(), row.select(), Optional.of(age), row.toggles(), narrowed(row.own(), age, reads),
+            narrowed(row.composed(), age, reads), row.ceiling());
+    }
+
+    /** One driver map with every drive an age side does not keep taken out, in its own order; see {@link #aged}. */
+    private static @NotNull LinkedHashMap<String, Drive> narrowed(
+        @NotNull Map<String, Drive> drives, @NotNull String age, @NotNull Set<String> reads) {
+
+        LinkedHashMap<String, Drive> out = new LinkedHashMap<>();
+        drives.forEach((field, drive) -> {
+            boolean kept = AGE_IN_TICKS.equals(field) || WALK_SPEED.equals(field) || WALK_POS.equals(field)
+                || drive.group().map(group -> groupAge(group).isEmpty() || groupAge(group).equals(age))
+                    .orElseGet(() -> reads.contains(field));
+            if (kept) out.put(field, drive);
+        });
+        return out;
+    }
+
+    /** The age the roster group spelled by a drive's group token declares, empty where either age's forms read it. */
+    private static @NotNull String groupAge(@NotNull String token) {
+        return StyleRoster.GROUPS.stream()
+            .filter(group -> group.token().equals(token))
+            .map(StyleRoster.Group::age)
+            .findFirst()
+            .orElse("");
+    }
+
+    /** One age side's row taken back to both ages, its drives and its ceiling kept. */
+    private static @NotNull Row unaged(@NotNull Row row) {
+        return new Row(row.id(), row.select(), Optional.empty(), row.toggles(), row.own(), row.composed(),
+            row.ceiling());
     }
 
     /**
@@ -484,6 +678,16 @@ public final class StyleFlow {
     private record Scroll(@NotNull Gate gate, boolean babyDrawn) {}
 
     /**
+     * One overlay pass whose opacity follows the clock.
+     *
+     * @param gate the overlay gate admitting the pass
+     * @param adultDrawn whether a render of any age but a baby draws the pass
+     * @param babyDrawn whether a baby render draws the pass
+     * @param inputs the render-state fields the opacity reads, in the order it names them
+     */
+    private record Opacity(@NotNull Gate gate, boolean adultDrawn, boolean babyDrawn, @NotNull Set<String> inputs) {}
+
+    /**
      * Every mesh one entity draws, each with the gate that admits it - the age forms, every coat,
      * size and shape option through their explicit {@code pose} members, and every overlay pass,
      * suppressed alternate and baby delta through the class heading its geometry coordinate. Worn
@@ -540,6 +744,44 @@ public final class StyleFlow {
                 out.add(new Scroll(gateOf(overlay.find("when")), overlay.has("baby")));
             })));
         return out;
+    }
+
+    /**
+     * Every overlay pass of the row whose {@code opacity} reads the render state - the row's own and
+     * each option's, a pass of the baby age option drawn on a baby alone and one carrying a baby
+     * delta drawn at both ages, as {@link #meshSites} reads their meshes.
+     */
+    private static @NotNull List<Opacity> opacitySites(@NotNull JsonTree row) {
+        List<Opacity> out = new ArrayList<>();
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+            held.find("options").ifPresent(options -> options.members().forEach((option, chosen) -> {
+                boolean baby = "age".equals(axis) && "baby".equals(option);
+                chosen.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
+                    opacitySite(out, overlay, baby)));
+            }))));
+        row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
+            opacitySite(out, overlay, false)));
+        return out;
+    }
+
+    /** One overlay pass's opacity, where it carries one. */
+    private static void opacitySite(@NotNull List<Opacity> out, @NotNull JsonTree overlay, boolean baby) {
+        overlay.find("opacity").ifPresent(expression -> {
+            Set<String> inputs = new LinkedHashSet<>();
+            inputsOf(expression, inputs);
+            out.add(new Opacity(gateOf(overlay.find("when")), !baby, baby || overlay.has("baby"),
+                Collections.unmodifiableSet(inputs)));
+        });
+    }
+
+    /** Collects every {@code input} an expression node names, in the order it names them. */
+    private static void inputsOf(@NotNull JsonTree node, @NotNull Set<String> out) {
+        if (node.isArray()) node.elements().forEach(element -> inputsOf(element, out));
+        if (!node.isObject()) return;
+        node.members().forEach((member, value) -> {
+            if ("input".equals(member)) value.asString().ifPresent(out::add);
+            else inputsOf(value, out);
+        });
     }
 
     /** The gate one {@code when} member spells; see {@link Gate}. */
@@ -630,11 +872,14 @@ public final class StyleFlow {
      * One row's measured {@code sources} member - each contributing mesh's kinds gathered under
      * its gate, then each kind spelled once: a bare token where any ungated mesh contributes it,
      * the gated object spelling otherwise, and a refusal where only a rests-false flag gate does.
+     * A pass whose opacity follows the clock contributes, under its gate, the kind of each drive its
+     * opacity reads that travels within the period - the pulse's analogue of a scroll.
      *
      * @param entity the subject being measured, for the refusal
      * @param row the derived row
      * @param sites the entity's meshes
      * @param scrolls the entity's scrolling passes
+     * @param opacities the entity's passes whose opacity follows the clock
      * @param poses every pose row the pose table carries
      * @param clips every parsed keyframe clip by coordinate
      * @param periodTicks the ticks one whole excursion spans
@@ -645,7 +890,7 @@ public final class StyleFlow {
      */
     private static @NotNull List<JsonTree> sourcesOf(
         @NotNull String entity, @NotNull Row row, @NotNull List<Site> sites,
-        @NotNull List<Scroll> scrolls, @NotNull Map<String, PoseOutcome> poses,
+        @NotNull List<Scroll> scrolls, @NotNull List<Opacity> opacities, @NotNull Map<String, PoseOutcome> poses,
         @NotNull Map<String, KeyframeClip> clips, int periodTicks,
         @NotNull Map<String, PoseProgram> grounded, @NotNull Map<String, Set<String>> measured,
         @NotNull Diagnostics diagnostics) {
@@ -658,8 +903,16 @@ public final class StyleFlow {
                 entries.add(new Entry(kind, site.gate()));
         }
         for (Scroll scroll : scrolls) {
-            if (row.age().filter("baby"::equals).isPresent() && !scroll.babyDrawn()) continue;
+            if (row.age().filter(BABY::equals).isPresent() && !scroll.babyDrawn()) continue;
             entries.add(new Entry("scroll", scroll.gate()));
+        }
+        for (Opacity opacity : opacities) {
+            if (row.age().filter(BABY::equals).isPresent() && !opacity.babyDrawn()) continue;
+            if (row.age().filter(ADULT::equals).isPresent() && !opacity.adultDrawn()) continue;
+            for (String input : opacity.inputs()) {
+                Drive drive = row.composed().get(input);
+                if (drive != null && drive.travels(periodTicks)) entries.add(new Entry(drive.kind(), opacity.gate()));
+            }
         }
 
         List<JsonTree> out = new ArrayList<>();
@@ -1186,8 +1439,8 @@ public final class StyleFlow {
 
     /**
      * One emitted row - id first, then its base where the standing row is itself emitted, its age,
-     * its measured sources, its entailed toggles, and its drives: the row's own where a base
-     * carries the rest, the whole composed map where none does.
+     * its measured sources, its entailed toggles, its drives - the row's own where a base carries
+     * the rest, the whole composed map where none does - and last a paced stride's ceiling.
      */
     private static @NotNull JsonTree rowNode(
         @NotNull Row row, @NotNull List<JsonTree> sources, boolean baseEmitted) {
@@ -1201,6 +1454,8 @@ public final class StyleFlow {
             node.putStrings("toggles", row.toggles().toArray(String[]::new));
         JsonTree drives = node.childArray("drives");
         for (Drive drive : (based ? row.own() : row.composed()).values()) drives.add(drive.node());
+        row.ceiling().ifPresent(ceiling -> node.put("ceiling",
+            JsonTree.object().put("speed", ceiling.speed()).put("rate", ceiling.rate())));
         return node;
     }
 
