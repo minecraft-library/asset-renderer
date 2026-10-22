@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * both sides name one roster path and one sidecar name; the harness arms no baby scale of its own; only
  * the entity a frame is armed for takes the schedule's walk and clocks; a posed capture refuses an
  * entity no frame is armed for, and every frame is armed for the entity it draws; and the roster
- * resolves through the one type a render resolves through.
+ * resolves through the one type a render resolves through, which is the type the reach graph roots the
+ * reference tree at.
  *
  * <p>Read out of SOURCES as text. The harness is a separate Gradle build with no test source set and
  * nothing on this classpath, so its types cannot be referenced; and a mis-edit on either side shows
@@ -82,6 +83,9 @@ class EntityAnimationScheduleTest {
     private static final @NotNull Path ASSET_ROSTER = Path.of(
         "src/visual/java/lib/minecraft/renderer/sweep/EntityScheduleRoster.java");
 
+    /** The parity toolkit's reach graph, whose roots decide which types plan each artifact. */
+    private static final @NotNull Path REACH = Path.of("parity/scripts/parity/reach.py");
+
     /**
      * The identifiers of a second source of truth: a schedule constant, a harness copy of the figure
      * period, or a wave roster the harness evaluates.
@@ -105,6 +109,10 @@ class EntityAnimationScheduleTest {
     /** The renderer's own import, which the roster writer never takes. */
     private static final @NotNull Pattern RENDERER_IMPORT =
         Pattern.compile("import\\s+lib\\.minecraft\\.renderer\\.EntityRenderer\\s*;");
+
+    /** The reference tree's root entry, at the start of a line so a commented-out one does not count. */
+    private static final @NotNull Pattern REFERENCES_ROOT = Pattern.compile(
+        "(?m)^\\s*\"manifest\\.references\"\\s*:\\s*\\(\\s*\"StyleResolution\"\\s*,\\s*\\)");
 
     /** A read that takes the armed schedule into a render state - one of its clocks, or its walk. */
     private static final @NotNull Pattern SCHEDULE_READ =
@@ -263,7 +271,7 @@ class EntityAnimationScheduleTest {
     }
 
     @Test
-    @DisplayName("the roster resolves through the one type a render resolves through")
+    @DisplayName("the roster resolves through the one type a render resolves through, and the reference tree is rooted there")
     void theRosterResolvesThroughOneType() {
         String roster = read(ASSET_ROSTER);
         assertTrue(roster.contains("StyleResolution.of("),
@@ -274,6 +282,9 @@ class EntityAnimationScheduleTest {
         assertFalse(roster.contains("new EntityRenderer("),
             ASSET_ROSTER + " builds an EntityRenderer - an entry resolved through a renderer reaches past the "
                 + "one type the reference tree is planned from");
+        assertTrue(REFERENCES_ROOT.matcher(read(REACH)).find(),
+            REACH + " does not root manifest.references at \"StyleResolution\" - an edit to the type every roster "
+                + "entry resolves through plans no render of the references it decides");
     }
 
     /**
