@@ -1959,6 +1959,22 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/pose/PoseStrips": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/PoseStripsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StripSampler": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StripSamplerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/texture/BannerKit": {
       "artifacts": [
         "manifest.visual",
