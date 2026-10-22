@@ -95,6 +95,8 @@ public record EntityModelsTable(
      * @param toggles the appearance bone toggles the selection entails, or {@code null} where it
      *     entails none
      * @param age the age option this row applies to, or {@code null} to apply to both
+     * @param ceiling the fastest steady walk vanilla gives the row's subject at its age, which only a
+     *     stride row carries, or {@code null} where the row names none
      */
     public record RawStyleRow(
         @Nullable String id,
@@ -102,7 +104,21 @@ public record EntityModelsTable(
         @Nullable List<RawStyleSource> sources,
         @Nullable List<RawDrive> drives,
         @Nullable List<String> toggles,
-        @Nullable String age
+        @Nullable String age,
+        @Nullable RawCeiling ceiling
+    ) {}
+
+    /**
+     * A stride row's {@code ceiling} - the walk pair its subject's fastest steady walk drives at the
+     * row's age.
+     *
+     * @param speed the swing at that pace, or {@code null} where the ceiling names none
+     * @param rate how far the walk clock advances a tick at that pace, or {@code null} where the ceiling
+     *     names none
+     */
+    public record RawCeiling(
+        @Nullable Float speed,
+        @Nullable Float rate
     ) {}
 
     /**

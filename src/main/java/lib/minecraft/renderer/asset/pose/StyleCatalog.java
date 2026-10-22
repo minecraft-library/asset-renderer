@@ -293,7 +293,7 @@ public record StyleCatalog(
             narrowed |= admitted != style.sources();
             kept.add(admitted == style.sources() ? style
                 : new PoseStyle(style.id(), admitted, style.drivers(), style.toggles(), style.age(),
-                    style.periodTicks()));
+                    style.periodTicks(), style.ceiling()));
         }
         return narrowed
             ? new StyleCatalog(this.periodTicks(), Concurrent.newUnmodifiableList(kept))

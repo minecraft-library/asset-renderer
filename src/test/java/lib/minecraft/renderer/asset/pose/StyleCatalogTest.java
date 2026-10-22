@@ -129,6 +129,23 @@ class StyleCatalogTest {
     }
 
     @Test
+    @DisplayName("a stride the in-force view narrows keeps its ceiling")
+    void aNarrowedRowKeepsItsCeiling() {
+        PaceCeiling ceiling = new PaceCeiling(0.79f, 2.38f);
+        PoseStyle stride = new PoseStyle(PoseStyle.STRIDE,
+            Concurrent.newUnmodifiableList(
+                new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty()),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
+            Optional.empty(), Optional.of(ceiling));
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(stride));
+
+        PoseStyle kept = catalog.inForce(false, gate -> false).styles().getFirst();
+        assertEquals(1, kept.sources().size(), "the gated entry drops, so the row is rebuilt");
+        assertEquals(Optional.of(ceiling), kept.ceiling(), "and the rebuilt row records the ceiling it shipped");
+    }
+
+    @Test
     @DisplayName("animated answers the in-force inventory, not the shipped union")
     void animatedFollowsTheInForceInventory() {
         PoseStyle scrollsWhenCharged = new PoseStyle(PoseStyle.IDLE,

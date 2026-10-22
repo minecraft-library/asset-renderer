@@ -28,6 +28,8 @@ import java.util.function.ToDoubleFunction;
  *     bone the croak state inflates
  * @param age the age this row applies to; empty applies to both
  * @param periodTicks the ticks this row's own excursion spans; empty rides the catalog period
+ * @param ceiling the fastest steady walk vanilla gives this row's subject at its age, which a pose audit
+ *     raises the stride to; empty on every row but a stride walking at its subject's own vanilla pace
  */
 public record PoseStyle(
     @NotNull String id,
@@ -35,7 +37,8 @@ public record PoseStyle(
     @NotNull ConcurrentMap<String, StyleDriver> drivers,
     @NotNull ConcurrentList<String> toggles,
     @NotNull Optional<Age> age,
-    @NotNull Optional<Integer> periodTicks
+    @NotNull Optional<Integer> periodTicks,
+    @NotNull Optional<PaceCeiling> ceiling
 ) {
 
     /** The universal still row every entity has - the authored pose, one frame. */
@@ -49,6 +52,29 @@ public record PoseStyle(
 
     /** The request for whatever moves this entity, resolved by {@link StyleCatalog#animated()}. */
     public static final @NotNull String ANIMATED = "animated";
+
+    /**
+     * Constructs a new {@code PoseStyle} carrying no ceiling - every row but a stride walking at its
+     * subject's own vanilla pace.
+     *
+     * @param id the name a caller selects this output by
+     * @param sources the inventory of mechanisms this row moves through, each with the gate that admits it
+     * @param drivers the drive behind each driven render-state field, keyed by the field name a shipped
+     *     pose reads it under
+     * @param toggles the appearance bone toggles this style entails
+     * @param age the age this row applies to; empty applies to both
+     * @param periodTicks the ticks this row's own excursion spans; empty rides the catalog period
+     */
+    public PoseStyle(
+        @NotNull String id,
+        @NotNull ConcurrentList<StyleSource> sources,
+        @NotNull ConcurrentMap<String, StyleDriver> drivers,
+        @NotNull ConcurrentList<String> toggles,
+        @NotNull Optional<Age> age,
+        @NotNull Optional<Integer> periodTicks
+    ) {
+        this(id, sources, drivers, toggles, age, periodTicks, Optional.empty());
+    }
 
     /**
      * One inventory entry: a mechanism, plus the overlay gate that admits it.

@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxes;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxis;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -47,6 +49,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * advance and a trapezoid spanning no tick are refused where the row is read, naming the entity and the
  * row, so the driver never meets a timing it would refuse.
  *
+ * <p>A stride row's {@code ceiling} - the fastest walk vanilla gives its subject at its age - loads onto
+ * that row alone and composes over no base. One on a row that is not the stride, one missing its speed or
+ * its rate, and one outside the range a walk pair holds are refused where the row is read, naming the
+ * entity, so the ceiling never meets a value it would refuse.
+ *
  * <p>A refusal names a row by its place in the table. A baby form is loaded from the rows carrying a
  * delta alone, and loaded first, so a refusal counting the baby forms would name a different row than
  * the table spells. Gson reads a JSON {@code null} into the member as a node rather than as nothing,
@@ -66,6 +73,10 @@ class EntityStyleGrammarLoadTest {
     private static final @NotNull String ANTI_PHASE_SPOTS = "{\"max\": [{\"const\": 0.0}, {\"mul\": [{\"mth_cos\": "
         + "[{\"f2d\": [{\"add\": [{\"mul\": [{\"input\": \"ageInTicks\"}, {\"const\": 0.045}]}, {\"const\": 3.1415927}]}]}]}, "
         + "{\"const\": 0.25}]}]}";
+
+    /** A standing row ramping elapsed age, which a stride composes over. */
+    private static final @NotNull String IDLE_ROW = "{\"id\": \"idle\", \"sources\": [\"figure\"], "
+        + "\"drives\": [{\"field\": \"ageInTicks\", \"wave\": \"ramp\", \"extent\": 1.0}]}";
 
     @Test
     @DisplayName("an opacity loads its pass at its value with every input at rest, as a constant alpha loads")
@@ -212,6 +223,59 @@ class EntityStyleGrammarLoadTest {
     }
 
     // ------------------------------------------------------------------------------------
+    // stride ceiling
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a stride's ceiling loads onto that row alone - neither the row it composes over nor one composed over it carries one")
+    void aStrideCeilingLoadsOntoItsRow() {
+        List<PoseStyle> rows = styles(IDLE_ROW + ", " + stride("{\"speed\": 0.69693, \"rate\": 2.09079}")
+            + ", {\"id\": \"dash\", \"base\": \"stride\", \"sources\": [\"stride\"]}");
+
+        assertEquals(Optional.of(new PaceCeiling(0.69693f, 2.09079f)), rows.get(1).ceiling(),
+            "the stride reads its ceiling");
+        assertTrue(rows.getFirst().ceiling().isEmpty(), "the idle it composes over carries none");
+        assertTrue(rows.getLast().ceiling().isEmpty(), "and a row composed over it inherits none");
+        assertTrue(styles(IDLE_ROW + ", " + stride(null)).getLast().ceiling().isEmpty(),
+            "a stride naming no ceiling carries none");
+    }
+
+    @Test
+    @DisplayName("a ceiling on a row that is not the stride is refused")
+    void aCeilingOffTheStrideIsRefused() {
+        ContentException raised = assertThrows(ContentException.class, () -> styles(
+            "{\"id\": \"idle\", \"sources\": [\"figure\"], \"ceiling\": {\"speed\": 0.5, \"rate\": 0.5}}"));
+        assertEquals("Entity 'minecraft:test' style 'idle' carries a ceiling, which only a stride row carries",
+            raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a ceiling naming no speed, or no rate, is refused")
+    void aCeilingMissingAMemberIsRefused() {
+        ContentException noRate = assertThrows(ContentException.class, () ->
+            styles(IDLE_ROW + ", " + stride("{\"speed\": 0.5}")));
+        assertEquals("Entity 'minecraft:test' stride ceiling names no 'rate'", noRate.getMessage());
+
+        ContentException noSpeed = assertThrows(ContentException.class, () ->
+            styles(IDLE_ROW + ", " + stride("{\"rate\": 0.5}")));
+        assertEquals("Entity 'minecraft:test' stride ceiling names no 'speed'", noSpeed.getMessage());
+    }
+
+    @Test
+    @DisplayName("a ceiling swinging past one, or whose walk clock does not advance, is refused")
+    void aCeilingOutOfRangeIsRefused() {
+        ContentException fast = assertThrows(ContentException.class, () ->
+            styles(IDLE_ROW + ", " + stride("{\"speed\": 1.5, \"rate\": 1.0}")));
+        assertEquals("Entity 'minecraft:test' stride ceiling swings '1.5' and advances '1.0' a tick, "
+            + "outside (0, 1] and above zero", fast.getMessage());
+
+        ContentException still = assertThrows(ContentException.class, () ->
+            styles(IDLE_ROW + ", " + stride("{\"speed\": 0.5, \"rate\": 0.0}")));
+        assertEquals("Entity 'minecraft:test' stride ceiling swings '0.5' and advances '0.0' a tick, "
+            + "outside (0, 1] and above zero", still.getMessage());
+    }
+
+    // ------------------------------------------------------------------------------------
 
     /**
      * The fixture entity's one pass, drawing the body's mesh.
@@ -282,16 +346,40 @@ class EntityStyleGrammarLoadTest {
      * @return the loaded driver of the field the drive names
      */
     private static @NotNull StyleDriver driver(@NotNull String drive) {
+        String field = JsonParser.parseString(drive).getAsJsonObject().get("field").getAsString();
+        PoseStyle idle = styles("{\"id\": \"idle\", \"sources\": [\"figure\"], \"drives\": [" + drive + "]}")
+            .getFirst();
+        return idle.drivers().get(field);
+    }
+
+    /**
+     * A stride row composed over {@link #IDLE_ROW}, its ceiling spelled as the row's last member.
+     *
+     * @param ceiling the row's {@code ceiling} as JSON, or {@code null} where the row names none
+     * @return the row as JSON
+     */
+    private static @NotNull String stride(@Nullable String ceiling) {
+        return "{\"id\": \"stride\", \"base\": \"idle\", \"sources\": [\"stride\"], \"drives\": ["
+            + "{\"field\": \"walkAnimationSpeed\", \"wave\": \"hold\", \"extent\": 1.0}, "
+            + "{\"field\": \"walkAnimationPos\", \"wave\": \"ramp\", \"extent\": 1.0}]"
+            + (ceiling == null ? "" : ", \"ceiling\": " + ceiling) + "}";
+    }
+
+    /**
+     * The style rows a fixture entity carrying the given rows loads, read through the table's Gson.
+     *
+     * @param rows the entity's {@code styles} rows as comma-separated JSON, in table order
+     * @return the loaded rows, in table order
+     */
+    private static @NotNull List<PoseStyle> styles(@NotNull String rows) {
         String json = "{\"period_ticks\": 24, \"models\": {\"" + ENTITY + "\": {"
             + "\"axes\": {\"age\": {\"options\": {\"adult\": {\"geometry\": \"" + COORD + "\", \"texture\": \"test\"}}}}, "
-            + "\"styles\": [{\"id\": \"idle\", \"sources\": [\"figure\"], \"drives\": [" + drive + "]}]"
+            + "\"styles\": [" + rows + "]"
             + "}}}";
         EntityModelsTable table = GsonSettings.defaults().create()
             .fromJson(JsonParser.parseString(json), EntityModelsTable.class);
-        String field = JsonParser.parseString(drive).getAsJsonObject().get("field").getAsString();
-        PoseStyle idle = EntityIndexBuilder.assemble(Map.of(COORD, mesh()), table, Map.of())
-            .get(ENTITY).styles().styles().getFirst();
-        return idle.drivers().get(field);
+        return EntityIndexBuilder.assemble(Map.of(COORD, mesh()), table, Map.of())
+            .get(ENTITY).styles().styles();
     }
 
     /** The fixture body - one bone, which no opacity reads. */

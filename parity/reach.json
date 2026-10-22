@@ -875,6 +875,20 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/PaceCeiling": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/PoseClip": {
       "artifacts": [
         "manifest.dump.packs",

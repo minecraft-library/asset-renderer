@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
@@ -24,6 +25,7 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawArmorGrow;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxes;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxis;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawBlockOverlay;
+import lib.minecraft.renderer.content.table.EntityModelsTable.RawCeiling;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawDrive;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawEquipmentRow;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawLayerWhen;
@@ -1332,7 +1334,8 @@ public final class EntityIndexBuilder {
      * @param periodTicks the file header's {@code period_ticks}, or {@code null} where it names none
      * @return the catalog in shipped row order, or {@code null} where the family ships no styles
      * @throws ContentException if a styles-carrying file names no {@code period_ticks}, a row names
-     *     no id, an unknown token is named, a base names no sibling row, or a base chain cycles
+     *     no id, an unknown token is named, a base names no sibling row, a base chain cycles, or a
+     *     ceiling sits off a stride row, names no speed or rate, or falls outside its range
      */
     private static @Nullable StyleCatalog styleCatalogOf(
         @NotNull RawModel family, @NotNull String familyId, @Nullable Integer periodTicks) {
@@ -1358,7 +1361,7 @@ public final class EntityIndexBuilder {
                 composedDrivers(row, byId, composed, familyId, new LinkedHashSet<>()),
                 row.toggles() == null
                     ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
-                styleAge(row, familyId), Optional.empty()));
+                styleAge(row, familyId), Optional.empty(), styleCeiling(row, familyId)));
         return new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList(styles));
     }
 
@@ -1542,6 +1545,35 @@ public final class EntityIndexBuilder {
             .orElseThrow(() -> new ContentException(
                 "Entity '%s' style '%s' applies to '%s', which is not an age",
                 familyId, row.id(), row.age())));
+    }
+
+    /**
+     * The fastest steady walk a row records, or empty where it names none - a ceiling belongs to the
+     * stride row that carries it and composes over no base.
+     *
+     * @param row the raw style row
+     * @param familyId the entity being read, for refusals
+     * @return the ceiling, or empty
+     * @throws ContentException if a row other than the stride carries one, it names no speed or no
+     *     rate, or its speed lies outside (0, 1] or its rate is not above zero
+     */
+    private static @NotNull Optional<PaceCeiling> styleCeiling(@NotNull RawStyleRow row, @NotNull String familyId) {
+        RawCeiling raw = row.ceiling();
+        if (raw == null) return Optional.empty();
+        if (!PoseStyle.STRIDE.equals(row.id())) {
+            throw new ContentException("Entity '%s' style '%s' carries a ceiling, which only a stride row carries",
+                familyId, row.id());
+        }
+        if (raw.speed() == null || raw.rate() == null) {
+            throw new ContentException("Entity '%s' stride ceiling names no '%s'",
+                familyId, raw.speed() == null ? "speed" : "rate");
+        }
+        if (!(raw.speed() > 0f && raw.speed() <= 1f) || !(raw.rate() > 0f && Float.isFinite(raw.rate()))) {
+            throw new ContentException(
+                "Entity '%s' stride ceiling swings '%s' and advances '%s' a tick, outside (0, 1] and above zero",
+                familyId, raw.speed(), raw.rate());
+        }
+        return Optional.of(new PaceCeiling(raw.speed(), raw.rate()));
     }
 
     // ------------------------------------------------------------------------------------

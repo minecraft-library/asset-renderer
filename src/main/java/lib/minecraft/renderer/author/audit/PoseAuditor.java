@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
@@ -22,9 +23,11 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Validates a built style against a target row's known-good motion - the shipped bind, idle and
@@ -51,14 +55,19 @@ import java.util.Set;
  * its swing room.
  *
  * <p><b>The envelope is what the shipped table draws of the subject and what its seats
- * reproduce</b> - the bind, idle and stride styles across their periods, and each state
- * silhouette that witnesses a seat the row derives, which is a placement vanilla makes by hand
- * of parts that move together. A sitting wolf's body and mane interpenetrate by the amount
- * vanilla sat them at, and a pose landing inside that is a contact vanilla draws, not a
- * coupling the author forgot. A silhouette that witnesses no seat places its parts by amounts
- * no frame explains and widens nothing: a humanoid's crouch, its attack swing and its arm poses
- * each bury a limb in the torso by their own measure, and an arm an author drives into the
- * torso is read against the stride rather than against them.
+ * reproduce</b> - the bind and idle styles across their periods, the stride across its period at
+ * the fastest pace vanilla walks the subject at the audited age, and each state silhouette that
+ * witnesses a seat the row derives, which is a placement vanilla makes by hand of parts that move
+ * together. A sitting wolf's body and mane interpenetrate by the amount vanilla sat them at, and a
+ * pose landing inside that is a contact vanilla draws, not a coupling the author forgot. A
+ * silhouette that witnesses no seat places its parts by amounts no frame explains and widens
+ * nothing: a humanoid's crouch, its attack swing and its arm poses each bury a limb in the torso by
+ * their own measure, and an arm an author drives into the torso is read against the stride rather
+ * than against them.
+ *
+ * <p>The audited age is the one the style is compiled at - the adult where the style spans both -
+ * and the idle and stride are the shipped rows applying to it. A stride recording no fastest pace
+ * enters the envelope at the walk it drives.
  */
 @UtilityClass
 @Parity(subject = Subject.ENTITY)
@@ -135,7 +144,7 @@ public final class PoseAuditor {
             float at = clearance(bind.get(pair[0]), bind.get(pair[1]));
             known.put(key(pair), new float[]{at, at});
         }
-        for (PoseStyle shipped : knownStyles(row.styles()))
+        for (PoseStyle shipped : knownStyles(row.styles(), auditedAge(style)))
             for (int tick : ticks(shipped, catalogPeriod))
                 widen(known, pairs, worldBoxes(PosePlayer.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
         for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
@@ -310,15 +319,69 @@ public final class PoseAuditor {
     }
 
     /**
-     * The shipped styles whose motion defines the known-good envelope - bind always, idle and
-     * stride where the catalog carries them.
+     * The age an audit reads its known-good envelope at - the age the style is compiled at, and the
+     * adult where the style spans both ages.
+     *
+     * @param style the style being audited
+     * @return the audited age
      */
-    private static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog) {
+    static @NotNull Age auditedAge(@NotNull BuiltStyle style) {
+        return style.age().orElse(Age.ADULT);
+    }
+
+    /**
+     * The shipped styles whose motion defines the known-good envelope at one age - bind always, then
+     * the idle and the stride where the catalog carries them, each the row a render at that age
+     * draws, the stride at its {@link #atCeiling ceiling}.
+     *
+     * @param catalog the shipped catalog of the row being audited
+     * @param age the age the audited style is compiled at
+     * @return the known styles, bind first
+     */
+    static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog, @NotNull Age age) {
+        Predicate<PoseStyle> applies = row -> row.age().map(age::equals).orElse(true);
         List<PoseStyle> known = new ArrayList<>();
         known.add(StyleCatalog.bind());
-        catalog.byId(PoseStyle.IDLE).ifPresent(known::add);
-        catalog.byId(PoseStyle.STRIDE).ifPresent(known::add);
+        drawnAt(catalog, PoseStyle.IDLE, applies).ifPresent(known::add);
+        drawnAt(catalog, PoseStyle.STRIDE, applies).map(PoseAuditor::atCeiling).ifPresent(known::add);
         return known;
+    }
+
+    /**
+     * The row of one universal id a render at the audited age draws, where the catalog carries that
+     * id at all - the row applying to the age, or the universal row where every row of the id is
+     * scoped to the other age.
+     */
+    private static @NotNull Optional<PoseStyle> drawnAt(
+        @NotNull StyleCatalog catalog, @NotNull String id, @NotNull Predicate<PoseStyle> applies) {
+
+        if (catalog.byId(id).isEmpty()) return Optional.empty();
+        return Optional.of(catalog.resolve(id, applies, id));
+    }
+
+    /**
+     * Answers a stride row walking at its subject's fastest vanilla pace - its swing and walk clock
+     * raised to its ceiling, every other driver, and its sources, toggles, age, period and ceiling,
+     * kept; the row itself where it carries no ceiling.
+     *
+     * @param stride a shipped stride row
+     * @return the row at its ceiling
+     */
+    static @NotNull PoseStyle atCeiling(@NotNull PoseStyle stride) {
+        if (stride.ceiling().isEmpty()) return stride;
+        PaceCeiling ceiling = stride.ceiling().get();
+        LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>(stride.drivers());
+        drivers.computeIfPresent("walkAnimationSpeed", (field, held) -> at(held, ceiling.speed()));
+        drivers.computeIfPresent("walkAnimationPos", (field, held) -> at(held, ceiling.rate()));
+        return new PoseStyle(stride.id(), stride.sources(), Concurrent.adoptLinkedMap(drivers).toUnmodifiable(),
+            stride.toggles(), stride.age(), stride.periodTicks(), stride.ceiling());
+    }
+
+    /**
+     * One walk driver at another extent - its wave, rest, group and timing kept.
+     */
+    private static @NotNull StyleDriver at(@NotNull StyleDriver held, float extent) {
+        return new StyleDriver(held.field(), held.wave(), held.rest(), extent, held.group(), held.timing());
     }
 
     /**
