@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "a2ee4a6c7d1e797f4a46d8089982ace8582b40c0fb0c4dddf7a20eebd3b9888d"
+      "sha256": "8a766a97d3a4be364461e32ea437e21510e255934dac8a34f4bacc3d5f3e3d7f"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "89afed67930694973e0b9af5367e157f7379f22cdd8369af978cc1254937d843",
+    "asset_content_digest": "bd7a6c037a52bbd1833a1a00f02eb45ec20e25ed7aa0422a6bbbc6557c358c41",
     "asset_dirty": true,
-    "asset_sha": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+    "asset_sha": "40befed4310d346ac870f99f049f1576ac401274",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The geometry generator writes each entity model's bones in the order vanilla's baked model draws them - each part's children in its PartDefinition HashMap's iteration order, depth first, replayed over vanilla's own map calls including the copies a whole-mesh scaling, a replaced part and a retain or clear surgery make - where it wrote addOrReplaceChild order; an exact depth tie goes to the part drawn last, so the tie now falls as vanilla's. entity_geometry.json reorders 151 of its 156 keys with every bone and member unchanged and adds four: the giant's, husk's and wither skeleton's armour shells at their scale, and the warden's bioluminescent layer; entity_models.json points those three wearers' armour and the warden's bioluminescent pass at them, the three armour rows dropping their scale member, which the scaled shells carry. Measured against vanilla: the still sweep's moved rows go 0.4492 to 0.3548 (7 better, 1 worse) - the iron-armoured wither skeleton 0.1675 to 0.1378, husk 0.0573 to 0.0313 and armour stand 0.0217 to 0.0000 - the walk sweep's 0.2543 to 0.2437 with no row worse, the armour sweep's iron piglin 2.4531 to 2.4463; the one row that grows, the zombie villager in iron 0.1112 to 0.1182, is decided by a corner on a snapping midpoint. The skeleton family's 3D renders, the piglin's raw armour render, both dumps' entity listing and the tooling and shipped-table digests move with the order; 12 of the 22 compared artifacts hold.",
+    "reason": "Design-review fix pass at 7c2b4ab9. entity_models.json: 96 stride-row ceilings move into 61 models' per-age ceilings, and the enderman's, iron golem's and happy ghast's wearer poses move from their overlay rows into axes.carried and axes.equipment forms - the base table rebuilt with exactly those moves reproduces it, and the tooling log is identical. The dump's entities.json adds every render input it omitted (wearer forms, the baby's pose and passes, pass poses, no-hat meshes, scrolls, opacity and draw flags, layer poses and wearer toggles, the style catalog, clip fields and keyframe tables, the worn armour shell), added members only; 61 pose digests change because a clip now carries its field and table. Every sweep, pin and render manifest held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 4896
     },
-    "timestamp": "2026-10-23T18:07:43Z",
+    "timestamp": "2026-10-23T23:23:22Z",
     "tool_version": "1.0.0"
   }
 }
