@@ -132,9 +132,8 @@ vanilla's order is one in `RENDERER-RULES.md`.
   but tilts the depth plane across the whole triangle and can decide a coplanar contest the other way
   from the card. It decides two stored rows that way: `creeper~charged=true` loses the energy swirl's
   doubling over its hind legs on 803 pixels, one `right_hind_leg` corner sitting within a hundredth of
-  a step of a midpoint, and `zombie_villager~armor=iron` gives its shell's leg `south` faces to
-  `right_leg` where vanilla shows `left_leg` on 489 pixels, two `right_leg` corners sitting exactly on
-  one. 3.85% of randomly drawn visible triangles carry such a corner, and the one probed boundary the
+  a step of a midpoint, and `zombie_villager~armor=iron` gives part of a shell leg's `south` face to
+  the other leg from the one vanilla shows, two `right_leg` corners sitting exactly on one. 3.85% of randomly drawn visible triangles carry such a corner, and the one probed boundary the
   card's model misses is a sniffer beak corner of this kind. No tie rule on java's value reaches it,
   and computing the corners in vanilla's order reaches about seven in ten: the rest turn on the card's
   own rounding of vanilla's corner.
