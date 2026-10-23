@@ -21,7 +21,7 @@
  *       rule the inner loop walks per pixel.</li>
  *   <li>{@link lib.minecraft.renderer.engine.raster.DepthMath DepthMath} - depth math: the window-depth
  *       grid vanilla resolves a fragment against, the {@code GL_LEQUAL} test taken over it, and the
- *       unsnapped-plane re-read that keeps the coverage snap from moving depth.</li>
+ *       per-triangle depth plane, solved through the same snapped corners coverage reads.</li>
  * </ul>
  * <p>
  * The per-pixel coverage mask a render records (marking glinted geometry so the foil compositor

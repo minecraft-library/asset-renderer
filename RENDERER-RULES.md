@@ -456,9 +456,14 @@ entry rather than the entity's.
 
 ## Depth: the contract
 
-- The `1/256` corner snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
-  is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
-  covered and not what depth they read.
+- The `1/256` corner snap (`Rasterizer.snapToCoverageGrid`) moves depth with coverage:
+  `DepthMath.Plane` is solved from the triangle's **snapped** screen positions, the ones coverage
+  reads, as GL interpolates depth over the snapped window positions. Two faces sharing an edge share
+  its snapped corners, so they meet in depth on the edge both cover up to, and the face in front holds
+  every sample both cover off it. A plane through the unsnapped positions meets its neighbour on a line
+  the snap has moved off that edge, and hands a sample between the two lines to the face behind, its
+  plane read past its own edge. What the snapped plane costs is the tie between coplanar triangles
+  with different corners: each is tilted by its own corners' snap (the coplanar bullets below).
 - `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
   `quadCamDepthKey` sort reads. Do not collapse them - the plane is read at a sample point and the
   vertex depths are read per triangle, and only the second is a sort key.
@@ -467,22 +472,25 @@ entry rather than the entity's.
   `VANILLA_DEPTH_RANGE = 1000`, where a `float` step beside `0.5` is `2^-24`.
 - Round the interpolated depth, never the three vertex depths - rounding at the vertices tilts each
   triangle's plane by its own vertices' rounding.
-- Depth comes off the triangle's own `DepthMath.Plane`, solved once in `double` and read at the sample
-  point, so the only rounding between the solve and the depth test is the one that lands the answer in
-  a `float`. Deriving it a second time - into three vertex depths, then into gradients, then from a
-  vertex anchor - is five more roundings, and two coplanar triangles take them differently enough to
-  separate by a quantum or two a pair the grid would tie.
+- Depth comes off the triangle's own `DepthMath.Plane`, solved once in `double` from its snapped
+  corners and read at the sample point, so the only rounding between the solve and the depth test is
+  the one that lands the answer in a `float`. Deriving it a second time - into three vertex depths,
+  then into gradients, then from a vertex anchor - is five more roundings, and two triangles of one
+  plane take them differently enough to separate by a quantum or two a pair the grid would tie.
 - **Every lens reads that one plane**, perspective included: depth is affine in screen space under all
-  three, and blending the three vertex depths barycentrically reaches the same affine function only
-  because each of them *is* the plane's value at its snapped position. There is no perspective-correct
-  depth path. `perspectiveCorrect` forks the texture coordinate - its interpolation and its texel
-  read - and never depth.
+  three, and blending the three vertex depths barycentrically over the snapped corners is the same
+  affine function, because each of them *is* the plane's value at its snapped position: blended with
+  the integer edge values the coverage walk holds, they draw the plane's bytes at a divide per sample
+  more. There is no perspective-correct depth path. `perspectiveCorrect` forks the texture
+  coordinate - its interpolation and its texel read - and never depth.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
-- A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion
-  order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
-  one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
-  shell reordered at `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- A coplanar pair ties only where its two triangles solve one plane - they share their corners, as an
+  overlay emitted over its base's geometry does, or their snaps happen to tilt them alike. A tie is
+  last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion order is the tied-depth
+  priority - do not swap it for a hash map. Measured at both seams that carry one: over the fleet the
+  base mesh reordered that way reads `21.4733` against `20.9361`, and a worn shell reordered at
+  `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
 - **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
   own, so two calls over one buffer paint the second over the first wherever it covers. A picture
   made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
@@ -493,11 +501,14 @@ entry rather than the entity's.
   come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
   no armour row moving, which is the probe missing them rather than a result.
-- The grid quantum is coarser than two solutions of one plane differ by, so a coplanar contest falls to
-  draw order. That is a property of the arithmetic and not a given: the worn shell's torso and arm
-  south faces read 2 ULP apart against a quantum near `2e-7`, and a longer `float` chain between the
-  solve and the test puts the same pair 12 ULP apart, which is one to three quanta and decides them
-  outright. Measure the gap against the quantum before believing a contest ties.
+- The grid quantum is coarser than two solutions of one plane differ by, so a contest between
+  triangles that share their corners falls to draw order. That is a property of the arithmetic and not
+  a given: a longer `float` chain between the solve and the test can put two solutions of one plane
+  12 ULP apart, which is one to three quanta and decides them outright. Two coplanar triangles with
+  different corners do not solve one plane: each is tilted by its own corners' snap, up to `1/512` px
+  per corner times the face's depth gradient, which is several quanta - six between the coplanar
+  `north` faces of two of a villager's `arms` cubes at one pixel - so the snap decides their contest,
+  as the GPU's snap decides it. Measure the gap against the quantum before believing a contest ties.
 - On an additive pass a coplanar tie is a doubling rather than a tie-break: both fragments accumulate,
   as vanilla's do.
 - `emissive`, `writesDepth` and `sorted` are three independent declarations carried as one

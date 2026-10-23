@@ -155,7 +155,8 @@ public class Rasterizer {
      * hardware snaps a vertex's window position to before it sets up coverage and attribute
      * interpolation. The D3D11 functional spec requires exactly eight fractional bits there, and it is
      * the grid {@link RasterMath}'s fixed-point edge test reads, so that test's own quantization of a
-     * snapped corner is the identity and coverage, barycentrics and the texel fetch all see one corner.
+     * snapped corner is the identity and coverage, barycentrics, the texel fetch and depth all see one
+     * corner.
      *
      * <p>It is a hardware value rather than a tuned one, and the grid is what settles a texel edge that
      * runs through pixel centres, so no other grid - finer, or none - settles them as the GPU does.
@@ -945,12 +946,12 @@ public class Rasterizer {
             SurfaceTraits tr = t.source.traits();
             PassDeclaration pass = tr.pass();
             BlendMode blendMode = pass.blend();
-            // Depth comes off the triangle's own plane, read at the sample point, the way graphics
-            // hardware interpolates one - not blended per pixel from barycentric weights. Blending the
-            // three vertex depths reaches the same affine function, each of them being the plane's own
-            // value at its snapped position, but through four more roundings than reading the plane
-            // does; a pair of coplanar triangles takes those differently and separates by a quantum the
-            // grid would otherwise tie. Hoisted here for the deref, not for a decision.
+            // Depth comes off the triangle's own plane, the one through its snapped corners, read at the
+            // sample point, the way graphics hardware interpolates one - not blended per pixel from
+            // barycentric weights. Blending the three vertex depths reaches the same affine function,
+            // each of them being the plane's own value at its snapped corner, but through four more
+            // roundings than reading the plane does; a pair the grid would otherwise tie takes those
+            // differently and separates by a quantum. Hoisted here for the deref, not for a decision.
             DepthMath.Plane plane = t.plane;
             float alphaScale = pass.alpha();
 
@@ -1241,9 +1242,9 @@ public class Rasterizer {
      * edge across its interior - and {@link RasterMath#texelOf(float)} reads it as the texel below,
      * which is where the GPU's interpolation almost always lands such a value.
      *
-     * <p>Depth does not read the snapped corners - {@code DepthMath.Plane} is solved from the unsnapped
-     * positions - so the snap moves which samples are covered and which texel they read, never the
-     * depth they compare.
+     * <p>Depth reads the snapped corners too - {@code DepthMath.Plane} is solved from them - so the snap
+     * moves which samples are covered, which texel they read and the depth they compare as one, and two
+     * faces sharing an edge meet in depth on the edge both cover up to.
      *
      * @param v the projected screen-space corner
      * @return the corner on the sub-pixel grid, or {@code v} itself when the snap is disabled
@@ -1307,13 +1308,15 @@ public class Rasterizer {
                     triangle.uv2().x(), triangle.uv2().y() });
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        // Depth comes off the plane the UNSNAPPED positions define, so the coverage snap moves coverage
-        // without moving depth, and every lens reads it the same way - depth is affine in screen space
-        // under all of them. Per-vertex inverse clip-w is what the perspective-correct UV path
-        // re-weights by; a parallel lens leaves it a flat 1 and keeps the screen-linear no-divide path.
+        // Depth comes off the plane the SNAPPED corners define - the triangle coverage tests - so two
+        // faces sharing an edge meet in depth on the edge both cover up to, as graphics hardware
+        // interpolates depth over the snapped window positions, and every lens reads it the same way -
+        // depth is affine in screen space under all of them. Per-vertex inverse clip-w is what the
+        // perspective-correct UV path re-weights by; a parallel lens leaves it a flat 1 and keeps the
+        // screen-linear no-divide path.
         return new Projected(triangle, p0, p1, p2, s0, s1, s2,
             RasterMath.EdgeCoefficients.of(s0, s1, s2),
-            DepthMath.Plane.of(r0, r1, r2, p0.z(), p1.z(), p2.z()),
+            DepthMath.Plane.of(s0, s1, s2, p0.z(), p1.z(), p2.z()),
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
             perspective.kind() == Lens.Kind.PERSPECTIVE);
     }
@@ -1430,8 +1433,8 @@ public class Rasterizer {
      * @param s1 the second vertex projected and coverage-snapped to screen space
      * @param s2 the third vertex projected and coverage-snapped to screen space
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
-     * @param plane the depth plane every fragment's depth is read off; {@code p0/p1/p2.z()} stay the
-     *     true camera-space depths the translucent sort keys off
+     * @param plane the depth plane through the snapped corners every fragment's depth is read off;
+     *     {@code p0/p1/p2.z()} stay the true camera-space depths the translucent sort keys off
      * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
      * @param iw1 the second vertex's inverse clip-{@code w}
      * @param iw2 the third vertex's inverse clip-{@code w}
