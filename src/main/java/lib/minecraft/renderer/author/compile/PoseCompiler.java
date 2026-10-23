@@ -342,10 +342,11 @@ public final class PoseCompiler {
      * and, when given, the body compile's play site - so the layer's woven row carries the very
      * clip and site instances the body's does. The target catalog's period is the figure period
      * the compile frames at, exactly as the body compile's is, and the evidence pose is the layer's
-     * as it shipped, for the reason the body compile takes one. The install's stride is the one the
-     * body compile keeps, so a style keeping the stride refuses an absolute write over a field it
-     * drives on this arm exactly as on the body; the layer's row copies none of it, the body's
-     * carrying it already.
+     * as it shipped, for the reason the body compile takes one. The stride is the one the install
+     * keeps at the age the layer or form is drawn at - the body compile's, but for the baby of an
+     * install appending an adult row and a baby row, which walks at the baby's - so a style keeping
+     * the stride refuses an absolute write over a field that stride drives, exactly as on the body;
+     * the layer's row copies none of it, the body's carrying it already.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -359,8 +360,8 @@ public final class PoseCompiler {
      *     caller holds no body compile; each builds an identical site of this compile's own
      * @param periodTicks the target catalog's period in ticks - the figure period where the
      *     script declares none
-     * @param stride the stride of the install the layer belongs to - {@link #strideOf(BuiltStyle, Entity)}
-     *     of the style on the target row
+     * @param stride the stride the install the layer belongs to keeps at the age the layer is drawn
+     *     at - {@link #strideOf(BuiltStyle, Entity, Age)} of the style on the target row at that age
      * @return the compiled layer arm
      * @throws StyleException if any lowering rule refuses the authored content
      */
@@ -379,9 +380,9 @@ public final class PoseCompiler {
     // ------------------------------------------------------------------------------------
 
     /**
-     * The stride one install of a style on a target row keeps - the row's own stride at the age the
-     * style is compiled at, the adult where it spans both. The body compile and every layer and form
-     * compile of the install read this one stride.
+     * The stride one install of a style on a target row keeps at the row's own body - the row's own
+     * stride at the age the style is compiled at, the adult where it spans both. The body compile
+     * reads this stride, and so does every layer and form compile drawn at that age.
      *
      * @param style the built style being installed
      * @param row the target row whose catalog holds the stride
@@ -389,7 +390,24 @@ public final class PoseCompiler {
      */
     public static @NotNull ConcurrentMap<String, StyleDriver> strideOf(@NotNull BuiltStyle style,
                                                                        @NotNull Entity row) {
-        return strideOf(row.styles(), style.age().orElse(Age.ADULT), row.id().toString());
+        return strideOf(style, row, compiledAge(style));
+    }
+
+    /**
+     * The stride one install of a style on a target row keeps at a site drawn at one age - that
+     * age's own stride where the install appends an adult row and a baby row, each walking at its own
+     * age's stride, and the install's one stride, at the age the style is compiled at, where it
+     * appends one row.
+     *
+     * @param style the built style being installed
+     * @param row the target row whose catalog holds the stride
+     * @param age the age the site is drawn at
+     * @return the stride's composed drivers
+     */
+    public static @NotNull ConcurrentMap<String, StyleDriver> strideOf(@NotNull BuiltStyle style,
+                                                                       @NotNull Entity row, @NotNull Age age) {
+        Age walked = installsAsPair(style, row) ? age : compiledAge(style);
+        return strideOf(row.styles(), walked, row.id().toString());
     }
 
     /**
@@ -438,6 +456,34 @@ public final class PoseCompiler {
      */
     public static boolean installsAsPair(@NotNull BuiltStyle style, @NotNull Entity row) {
         return style.script().keepStride() && style.age().isEmpty() && row.axes().baby().isPresent();
+    }
+
+    /**
+     * Whether an install of a style on a target row refuses over one set of fields at every age - it
+     * appends one row, or it appends an adult and baby pair whose two strides drive the same fields,
+     * at whatever extents each walks them. A weave depends on which fields its stride drives alone - a
+     * compile refuses an absolute write over a base reading one and copies no driver's value into a
+     * pose - so a weave one such install compiles at one age has passed the check a compile at the
+     * other would run.
+     *
+     * @param style the built style being installed
+     * @param row the row it installs on
+     * @return whether both ages refuse over one set of fields
+     */
+    static boolean refusesAlikeAtEveryAge(@NotNull BuiltStyle style, @NotNull Entity row) {
+        return !installsAsPair(style, row)
+            || strideOf(style, row, Age.ADULT).keySet().equals(strideOf(style, row, Age.BABY).keySet());
+    }
+
+    /**
+     * The age an install of a style compiles the row's own body at - the style's own age, the adult
+     * where it spans both.
+     *
+     * @param style the built style being installed
+     * @return the compiled age
+     */
+    static @NotNull Age compiledAge(@NotNull BuiltStyle style) {
+        return style.age().orElse(Age.ADULT);
     }
 
     // ------------------------------------------------------------------------------------
@@ -541,9 +587,8 @@ public final class PoseCompiler {
         private final float flattened;
 
         /**
-         * The install's stride at the compiled age - what a style keeping the stride drives and
-         * refuses an absolute write over on every compile of the install, and what the body compile
-         * copies onto its row.
+         * The install's stride at the age this compile's site is drawn at - what a style keeping the
+         * stride refuses an absolute write over, and what the body compile copies onto its row.
          */
         private final @NotNull Map<String, StyleDriver> stride;
         private final @NotNull Set<String> drivenFields;

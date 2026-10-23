@@ -3,7 +3,6 @@ package lib.minecraft.renderer.author.audit;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -261,7 +260,7 @@ public final class PoseAuditor {
      *     refuse
      */
     private static @NotNull Prediction predict(@NotNull BuiltStyle style, @NotNull Entity row) {
-        Prediction prediction = new Prediction(style, row.styles().periodTicks(), PoseCompiler.strideOf(style, row));
+        Prediction prediction = new Prediction(style, row.styles().periodTicks(), row);
         FormWalker.walk(row.id().toString(), style, row, row,
             Diagnostics.root("audit", Diagnostics.Output.NONE, null)
                 .child(row.id().toString()).child(style.styleId()),
@@ -287,10 +286,10 @@ public final class PoseAuditor {
         private final int periodTicks;
 
         /**
-         * The stride the install keeps, at the age the style is compiled at - the one the row's
-         * compile reads, handed to every layer and form compile beside it.
+         * The row the style would install on, whose catalog holds the stride each layer and form
+         * compile reads at the age its site is drawn at.
          */
-        private final @NotNull ConcurrentMap<String, StyleDriver> stride;
+        private final @NotNull Entity row;
 
         /**
          * The interner pool every compile of the audit shares, as an install's share the entity's.
@@ -307,11 +306,10 @@ public final class PoseAuditor {
          */
         private @NotNull Optional<PoseCompiler.Compiled> body = Optional.empty();
 
-        private Prediction(@NotNull BuiltStyle style, int periodTicks,
-                           @NotNull ConcurrentMap<String, StyleDriver> stride) {
+        private Prediction(@NotNull BuiltStyle style, int periodTicks, @NotNull Entity row) {
             this.style = style;
             this.periodTicks = periodTicks;
-            this.stride = stride;
+            this.row = row;
         }
 
         /** {@inheritDoc} */
@@ -321,7 +319,8 @@ public final class PoseAuditor {
             PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
                 ? PoseCompiler.compile(this.style, site.form(), site.evidence(), site.scope(), this.pool)
                 : PoseCompiler.compileLayer(this.style, site.pose(), site.evidence(), site.mesh(),
-                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks, this.stride);
+                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks,
+                    PoseCompiler.strideOf(this.style, this.row, site.age()));
             // The row's body is the one site spelled under no coordinate, and the walk's first.
             if (site.coordinate().isEmpty())
                 this.body = Optional.of(compiled);

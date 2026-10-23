@@ -319,8 +319,7 @@ public final class StyleRegistrar implements AutoCloseable {
                 entityId, style.styleId());
 
         Weave weave = new Weave(entityId, style, strict,
-            this.pools.computeIfAbsent(entityId, id -> new GraphInterner()), row.styles().periodTicks(),
-            PoseCompiler.strideOf(style, row));
+            this.pools.computeIfAbsent(entityId, id -> new GraphInterner()), row.styles().periodTicks(), row);
         Entity rebuilt = FormWalker.walk(entityId, style, row, this.given.get(entityId), scope, weave);
 
         List<PoseStyle> rows = new ArrayList<>(row.styles().styles());
@@ -431,9 +430,10 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * The working state one install carries across every site the walk compiles, and what the
      * install does at each - the style and its strictness, the entity's pool, the catalog period,
-     * the stride the install keeps, and the drivers the appended row collects: each compile runs
-     * over the pool and the one stride, its drivers join the appended row first-wins, and an
-     * address it reached nothing with refuses when strict.
+     * the row whose catalog holds the stride the install keeps, and the drivers the appended row
+     * collects: each compile runs over the pool and the stride the install keeps at the age its site
+     * is drawn at, its drivers join the appended row first-wins, and an address it reached nothing
+     * with refuses when strict.
      */
     private static final class Weave implements FormWalker.Visitor {
 
@@ -463,10 +463,10 @@ public final class StyleRegistrar implements AutoCloseable {
         private final int periodTicks;
 
         /**
-         * The stride the install keeps, at the age the style is compiled at - the one the row's
-         * compile reads, handed to every layer and form compile beside it.
+         * The row the style installs on, whose catalog holds the stride each layer and form compile
+         * reads at the age its site is drawn at.
          */
-        private final @NotNull ConcurrentMap<String, StyleDriver> stride;
+        private final @NotNull Entity row;
 
         /**
          * The appended row's drivers - the row's compile first, every later compile joining
@@ -481,14 +481,13 @@ public final class StyleRegistrar implements AutoCloseable {
         private @NotNull Optional<Integer> declaredPeriod = Optional.empty();
 
         private Weave(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
-                      @NotNull GraphInterner pool, int periodTicks,
-                      @NotNull ConcurrentMap<String, StyleDriver> stride) {
+                      @NotNull GraphInterner pool, int periodTicks, @NotNull Entity row) {
             this.entityId = entityId;
             this.style = style;
             this.strict = strict;
             this.pool = pool;
             this.periodTicks = periodTicks;
-            this.stride = stride;
+            this.row = row;
         }
 
         /** {@inheritDoc} */
@@ -498,7 +497,8 @@ public final class StyleRegistrar implements AutoCloseable {
             PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
                 ? PoseCompiler.compile(this.style, site.form(), site.evidence(), site.scope(), this.pool)
                 : PoseCompiler.compileLayer(this.style, site.pose(), site.evidence(), site.mesh(),
-                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks, this.stride);
+                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks,
+                    PoseCompiler.strideOf(this.style, this.row, site.age()));
             // A later compile's drivers join first-wins, so the body compile's copy of a shared field
             // stands and a field only a pass's splices read - a bone the body's mesh dropped - still
             // lands its driver.

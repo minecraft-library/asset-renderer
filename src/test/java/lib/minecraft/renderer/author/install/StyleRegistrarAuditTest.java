@@ -21,6 +21,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
@@ -39,8 +40,10 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.ridingHat;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.catalog;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.styleRow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -71,6 +74,9 @@ class StyleRegistrarAuditTest {
 
     /** The row whose selected carried block swaps a pose of its own onto its body. */
     private static final @NotNull String ENDERMAN = "minecraft:enderman";
+
+    /** A clock a hand-built stride drives beside the walk pair and elapsed age. */
+    private static final @NotNull String CLOCK = "carryClock";
 
     /** The id of each hand-built row whose one size form shares the row's pose instance. */
     private static final @NotNull String TEST = "minecraft:test";
@@ -137,6 +143,47 @@ class StyleRegistrarAuditTest {
             "an audit predicts the refusal the install makes");
         assertEquals(installed.getMessage(), audited.getMessage());
         assertAgrees(definitions, ENDERMAN, plant);
+    }
+
+    @Test
+    @DisplayName("a write over a clock the row's stride drives beside the walk, read by the carried block's wearer pose, is refused by the install and the audit alike")
+    void aCarrierRefusesOverAStrideClockTheInstallAndTheAuditAlike() {
+        // The walk pair and elapsed age are driven whatever stride a site compiles against, so only a
+        // clock of the row's own stride tells the carrier's stride from none.
+        Entity enderman = row(shipped(), ENDERMAN);
+        Entity clocked = enderman.mutate()
+            .pose(EntityPose.NONE)
+            .overlays(enderman.overlays().stream()
+                .map(pass -> pass.withPose(EntityPose.NONE))
+                .collect(Concurrent.toUnmodifiableList()))
+            .blockOverlays(enderman.blockOverlays().stream()
+                .map(block -> block.wearerPose().isPresent()
+                    ? block.withWearerPose(CompilerFixtures.boneWrite("right_arm", PoseChannel.X_ROT,
+                        CompilerFixtures.input(CLOCK)))
+                    : block)
+                .collect(Concurrent.toUnmodifiableList()))
+            .styles(catalog(styleRow(PoseStyle.STRIDE, Map.of(CLOCK,
+                new StyleDriver(CLOCK, StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())))))
+            .build();
+        ConcurrentMap<String, Entity> definitions = definitions(clocked);
+        BuiltStyle reach = Poses.custom("reach").keepStride().bone("right_arm", arm -> arm.pitch(10)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        StyleException installed = assertThrows(StyleException.class, () -> registrar.add(ENDERMAN, reach),
+            "the carrier compiles against the stride its install keeps");
+        assertTrue(installed.getMessage().contains("bone 'right_arm'")
+                && installed.getMessage().contains("driven field '" + CLOCK + "'"),
+            "the refusal names the arm and the clock its carrier base reads: " + installed.getMessage());
+        assertEquals(List.of("styles/" + ENDERMAN + "/reach/form/carried/compile"), registrar.diagnostics().entries()
+                .stream()
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+                .map(Diagnostics.Entry::path)
+                .toList(),
+            "the carried form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(reach, clocked),
+            "an audit predicts the refusal the install makes");
+        assertEquals(installed.getMessage(), audited.getMessage());
+        assertAgrees(definitions, ENDERMAN, reach);
     }
 
     @Test
