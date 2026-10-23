@@ -4,7 +4,10 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.tooling.animation.PoseFold;
 import lib.minecraft.renderer.tooling.animation.PoseJson;
+import lib.minecraft.renderer.tooling.animation.PoseWalk;
+import lib.minecraft.renderer.tooling.animation.StyleRoster;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
@@ -17,7 +20,6 @@ import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.interp.Interpreter;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +37,7 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -97,13 +100,15 @@ public final class EntityOverlayResolver {
     /** The render-state input an alpha lambda's float argument stands for - the age the frame is posed at. */
     private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
 
-    /** The calls an alpha lambda may make, each to the pose grammar's own operator, keyed by owner, name and descriptor. */
-    private static final @NotNull Map<String, PoseOperator> ALPHA_INTRINSICS = Map.of(
-        SourceClasses.Types.MTH + ".cos(D)F", PoseOperator.MTH_COS,
-        SourceClasses.Types.MTH + ".sin(D)F", PoseOperator.MTH_SIN,
-        SourceClasses.Types.JAVA_MATH + ".max(FF)F", PoseOperator.MAX,
-        SourceClasses.Types.JAVA_MATH + ".min(FF)F", PoseOperator.MIN,
-        SourceClasses.Types.MTH + ".clamp(FFF)F", PoseOperator.CLAMP);
+    /**
+     * The operators an alpha lambda may compute, each read off an instruction through the pose walk's
+     * own grammar: the float multiply, add and subtract, the width conversions, and the cosine, sine,
+     * max, min and clamp calls.
+     */
+    private static final @NotNull Set<PoseOperator> ALPHA_OPERATORS = EnumSet.of(
+        PoseOperator.MUL, PoseOperator.ADD, PoseOperator.SUB,
+        PoseOperator.F2D, PoseOperator.D2F, PoseOperator.I2F, PoseOperator.F2I,
+        PoseOperator.MTH_COS, PoseOperator.MTH_SIN, PoseOperator.MAX, PoseOperator.MIN, PoseOperator.CLAMP);
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -418,25 +423,23 @@ public final class EntityOverlayResolver {
     /**
      * The {@code pipeline} node - {@code emissive} is the walked NO_CARDINAL_LIGHTING trait
      * (absent = shaded), {@code blend} the additive / translucent classification (absent =
-     * normal), {@code alpha} the fractional frozen-frame opacity (absent = 1.0),
-     * {@code depth_write} the pipeline's {@code DepthStencilState.writeDepth} (absent = writes,
-     * which is what {@code DepthStencilState.DEFAULT} declares) and {@code sorted} its
+     * normal), {@code depth_write} the pipeline's {@code DepthStencilState.writeDepth} (absent =
+     * writes, which is what {@code DepthStencilState.DEFAULT} declares) and {@code sorted} its
      * {@code RenderSetup.sortOnUpload} (absent = drawn in submission order). Each member omits its
-     * identity, so the node is null when the pass is an ordinary shaded source-over one.
+     * identity, so the node is null when the pass is an ordinary shaded source-over one. A pass's
+     * opacity is no member of it: it rides the row's own {@code opacity}, a constant included.
      *
      * @param emissive whether the pass skips cardinal lighting
      * @param blend the blend token, or {@code null} for source-over
-     * @param alpha the opacity multiplier
      * @param writesDepth whether the pass writes the depth buffer
      * @param sorted whether the pass's quads are drawn back-to-front
      */
-    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend, float alpha,
+    private static @Nullable JsonTree pipelineNode(boolean emissive, @Nullable String blend,
                                                    boolean writesDepth, boolean sorted) {
-        if (!emissive && blend == null && alpha >= 1f && writesDepth && !sorted) return null;
+        if (!emissive && blend == null && writesDepth && !sorted) return null;
         JsonTree node = JsonTree.object();
         if (emissive) node.put("emissive", true);
         if (blend != null) node.put("blend", blend);
-        if (alpha < 1f) node.put("alpha", alpha);
         if (!writesDepth) node.put("depth_write", false);
         if (sorted) node.put("sorted", true);
         return node;
@@ -537,7 +540,7 @@ public final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.blendTokenOf(mi.name),
                     this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
                 this.diagnostics.info("eyes overlay '%s' via clinit RenderTypes.%s", simpleName(sourceClass), mi.name);
                 return node;
@@ -570,7 +573,7 @@ public final class EntityOverlayResolver {
                     .put("texture", namespaced(pendingTexture));
                 node.putIf("pipeline", pipelineNode(
                     factoryTraits.contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-                    this.traits.blendTokenOf(mi.name), 1f,
+                    this.traits.blendTokenOf(mi.name),
                     this.traits.factoryWritesDepth(mi.name), this.traits.factorySortsQuads(mi.name)));
                 this.diagnostics.info("renderer-tail eyes via clinit RenderTypes.%s", mi.name);
                 return node;
@@ -665,7 +668,7 @@ public final class EntityOverlayResolver {
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.classifyBlend(cn.name),
             this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
         node.putIf("baby", compositeBabyForm(cn));
@@ -1212,7 +1215,7 @@ public final class EntityOverlayResolver {
             node.putIf("geometry", this.geometryRef.primaryKey())
                 .put("texture", texture.path())
                 .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted));
+                .putIf("pipeline", pipelineNode(emissive, blend, writesDepth, sorted));
             putOpacity(node, opacity, site);
             return List.of(node);
         }
@@ -1230,8 +1233,10 @@ public final class EntityOverlayResolver {
         node.put("geometry", key)
             .put("texture", texture.path())
             .putIf("texture_by", texture.textureBy())
-            .putIf("pipeline", pipelineNode(emissive, blend, alpha, writesDepth, sorted));
-        putOpacity(node, opacity, site);
+            .putIf("pipeline", pipelineNode(emissive, blend, writesDepth, sorted));
+        // A subset drawn at a fractional frozen-frame alpha writes it as a constant opacity, the
+        // one member a pass's opacity is spelled through.
+        putOpacity(node, alpha < 1f ? Optional.of(new PoseExpr.Constant(alpha)) : opacity, site);
         node.put("skip_bounds", true);
         JsonTree bones = node.childArray("retain_bones");
         for (String bone : retain) bones.add(bone);
@@ -1240,7 +1245,8 @@ public final class EntityOverlayResolver {
 
     /**
      * Writes a pass's opacity beside its pipeline, spelled self-contained in the pose table's
-     * grammar, and says which inputs it reads; a pass with none writes nothing.
+     * grammar - a constant as the grammar's own {@code const} - and says which inputs it reads; a pass
+     * with none writes nothing.
      */
     private void putOpacity(
         @NotNull JsonTree node, @NotNull Optional<PoseExpr> opacity, @NotNull EntityRendererResolver.LayerSite site) {
@@ -1600,6 +1606,10 @@ public final class EntityOverlayResolver {
     /**
      * One expression with every input outside {@link StyleRoster#DRIVEN} rested at the frozen frame,
      * rebuilt so each operation over literals alone folds to one.
+     *
+     * <p>Not a {@link PoseFold}: that rests each figure at what a subject's own tables answer for it,
+     * where the frozen frame rests every input at the one age an alpha is evaluated at. The operation
+     * arm is the same builder either way.
      */
     private static @NotNull PoseExpr rested(@NotNull PoseExpr expression, float frozen) {
         return switch (expression) {
@@ -1617,10 +1627,12 @@ public final class EntityOverlayResolver {
      *
      * <p>The lambda is {@code (state, ageInTicks)}, static, as vanilla compiles one. A float literal
      * is a constant, the age argument the {@code ageInTicks} input, a float field read off the state
-     * that field's input; {@code fmul}, {@code fadd}, {@code fsub} and the width conversions are the
-     * pose grammar's operators, and so are {@code Mth.cos}, {@code Mth.sin}, {@code Math.max},
-     * {@code Math.min} and {@code Mth.clamp}. Anything else - a branch, any other call, any other
-     * load - answers empty, and so does a lambda of any other shape.
+     * that field's input; an operation is whatever {@link PoseWalk#operatorOf} reads the instruction
+     * as, and the grammar closes at {@link #ALPHA_OPERATORS} - {@code fmul}, {@code fadd}, {@code fsub}
+     * and the width conversions, and the calls the pose walk reads as cosine, sine, max, min and clamp,
+     * which are {@code Mth.cos}, {@code Mth.sin}, {@code Math.max}, {@code Math.min}, and
+     * {@code Mth.clamp} or {@code Math.clamp}. Anything else - a branch, any other call or operator,
+     * any other load - answers empty, and so does a lambda of any other shape.
      *
      * @param alphaProvider the alpha provider's lambda
      * @return the expression, or empty where the lambda is not one this reads
@@ -1638,43 +1650,41 @@ public final class EntityOverlayResolver {
             Interpreter.Width.FLOAT_AS_FLOAT);
         machine.store(0, AlphaExpressionDomain.Marker.STATE);
         machine.store(1, new PoseExpr.Input(AGE_IN_TICKS));
-        // The machine owns the stack - the literal pushes, the two loads it holds the slots for, the
-        // fmul / fadd / fsub arithmetic and the width conversions all land in its step, a load of
-        // any other slot answering the unknown marker - before the dispatch below sees the node. The
-        // dispatch reads what the machine cannot: a field off the state, the five intrinsics and the
-        // return, and it answers empty on everything else.
+        // An operation is read off the pose walk's grammar and built here over the expressions it pops,
+        // before the machine would step it. The machine owns the rest of the stack - the literal pushes
+        // and the two loads it holds the slots for, a load of any other slot answering the unknown
+        // marker - and the dispatch after its step reads what it cannot: a field off the state and the
+        // return. Everything else answers empty.
         Optional<PoseExpr> walked = AsmWalker.over(lambda)
-            .drive(machine)
             .firstNotNull(in -> {
-                if (machine.poisoned()) return Optional.<PoseExpr>empty();
                 int op = in.getOpcode();
-                if (op < 0 || AsmWalker.floatLiteral(in) != null) return null;
+                if (op < 0) return null;
+                Optional<PoseOperator> operator = PoseWalk.operatorOf(in);
+                if (operator.isPresent()) {
+                    if (!ALPHA_OPERATORS.contains(operator.get())) return Optional.<PoseExpr>empty();
+                    List<PoseExpr> operands = new ArrayList<>();
+                    for (Object operand : machine.popArguments(operator.get().arity())) {
+                        if (!(operand instanceof PoseExpr expression)) return Optional.<PoseExpr>empty();
+                        operands.add(expression);
+                    }
+                    machine.push(PoseExpr.operation(operator.get(), operands));
+                    return null;
+                }
+                machine.step(in);
+                if (machine.poisoned()) return Optional.<PoseExpr>empty();
+                if (AsmWalker.floatLiteral(in) != null) return null;
                 switch (op) {
                     case Opcodes.ALOAD -> {
                         return machine.peek() == AlphaExpressionDomain.Marker.STATE ? null : Optional.<PoseExpr>empty();
                     }
-                    case Opcodes.FLOAD, Opcodes.FMUL, Opcodes.FADD, Opcodes.FSUB,
-                         Opcodes.F2D, Opcodes.D2F, Opcodes.I2F, Opcodes.F2I -> {
-                        return machine.poisoned() || AlphaExpressionDomain.isMarker(machine.peek())
-                            ? Optional.<PoseExpr>empty() : null;
+                    case Opcodes.FLOAD -> {
+                        return AlphaExpressionDomain.isMarker(machine.peek()) ? Optional.<PoseExpr>empty() : null;
                     }
                     case Opcodes.GETFIELD -> {
                         Object receiver = machine.pop();
                         if (receiver != AlphaExpressionDomain.Marker.STATE || !(in instanceof FieldInsnNode read)
                             || !"F".equals(read.desc)) return Optional.<PoseExpr>empty();
                         machine.push(new PoseExpr.Input(read.name));
-                        return null;
-                    }
-                    case Opcodes.INVOKESTATIC -> {
-                        PoseOperator intrinsic = in instanceof MethodInsnNode call ? ALPHA_INTRINSICS.get(
-                            call.owner + '.' + call.name + call.desc) : null;
-                        if (intrinsic == null) return Optional.<PoseExpr>empty();
-                        List<PoseExpr> operands = new ArrayList<>();
-                        for (Object operand : machine.popArguments(intrinsic.arity())) {
-                            if (!(operand instanceof PoseExpr expression)) return Optional.<PoseExpr>empty();
-                            operands.add(expression);
-                        }
-                        machine.push(PoseExpr.operation(intrinsic, operands));
                         return null;
                     }
                     case Opcodes.FRETURN -> {
@@ -1689,10 +1699,10 @@ public final class EntityOverlayResolver {
     }
 
     /**
-     * The alpha-expression value model: a float literal is a constant, the pose grammar's own
-     * arithmetic and width conversions build operations over expressions, and the state reference and
-     * every value the machine cannot model are markers no operation accepts - an operation reaching
-     * one is unmodelled, and the machine stops.
+     * The alpha-expression value model: a float literal is a constant, and the state reference and
+     * every value the machine cannot model are markers no operation accepts. The walk builds every
+     * operation the grammar holds before the machine would step it, so an operation reaching the
+     * machine is outside the grammar, and the machine stops.
      */
     private static final class AlphaExpressionDomain implements Interpreter.Domain<Object> {
 
@@ -1727,27 +1737,12 @@ public final class EntityOverlayResolver {
 
         @Override
         public @Nullable Object binary(int opcode, @NotNull Object left, @NotNull Object right) {
-            if (!(left instanceof PoseExpr leftExpression) || !(right instanceof PoseExpr rightExpression)) return null;
-            PoseOperator operator = switch (opcode) {
-                case Opcodes.FMUL -> PoseOperator.MUL;
-                case Opcodes.FADD -> PoseOperator.ADD;
-                case Opcodes.FSUB -> PoseOperator.SUB;
-                default -> null;
-            };
-            return operator == null ? null : PoseExpr.operation(operator, leftExpression, rightExpression);
+            return null;
         }
 
         @Override
         public @Nullable Object unary(int opcode, @NotNull Object operand) {
-            if (!(operand instanceof PoseExpr expression)) return null;
-            PoseOperator operator = switch (opcode) {
-                case Opcodes.F2D -> PoseOperator.F2D;
-                case Opcodes.D2F -> PoseOperator.D2F;
-                case Opcodes.I2F -> PoseOperator.I2F;
-                case Opcodes.F2I -> PoseOperator.F2I;
-                default -> null;
-            };
-            return operator == null ? null : PoseExpr.operation(operator, expression);
+            return null;
         }
 
     }
@@ -2164,7 +2159,7 @@ public final class EntityOverlayResolver {
         node.putIf("tint_by", tint.axisToken());
         node.putIf("pipeline", pipelineNode(
             this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name), 1f,
+            this.traits.classifyBlend(cn.name),
             this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
         putGrow(node, mesh.grow());
         return node;

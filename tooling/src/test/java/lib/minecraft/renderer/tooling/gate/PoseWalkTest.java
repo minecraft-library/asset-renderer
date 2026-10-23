@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
@@ -451,7 +452,7 @@ class PoseWalkTest {
         // success. Two models applying one clip at different constants is the case that proves it.
         List<PoseClipSite> walkDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == PoseClipSite.Gate.STRIDE)
+            .filter(site -> site.drive() == ClipDrive.STRIDE)
             .toList();
 
         assertTrue(!walkDriven.isEmpty(), "the corpus is expected to drive clips off the walk");
@@ -469,7 +470,7 @@ class PoseWalkTest {
     void stateDrivenClipsCarryOnlyTheTick() {
         List<PoseClipSite> stateDriven = extracted.values().stream()
             .flatMap(program -> program.clipSites().stream())
-            .filter(site -> site.drive() == PoseClipSite.Gate.SELECT)
+            .filter(site -> site.drive() == ClipDrive.SELECT)
             .toList();
 
         assertTrue(!stateDriven.isEmpty(), "the corpus is expected to gate clips behind animation states");

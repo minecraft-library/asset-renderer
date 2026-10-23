@@ -7,13 +7,13 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
@@ -354,7 +354,7 @@ class PoseFlowEmitTest {
         // the only reader of one - it drops what it proves unreachable and settles the rest to ALWAYS.
         // Shipped with a guard still on it, the model plays the clip wherever it is reachable rather
         // than where it is gated to, which is every walk clip at once.
-        PoseClipSite guarded = new PoseClipSite("fox_sleep", PoseClipSite.Gate.NONE, "", List.of(),
+        PoseClipSite guarded = new PoseClipSite("fox_sleep", ClipDrive.NONE, "", List.of(),
             new PoseExpr.Select(
                 new PosePredicate(PosePredicate.Comparison.GT,
                     new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0f)),
@@ -438,12 +438,15 @@ class PoseFlowEmitTest {
         return row;
     }
 
-    private static @NotNull JsonTree equipmentOf(@NotNull JsonTree models, @NotNull String entity) {
-        return models.child(entity).find("equipment").orElseThrow().elements().toList().getFirst();
+    /** The pose one subject's wearer axis names for one option, empty where it names none. */
+    private static @NotNull Optional<String> wearerPoseOf(
+        @NotNull JsonTree models, @NotNull String entity, @NotNull String axis, @NotNull String option) {
+
+        return models.child(entity).findPath("axes", axis, "options", option).flatMap(form -> form.findString("pose"));
     }
 
     @Test
-    @DisplayName("a body asking the slot's emptiness gains a row folded filled, and the layer names it")
+    @DisplayName("a body asking the slot's emptiness gains a row folded filled, and the slot's equipment option names it")
     void aFilledSlotFoldsItsWearerOnceMore() {
         JsonTree models = JsonTree.object()
             .put("minecraft:happy_ghast", wearing("HappyGhastModel#createBodyLayer", "bodyItem"))
@@ -463,20 +466,36 @@ class PoseFlowEmitTest {
             ((PoseOutcome.Extracted) out.get(key)).program().bones().get("body").get(PoseChannel.X_SCALE),
             "the added row takes the filled arm");
         assertEquals(folded.get("HappyGhastModel"), out.get("HappyGhastModel"), "the shipped row is untouched");
-        assertEquals(key, equipmentOf(models, "minecraft:happy_ghast").findString("wearer_pose").orElseThrow(),
-            "the layer names the pose its wearer takes");
-        assertTrue(equipmentOf(models, "minecraft:pig").findString("wearer_pose").isEmpty(),
-            "a body that asks nothing of the slot gains no wearer pose");
+        assertEquals(Optional.of(key), wearerPoseOf(models, "minecraft:happy_ghast", PoseFlow.EQUIPMENT_AXIS, "body"),
+            "the slot's equipment option names the pose its wearer takes");
+        assertTrue(models.child("minecraft:pig").findPath("axes", PoseFlow.EQUIPMENT_AXIS).isEmpty(),
+            "a body that asks nothing of the slot gains no equipment axis");
+        assertTrue(models.child("minecraft:happy_ghast").find("equipment").orElseThrow().elements().toList()
+                .getFirst().find("wearer_pose").isEmpty(),
+            "and the layer itself names no pose of its wearer's");
+    }
+
+    @Test
+    @DisplayName("a slot whose equipment option already names another pose is refused, one form carrying one pose")
+    void aSlotNamingAnotherPoseRefuses() {
+        JsonTree models = JsonTree.object().put("minecraft:happy_ghast", wearing("HappyGhastModel#createBodyLayer", "bodyItem"));
+        models.child("minecraft:happy_ghast").child("axes").child(PoseFlow.EQUIPMENT_AXIS).child("options").child("body")
+            .put("pose", "HappyGhastModel@harness.isEmpty=false");
+        Map<String, PoseOutcome> folded = Map.of("HappyGhastModel", new PoseOutcome.Extracted(PoseFold.fold(
+            squeezed().program(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Set.of(), Map.of())));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseFlow.foldWearers(
+            Map.of("HappyGhastModel", squeezed()), models, folded, Map.of(), Map.of(), Map.of(), Map.of(), diagnostics));
+        assertTrue(raised.getMessage().contains("HappyGhastModel@harness.isEmpty=false")
+            && raised.getMessage().contains("HappyGhastModel@bodyItem.isEmpty=false"), raised.getMessage());
     }
 
     @Test
     @DisplayName("a wearer pose the pose table does not carry is refused")
     void anUnresolvedWearerPoseRefuses() {
         JsonTree models = JsonTree.object().put("minecraft:happy_ghast", family("HappyGhastModel#createBodyLayer"));
-        models.child("minecraft:happy_ghast").childArray("equipment").add(JsonTree.object()
-            .put("slot", "body")
-            .put("geometry", "HarnessModel#createHarnessLayer")
-            .put("wearer_pose", "HappyGhastModel@bodyItem.isEmpty=false"));
+        optionsOf(models.child("minecraft:happy_ghast"), PoseFlow.EQUIPMENT_AXIS).child("body")
+            .put("pose", "HappyGhastModel@bodyItem.isEmpty=false");
 
         ToolingException raised = assertThrows(ToolingException.class,
             () -> PoseFlow.requirePosersResolve(models, Map.of("HappyGhastModel", squeezed())));
@@ -507,15 +526,20 @@ class PoseFlowEmitTest {
         List<String> named = new ArrayList<>();
         models.entrySet().forEach(entry -> {
             JsonObject row = entry.getValue().getAsJsonObject();
-            if (!row.has("equipment")) return;
-            row.getAsJsonArray("equipment").forEach(item -> {
-                assertFalse(item.getAsJsonObject().has(PoseFlow.ITEM_FIELD),
-                    entry.getKey() + " ships the generation-only item_field");
-                if (item.getAsJsonObject().has("wearer_pose"))
-                    named.add(entry.getKey() + " " + item.getAsJsonObject().get("wearer_pose").getAsString());
-            });
+            if (row.has("equipment"))
+                row.getAsJsonArray("equipment").forEach(item -> {
+                    assertFalse(item.getAsJsonObject().has(PoseFlow.ITEM_FIELD),
+                        entry.getKey() + " ships the generation-only item_field");
+                    assertFalse(item.getAsJsonObject().has("wearer_pose"),
+                        entry.getKey() + " names its wearer's pose on a layer rather than on its axes");
+                });
+            JsonObject axis = row.getAsJsonObject("axes").getAsJsonObject(PoseFlow.EQUIPMENT_AXIS);
+            if (axis != null)
+                axis.getAsJsonObject("options").entrySet().forEach(option -> named.add(entry.getKey() + " "
+                    + option.getKey() + " " + option.getValue().getAsJsonObject().get("pose").getAsString()));
         });
-        assertEquals(List.of("minecraft:happy_ghast " + key), named, "the ghast's body layer alone names a wearer pose");
+        assertEquals(List.of("minecraft:happy_ghast body " + key), named,
+            "the ghast's body slot alone names a wearer pose");
     }
 
     // ------------------------------------------------------------------------------------
@@ -566,8 +590,9 @@ class PoseFlowEmitTest {
         return row;
     }
 
-    private static @NotNull JsonTree blockRowOf(@NotNull JsonTree models, @NotNull String entity) {
-        return models.child(entity).find("block_overlays").orElseThrow().elements().toList().getFirst();
+    /** The pose one subject's carried axis names, empty where it names none. */
+    private static @NotNull Optional<String> carriedPoseOf(@NotNull JsonTree models, @NotNull String entity) {
+        return wearerPoseOf(models, entity, PoseFlow.CARRIED_AXIS, "block");
     }
 
     private static @NotNull PoseExpr rightArm(@NotNull Map<String, PoseOutcome> poses, @NotNull String key) {
@@ -575,7 +600,7 @@ class PoseFlowEmitTest {
     }
 
     @Test
-    @DisplayName("a body asking the carried block's emptiness gains a row folded with it answered false, and the block row names it")
+    @DisplayName("a body asking the carried block's emptiness gains a row folded with it answered false, and the carried axis names it")
     void aCarriedQuestionFoldsItsWearerOnceMore() {
         JsonTree models = JsonTree.object().put("minecraft:enderman", carrying("EndermanModel#createBodyLayer", "carriedBlock"));
         Map<String, PoseOutcome> folded = Map.of("EndermanModel", rested(holding()));
@@ -588,8 +613,8 @@ class PoseFlowEmitTest {
         assertEquals(Set.of("EndermanModel", key), out.keySet(), "exactly one row is added");
         assertEquals(new PoseExpr.Constant(-0.5f), rightArm(out, key), "the added row holds the arm forward");
         assertEquals(folded.get("EndermanModel"), out.get("EndermanModel"), "the shipped row is untouched");
-        assertEquals(key, blockRowOf(models, "minecraft:enderman").findString("wearer_pose").orElseThrow(),
-            "the block row names the pose its wearer takes");
+        assertEquals(Optional.of(key), carriedPoseOf(models, "minecraft:enderman"),
+            "the carried axis names the pose its wearer takes");
         assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
                 "minecraft:enderman carries '" + key + "' while its block is selected, folded with carriedBlock.isEmpty answered false")),
             "one line records the variant: " + scope.entries());
@@ -616,7 +641,7 @@ class PoseFlowEmitTest {
                     PoseExpr.operation(PoseOperator.I2F, COUNTDOWN), new PoseExpr.Constant(70f)))),
             arm.whenTrue(), "the raised arm sways on the count");
         assertEquals(rightArm(folded, "IronGolemModel"), arm.whenFalse(), "and the count's end is the body's own walk swing");
-        assertEquals(key, blockRowOf(models, "minecraft:iron_golem").findString("wearer_pose").orElseThrow());
+        assertEquals(Optional.of(key), carriedPoseOf(models, "minecraft:iron_golem"));
         assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
                 "minecraft:iron_golem carries '" + key + "' while its block is selected, folded with offerFlowerTick answered 400 - ageInTicks")),
             "one line records the variant: " + scope.entries());
@@ -640,9 +665,9 @@ class PoseFlowEmitTest {
             Map.of(), scope);
 
         assertEquals(folded.keySet(), out.keySet(), "no row is added");
-        assertTrue(blockRowOf(models, "minecraft:enderman").find("wearer_pose").isEmpty(),
+        assertTrue(models.child("minecraft:enderman").findPath("axes", PoseFlow.CARRIED_AXIS).isEmpty(),
             "a residual equal to the body's row names nothing");
-        assertTrue(blockRowOf(models, "minecraft:iron_golem").find("wearer_pose").isEmpty(),
+        assertTrue(models.child("minecraft:iron_golem").findPath("axes", PoseFlow.CARRIED_AXIS).isEmpty(),
             "a field the body never reads names nothing");
         assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().equals(
                 "IronGolemModel reads 'flowerBlock' in no shape a carrier variant answers - no variant for minecraft:iron_golem")),
@@ -655,9 +680,7 @@ class PoseFlowEmitTest {
         String key = "IronGolemModel@offerFlowerTick=countdown";
         JsonTree models = JsonTree.object().put("minecraft:iron_golem",
             subject("IronGolemRenderer", "IronGolemModel#createBodyLayer"));
-        models.child("minecraft:iron_golem").childArray("block_overlays").add(JsonTree.object()
-            .put("selectable", true)
-            .put("wearer_pose", key));
+        optionsOf(models.child("minecraft:iron_golem"), PoseFlow.CARRIED_AXIS).child("block").put("pose", key);
 
         ToolingException raised = assertThrows(ToolingException.class,
             () -> PoseFlow.requirePosersResolve(models, Map.of("IronGolemModel", posing("IronGolemModel"))));
@@ -680,7 +703,7 @@ class PoseFlowEmitTest {
     }
 
     @Test
-    @DisplayName("the shipped tables carry the carried arms - the enderman's held forward, the golem's swaying offer - named by each block row")
+    @DisplayName("the shipped tables carry the carried arms - the enderman's held forward, the golem's swaying offer - named by each carried axis")
     void theShippedTablesCarryTheCarriedArms() throws Exception {
         Map<String, EntityPose> poses = new Gson().fromJson(Files.readString(
             Path.of("src/main/resources/lib/minecraft/renderer/entity_poses.json")), EntityPosesTable.class).poses();
@@ -719,16 +742,19 @@ class PoseFlowEmitTest {
         Map<String, String> named = new TreeMap<>();
         models.entrySet().forEach(entry -> {
             JsonObject row = entry.getValue().getAsJsonObject();
-            if (!row.has("block_overlays")) return;
-            row.getAsJsonArray("block_overlays").forEach(block -> {
-                assertFalse(block.getAsJsonObject().has(PoseFlow.CARRIED_FIELD),
-                    entry.getKey() + " ships the generation-only carried_field");
-                if (block.getAsJsonObject().has("wearer_pose"))
-                    named.put(entry.getKey(), block.getAsJsonObject().get("wearer_pose").getAsString());
-            });
+            if (row.has("block_overlays"))
+                row.getAsJsonArray("block_overlays").forEach(block -> {
+                    assertFalse(block.getAsJsonObject().has(PoseFlow.CARRIED_FIELD),
+                        entry.getKey() + " ships the generation-only carried_field");
+                    assertFalse(block.getAsJsonObject().has("wearer_pose"),
+                        entry.getKey() + " names its wearer's pose on a block row rather than on its axes");
+                });
+            JsonObject axis = row.getAsJsonObject("axes").getAsJsonObject(PoseFlow.CARRIED_AXIS);
+            if (axis != null)
+                named.put(entry.getKey(), axis.getAsJsonObject("options").getAsJsonObject("block").get("pose").getAsString());
         });
         assertEquals(Map.of("minecraft:enderman", raised, "minecraft:iron_golem", offered), named,
-            "each selectable block row names its wearer's carrier variant, and no other block row names one");
+            "each carrier's carried axis names its wearer's carrier variant, and no other subject names one");
     }
 
     // ------------------------------------------------------------------------------------

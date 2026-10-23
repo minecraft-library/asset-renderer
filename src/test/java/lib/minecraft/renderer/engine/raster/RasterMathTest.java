@@ -26,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Coverage of the fixed-point coverage math the rasterizer runs per pixel - the sub-pixel sample
- * quantization, the Pineda edge-function factoring, the top-left fill rule, the barycentric and
+ * quantization, the Pineda edge-function factoring, the fill rule (the GPU's top-left rule, taken in
+ * GL's Y-up frame), the barycentric and
  * bounding-box helpers that ride alongside them, and the texel an interpolated coordinate reads.
  * <p>
  * Three claims the class states in prose and nothing checked.
@@ -135,7 +136,7 @@ class RasterMathTest {
      * @param t the triangle
      * @param px the sample's x coordinate
      * @param py the sample's y coordinate
-     * @return whether the triangle owns the sample under the top-left rule
+     * @return whether the triangle owns the sample under the fill rule
      */
     private static boolean unfactoredInside(@NotNull Tri t, float px, float py) {
         long x0 = RasterMath.quantizeSample(t.v0().x());

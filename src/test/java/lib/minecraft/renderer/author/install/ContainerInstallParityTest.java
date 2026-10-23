@@ -73,7 +73,7 @@ class ContainerInstallParityTest {
             "hat", Map.of(PoseChannel.Y_ROT, shippedHead),
             "body", Map.of(PoseChannel.Y_ROT, constant(-0.0d))), List.of());
         PoseStyle wob = RegistrarFixtures.styleRow("wob", Map.of("ageInTicks",
-            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())));
+            new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty())));
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, shipped, catalog(wob))));
         registrar.add("minecraft:test",

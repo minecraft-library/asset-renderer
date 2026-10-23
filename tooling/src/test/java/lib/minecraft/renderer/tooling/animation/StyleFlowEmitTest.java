@@ -4,22 +4,27 @@ import com.google.gson.Gson;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityIndexBuilder;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -32,7 +37,6 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,9 +49,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the emit log.
  *
  * <p>The walk and the clocks ride the same rows: a stride side whose probe reads the walk clock is
- * driven at its pace and carries its ceiling, an age pair splits wherever its drives or ceilings
- * part, each clock lands its idle half on the standing row and its stride half on the walking one
- * for the age whose forms read it, and a pass's opacity reads its clock in as a pose would.
+ * driven at its pace and records its age's ceiling once for the catalog, an age pair splits wherever
+ * its drives part, each clock lands its idle half on the standing row and its stride half on the
+ * walking one for the age whose forms read it, and a pass's opacity reads its clock in as a pose
+ * would.
  *
  * <p>Exercised on hand-built model trees and pose programs rather than a walked corpus, so each
  * contract is pinned per shape independently of any entity's layout; the corpus-wide answers are
@@ -86,12 +91,12 @@ class StyleFlowEmitTest {
     }
 
     private static @NotNull PoseClipSite selectSite(@NotNull String clip, @NotNull String field) {
-        return new PoseClipSite(clip, PoseClipSite.Gate.SELECT, field,
+        return new PoseClipSite(clip, ClipDrive.SELECT, field,
             List.of(new PoseExpr.Input("ageInTicks")), PoseClipSite.ALWAYS);
     }
 
     private static @NotNull PoseClipSite strideSite(@NotNull String clip) {
-        return new PoseClipSite(clip, PoseClipSite.Gate.STRIDE, "",
+        return new PoseClipSite(clip, ClipDrive.STRIDE, "",
             List.of(new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Input("walkAnimationSpeed"),
                 new PoseExpr.Constant(1.5f), new PoseExpr.Constant(2.5f)),
             PoseClipSite.ALWAYS);
@@ -102,7 +107,7 @@ class StyleFlowEmitTest {
      * and equally what a term reading a field no roster member drives folds to.
      */
     private static @NotNull PoseClipSite heldClockSite(@NotNull String clip, @NotNull String field) {
-        return new PoseClipSite(clip, PoseClipSite.Gate.SELECT, field,
+        return new PoseClipSite(clip, ClipDrive.SELECT, field,
             List.of(new PoseExpr.Constant(0f)), PoseClipSite.ALWAYS);
     }
 
@@ -197,17 +202,17 @@ class StyleFlowEmitTest {
         }
         // Two row-earning members may derive one id only where their groups' declared ages are
         // disjoint and non-empty, and the one sanctioned pair is the axolotl's play_dead.
-        Map<String, List<String>> shared = new LinkedHashMap<>();
+        Map<String, List<Optional<Age>>> shared = new LinkedHashMap<>();
         owners.forEach((id, held) -> {
             if (held.size() == 1) return;
-            List<String> ages = held.stream().map(StyleRoster.Group::age).toList();
+            List<Optional<Age>> ages = held.stream().map(StyleRoster.Group::age).toList();
             assertEquals(held.size(), Set.copyOf(ages).size(),
                 "'" + id + "' is derived by two row-earning members of one age");
-            assertFalse(ages.contains(""),
+            assertFalse(ages.contains(Optional.empty()),
                 "'" + id + "' is shared by a group either age's forms read");
             shared.put(id, ages);
         });
-        assertEquals(Map.of("play_dead", List.of("adult", "baby")), shared,
+        assertEquals(Map.of("play_dead", List.of(Optional.of(Age.ADULT), Optional.of(Age.BABY))), shared,
             "the age-split pair is the one sanctioned id collision");
         assertEquals("play_dead", StyleRoster.styleId("playingDeadFactor"),
             "the override joins the adult factor to the id its baby clip twin derives");
@@ -340,7 +345,7 @@ class StyleFlowEmitTest {
 
     /** The closed token sets the renderer's loader reads, pinned as the loader spells them. */
     private static final @NotNull Set<String> ROW_MEMBERS =
-        Set.of("id", "base", "age", "sources", "toggles", "drives", "ceiling");
+        Set.of("id", "base", "age", "sources", "toggles", "drives");
 
     private static final @NotNull Set<String> CEILING_MEMBERS = Set.of("speed", "rate");
 
@@ -373,7 +378,7 @@ class StyleFlowEmitTest {
     void everyEmittableTokenIsLoaderReadable() {
         // A fixture that produces every emittable shape at once: a stroke and a ramp clock, hold and
         // ramp drives, a grouped selection with its toggles, a gated and an ungated source, a paced
-        // stride carrying its ceiling, a baseless row, and a baby-only row.
+        // stride recording its ceiling, a baseless row, and a baby-only row.
         JsonTree probe = entityRow("SpellModel");
         probe.childArray("overlays").add(JsonTree.object()
             .put("geometry", "SpellModel#createSwirlLayer")
@@ -415,10 +420,6 @@ class StyleFlowEmitTest {
             for (String member : row.keys().toList())
                 assertTrue(ROW_MEMBERS.contains(member), "row member '" + member + "' is not loader-read");
             row.findString("age").ifPresent(age -> assertTrue(AGES.contains(age)));
-            row.find("ceiling").ifPresent(ceiling -> {
-                for (String member : ceiling.keys().toList())
-                    assertTrue(CEILING_MEMBERS.contains(member), "ceiling member '" + member + "' is not loader-read");
-            });
             for (JsonTree source : row.find("sources").orElseThrow().elements().toList())
                 if (source.isPrimitive()) {
                     assertTrue(SOURCES.contains(source.asString().orElseThrow()));
@@ -442,14 +443,19 @@ class StyleFlowEmitTest {
             "the fixture exercises the age spelling");
         assertTrue(rows.stream().anyMatch(row -> row.find("toggles").isPresent()),
             "the fixture exercises the toggles spelling");
-        assertTrue(rows.stream().anyMatch(row -> row.find("ceiling").isPresent()),
-            "the fixture exercises the ceiling spelling");
+        JsonTree ceilings = models.child("minecraft:probe").find("ceilings").orElseThrow(
+            () -> new AssertionError("the fixture exercises the ceilings spelling"));
+        ceilings.members().forEach((age, ceiling) -> {
+            assertTrue(AGES.contains(age), "ceiling age '" + age + "' is not loader-read");
+            for (String member : ceiling.keys().toList())
+                assertTrue(CEILING_MEMBERS.contains(member), "ceiling member '" + member + "' is not loader-read");
+        });
 
         // The pose-file half of what this build can emit: play-site drives, select conditions and
         // operator tokens, held to the loader's own closed sets.
-        assertEquals(Set.of("none", "stride", "select"),
-            Set.of(PoseClipSite.Gate.NONE.token(), PoseClipSite.Gate.STRIDE.token(),
-                PoseClipSite.Gate.SELECT.token()));
+        Set<String> drives = new LinkedHashSet<>();
+        for (ClipDrive drive : ClipDrive.values()) drives.add(drive.token());
+        assertEquals(Set.of("none", "stride", "select"), drives);
         Set<String> comparisons = new LinkedHashSet<>();
         for (PosePredicate.Comparison comparison : PosePredicate.Comparison.values())
             comparisons.add(comparison.token());
@@ -464,19 +470,29 @@ class StyleFlowEmitTest {
     // ------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("an ungrouped drive off the trio files as a figure, whatever its wave; a grouped one as a select")
-    void anUngroupedDriveOffTheTrioFilesAsAFigure() {
-        assertEquals("figure", new StyleFlow.Drive("tailAnimation", "ramp", 0f, 0.125f, Optional.empty()).kind(),
-            "a ramped clock is a render-state scalar, not a one-hot");
-        assertEquals("figure", new StyleFlow.Drive("spikesAnimation", "hold", 0f, 1f, Optional.empty()).kind(),
-            "and so is a level a clock is held at");
-        assertEquals("figure", new StyleFlow.Drive("tentacleAngle", "sweep", 0f, 0.7853982f, Optional.empty()).kind());
-        assertEquals("figure", new StyleFlow.Drive("flapTime", "cycle", 0f, 1f, Optional.empty()).kind());
-        assertEquals("select", new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")).kind(),
-            "a grouped hold is a selection");
-        assertEquals("tick", new StyleFlow.Drive("ageInTicks", "ramp", 0f, 1f, Optional.empty()).kind());
-        assertEquals("stride", new StyleFlow.Drive("walkAnimationSpeed", "hold", 0f, 1f, Optional.empty()).kind());
-        assertEquals("stride", new StyleFlow.Drive("walkAnimationPos", "ramp", 0f, 1f, Optional.empty()).kind());
+    @DisplayName("a clock off the trio files its travel as a figure whatever its wave, elapsed age as the tick")
+    void aDriveFilesItsTravelUnderItsKind() {
+        Map<String, String> kinds = new LinkedHashMap<>();
+        kinds.put("tailAnimation", "figure");
+        kinds.put("flapTime", "figure");
+        kinds.put("tentacleAngle", "figure");
+        kinds.put("peekAmount", "figure");
+        kinds.put("heartAnimation", "figure");
+        kinds.put("ageInTicks", "tick");
+        JsonTree models = JsonTree.object();
+        Map<String, PoseOutcome> poses = new LinkedHashMap<>();
+        kinds.keySet().forEach(field -> {
+            String model = "Kind" + field + "Model";
+            models.put("minecraft:" + field, entityRow(model));
+            poses.put(model, posing(model, Map.of("body", Map.of(PoseChannel.X_ROT,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input(field), new PoseExpr.Constant(2f)))), List.of()));
+        });
+
+        StyleFlow.emit(fresh(), models, poses, Map.of(), PERIOD, Map.of());
+
+        kinds.forEach((field, kind) -> assertEquals(List.of(kind),
+            sourcesOf(rowAt(stylesOf(models, "minecraft:" + field), "idle", Optional.empty())),
+            "'" + field + "' files its travel as a " + kind));
     }
 
     // ------------------------------------------------------------------------------------
@@ -484,106 +500,49 @@ class StyleFlowEmitTest {
     // ------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("a stroke and a trapezoid spell their timing as the loader reads it, and every wave measures as it renders")
-    void aStrokeAndATrapezoidSpellTheirTimingAndMeasureAsTheyRender() {
-        StyleFlow.Drive stroke = new StyleFlow.Drive("tentacleAngle", "stroke", 0f, 0.7853982f,
-            StyleDriver.Timing.stroke(0.11559614f), Optional.empty());
-        StyleFlow.Drive peek = new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f,
-            StyleDriver.Timing.trapezoid(6, 14, 6, 0), Optional.empty());
-        StyleFlow.Drive heart = new StyleFlow.Drive("heartAnimation", "trapezoid", 0f, 1f,
-            StyleDriver.Timing.trapezoid(0, 0, 10, 30), Optional.empty());
+    @DisplayName("a stroke and a trapezoid spell what they read as the loader reads it, and every clock loads as the roster declares it")
+    void aStrokeAndATrapezoidSpellWhatTheyReadAndLoadAsDeclared() {
+        List<String> clocks = List.of("tentacleAngle", "peekAmount", "heartAnimation", "tailAnimation", "flapTime");
+        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
+        for (String field : clocks)
+            bones.put(field + "_bone", Map.of(PoseChannel.X_ROT,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input(field), new PoseExpr.Constant(2f))));
+        JsonTree models = JsonTree.object().put("minecraft:rabbity", entityRow("RabbityModel"));
+        StyleFlow.emit(fresh(), models,
+            Map.of("RabbityModel", posing("RabbityModel", bones, List.of(selectSite("RabbityAnim#CROAK", "croakAnimationState")))),
+            Map.of("RabbityAnim#CROAK", movingClip("RabbityAnim", "CROAK")), PERIOD, Map.of());
 
-        JsonTree stroked = stroke.node();
+        List<JsonTree> styles = stylesOf(models, "minecraft:rabbity");
+        JsonTree idle = rowAt(styles, "idle", Optional.empty());
+        JsonTree stroked = driveOf(idle, "tentacleAngle").orElseThrow();
         assertEquals(List.of("field", "wave", "rest", "extent", "rate"), stroked.keys().toList(),
             "a stroke spells its rest, then its rate after the extent");
         assertEquals(0.11559614f, stroked.findFloat("rate").orElseThrow());
-        JsonTree beat = heart.node();
+        JsonTree beat = driveOf(idle, "heartAnimation").orElseThrow();
         assertEquals(List.of("field", "wave", "rest", "extent", "rise", "dwell", "fall", "gap"), beat.keys().toList(),
             "a trapezoid spells all four spans, a zero span included, so the row reads whole");
         assertEquals(List.of(0, 0, 10, 30), Stream.of("rise", "dwell", "fall", "gap")
             .map(span -> beat.findInt(span).orElseThrow()).toList());
+        assertEquals(List.of("field", "wave", "extent"), driveOf(idle, "ageInTicks").orElseThrow().keys().toList(),
+            "a wave reading no rest and nothing beside its extent spells neither");
         assertEquals(List.of("field", "wave", "extent", "group"),
-            new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")).node().keys().toList(),
-            "a wave reading no rest and no timing spells neither");
-
-        List<StyleFlow.Drive> waves = List.of(
-            new StyleFlow.Drive("croakAnimationState", "hold", 0f, 1f, Optional.of("frog")),
-            new StyleFlow.Drive("ageInTicks", "ramp", 0f, 1f, Optional.empty()),
-            new StyleFlow.Drive("movingFactor", "sweep", 0f, 1f, Optional.empty()),
-            new StyleFlow.Drive("flapTime", "cycle", 0f, 1f, Optional.empty()),
-            stroke, peek, heart);
-        JsonTree idle = JsonTree.object().put("id", "idle").put("sources", JsonTree.array());
-        JsonTree drives = idle.childArray("drives");
-        for (StyleFlow.Drive drive : waves) {
-            JsonTree node = drive.node();
-            for (String member : node.keys().toList())
-                assertTrue(DRIVE_MEMBERS.contains(member), "drive member '" + member + "' is not loader-read");
-            assertTrue(WAVES.contains(drive.wave()), "wave '" + drive.wave() + "' is not loader-read");
-            drives.add(node);
-        }
-        JsonTree models = JsonTree.object().put("minecraft:rabbity", entityRow("RabbityModel"));
-        models.child("minecraft:rabbity").childArray("styles").add(idle);
-        PoseStyle loaded = rowOf(load(models).styles(), "idle").orElseThrow();
-
-        for (StyleFlow.Drive drive : waves) {
-            StyleDriver read = loaded.drivers().get(drive.field());
-            assertEquals(drive.driver(), read, "'" + drive.wave() + "' loads as the driver it measures by");
-            for (int tick = -PERIOD; tick < 12 * PERIOD; tick++) {
-                assertEquals(Float.floatToIntBits(read.at(tick, PERIOD)), Float.floatToIntBits(drive.at(tick, PERIOD)),
-                    "'" + drive.wave() + "' measures what it renders at tick " + tick);
+            driveOf(rowAt(styles, "croak", Optional.empty()), "croakAnimationState").orElseThrow().keys().toList(),
+            "a selection spells its group last");
+        for (JsonTree row : styles) {
+            for (JsonTree drive : row.find("drives").orElseThrow().elements().toList()) {
+                for (String member : drive.keys().toList())
+                    assertTrue(DRIVE_MEMBERS.contains(member), "drive member '" + member + "' is not loader-read");
+                assertTrue(WAVES.contains(drive.findString("wave").orElseThrow()));
             }
         }
 
-        ToolingException unknown = assertThrows(ToolingException.class,
-            () -> new StyleFlow.Drive("tentacleAngle", "wobble", 0f, 1f, Optional.empty()).at(0, PERIOD));
-        assertEquals("'tentacleAngle' travels by 'wobble', which is not a wave", unknown.getMessage());
-    }
-
-    @Test
-    @DisplayName("a stroke or a trapezoid given no timing is refused where the drive is built")
-    void aStrokeOrATrapezoidGivenNoTimingIsRefused() {
-        ToolingException stroke = assertThrows(ToolingException.class,
-            () -> new StyleFlow.Drive("tentacleAngle", "stroke", 0f, 0.7853982f, Optional.empty()));
-        assertEquals("Field 'tentacleAngle' travels by 'stroke', which reads a timing, given none",
-            stroke.getMessage());
-        ToolingException trapezoid = assertThrows(ToolingException.class,
-            () -> new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f, StyleDriver.Timing.NONE,
-                Optional.empty()));
-        assertEquals("Field 'peekAmount' travels by 'trapezoid', which reads a timing, given none",
-            trapezoid.getMessage());
-    }
-
-    @Test
-    @DisplayName("two bindings differing only in a drive's timing are measured apart")
-    void twoBindingsDifferingOnlyInTimingKeyApart() {
-        Map<String, StyleFlow.Drive> slow = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
-            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.11559614f), Optional.empty()));
-        Map<String, StyleFlow.Drive> fast = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
-            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.2f), Optional.empty()));
-        assertNotEquals(StyleFlow.bindingKey(slow), StyleFlow.bindingKey(fast),
-            "a stroke's rate is part of what a measurement is memoised under");
-        Map<String, StyleFlow.Drive> again = Map.of("tentacleAngle", new StyleFlow.Drive("tentacleAngle",
-            "stroke", 0f, 0.7853982f, StyleDriver.Timing.stroke(0.11559614f), Optional.empty()));
-        assertEquals(StyleFlow.bindingKey(slow), StyleFlow.bindingKey(again),
-            "and one binding spelled twice is one measurement");
-
-        List<StyleDriver.Timing> timings = List.of(
-            StyleDriver.Timing.trapezoid(1, 2, 3, 4), StyleDriver.Timing.trapezoid(2, 2, 3, 4),
-            StyleDriver.Timing.trapezoid(1, 3, 3, 4), StyleDriver.Timing.trapezoid(1, 2, 4, 4),
-            StyleDriver.Timing.trapezoid(1, 2, 3, 5));
-        Set<String> keys = new LinkedHashSet<>();
-        for (StyleDriver.Timing timing : timings) {
-            keys.add(StyleFlow.bindingKey(Map.of("peekAmount",
-                new StyleFlow.Drive("peekAmount", "trapezoid", 0f, 0.29999998f, timing, Optional.empty()))));
+        PoseStyle loaded = rowOf(load(models).styles(), "idle").orElseThrow();
+        for (StyleRoster.Clock clock : StyleRoster.CLOCKS) {
+            if (!clocks.contains(clock.field())) continue;
+            assertEquals(new StyleDriver(clock.field(), clock.idle().wave(), 0f, clock.idle().extent(), Optional.empty()),
+                loaded.drivers().get(clock.field()),
+                "'" + clock.idle().wave().token() + "' loads as the driver the roster declares, which is what it measures by");
         }
-        assertEquals(timings.size(), keys.size(), "each of a trapezoid's four spans keys a measurement apart");
-
-        Map<String, StyleFlow.Drive> grouped = Map.of("isSitting", new StyleFlow.Drive("isSitting",
-            "hold", 0f, 1f, Optional.of("pose")));
-        Map<String, StyleFlow.Drive> ungrouped = Map.of("isSitting", new StyleFlow.Drive("isSitting",
-            "hold", 0f, 1f, Optional.empty()));
-        assertNotEquals(StyleFlow.bindingKey(grouped), StyleFlow.bindingKey(ungrouped),
-            "a drive's group decides the kind it files under, so it keys a measurement apart too");
     }
 
     // ------------------------------------------------------------------------------------
@@ -849,6 +808,26 @@ class StyleFlowEmitTest {
             "its clip holds one pose and the moving sibling is evicted, so nothing travels");
     }
 
+    @Test
+    @DisplayName("a source only a tint-gated pass contributes is refused loudly, no flag spelling the gate")
+    void aSourceOnlyATintedPassContributesIsRefused() {
+        JsonTree woolly = entityRow("WoollyModel");
+        woolly.childArray("overlays").add(JsonTree.object()
+            .put("geometry", "UndercoatModel#createBodyLayer")
+            .put("when", JsonTree.object().put("tinted", true)));
+        JsonTree models = JsonTree.object().put("minecraft:woolly", woolly);
+        Map<String, PoseOutcome> poses = Map.of(
+            "WoollyModel", posing("WoollyModel", Map.of(), List.of()),
+            "UndercoatModel", posing("UndercoatModel", Map.of("body", Map.of(PoseChannel.X_ROT,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.1f)))),
+                List.of()));
+
+        ToolingException refused = assertThrows(ToolingException.class,
+            () -> StyleFlow.emit(fresh(), models, poses, Map.of(), PERIOD, Map.of()));
+        assertEquals("minecraft:woolly style 'idle' moves by 'tick' on a pass drawn only while a tint is selected, "
+            + "which no flag spells and no source gate can carry", refused.getMessage());
+    }
+
     // ------------------------------------------------------------------------------------
     // 7 - the pace and the ceiling
     // ------------------------------------------------------------------------------------
@@ -863,7 +842,7 @@ class StyleFlowEmitTest {
     }
 
     @Test
-    @DisplayName("a stride side reading the walk clock walks at its pace, ships its probe's sources and carries its ceiling last")
+    @DisplayName("a stride side reading the walk clock walks at its pace, ships its probe's sources and records its ceiling on the catalog")
     void aReadingStrideWalksAtItsPace() {
         JsonTree models = JsonTree.object().put("minecraft:walker", entityRow("WalkerModel"));
         Diagnostics diagnostics = fresh();
@@ -879,8 +858,12 @@ class StyleFlowEmitTest {
         assertEquals(Optional.of(0.35242295f), driveOf(stride, "walkAnimationPos").flatMap(drive -> drive.findFloat("extent")),
             "the clock ramps at the wander's rate");
         assertEquals(Optional.of("ramp"), driveOf(stride, "walkAnimationPos").flatMap(drive -> drive.findString("wave")));
-        assertEquals("ceiling", stride.keys().toList().getLast(), "the ceiling is the row's last member");
-        JsonTree ceiling = stride.find("ceiling").orElseThrow();
+        assertTrue(stride.find("ceiling").isEmpty(), "the row carries no ceiling of its own");
+        JsonTree walker = models.child("minecraft:walker");
+        assertEquals("ceilings", walker.keys().toList().getLast(), "the catalog's ceilings follow its styles");
+        JsonTree ceilings = walker.find("ceilings").orElseThrow();
+        assertEquals(List.of("adult"), ceilings.keys().toList(), "keyed by the side's age");
+        JsonTree ceiling = ceilings.find("adult").orElseThrow();
         assertEquals(List.of("speed", "rate"), ceiling.keys().toList());
         assertEquals(0.7929517f, ceiling.findFloat("speed").orElseThrow(), "the ceiling's swing is the fastest walk's");
         assertEquals(0.7929517f, ceiling.findFloat("rate").orElseThrow(), "the ceiling's clock is the fastest walk's");
@@ -908,7 +891,7 @@ class StyleFlowEmitTest {
         JsonTree stride = rowAt(stylesOf(models, "minecraft:walker"), "stride", Optional.empty());
         assertEquals(Optional.of(1f), driveOf(stride, "walkAnimationSpeed").flatMap(drive -> drive.findFloat("extent")));
         assertEquals(Optional.of(1f), driveOf(stride, "walkAnimationPos").flatMap(drive -> drive.findFloat("extent")));
-        assertTrue(stride.find("ceiling").isEmpty(), "a side with no pace carries no ceiling");
+        assertTrue(models.child("minecraft:walker").find("ceilings").isEmpty(), "a side with no pace records no ceiling");
     }
 
     @Test
@@ -937,11 +920,13 @@ class StyleFlowEmitTest {
         assertTrue(messages(diagnostics, Diagnostics.Severity.INFO)
                 .contains("2 stride side(s) walk at a vanilla pace; 0 read no walk clock and keep hold 1 / ramp 1"),
             "both sides are counted");
+        JsonTree ceilings = models.child("minecraft:walker").find("ceilings").orElseThrow();
+        assertEquals(List.of("adult", "baby"), ceilings.keys().toList(), "each side records its age's ceiling");
     }
 
     @Test
-    @DisplayName("two ages walking alike that reach different fastest walks split, each carrying its own ceiling")
-    void twoAgesSplitByTheirCeilings() {
+    @DisplayName("two ages walking alike that reach different fastest walks ship one stride, the catalog recording each age's own ceiling")
+    void twoAgesWalkingAlikeShipOneStride() {
         JsonTree models = JsonTree.object().put("minecraft:walker", agedRow("WalkerModel", "WalkerBabyModel"));
         Map<String, PoseOutcome> poses = new LinkedHashMap<>(walking("WalkerModel"));
         poses.putAll(Map.of("WalkerBabyModel", posing("WalkerBabyModel", Map.of(), List.of(strideSite("WalkerModelAnim#WALK")))));
@@ -950,10 +935,14 @@ class StyleFlowEmitTest {
             new EntityPace(Optional.of(side(0.5f, 0.5f, 1f, 1f)), Optional.of(side(0.5f, 0.5f, 1f, 3f)))));
 
         List<JsonTree> styles = stylesOf(models, "minecraft:walker");
-        assertEquals(Optional.of(1f), rowAt(styles, "stride", Optional.of("adult")).find("ceiling")
-            .flatMap(ceiling -> ceiling.findFloat("rate")), "the adult carries its own fastest walk");
-        assertEquals(Optional.of(3f), rowAt(styles, "stride", Optional.of("baby")).find("ceiling")
-            .flatMap(ceiling -> ceiling.findFloat("rate")), "and the baby its own, rather than one row carrying either");
+        assertEquals(1, styles.stream().filter(row -> "stride".equals(row.findString("id").orElseThrow())).count(),
+            "a fastest walk is no row's, so it splits nothing");
+        assertTrue(rowAt(styles, "stride", Optional.empty()).find("age").isEmpty(), "the one stride walks both ages");
+        JsonTree ceilings = models.child("minecraft:walker").find("ceilings").orElseThrow();
+        assertEquals(Optional.of(1f), ceilings.find("adult").flatMap(ceiling -> ceiling.findFloat("rate")),
+            "the adult's own fastest walk is recorded at the adult");
+        assertEquals(Optional.of(3f), ceilings.find("baby").flatMap(ceiling -> ceiling.findFloat("rate")),
+            "and the baby's own at the baby");
     }
 
     @Test
@@ -972,7 +961,7 @@ class StyleFlowEmitTest {
         assertEquals(List.of("tick"), sourcesOf(stride));
         assertEquals(Optional.of(1f), driveOf(stride, "walkAnimationSpeed").flatMap(drive -> drive.findFloat("extent")));
         assertEquals(Optional.of(1f), driveOf(stride, "walkAnimationPos").flatMap(drive -> drive.findFloat("extent")));
-        assertTrue(stride.find("ceiling").isEmpty(), "an inert side carries no ceiling");
+        assertTrue(models.child("minecraft:floater").find("ceilings").isEmpty(), "an inert side records no ceiling");
         assertEquals(List.of(), messages(diagnostics, Diagnostics.Severity.ERROR));
         assertTrue(messages(diagnostics, Diagnostics.Severity.INFO)
                 .contains("0 stride side(s) walk at a vanilla pace; 1 read no walk clock and keep hold 1 / ramp 1"),
@@ -1114,14 +1103,17 @@ class StyleFlowEmitTest {
     // the pose a selected carried block swaps in
     // ------------------------------------------------------------------------------------
 
-    /** A family whose one selectable block row names the pose its wearer takes while a block is selected. */
+    /**
+     * A family holding one selectable block, whose carried axis names the pose its wearer takes while a
+     * block is selected.
+     */
     private static @NotNull JsonTree carrying(@NotNull String poseClass, @NotNull String wearerPose) {
         JsonTree row = entityRow(poseClass);
         row.childArray("block_overlays").add(JsonTree.object()
             .put("source", "CarriedLayer")
             .putInt("layer_index", 1)
-            .put("selectable", true)
-            .put("wearer_pose", wearerPose));
+            .put("selectable", true));
+        row.child("axes").child(PoseFlow.CARRIED_AXIS).child("options").child("block").put("pose", wearerPose);
         return row;
     }
 
@@ -1187,6 +1179,79 @@ class StyleFlowEmitTest {
         assertEquals(stylesOf(models, "minecraft:endish_bare").stream().map(JsonTree::toJson).toList(),
             stylesOf(models, "minecraft:endish").stream().map(JsonTree::toJson).toList(),
             "a variant reading no age moves nothing the open body does not, so its rows do not move");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the pose a filled equipment slot swaps in
+    // ------------------------------------------------------------------------------------
+
+    /** A family whose equipment axis names the pose its wearer takes while {@code slot} is filled. */
+    private static @NotNull JsonTree wearing(@NotNull String poseClass, @NotNull String slot, @NotNull String wearerPose) {
+        JsonTree row = entityRow(poseClass);
+        row.child("axes").child(PoseFlow.EQUIPMENT_AXIS).child("options").child(slot).put("pose", wearerPose);
+        return row;
+    }
+
+    /** A tentacle swaying on the age clock, which the body and its harnessed form both carry. */
+    private static @NotNull Map<PoseChannel, PoseExpr> swayingTentacle() {
+        return Map.of(PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL,
+            new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.3f)));
+    }
+
+    @Test
+    @DisplayName("a filled slot's body moving by a source the bare body lacks refuses, naming the entity and the slot")
+    void aFilledSlotSourceOfItsOwnRefuses() {
+        String bare = "GhastishModel";
+        String harnessed = bare + "@bodyItem.isEmpty=false";
+        JsonTree models = JsonTree.object().put("minecraft:ghastish", wearing(bare, "body", harnessed));
+        Map<String, PoseOutcome> poses = Map.of(
+            bare, posing(bare, Map.of("tentacle", swayingTentacle()), List.of()),
+            harnessed, posing(harnessed, Map.of("tentacle", swayingTentacle(),
+                "wing", Map.of(PoseChannel.Z_ROT, PoseExpr.operation(PoseOperator.MUL,
+                    new PoseExpr.Input("flapTime"), new PoseExpr.Constant(6.2831855f)))), List.of()));
+
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> StyleFlow.emit(fresh(), models, poses, Map.of(), PERIOD, Map.of()));
+        assertEquals("minecraft:ghastish style 'idle' moves by 'figure' on the body its 'body' slot swaps in while filled, "
+                + "which no flag spells and no source gate can carry", raised.getMessage(),
+            "the flap is the harnessed form's alone, and no gate token admits a filled slot");
+    }
+
+    /** One shipped pose row as the program the style flow measures, its play sites unguarded as the fold leaves them. */
+    private static @NotNull PoseOutcome.Extracted measured(@NotNull String model, @NotNull EntityPose pose) {
+        List<PoseClipSite> sites = pose.clips().stream()
+            .map(clip -> new PoseClipSite(clip.coordinate(), clip.drive(), clip.field().orElse(""),
+                List.copyOf(clip.arguments()), PoseClipSite.ALWAYS))
+            .toList();
+        return new PoseOutcome.Extracted(new PoseProgram(model, List.copyOf(pose.container()),
+            new LinkedHashMap<>(pose.bones()), Map.of(), sites));
+    }
+
+    @Test
+    @DisplayName("the shipped happy ghast's harnessed body moves by nothing its bare body does not, so it re-measures to its shipped rows")
+    void theShippedHarnessedGhastDoesNotRefuse() throws Exception {
+        Map<String, EntityPose> shipped = new Gson().fromJson(Files.readString(
+            Path.of("src/main/resources/lib/minecraft/renderer/entity_poses.json")), EntityPosesTable.class).poses();
+        JsonTree ghast = JsonTree.parse(Files.readAllBytes(
+                Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json")))
+            .findPath("models", "minecraft:happy_ghast").orElseThrow();
+        List<String> styles = ghast.find("styles").orElseThrow().elements().map(JsonTree::toJson).toList();
+        String bare = ghast.findPath("axes", "age", "options", "adult").flatMap(form -> form.findString("pose")).orElseThrow();
+        String harnessed = ghast.findPath("axes", PoseFlow.EQUIPMENT_AXIS, "options", "body")
+            .flatMap(form -> form.findString("pose")).orElseThrow();
+        ghast.remove("styles");
+        ghast.remove("ceilings");
+        JsonTree models = JsonTree.object().put("minecraft:happy_ghast", ghast);
+        Map<String, PoseOutcome> poses = Map.of(
+            bare, measured(bare, shipped.get(bare)),
+            harnessed, measured(harnessed, shipped.get(harnessed)));
+
+        Diagnostics diagnostics = fresh();
+        StyleFlow.emit(diagnostics, models, poses, Map.of(), PERIOD, Map.of());
+
+        assertEquals(List.of(), messages(diagnostics, Diagnostics.Severity.ERROR));
+        assertEquals(styles, stylesOf(models, "minecraft:happy_ghast").stream().map(JsonTree::toJson).toList(),
+            "the harnessed form sways on the age clock as the bare body does, so the ghast ships the rows it ships");
     }
 
     /** The emitted models tree read back through the pipeline's own loader. */

@@ -101,6 +101,9 @@ public final class SourceClasses {
         /** {@code java.lang.Float} - the box a lambda taking a float is handed one through. */
         public static final @NotNull String JAVA_FLOAT = "java/lang/Float";
 
+        /** {@code java.util.Set} - the {@code Set.of} a mesh factory names the parts a surgery keeps through. */
+        public static final @NotNull String JAVA_SET = "java/util/Set";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 
@@ -672,6 +675,19 @@ public final class SourceClasses {
 
         /** {@code PartDefinition.clearChild} - the cube-clearing child replace a head-stripped mesh opens with. */
         public static final @NotNull String CLEAR_CHILD = "clearChild";
+
+        /** {@code PartDefinition.clearRecursively} - the subtree clear a head-stripped mesh follows its {@link #CLEAR_CHILD} with. */
+        public static final @NotNull String CLEAR_RECURSIVELY = "clearRecursively";
+
+        /**
+         * The method name {@code transformed}, shared by two owners: {@code MeshDefinition.transformed},
+         * the root rebuild every whole-mesh scaling goes through, and {@code PartDefinition.transformed},
+         * which rewrites a part's pose. Each site pairs it with the owner it means.
+         */
+        public static final @NotNull String TRANSFORMED = "transformed";
+
+        /** {@code MeshDefinition.getRoot} - the mesh's root part, the receiver a mesh-wide surgery is made on. */
+        public static final @NotNull String GET_ROOT = "getRoot";
 
         /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
         public static final @NotNull String GET_COLOR = "getColor";

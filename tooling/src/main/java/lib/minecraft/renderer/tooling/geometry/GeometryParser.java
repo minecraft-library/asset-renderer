@@ -278,15 +278,15 @@ public final class GeometryParser {
      * @return whether its receiver is the mesh root
      */
     private static boolean onTheMeshRoot(@NotNull MethodInsnNode retain) {
-        AbstractInsnNode cursor = AsmWalker.previousReal(retain);
-        if (!(cursor instanceof MethodInsnNode setOf) || !setOf.owner.equals("java/util/Set")) return false;
-        for (int literal = 0; literal < parseArgTypes(setOf.desc).length; literal++) {
-            cursor = AsmWalker.previousReal(cursor);
-            if (!(cursor instanceof LdcInsnNode ldc) || !(ldc.cst instanceof String)) return false;
-        }
-        return AsmWalker.previousReal(cursor) instanceof MethodInsnNode root
+        if (!(AsmWalker.previousReal(retain) instanceof MethodInsnNode setOf) || !setOf.owner.equals(SourceClasses.Types.JAVA_SET))
+            return false;
+        int names = parseArgTypes(setOf.desc).length;
+        List<AbstractInsnNode> pushed = AsmWalker.before(setOf).real().limit(names + 1).toList();
+        return pushed.size() == names + 1
+            && pushed.subList(0, names).stream().allMatch(push -> AsmWalker.stringLiteral(push) != null)
+            && pushed.getLast() instanceof MethodInsnNode root
             && root.owner.equals(SourceClasses.Types.MESH_DEFINITION)
-            && root.name.equals("getRoot");
+            && root.name.equals(SourceClasses.Methods.GET_ROOT);
     }
 
     /**
@@ -1445,13 +1445,14 @@ public final class GeometryParser {
         // the order it would write is refused rather than guessed.
         if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
             && (methodInsn.name.equals(SourceClasses.Methods.RETAIN_EXACT_PARTS)
-                || methodInsn.name.equals("clearRecursively") || methodInsn.name.equals("transformed"))) {
+                || methodInsn.name.equals(SourceClasses.Methods.CLEAR_RECURSIVELY)
+                || methodInsn.name.equals(SourceClasses.Methods.TRANSFORMED))) {
             state.parts.refuse("PartDefinition.%s in a factory body is not replayed", methodInsn.name);
             return;
         }
         // MeshDefinition.transformed rebuilds the root with a copy of its children - the step every
         // whole-mesh scaling goes through, and one a factory can take directly.
-        if (methodInsn.owner.equals(SourceClasses.Types.MESH_DEFINITION) && methodInsn.name.equals("transformed")) {
+        if (methodInsn.owner.equals(SourceClasses.Types.MESH_DEFINITION) && methodInsn.name.equals(SourceClasses.Methods.TRANSFORMED)) {
             state.parts.transformRoot();
             return;
         }
@@ -1528,7 +1529,7 @@ public final class GeometryParser {
         // Gated on {@code EVALUATING} so legacy block-entity walkers (which
         // never see clearChild) keep their byte-stable output.
         if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
-            && methodInsn.name.equals("clearChild")
+            && methodInsn.name.equals(SourceClasses.Methods.CLEAR_CHILD)
             && state.mode == Mode.EVALUATING) {
             if (state.frame.pendingPartName != null) {
                 state.clearedBones.add(state.frame.pendingPartName);
@@ -1549,7 +1550,7 @@ public final class GeometryParser {
         // overload would need an anewarray walker; not used by any vanilla entity factory
         // observed so far so the implementation is deferred. Gated on
         // {@code EVALUATING}.
-        if (methodInsn.owner.equals("java/util/Set")
+        if (methodInsn.owner.equals(SourceClasses.Types.JAVA_SET)
             && methodInsn.name.equals("of")
             && opcode == Opcodes.INVOKESTATIC
             && state.mode == Mode.EVALUATING) {

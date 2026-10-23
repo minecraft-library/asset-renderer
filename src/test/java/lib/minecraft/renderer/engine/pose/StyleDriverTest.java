@@ -39,7 +39,7 @@ class StyleDriverTest {
     @Test
     @DisplayName("a swept driver travels out to its extent and back, starting from rest")
     void sweepTravelsOutAndBack() {
-        StyleDriver sweep = new StyleDriver("tentacleAngle", StyleDriver.Wave.SWEEP,
+        StyleDriver sweep = new StyleDriver("tentacleAngle", StyleDriver.Wave.Plain.SWEEP,
             0f, QUARTER_TURN, Optional.empty());
         assertEquals(0f, sweep.at(0, PERIOD_TICKS), "tick zero is rest, so frame 0 is free");
         assertEquals(QUARTER_TURN * 0.5f, sweep.at(6, PERIOD_TICKS), "a quarter period is half way out");
@@ -53,7 +53,7 @@ class StyleDriverTest {
     @Test
     @DisplayName("a swept driver runs from the rest it names, not from zero")
     void sweepRunsFromItsOwnRest() {
-        StyleDriver sweep = new StyleDriver("peekAmount", StyleDriver.Wave.SWEEP,
+        StyleDriver sweep = new StyleDriver("peekAmount", StyleDriver.Wave.Plain.SWEEP,
             0.1f, 0.5f, Optional.empty());
         assertEquals(0.1f, sweep.at(0, PERIOD_TICKS), "rest is the near end of the travel");
         assertEquals(0.3f, sweep.at(6, PERIOD_TICKS), "half way out is half the range past rest");
@@ -63,7 +63,7 @@ class StyleDriverTest {
     @Test
     @DisplayName("a cycling driver is a phase that wraps at its period")
     void cycleWrapsAtThePeriod() {
-        StyleDriver cycle = new StyleDriver("flapTime", StyleDriver.Wave.CYCLE,
+        StyleDriver cycle = new StyleDriver("flapTime", StyleDriver.Wave.Plain.CYCLE,
             0f, QUARTER_TURN, Optional.empty());
         assertEquals(0f, cycle.at(0, PERIOD_TICKS), "tick zero is rest");
         assertEquals(QUARTER_TURN * 0.25f, cycle.at(6, PERIOD_TICKS), "a quarter period is a quarter turn of phase");
@@ -76,7 +76,7 @@ class StyleDriverTest {
     @Test
     @DisplayName("a held driver answers its extent at every tick")
     void holdAnswersTheExtent() {
-        StyleDriver held = new StyleDriver("croakAnimationState", StyleDriver.Wave.HOLD,
+        StyleDriver held = new StyleDriver("croakAnimationState", StyleDriver.Wave.Plain.HOLD,
             0f, 1f, Optional.of("action"));
         for (int tick = 0; tick < PERIOD_TICKS; tick++)
             assertEquals(1f, held.at(tick, PERIOD_TICKS), "held at tick " + tick);
@@ -85,13 +85,13 @@ class StyleDriverTest {
     @Test
     @DisplayName("a ramped driver answers the tick times its extent")
     void rampAnswersTheTickTimesTheExtent() {
-        StyleDriver age = new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP,
+        StyleDriver age = new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP,
             0f, 1f, Optional.empty());
         assertEquals(0f, age.at(0, PERIOD_TICKS), "a ramp starts at nothing");
         assertEquals(7f, age.at(7, PERIOD_TICKS), "and climbs with the tick");
         assertEquals(41f, age.at(41, PERIOD_TICKS), "past the period, unwrapped");
 
-        StyleDriver half = new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP,
+        StyleDriver half = new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP,
             0f, 0.5f, Optional.empty());
         assertEquals(3.5f, half.at(7, PERIOD_TICKS), "at the slope the extent names");
     }
@@ -109,8 +109,8 @@ class StyleDriverTest {
     @Test
     @DisplayName("a stroke flares to its extent and back over half its phase, then hangs at rest")
     void strokeFlaresThenHangs() {
-        StyleDriver stroke = new StyleDriver("tentacleAngle", StyleDriver.Wave.STROKE,
-            0f, QUARTER_TURN, Optional.empty(), StyleDriver.Timing.stroke(SQUID_RATE));
+        StyleDriver stroke = new StyleDriver("tentacleAngle", new StyleDriver.Wave.Stroke(SQUID_RATE),
+            0f, QUARTER_TURN, Optional.empty());
         int[] ticks = {0, 1, 10, 19, 27, 28, 54, 55, 60, 82, 109};
         float[] angles = {0f, 0.0033131507f, 0.3240479f, 0.78490674f, 0.03214374f, 0f, 0f,
             0.0013553833f, 0.10607251f, 0f, 2.2589733E-4f};
@@ -129,8 +129,8 @@ class StyleDriverTest {
     @Test
     @DisplayName("a stroke runs from the rest it names, not from zero")
     void strokeRunsFromItsOwnRest() {
-        StyleDriver stroke = new StyleDriver("tentacleAngle", StyleDriver.Wave.STROKE,
-            0.1f, 0.5f, Optional.empty(), StyleDriver.Timing.stroke(SQUID_RATE));
+        StyleDriver stroke = new StyleDriver("tentacleAngle", new StyleDriver.Wave.Stroke(SQUID_RATE),
+            0.1f, 0.5f, Optional.empty());
         for (int tick = 28; tick <= 54; tick++)
             assertEquals(0.1f, stroke.at(tick, PERIOD_TICKS), "the hang answers the rest at tick " + tick);
 
@@ -142,8 +142,8 @@ class StyleDriverTest {
     @Test
     @DisplayName("a trapezoid rises, dwells at its extent, falls and rests, wrapping by floor-mod")
     void trapezoidRisesDwellsFallsAndRests() {
-        StyleDriver peek = new StyleDriver("peekAmount", StyleDriver.Wave.TRAPEZOID,
-            0f, PEEK, Optional.empty(), StyleDriver.Timing.trapezoid(6, 14, 6, 0));
+        StyleDriver peek = new StyleDriver("peekAmount", new StyleDriver.Wave.Trapezoid(6, 14, 6, 0),
+            0f, PEEK, Optional.empty());
         float[] rise = {0f, 0.049999997f, 0.099999994f, 0.14999999f, 0.19999999f, 0.24999999f, PEEK};
         for (int tick = 0; tick <= 6; tick++)
             assertEquals(rise[tick], peek.at(tick, PERIOD_TICKS), "the lid rises at tick " + tick);
@@ -166,8 +166,8 @@ class StyleDriverTest {
     @Test
     @DisplayName("a trapezoid with no rise stands at its extent on its first tick and counts down by tenths")
     void aZeroRiseStandsAtTheExtentOnTheFirstTick() {
-        StyleDriver heart = new StyleDriver("heartAnimation", StyleDriver.Wave.TRAPEZOID,
-            0f, 1f, Optional.empty(), StyleDriver.Timing.trapezoid(0, 0, 10, 30));
+        StyleDriver heart = new StyleDriver("heartAnimation", new StyleDriver.Wave.Trapezoid(0, 0, 10, 30),
+            0f, 1f, Optional.empty());
         for (int tick = 0; tick <= 10; tick++)
             assertEquals((10 - tick) / 10f, heart.at(tick, PERIOD_TICKS), "vanilla's heartbeat at tick " + tick);
         for (int tick = 10; tick < 40; tick++)
@@ -176,45 +176,42 @@ class StyleDriverTest {
     }
 
     @Test
-    @DisplayName("a timing the wave does not read, or one it cannot run, is refused")
-    void timingIsRefusedWhereTheWaveReadsNone() {
+    @DisplayName("a stroke that does not advance, or a trapezoid no tick can run, is refused")
+    void aWaveRefusesWhatItCannotRun() {
         IllegalArgumentException still = assertThrows(IllegalArgumentException.class, () ->
-            new StyleDriver("tentacleAngle", StyleDriver.Wave.STROKE, 0f, QUARTER_TURN, Optional.empty(),
-                StyleDriver.Timing.stroke(0f)));
-        assertEquals("A stroke needs a positive rate, given 'Timing[rate=0.0, rise=0, dwell=0, fall=0, gap=0]'",
-            still.getMessage());
-
-        IllegalArgumentException spanned = assertThrows(IllegalArgumentException.class, () ->
-            new StyleDriver("tentacleAngle", StyleDriver.Wave.STROKE, 0f, QUARTER_TURN, Optional.empty(),
-                new StyleDriver.Timing(0.1f, 6, 14, 6, 0)));
-        assertEquals("A stroke needs a positive rate, given 'Timing[rate=0.1, rise=6, dwell=14, fall=6, gap=0]'",
-            spanned.getMessage(), "a stroke carrying a span is refused, however positive its rate");
+            new StyleDriver.Wave.Stroke(0f));
+        assertEquals("Stroke rate '0.0' is not a finite rate above zero", still.getMessage());
 
         IllegalArgumentException unbounded = assertThrows(IllegalArgumentException.class, () ->
-            StyleDriver.Timing.stroke(Float.NaN));
-        assertEquals("Stroke rate 'NaN' is not a finite rate of at least zero", unbounded.getMessage());
+            new StyleDriver.Wave.Stroke(Float.NaN));
+        assertEquals("Stroke rate 'NaN' is not a finite rate above zero", unbounded.getMessage());
+
+        IllegalArgumentException infinite = assertThrows(IllegalArgumentException.class, () ->
+            new StyleDriver.Wave.Stroke(Float.POSITIVE_INFINITY));
+        assertEquals("Stroke rate 'Infinity' is not a finite rate above zero", infinite.getMessage());
 
         IllegalArgumentException empty = assertThrows(IllegalArgumentException.class, () ->
-            new StyleDriver("heartAnimation", StyleDriver.Wave.TRAPEZOID, 0f, 1f, Optional.empty(),
-                StyleDriver.Timing.trapezoid(0, 0, 0, 0)));
-        assertEquals("A trapezoid needs a cycle of at least one tick, given 'Timing[rate=0.0, rise=0, dwell=0, fall=0, gap=0]'",
+            new StyleDriver.Wave.Trapezoid(0, 0, 0, 0));
+        assertEquals("Trapezoid spans '0 + 0 + 0 + 0' ticks, and a trapezoid spans at least one and none negative",
             empty.getMessage());
 
-        IllegalArgumentException rated = assertThrows(IllegalArgumentException.class, () ->
-            new StyleDriver("heartAnimation", StyleDriver.Wave.TRAPEZOID, 0f, 1f, Optional.empty(),
-                new StyleDriver.Timing(0.1f, 0, 0, 10, 30)));
-        assertEquals("A trapezoid needs a cycle of at least one tick, given 'Timing[rate=0.1, rise=0, dwell=0, fall=10, gap=30]'",
-            rated.getMessage(), "a trapezoid carrying a rate is refused, however whole its cycle");
-
-        IllegalArgumentException held = assertThrows(IllegalArgumentException.class, () ->
-            new StyleDriver("croakAnimationState", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty(),
-                StyleDriver.Timing.stroke(0.1f)));
-        assertEquals("Wave 'HOLD' reads no timing, given 'Timing[rate=0.1, rise=0, dwell=0, fall=0, gap=0]'",
-            held.getMessage());
-
         IllegalArgumentException negative = assertThrows(IllegalArgumentException.class, () ->
-            StyleDriver.Timing.trapezoid(-1, 0, 10, 30));
-        assertEquals("Trapezoid spans '-1', '0', '10', '30' include a negative span", negative.getMessage());
+            new StyleDriver.Wave.Trapezoid(-1, 0, 10, 30));
+        assertEquals("Trapezoid spans '-1 + 0 + 10 + 30' ticks, and a trapezoid spans at least one and none negative",
+            negative.getMessage());
+    }
+
+    @Test
+    @DisplayName("every wave answers the token a shipped table spells it by")
+    void everyWaveAnswersItsToken() {
+        assertEquals("hold", StyleDriver.Wave.Plain.HOLD.token());
+        assertEquals("ramp", StyleDriver.Wave.Plain.RAMP.token());
+        assertEquals("sweep", StyleDriver.Wave.Plain.SWEEP.token());
+        assertEquals("cycle", StyleDriver.Wave.Plain.CYCLE.token());
+        assertEquals("stroke", new StyleDriver.Wave.Stroke(SQUID_RATE).token());
+        assertEquals("trapezoid", new StyleDriver.Wave.Trapezoid(6, 14, 6, 0).token());
+        assertEquals(26, new StyleDriver.Wave.Trapezoid(6, 14, 6, 0).cycleTicks(),
+            "a trapezoid's cycle is its four spans");
     }
 
 }

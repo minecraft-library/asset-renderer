@@ -33,10 +33,9 @@ import org.jetbrains.annotations.NotNull;
  *     {@link #emissive} (shading) and from the sorting a partial-alpha surface asks for
  * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} applied to the sampled texel's
  *     alpha before the {@link #blend} composite - {@code 1.0} (no-op) for every surface except a pass
- *     whose declared opacity is below one - a constant {@code alpha} node (the warden's pulsating
- *     spots, declared at {@code 0.25}), or the frame's value of an overlay's {@code opacity}
- *     expression - each held as {@link #drawnAlpha} draws it. Rides its own path because a
- *     fractional layer opacity cannot be carried in the overlay tint's alpha byte (the
+ *     whose declared opacity is below one, which is the frame's value of an overlay's {@code opacity}
+ *     expression, a constant one included, held as {@link #drawnAlpha} draws it. Rides its own path
+ *     because a fractional layer opacity cannot be carried in the overlay tint's alpha byte (the
  *     {@code MULTIPLY} tint blend preserves the texel's alpha)
  * @param writesDepth whether a surviving fragment writes its depth, from the pass's
  *     {@code DepthStencilState.writeDepth}. True for every body and for the energy swirl, false for
@@ -84,12 +83,13 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
      * The opacity at or under which a pass draws no fragment - where vanilla's
      * {@code LivingEntityEmissiveLayer} skips the layer its alpha function answers for.
      */
-    public static final float DRAWN_ALPHA_FLOOR = 1.0E-5f;
+    private static final float DRAWN_ALPHA_FLOOR = 1.0E-5f;
 
     /**
      * The opacity a pass draws at for a value its alpha source answers: none at or under
-     * {@link #DRAWN_ALPHA_FLOOR}, and above it the value at most one, floored to an eight-bit channel -
-     * the vertex-colour byte vanilla draws a layer's alpha as, so a quarter draws at {@code 63 / 255}.
+     * {@code 1.0E-5}, where vanilla's {@code LivingEntityEmissiveLayer} skips the layer, and above it
+     * the value at most one, floored to an eight-bit channel - the vertex-colour byte vanilla draws a
+     * layer's alpha as, so a quarter draws at {@code 63 / 255}.
      *
      * @param value what the pass's alpha source answers
      * @return the opacity the pass draws at
@@ -97,6 +97,17 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
     public static float drawnAlpha(float value) {
         if (value <= DRAWN_ALPHA_FLOOR) return 0f;
         return (float) Math.floor(Math.min(value, 1f) * 255f) / 255f;
+    }
+
+    /**
+     * Whether this pass draws no fragment at all - its opacity at or under {@code 1.0E-5}, where
+     * vanilla's {@code LivingEntityEmissiveLayer} skips the layer, so it neither draws nor measures a
+     * silhouette.
+     *
+     * @return {@code true} for a pass drawing nothing
+     */
+    public boolean drawsNothing() {
+        return this.alpha <= DRAWN_ALPHA_FLOOR;
     }
 
     /**

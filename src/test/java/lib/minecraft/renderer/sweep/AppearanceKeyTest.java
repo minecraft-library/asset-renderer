@@ -57,7 +57,9 @@ final class AppearanceKeyTest {
                 Entity.Variation.none(),                     // shape
                 Entity.Variation.none(),                     // state
                 new Entity.Variation<>(Concurrent.newUnmodifiableMap(), sizeDefault),   // size
-                new Entity.Variation<>(variants, variantDefault)))                     // variant
+                new Entity.Variation<>(variants, variantDefault),                      // variant
+                Optional.empty(),                       // carried
+                Entity.Variation.none()))                    // equipment
             .build();
     }
 

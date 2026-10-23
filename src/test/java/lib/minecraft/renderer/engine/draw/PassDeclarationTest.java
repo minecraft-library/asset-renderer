@@ -9,6 +9,7 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -146,13 +147,23 @@ class PassDeclarationTest {
     @Test
     @DisplayName("drawnAlpha draws nothing at or under vanilla's skip, and above it vanilla's byte at most one")
     void drawnAlphaSkipsTheFloorAndCapsAtOne() {
-        assertThat(PassDeclaration.DRAWN_ALPHA_FLOOR, equalTo(1.0E-5f));
         assertThat(PassDeclaration.drawnAlpha(1.0E-5f), equalTo(0f));
+        assertThat(PassDeclaration.drawnAlpha(Math.nextUp(1.0E-5f)), equalTo(0f));
         assertThat(PassDeclaration.drawnAlpha(0f), equalTo(0f));
         assertThat(PassDeclaration.drawnAlpha(-0.25f), equalTo(0f));
         assertThat(PassDeclaration.drawnAlpha(0.25f), equalTo(63f / 255f));
         assertThat(PassDeclaration.drawnAlpha(1f), equalTo(1f));
         assertThat(PassDeclaration.drawnAlpha(1.5f), equalTo(1f));
+    }
+
+    @Test
+    @DisplayName("a pass draws nothing at or under vanilla's skip of 1.0E-5, and draws anything above it")
+    void aPassDrawsNothingAtOrUnderTheSkip() {
+        assertThat(PassDeclaration.DEFAULT.withAlpha(1.0E-5f).drawsNothing(), is(true));
+        assertThat(PassDeclaration.DEFAULT.withAlpha(0f).drawsNothing(), is(true));
+        assertThat(PassDeclaration.DEFAULT.withAlpha(Math.nextUp(1.0E-5f)).drawsNothing(), is(false));
+        assertThat(PassDeclaration.DEFAULT.withAlpha(PassDeclaration.drawnAlpha(0.25f)).drawsNothing(), is(false));
+        assertThat(PassDeclaration.DEFAULT.drawsNothing(), is(false));
     }
 
     @Test

@@ -1,11 +1,14 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
@@ -28,8 +31,6 @@ import java.util.function.ToDoubleFunction;
  *     bone the croak state inflates
  * @param age the age this row applies to; empty applies to both
  * @param periodTicks the ticks this row's own excursion spans; empty rides the catalog period
- * @param ceiling the fastest steady walk vanilla gives this row's subject at its age, which a pose audit
- *     raises the stride to; empty on every row but a stride walking at its subject's own vanilla pace
  */
 public record PoseStyle(
     @NotNull String id,
@@ -37,8 +38,7 @@ public record PoseStyle(
     @NotNull ConcurrentMap<String, StyleDriver> drivers,
     @NotNull ConcurrentList<String> toggles,
     @NotNull Optional<Age> age,
-    @NotNull Optional<Integer> periodTicks,
-    @NotNull Optional<PaceCeiling> ceiling
+    @NotNull Optional<Integer> periodTicks
 ) {
 
     /** The universal still row every entity has - the authored pose, one frame. */
@@ -54,38 +54,16 @@ public record PoseStyle(
     public static final @NotNull String ANIMATED = "animated";
 
     /**
-     * Constructs a new {@code PoseStyle} carrying no ceiling - every row but a stride walking at its
-     * subject's own vanilla pace.
-     *
-     * @param id the name a caller selects this output by
-     * @param sources the inventory of mechanisms this row moves through, each with the gate that admits it
-     * @param drivers the drive behind each driven render-state field, keyed by the field name a shipped
-     *     pose reads it under
-     * @param toggles the appearance bone toggles this style entails
-     * @param age the age this row applies to; empty applies to both
-     * @param periodTicks the ticks this row's own excursion spans; empty rides the catalog period
-     */
-    public PoseStyle(
-        @NotNull String id,
-        @NotNull ConcurrentList<StyleSource> sources,
-        @NotNull ConcurrentMap<String, StyleDriver> drivers,
-        @NotNull ConcurrentList<String> toggles,
-        @NotNull Optional<Age> age,
-        @NotNull Optional<Integer> periodTicks
-    ) {
-        this(id, sources, drivers, toggles, age, periodTicks, Optional.empty());
-    }
-
-    /**
-     * One inventory entry: a mechanism, plus the overlay gate that admits it.
+     * One inventory entry: a mechanism, plus the appearance flag that admits it.
      *
      * @param source the kind of drive behind the movement
-     * @param gate the token of the overlay gate admitting this entry - the same spelling the gated
-     *     pass's {@code when} key uses; empty for an unconditional entry
+     * @param gate the flag admitting this entry - the one the gated pass's {@code when} key names, or
+     *     {@link Flag#CARRIED} for a movement only the body a selected carried block swaps in makes;
+     *     empty for an unconditional entry
      */
     public record StyleSource(
         @NotNull StyleClock source,
-        @NotNull Optional<String> gate
+        @NotNull Optional<Flag> gate
     ) {}
 
     /**
@@ -115,6 +93,24 @@ public record PoseStyle(
             StyleDriver driver = this.drivers.get(field);
             return driver == null ? 0d : driver.at(tick, window);
         };
+    }
+
+    /**
+     * This row scoped to another age of a catalog and walking at the stride that catalog draws there
+     * - every field the stride of this row's own age drives taken out, then every driver of the other
+     * age's stride put in its own order, every other driver and every other component kept. A row
+     * spanning both ages walks at the adult's stride.
+     *
+     * @param catalog the catalog both strides are drawn from
+     * @param age the age the row is scoped to and walks at
+     * @return the row at that age
+     */
+    public @NotNull PoseStyle restrided(@NotNull StyleCatalog catalog, @NotNull Age age) {
+        LinkedHashMap<String, StyleDriver> restrided = new LinkedHashMap<>(this.drivers);
+        catalog.strideAt(this.age.orElse(Age.ADULT)).drivers().keySet().forEach(restrided::remove);
+        restrided.putAll(catalog.strideAt(age).drivers());
+        return new PoseStyle(this.id, this.sources, Concurrent.adoptLinkedMap(restrided).toUnmodifiable(),
+            this.toggles, Optional.of(age), this.periodTicks);
     }
 
 }

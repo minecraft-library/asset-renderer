@@ -20,9 +20,11 @@ import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,7 +76,7 @@ class PeriodFramingTest {
         assertEquals(Optional.of(DECLARED), compiled.style().periodTicks(),
             "2.4 seconds land as 48 ticks");
         StyleDriver sway = compiled.style().drivers().get(SWAY_FIELD);
-        assertEquals(StyleDriver.Wave.SWEEP, sway.wave(), "the sway still lowers to one sweep");
+        assertEquals(StyleDriver.Wave.Plain.SWEEP, sway.wave(), "the sway still lowers to one sweep");
     }
 
     // ---- frameAt resolution --------------------------------------------------------------------
@@ -111,11 +113,12 @@ class PeriodFramingTest {
         Entity installed = installedBreathe();
         PoseStyle breathe = installed.styles().byId("breathe").orElseThrow();
         int period = installed.styles().periodTicks();
-        StripFit declared = PoseStrips.of(installed, breathe, period);
+        StripMemo strips = new StripMemo();
+        StripFit declared = PoseStrips.of(strips, installed, breathe, period);
         assertEquals(List.of(47, 1), List.of(declared.frames(), declared.ticksPerFrame()),
             "the sweep comes back to rest a tick short of its 48-tick window, a tick a frame");
-        assertTrue(declared.closes(), "and closes there");
-        StripFit framed = PoseStrips.of(installed, undeclared(breathe), period);
+        assertTrue(declared.seam() <= 1d, "and closes there, within a tolerance");
+        StripFit framed = PoseStrips.of(strips, installed, undeclared(breathe), period);
         assertEquals(List.of(24, 1), List.of(framed.frames(), framed.ticksPerFrame()),
             "and the same row with the component empty closes at the catalog's 24 ticks");
     }
@@ -128,7 +131,7 @@ class PeriodFramingTest {
         for (String id : new String[] { PoseStyle.BIND, PoseStyle.IDLE, PoseStyle.STRIDE, PoseStyle.ANIMATED }) {
             PoseStyle resolved = StyleCatalog.BIND_ONLY
                 .resolve(id, options.getAppearance()::applies, options.getEntityId());
-            assertSame(StripFit.STILL, PoseStrips.of(subject, resolved, StyleCatalog.BIND_ONLY.periodTicks()),
+            assertSame(StripFit.STILL, PoseStrips.of(new StripMemo(), subject, resolved, StyleCatalog.BIND_ONLY.periodTicks()),
                 "'" + id + "' resolves a row with no source in force, so it draws one frame");
         }
     }
@@ -141,7 +144,7 @@ class PeriodFramingTest {
         PoseStyle gated = new PoseStyle("breathe",
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty()),
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
             Optional.empty(), Optional.of(DECLARED));
         StyleCatalog catalog = RegistrarFixtures.catalog(gated);

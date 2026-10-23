@@ -49,13 +49,15 @@
               "wave": "ramp",
               "extent": 0.4444446
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:area_effect_cloud": {
       "renderer": "net/minecraft/client/renderer/entity/NoopRenderer",
@@ -108,11 +110,7 @@
               "wave": "ramp",
               "extent": 0.17268725
             }
-          ],
-          "ceiling": {
-            "speed": 0.690749,
-            "rate": 0.690749
-          }
+          ]
         },
         {
           "id": "stride",
@@ -136,11 +134,7 @@
               "wave": "ramp",
               "extent": 0.51806176
             }
-          ],
-          "ceiling": {
-            "speed": 0.690749,
-            "rate": 2.072247
-          }
+          ]
         },
         {
           "id": "roll_up",
@@ -199,7 +193,17 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.690749,
+          "rate": 0.690749
+        },
+        "baby": {
+          "speed": 0.690749,
+          "rate": 2.072247
+        }
+      }
     },
     "minecraft:armor_stand": {
       "renderer": "net/minecraft/client/renderer/entity/ArmorStandRenderer",
@@ -720,13 +724,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
@@ -955,11 +961,7 @@
               "wave": "ramp",
               "extent": 0.42819393
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -980,11 +982,7 @@
               "wave": "ramp",
               "extent": 1.2845818
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         },
         {
           "id": "sit",
@@ -1046,7 +1044,17 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:camel_husk": {
       "renderer": "net/minecraft/client/renderer/entity/CamelHuskRenderer",
@@ -1116,11 +1124,7 @@
               "wave": "ramp",
               "extent": 0.42819393
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "sit",
@@ -1182,7 +1186,13 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:cat": {
       "renderer": "net/minecraft/client/renderer/entity/CatRenderer",
@@ -1318,11 +1328,7 @@
               "wave": "ramp",
               "extent": 0.5074891
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -1346,13 +1352,19 @@
               "wave": "ramp",
               "extent": 1.5224673
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:cave_spider": {
       "renderer": "net/minecraft/client/renderer/entity/CaveSpiderRenderer",
@@ -1402,13 +1414,15 @@
               "wave": "ramp",
               "extent": 0.5074891
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:chicken": {
       "renderer": "net/minecraft/client/renderer/entity/ChickenRenderer",
@@ -1476,11 +1490,7 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -1504,13 +1514,19 @@
               "wave": "ramp",
               "extent": 1.6519825
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:cod": {
       "renderer": "net/minecraft/client/renderer/entity/CodRenderer",
@@ -1625,11 +1641,7 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         },
         {
           "id": "interaction_get_item",
@@ -1691,7 +1703,13 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:cow": {
       "renderer": "net/minecraft/client/renderer/entity/CowRenderer",
@@ -1760,11 +1778,7 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -1788,13 +1802,19 @@
               "wave": "ramp",
               "extent": 1.0572689
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:creaking": {
       "renderer": "net/minecraft/client/renderer/entity/CreakingRenderer",
@@ -1831,11 +1851,7 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         },
         {
           "id": "attack",
@@ -1894,7 +1910,13 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:creeper": {
       "renderer": "net/minecraft/client/renderer/entity/CreeperRenderer",
@@ -1968,13 +1990,15 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:dolphin": {
       "renderer": "net/minecraft/client/renderer/entity/DolphinRenderer",
@@ -2084,11 +2108,7 @@
               "wave": "ramp",
               "extent": 0.13221367
             }
-          ],
-          "ceiling": {
-            "speed": 0.42159972,
-            "rate": 0.42159972
-          }
+          ]
         },
         {
           "id": "stride",
@@ -2112,13 +2132,19 @@
               "wave": "ramp",
               "extent": 0.39664102
             }
-          ],
-          "ceiling": {
-            "speed": 0.42159972,
-            "rate": 1.2647991
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.42159972,
+          "rate": 0.42159972
+        },
+        "baby": {
+          "speed": 0.42159972,
+          "rate": 1.2647991
+        }
+      }
     },
     "minecraft:drowned": {
       "renderer": "net/minecraft/client/renderer/entity/DrownedRenderer",
@@ -2218,11 +2244,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.46607938,
-            "rate": 0.46607938
-          }
+          ]
         },
         {
           "id": "stride",
@@ -2243,13 +2265,19 @@
               "wave": "ramp",
               "extent": 3.0
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.46607938,
+          "rate": 0.46607938
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:elder_guardian": {
       "renderer": "net/minecraft/client/renderer/entity/ElderGuardianRenderer",
@@ -2332,6 +2360,13 @@
               "texture": "enderman/enderman"
             }
           }
+        },
+        "carried": {
+          "options": {
+            "block": {
+              "pose": "EndermanModel@carriedBlock.isEmpty=false"
+            }
+          }
         }
       },
       "overlays": [
@@ -2383,8 +2418,7 @@
             {
               "rotate_y": 90.0
             }
-          ],
-          "wearer_pose": "EndermanModel@carriedBlock.isEmpty=false"
+          ]
         }
       ],
       "styles": [
@@ -2419,13 +2453,15 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:endermite": {
       "renderer": "net/minecraft/client/renderer/entity/EndermiteRenderer",
@@ -2575,13 +2611,15 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:fox": {
       "renderer": "net/minecraft/client/renderer/entity/FoxRenderer",
@@ -2624,11 +2662,7 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -2652,13 +2686,19 @@
               "wave": "ramp",
               "extent": 2.3788552
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:frog": {
       "renderer": "net/minecraft/client/renderer/entity/FrogRenderer",
@@ -2717,11 +2757,7 @@
               "wave": "ramp",
               "extent": 0.5506609
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "jump",
@@ -2800,7 +2836,13 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:ghast": {
       "renderer": "net/minecraft/client/renderer/entity/GhastRenderer",
@@ -2866,6 +2908,13 @@
               "texture": "ghast/happy_ghast_baby"
             }
           }
+        },
+        "equipment": {
+          "options": {
+            "body": {
+              "pose": "HappyGhastModel@bodyItem.isEmpty=false"
+            }
+          }
         }
       },
       "equipment": [
@@ -2893,8 +2942,7 @@
             "red_harness": "minecraft:red_harness",
             "white_harness": "minecraft:white_harness",
             "yellow_harness": "minecraft:yellow_harness"
-          },
-          "wearer_pose": "HappyGhastModel@bodyItem.isEmpty=false"
+          }
         }
       ],
       "styles": [
@@ -2986,13 +3034,15 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.46607938,
-            "rate": 0.46607938
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.46607938,
+          "rate": 0.46607938
+        }
+      }
     },
     "minecraft:glow_squid": {
       "renderer": "net/minecraft/client/renderer/entity/GlowSquidRenderer",
@@ -3099,11 +3149,7 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -3127,13 +3173,19 @@
               "wave": "ramp",
               "extent": 1.0572689
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:guardian": {
       "renderer": "net/minecraft/client/renderer/entity/GuardianRenderer",
@@ -3250,11 +3302,7 @@
               "wave": "ramp",
               "extent": 0.12687227
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -3278,13 +3326,19 @@
               "wave": "ramp",
               "extent": 0.3806168
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:horse": {
       "renderer": "net/minecraft/client/renderer/entity/HorseRenderer",
@@ -3434,11 +3488,7 @@
               "wave": "ramp",
               "extent": 0.2185573
             }
-          ],
-          "ceiling": {
-            "speed": 0.69693017,
-            "rate": 0.69693017
-          }
+          ]
         },
         {
           "id": "stride",
@@ -3462,13 +3512,19 @@
               "wave": "ramp",
               "extent": 0.6556719
             }
-          ],
-          "ceiling": {
-            "speed": 0.69693017,
-            "rate": 2.0907905
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.69693017,
+          "rate": 0.69693017
+        },
+        "baby": {
+          "speed": 0.69693017,
+          "rate": 2.0907905
+        }
+      }
     },
     "minecraft:husk": {
       "renderer": "net/minecraft/client/renderer/entity/HuskRenderer",
@@ -3553,11 +3609,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.46607938,
-            "rate": 0.46607938
-          }
+          ]
         },
         {
           "id": "stride",
@@ -3578,13 +3630,19 @@
               "wave": "ramp",
               "extent": 3.0
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.46607938,
+          "rate": 0.46607938
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:illusioner": {
       "renderer": "net/minecraft/client/renderer/entity/IllusionerRenderer",
@@ -3621,13 +3679,15 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:interaction": {
       "renderer": "net/minecraft/client/renderer/entity/NoopRenderer",
@@ -3648,6 +3708,13 @@
               "geometry": "IronGolemModel#createBodyLayer",
               "pose": "IronGolemModel",
               "texture": "iron_golem/iron_golem"
+            }
+          }
+        },
+        "carried": {
+          "options": {
+            "block": {
+              "pose": "IronGolemModel@offerFlowerTick=countdown"
             }
           }
         }
@@ -3705,8 +3772,7 @@
                 -0.5
               ]
             }
-          ],
-          "wearer_pose": "IronGolemModel@offerFlowerTick=countdown"
+          ]
         }
       ],
       "styles": [
@@ -3747,13 +3813,15 @@
               "wave": "ramp",
               "extent": 0.19823793
             }
-          ],
-          "ceiling": {
-            "speed": 0.55066085,
-            "rate": 0.55066085
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.55066085,
+          "rate": 0.55066085
+        }
+      }
     },
     "minecraft:llama": {
       "renderer": "net/minecraft/client/renderer/entity/LlamaRenderer",
@@ -3857,11 +3925,7 @@
               "wave": "ramp",
               "extent": 0.13221367
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -3885,13 +3949,19 @@
               "wave": "ramp",
               "extent": 0.39664102
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:magma_cube": {
       "renderer": "net/minecraft/client/renderer/entity/MagmaCubeRenderer",
@@ -4093,11 +4163,7 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4121,13 +4187,19 @@
               "wave": "ramp",
               "extent": 1.0572689
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:mule": {
       "renderer": "net/minecraft/client/renderer/entity/DonkeyRenderer",
@@ -4186,11 +4258,7 @@
               "wave": "ramp",
               "extent": 0.13221367
             }
-          ],
-          "ceiling": {
-            "speed": 0.42159972,
-            "rate": 0.42159972
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4214,13 +4282,19 @@
               "wave": "ramp",
               "extent": 0.39664102
             }
-          ],
-          "ceiling": {
-            "speed": 0.42159972,
-            "rate": 1.2647991
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.42159972,
+          "rate": 0.42159972
+        },
+        "baby": {
+          "speed": 0.42159972,
+          "rate": 1.2647991
+        }
+      }
     },
     "minecraft:nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/NautilusRenderer",
@@ -4301,11 +4375,7 @@
               "wave": "ramp",
               "extent": 0.44
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4326,13 +4396,19 @@
               "wave": "ramp",
               "extent": 1.3199999
             }
-          ],
-          "ceiling": {
-            "speed": 0.704,
-            "rate": 2.112
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 0.704,
+          "rate": 2.112
+        }
+      }
     },
     "minecraft:ocelot": {
       "renderer": "net/minecraft/client/renderer/entity/OcelotRenderer",
@@ -4375,11 +4451,7 @@
               "wave": "ramp",
               "extent": 0.5074891
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4403,13 +4475,19 @@
               "wave": "ramp",
               "extent": 1.5224673
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:panda": {
       "renderer": "net/minecraft/client/renderer/entity/PandaRenderer",
@@ -4504,11 +4582,7 @@
               "wave": "ramp",
               "extent": 0.19823793
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4532,13 +4606,19 @@
               "wave": "ramp",
               "extent": 0.5947138
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 2.3788552
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        },
+        "baby": {
+          "speed": 0.7929517,
+          "rate": 2.3788552
+        }
+      }
     },
     "minecraft:parched": {
       "renderer": "net/minecraft/client/renderer/entity/ParchedRenderer",
@@ -4598,13 +4678,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:parrot": {
       "renderer": "net/minecraft/client/renderer/entity/ParrotRenderer",
@@ -4641,13 +4723,15 @@
               "wave": "ramp",
               "extent": 0.35242295
             }
-          ],
-          "ceiling": {
-            "speed": 0.55066085,
-            "rate": 0.55066085
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.55066085,
+          "rate": 0.55066085
+        }
+      }
     },
     "minecraft:phantom": {
       "renderer": "net/minecraft/client/renderer/entity/PhantomRenderer",
@@ -4789,11 +4873,7 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.8604076,
-            "rate": 0.8604076
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4817,13 +4897,19 @@
               "wave": "ramp",
               "extent": 1.6519825
             }
-          ],
-          "ceiling": {
-            "speed": 0.8604076,
-            "rate": 2.5812228
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.8604076,
+          "rate": 0.8604076
+        },
+        "baby": {
+          "speed": 0.8604076,
+          "rate": 2.5812228
+        }
+      }
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
@@ -4905,11 +4991,7 @@
               "wave": "ramp",
               "extent": 0.38854635
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -4930,13 +5012,19 @@
               "wave": "ramp",
               "extent": 1.6785202
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
@@ -5001,13 +5089,15 @@
               "wave": "ramp",
               "extent": 0.38854635
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:pillager": {
       "renderer": "net/minecraft/client/renderer/entity/PillagerRenderer",
@@ -5044,13 +5134,15 @@
               "wave": "ramp",
               "extent": 0.3885463
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:polar_bear": {
       "renderer": "net/minecraft/client/renderer/entity/PolarBearRenderer",
@@ -5093,11 +5185,7 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -5121,13 +5209,19 @@
               "wave": "ramp",
               "extent": 1.6519825
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:pufferfish": {
       "renderer": "net/minecraft/client/renderer/entity/PufferfishRenderer",
@@ -5342,13 +5436,15 @@
               "wave": "ramp",
               "extent": 0.12687226
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:salmon": {
       "renderer": "net/minecraft/client/renderer/entity/SalmonRenderer",
@@ -5487,11 +5583,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.72824895,
-            "rate": 0.72824895
-          }
+          ]
         },
         {
           "id": "stride",
@@ -5515,13 +5607,19 @@
               "wave": "ramp",
               "extent": 1.3982382
             }
-          ],
-          "ceiling": {
-            "speed": 0.72824895,
-            "rate": 2.1847467
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.72824895,
+          "rate": 0.72824895
+        },
+        "baby": {
+          "speed": 0.72824895,
+          "rate": 2.1847467
+        }
+      }
     },
     "minecraft:shulker": {
       "renderer": "net/minecraft/client/renderer/entity/ShulkerRenderer",
@@ -5691,13 +5789,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:skeleton_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
@@ -5772,11 +5872,7 @@
               "wave": "ramp",
               "extent": 0.17268725
             }
-          ],
-          "ceiling": {
-            "speed": 0.5074891,
-            "rate": 0.5074891
-          }
+          ]
         },
         {
           "id": "stride",
@@ -5800,13 +5896,19 @@
               "wave": "ramp",
               "extent": 0.51806176
             }
-          ],
-          "ceiling": {
-            "speed": 0.35242295,
-            "rate": 1.0572689
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.5074891,
+          "rate": 0.5074891
+        },
+        "baby": {
+          "speed": 0.35242295,
+          "rate": 1.0572689
+        }
+      }
     },
     "minecraft:slime": {
       "renderer": "net/minecraft/client/renderer/entity/SlimeRenderer",
@@ -5889,11 +5991,7 @@
               "wave": "ramp",
               "extent": 0.08810574
             }
-          ],
-          "ceiling": {
-            "speed": 0.35242295,
-            "rate": 0.35242295
-          }
+          ]
         },
         {
           "id": "stride",
@@ -5917,11 +6015,7 @@
               "wave": "ramp",
               "extent": 0.2643172
             }
-          ],
-          "ceiling": {
-            "speed": 0.35242295,
-            "rate": 1.0572689
-          }
+          ]
         },
         {
           "id": "digging",
@@ -6018,7 +6112,17 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.35242295,
+          "rate": 0.35242295
+        },
+        "baby": {
+          "speed": 0.35242295,
+          "rate": 1.0572689
+        }
+      }
     },
     "minecraft:snow_golem": {
       "renderer": "net/minecraft/client/renderer/entity/SnowGolemRenderer",
@@ -6116,13 +6220,15 @@
               "wave": "ramp",
               "extent": 0.5074891
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:squid": {
       "renderer": "net/minecraft/client/renderer/entity/SquidRenderer",
@@ -6261,13 +6367,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:strider": {
       "renderer": "net/minecraft/client/renderer/entity/StriderRenderer",
@@ -6333,11 +6441,7 @@
               "wave": "ramp",
               "extent": 0.26982382
             }
-          ],
-          "ceiling": {
-            "speed": 0.73459536,
-            "rate": 0.73459536
-          }
+          ]
         },
         {
           "id": "stride",
@@ -6358,13 +6462,19 @@
               "wave": "ramp",
               "extent": 0.8094715
             }
-          ],
-          "ceiling": {
-            "speed": 0.73459536,
-            "rate": 2.2037861
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.73459536,
+          "rate": 0.73459536
+        },
+        "baby": {
+          "speed": 0.73459536,
+          "rate": 2.2037861
+        }
+      }
     },
     "minecraft:tadpole": {
       "renderer": "net/minecraft/client/renderer/entity/TadpoleRenderer",
@@ -6529,11 +6639,7 @@
               "wave": "ramp",
               "extent": 0.13221367
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -6557,13 +6663,19 @@
               "wave": "ramp",
               "extent": 0.39664102
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:tropical_fish": {
       "renderer": "net/minecraft/client/renderer/entity/TropicalFishRenderer",
@@ -6695,11 +6807,7 @@
               "wave": "ramp",
               "extent": 0.405
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -6723,13 +6831,19 @@
               "wave": "ramp",
               "extent": 1.0049999
             }
-          ],
-          "ceiling": {
-            "speed": 0.36,
-            "rate": 1.08
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 0.36,
+          "rate": 1.08
+        }
+      }
     },
     "minecraft:vex": {
       "renderer": "net/minecraft/client/renderer/entity/VexRenderer",
@@ -6852,11 +6966,7 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -6880,13 +6990,19 @@
               "wave": "ramp",
               "extent": 1.6519825
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:vindicator": {
       "renderer": "net/minecraft/client/renderer/entity/VindicatorRenderer",
@@ -6923,13 +7039,15 @@
               "wave": "ramp",
               "extent": 0.3885463
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:wandering_trader": {
       "renderer": "net/minecraft/client/renderer/entity/WanderingTraderRenderer",
@@ -6976,11 +7094,7 @@
               "wave": "ramp",
               "extent": 0.5288547
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -7004,13 +7118,19 @@
               "wave": "ramp",
               "extent": 1.5865642
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:warden": {
       "renderer": "net/minecraft/client/renderer/entity/WardenRenderer",
@@ -7193,11 +7313,7 @@
               "wave": "ramp",
               "extent": 0.19823793
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "attack",
@@ -7301,7 +7417,13 @@
             }
           ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:witch": {
       "renderer": "net/minecraft/client/renderer/entity/WitchRenderer",
@@ -7348,13 +7470,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.6071035,
-            "rate": 0.6071035
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.6071035,
+          "rate": 0.6071035
+        }
+      }
     },
     "minecraft:wither": {
       "renderer": "net/minecraft/client/renderer/entity/WitherBossRenderer",
@@ -7482,13 +7606,15 @@
               "wave": "ramp",
               "extent": 0.55066085
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        }
+      }
     },
     "minecraft:wolf": {
       "renderer": "net/minecraft/client/renderer/entity/WolfRenderer",
@@ -7649,11 +7775,7 @@
               "wave": "ramp",
               "extent": 0.7929517
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         },
         {
           "id": "stride",
@@ -7677,13 +7799,19 @@
               "wave": "ramp",
               "extent": 2.3788552
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:zoglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZoglinRenderer",
@@ -7730,11 +7858,7 @@
               "wave": "ramp",
               "extent": 0.12687227
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 0.7929517
-          }
+          ]
         },
         {
           "id": "stride",
@@ -7758,13 +7882,19 @@
               "wave": "ramp",
               "extent": 0.3806168
             }
-          ],
-          "ceiling": {
-            "speed": 0.7929517,
-            "rate": 2.3788552
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.7929517,
+          "rate": 0.7929517
+        },
+        "baby": {
+          "speed": 0.7929517,
+          "rate": 2.3788552
+        }
+      }
     },
     "minecraft:zombie": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieRenderer",
@@ -7849,11 +7979,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.46607938,
-            "rate": 0.46607938
-          }
+          ]
         },
         {
           "id": "stride",
@@ -7874,13 +8000,19 @@
               "wave": "ramp",
               "extent": 3.0
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.46607938,
+          "rate": 0.46607938
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:zombie_horse": {
       "renderer": "net/minecraft/client/renderer/entity/UndeadHorseRenderer",
@@ -7955,11 +8087,7 @@
               "wave": "ramp",
               "extent": 0.26777974
             }
-          ],
-          "ceiling": {
-            "speed": 0.8538894,
-            "rate": 0.8538894
-          }
+          ]
         },
         {
           "id": "stride",
@@ -7983,13 +8111,19 @@
               "wave": "ramp",
               "extent": 0.80333924
             }
-          ],
-          "ceiling": {
-            "speed": 0.8538894,
-            "rate": 2.5616682
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.8538894,
+          "rate": 0.8538894
+        },
+        "baby": {
+          "speed": 0.8538894,
+          "rate": 2.5616682
+        }
+      }
     },
     "minecraft:zombie_nautilus": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieNautilusRenderer",
@@ -8082,13 +8216,15 @@
               "wave": "ramp",
               "extent": 0.484
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 1.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 1.0,
+          "rate": 1.0
+        }
+      }
     },
     "minecraft:zombie_villager": {
       "renderer": "net/minecraft/client/renderer/entity/ZombieVillagerRenderer",
@@ -8201,11 +8337,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.46607938,
-            "rate": 0.46607938
-          }
+          ]
         },
         {
           "id": "stride",
@@ -8226,13 +8358,19 @@
               "wave": "ramp",
               "extent": 3.0
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.46607938,
+          "rate": 0.46607938
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
@@ -8314,11 +8452,7 @@
               "wave": "ramp",
               "extent": 0.46607938
             }
-          ],
-          "ceiling": {
-            "speed": 0.690749,
-            "rate": 0.690749
-          }
+          ]
         },
         {
           "id": "stride",
@@ -8339,13 +8473,19 @@
               "wave": "ramp",
               "extent": 3.0
             }
-          ],
-          "ceiling": {
-            "speed": 1.0,
-            "rate": 3.0
-          }
+          ]
         }
-      ]
+      ],
+      "ceilings": {
+        "adult": {
+          "speed": 0.690749,
+          "rate": 0.690749
+        },
+        "baby": {
+          "speed": 1.0,
+          "rate": 3.0
+        }
+      }
     }
   }
 }

@@ -3,8 +3,8 @@ package lib.minecraft.renderer.tooling.entity;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operand;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operands;
+import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Stroll;
+import lib.minecraft.renderer.tooling.entity.OperandWalk.Operand;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalDouble;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -85,14 +85,14 @@ class EntityWanderResolverTest {
     @DisplayName("a stroll's speed is the literal handed its constructor's first double")
     void aStrollReadsItsFirstDouble() throws IOException {
         open(goals(registerGoals(stroll(AVOIDING, 0.8), goal(CHASE, 1.4))));
-        assertEquals(OptionalDouble.of(0.8), strollSpeed(WALKER), "the stroll, and not the chase beside it");
+        assertEquals(Optional.of(0.8), strollSpeed(WALKER), "the stroll, and not the chase beside it");
     }
 
     @Test
     @DisplayName("a stroll taking no double is read at the call it makes to its own super")
     void aStrollTakingNoDoubleIsReadAtItsSuperCall() throws IOException {
         open(goals(registerGoals(merging())));
-        assertEquals(OptionalDouble.of(1.0), strollSpeed(WALKER), "the speed the merge goal hands its super");
+        assertEquals(Optional.of(1.0), strollSpeed(WALKER), "the speed the merge goal hands its super");
     }
 
     @Test
@@ -115,7 +115,7 @@ class EntityWanderResolverTest {
         parent.methods.add(method(0, "registerGoals", "()V", parentGoals));
         parent.methods.add(method(0, "addBehaviourGoals", "()V", body(stroll(AVOIDING, 0.6))));
         open(withGoalClasses(List.of(walker, parent)));
-        assertEquals(OptionalDouble.of(0.9), strollSpeed(WALKER), "the override the subject runs");
+        assertEquals(Optional.of(0.9), strollSpeed(WALKER), "the override the subject runs");
     }
 
     @Test
@@ -123,7 +123,8 @@ class EntityWanderResolverTest {
     void disagreeingStrollsAnswerNothing() throws IOException {
         open(goals(registerGoals(stroll(AVOIDING, 0.8), stroll(AVOIDING, 1.0))));
         Diagnostics diagnostics = diagnostics();
-        assertEquals(OptionalDouble.empty(), EntityWanderResolver.strollSpeed(run(diagnostics), subject("minecraft:walker", WALKER), diagnostics));
+        assertEquals(Optional.empty(), EntityWanderResolver.stroll(run(diagnostics), subject("minecraft:walker", WALKER), diagnostics)
+            .map(Stroll::speed));
         assertTrue(diagnostics.entries().stream().anyMatch(entry -> entry.message().startsWith("minecraft:walker strolls by 2 goals")),
             "the disagreement is named: " + diagnostics.entries());
     }
@@ -132,7 +133,7 @@ class EntityWanderResolverTest {
     @DisplayName("a brain the goal walk finds no stroll for is read at its row's member")
     void aBrainStrollIsReadAtItsRowsMember() throws IOException {
         open(brain(1));
-        assertEquals(OptionalDouble.of(1.0), strollSpeed("minecraft:allay", STILL), "the allay's idle flight");
+        assertEquals(Optional.of(1.0), strollSpeed("minecraft:allay", STILL), "the allay's idle flight");
     }
 
     @Test
@@ -149,7 +150,7 @@ class EntityWanderResolverTest {
     @DisplayName("a declared row answers its value")
     void aValueRowAnswersItsFloat() throws IOException {
         open(brain(1));
-        assertEquals(OptionalDouble.of(0.5f), strollSpeed("minecraft:villager", STILL), "the villager's declared stroll");
+        assertEquals(Optional.of((double) 0.5f), strollSpeed("minecraft:villager", STILL), "the villager's declared stroll");
     }
 
     @Test
@@ -174,7 +175,7 @@ class EntityWanderResolverTest {
         code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "fx/Sink", "take", desc, false));
         code.add(new InsnNode(Opcodes.RETURN));
         List<Operand> handed = new ArrayList<>();
-        Operands.run(method(Opcodes.ACC_STATIC, "shuffle", "()V", code), new Operands.Listener() {
+        OperandWalk.run(method(Opcodes.ACC_STATIC, "shuffle", "()V", code), new OperandWalk.Listener() {
             @Override
             public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                 handed.addAll(arguments);
@@ -189,13 +190,13 @@ class EntityWanderResolverTest {
         return out;
     }
 
-    private @NotNull OptionalDouble strollSpeed(@NotNull String entityClass) {
+    private @NotNull Optional<Double> strollSpeed(@NotNull String entityClass) {
         return strollSpeed("minecraft:walker", entityClass);
     }
 
-    private @NotNull OptionalDouble strollSpeed(@NotNull String id, @NotNull String entityClass) {
+    private @NotNull Optional<Double> strollSpeed(@NotNull String id, @NotNull String entityClass) {
         Diagnostics diagnostics = diagnostics();
-        return EntityWanderResolver.strollSpeed(run(diagnostics), subject(id, entityClass), diagnostics);
+        return EntityWanderResolver.stroll(run(diagnostics), subject(id, entityClass), diagnostics).map(Stroll::speed);
     }
 
     private @NotNull ToolingRun run(@NotNull Diagnostics diagnostics) {

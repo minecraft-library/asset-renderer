@@ -15,8 +15,9 @@
  * <p>The package also decides the strip a resolved row is drawn over.
  * {@link lib.minecraft.renderer.bake.pose.StyleResolution StyleResolution} resolves the row and
  * strip a render takes, {@link lib.minecraft.renderer.bake.pose.PoseStrips PoseStrips} holds each
- * fitted strip for the process, and its sampler reads the channels a fit is taken over - every one
- * the row's posed frames draw, through the same evaluation that poses them.
+ * fitted strip in the memo of the context holding its definition, and its sampler reads the channels
+ * a fit is taken over - every one the row's posed frames draw, through the same evaluation that poses
+ * them.
  *
  * <p>A type that neither yields a posed mesh nor decides the strip one is drawn over does not belong
  * here.

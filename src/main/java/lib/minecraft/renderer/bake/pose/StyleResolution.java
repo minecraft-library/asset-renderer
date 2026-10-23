@@ -1,20 +1,18 @@
 package lib.minecraft.renderer.bake.pose;
 
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.LinkedHashSet;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * The subject, row and strip one entity render takes - the requested style resolved against the
@@ -34,6 +32,8 @@ public record StyleResolution(@NotNull Optional<Entity> subject, @NotNull PoseSt
     /**
      * Resolves one style of one entity under one appearance.
      *
+     * @param strips the memo the derived strip is held in - the one the context answering the entity
+     *     id carries
      * @param found what the index answers for the entity id - present, or empty where its row draws
      *     nothing
      * @param entityId the namespaced entity id
@@ -42,8 +42,9 @@ public record StyleResolution(@NotNull Optional<Entity> subject, @NotNull PoseSt
      * @return the subject, in-force row and derived strip a render of them takes
      * @throws RenderException if the index holds no row for the id, or the catalog refuses the style
      */
-    public static @NotNull StyleResolution of(@NotNull Possible<Entity> found, @NotNull String entityId,
-                                              @NotNull String style, @NotNull AppearanceOptions appearance) {
+    public static @NotNull StyleResolution of(@NotNull StripMemo strips, @NotNull Possible<Entity> found,
+                                              @NotNull String entityId, @NotNull String style,
+                                              @NotNull AppearanceOptions appearance) {
         if (found.isAbsent())
             throw new RenderException("Entity '%s' is not an entity the index resolves", entityId);
 
@@ -63,27 +64,10 @@ public record StyleResolution(@NotNull Optional<Entity> subject, @NotNull PoseSt
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity subject = styled(appearance, requested.toggles()).resolve(definition);
+        Entity subject = appearance.styled(requested).resolve(definition);
         PoseStyle row = subject.styles().resolve(style, appearance::applies, entityId);
-        return new StyleResolution(Optional.of(subject), row, PoseStrips.of(subject, row, subject.styles().periodTicks()));
-    }
-
-    /**
-     * The appearance with the style's entailed bone toggles unioned in - a selection that inflates
-     * a bone draws it without the caller naming the toggle beside the style.
-     *
-     * @param appearance the appearance the caller named
-     * @param toggles the style's entailed toggles
-     * @return the appearance carrying both toggle sets, or the appearance itself when the style
-     *     entails none
-     */
-    private static @NotNull AppearanceOptions styled(
-        @NotNull AppearanceOptions appearance, @NotNull ConcurrentList<String> toggles) {
-
-        if (toggles.isEmpty()) return appearance;
-        Set<String> union = new LinkedHashSet<>(appearance.getToggles());
-        union.addAll(toggles);
-        return appearance.mutate().toggles(union).build();
+        return new StyleResolution(Optional.of(subject), row,
+            PoseStrips.of(strips, subject, row, subject.styles().periodTicks()));
     }
 
 }

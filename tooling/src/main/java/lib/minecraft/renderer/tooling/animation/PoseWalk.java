@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.animation;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
@@ -2411,7 +2412,7 @@ public final class PoseWalk {
      * off the operand rather than out of the arguments the expression grammar carries.
      */
     private static void clipSite(@NotNull MethodInsnNode call, @NotNull Context context) {
-        PoseClipSite.Gate drive = driveOf(call.name);
+        ClipDrive drive = driveOf(call.name);
         if (drive == null)
             throw new IllegalStateException("calls KeyframeAnimation." + call.name + ", which is not a way a clip is driven");
 
@@ -2435,7 +2436,7 @@ public final class PoseWalk {
                 throw new IllegalStateException("drives '" + clip.coordinate() + "' by a value it could not model");
             carried.add(number.expr());
         }
-        if (drive == PoseClipSite.Gate.SELECT && state.isEmpty())
+        if (drive == ClipDrive.SELECT && state.isEmpty())
             throw new IllegalStateException(
                 "gates '" + clip.coordinate() + "' on an animation state it could not name");
         context.clipSites().add(new PoseClipSite(clip.coordinate(), drive, state, List.copyOf(carried),
@@ -2443,10 +2444,10 @@ public final class PoseWalk {
     }
 
     /** Which of the three drives a play site names, matching what the clip table already records. */
-    private static @Nullable PoseClipSite.Gate driveOf(@NotNull String method) {
-        if (SourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.SELECT;
-        if (SourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.STRIDE;
-        if (SourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.NONE;
+    private static @Nullable ClipDrive driveOf(@NotNull String method) {
+        if (SourceClasses.Methods.APPLY.equals(method)) return ClipDrive.SELECT;
+        if (SourceClasses.Methods.APPLY_WALK.equals(method)) return ClipDrive.STRIDE;
+        if (SourceClasses.Methods.APPLY_STATIC.equals(method)) return ClipDrive.NONE;
         return null;
     }
 
@@ -2853,6 +2854,17 @@ public final class PoseWalk {
 
     private static @NotNull String clipDesc() {
         return "L" + SourceClasses.Types.KEYFRAME_ANIMATION + ";";
+    }
+
+    /**
+     * The pose grammar's operator one instruction computes - an arithmetic or width-conversion opcode at
+     * the width it names, or a call that is arithmetic by another name, matched on its whole coordinate.
+     *
+     * @param node the instruction read
+     * @return the operator, or empty where the instruction computes none the grammar holds
+     */
+    public static @NotNull Optional<PoseOperator> operatorOf(@NotNull AbstractInsnNode node) {
+        return Optional.ofNullable(node instanceof MethodInsnNode call ? CALLS.get(key(call)) : ARITHMETIC.get(node.getOpcode()));
     }
 
     private static @NotNull String key(@NotNull MethodInsnNode call) {

@@ -75,8 +75,8 @@ import java.util.Set;
  * <p>And a subject can age down with no baby mesh at all: the wandering trader is a mob whose
  * {@code isBaby} and {@code setBaby} are an ageable mob's, its renderer bakes one model, and vanilla
  * draws its baby on the adult's mesh at the adult's texture, the two differing by the walk clock
- * alone. {@link #agesDown} reads that off the entity, and the baby option it earns names the adult's
- * mesh.
+ * alone. Whether a subject ages down is read off its entity, and the baby option that earns names the
+ * adult's mesh.
  *
  * <p>Baby texture chain: variant families carry per-option {@code baby_texture} instead (node emits
  * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
@@ -249,7 +249,7 @@ public final class EntityAgeAxisResolver {
      *
      * @return whether the subject ages down
      */
-    boolean agesDown() {
+    private boolean agesDown() {
         String entityClass = this.subject.entityClass();
         if (!ClassKit.extendsClass(this.cache, entityClass, SourceClasses.Types.MOB)) return false;
         MethodNode isBaby = ClassKit.findMethodInHierarchy(this.cache, entityClass, SourceClasses.Methods.IS_BABY, FLAG_DESC);

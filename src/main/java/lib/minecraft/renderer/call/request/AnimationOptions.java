@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.call.request;
 
+import dev.simplified.annotations.BuildFlag;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -34,8 +34,10 @@ public class AnimationOptions {
     /**
      * Vanilla ticks advanced between successive output frames. Empty means the subject decides - the
      * step its derived strip takes. Named without a frame count, the count fills to cover the derived
-     * loop.
+     * loop. A frame steps at least one tick, so a named step below one is refused when the options are
+     * built.
      */
+    @BuildFlag(min = 1)
     private final @NotNull Optional<Integer> ticksPerFrame = Optional.empty();
 
     /**
@@ -105,14 +107,8 @@ public class AnimationOptions {
      *
      * @param strip the strip derived for the row the render draws
      * @return these options with both strip knobs concrete
-     * @throws RenderException if a named step is below one tick
      */
     public @NotNull AnimationOptions resolved(@NotNull StripFit strip) {
-        if (this.ticksPerFrame.filter(step -> step < 1).isPresent()) {
-            throw new RenderException("Animation steps '%s' ticks per frame - a frame steps at least one tick",
-                this.ticksPerFrame.get());
-        }
-
         if (isFrameCountNamed() && isTicksPerFrameNamed()) return this;
         int step = this.ticksPerFrame.orElse(strip.ticksPerFrame());
         int frames = this.frameCount.orElseGet(() -> !isTicksPerFrameNamed() ? strip.frames()

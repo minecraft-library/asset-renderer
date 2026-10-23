@@ -46,10 +46,10 @@ import java.util.TreeSet;
  *
  * <p>It rides the parsed entry as {@link #MEMBER} from the parse to the write, spelled as the calls it
  * replayed: a mesh derived by a deep copy carries them, a derivation replaying a vanilla surgery appends
- * it, and the write replays them, orders the bones by the result and takes the member off. A call it
- * cannot replay - a part hung from a name it does not hold, a name hung under a second parent, a surgery
- * the walk cannot place - refuses the tree, naming why, and the entity flow stops on a refused tree rather
- * than write an order it does not know.
+ * it, the entity flow's bake-order step replays them and orders the bones by the result, and the write
+ * takes the member off. A call it cannot replay - a part hung from a name it does not hold, a name hung
+ * under a second parent, a surgery the walk cannot place - refuses the tree, naming why, and the entity
+ * flow stops on a refused tree rather than write an order it does not know.
  */
 final class PartTree {
 
@@ -57,7 +57,7 @@ final class PartTree {
     static final @NotNull String MEMBER = "part_tree";
 
     /** The first JDK feature release whose {@code HashMap.putAll} sizes a copy as vanilla's runtime does. */
-    static final int COPY_SIZING_SINCE = 19;
+    private static final int COPY_SIZING_SINCE = 19;
 
     /** The call {@link #addOrReplace} replays. */
     private static final @NotNull String ADD_OR_REPLACE = "addOrReplaceChild";

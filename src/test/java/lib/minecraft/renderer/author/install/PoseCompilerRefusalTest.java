@@ -290,9 +290,10 @@ class PoseCompilerRefusalTest {
         Entity trader = EntityModelLoader.load().get(TRADER);
         BuiltStyle lean = Poses.custom("lean").allAges().keepStride().bone("body", body -> body.pitch(30)).build();
         Entity shippedBaby = trader.axes().baby().orElseThrow();
-        Map<String, StyleDriver> adultStride = PoseCompiler.strideOf(lean, trader, Age.ADULT);
-        Map<String, StyleDriver> babyStride = PoseCompiler.strideOf(lean, trader, Age.BABY);
-        assertTrue(PoseCompiler.installsAsPair(lean, trader), "the install appends an adult and baby pair");
+        Map<String, StyleDriver> adultStride = trader.styles().strideAt(Age.ADULT).drivers();
+        Map<String, StyleDriver> babyStride = trader.styles().strideAt(Age.BABY).drivers();
+        assertEquals(2, PoseCompiler.installedRows(lean, trader, Concurrent.newUnmodifiableMap(), Optional.empty()).size(),
+            "the install appends an adult and baby pair");
         assertEquals(adultStride.keySet(), babyStride.keySet(), "whose two strides drive the same fields");
         assertNotEquals(adultStride, babyStride, "at extents of their own, which no weave reads");
         assertSame(trader.pose(), shippedBaby.pose(), "the baby draws the adult's pose instance");
@@ -1233,8 +1234,8 @@ class PoseCompilerRefusalTest {
     private static @NotNull Entity axolotl(@NotNull EntityPose adult, @NotNull EntityMesh babyMesh,
                                            @NotNull EntityPose baby, Entity.OverlayLayer @NotNull ... passes) {
         Entity shipped = EntityModelLoader.load().get(AXOLOTL);
-        Map<String, StyleDriver> adultStride = PoseCompiler.strideOf(shipped.styles(), Age.ADULT, AXOLOTL);
-        Map<String, StyleDriver> babyStride = PoseCompiler.strideOf(shipped.styles(), Age.BABY, AXOLOTL);
+        Map<String, StyleDriver> adultStride = shipped.styles().strideAt(Age.ADULT).drivers();
+        Map<String, StyleDriver> babyStride = shipped.styles().strideAt(Age.BABY).drivers();
         assertTrue(adultStride.containsKey(ADULT_ONLY) && !babyStride.containsKey(ADULT_ONLY),
             "the adult's stride alone drives " + ADULT_ONLY);
         assertTrue(babyStride.containsKey(BABY_ONLY) && !adultStride.containsKey(BABY_ONLY),
@@ -1243,7 +1244,7 @@ class PoseCompilerRefusalTest {
         Entity form = entity(AXOLOTL, babyMesh, baby, shipped.styles(), passes);
         return entity(AXOLOTL, shipped.model(), adult, shipped.styles(), passes).mutate()
             .axes(new Entity.Axes(Optional.of(form), Entity.Variation.none(), Entity.Variation.none(),
-                Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .build();
     }
 

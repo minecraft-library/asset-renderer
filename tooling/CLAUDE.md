@@ -210,21 +210,22 @@ root project.
   evaluated at one tick would emit a rate for a pass that swings and animate it wrongly at every tick
   but the first. The wrap the factory is handed carries a rate through unchanged, because it is the
   same wrap the renderer applies at the offset rather than a second operation.
-- **A layer alpha that reads a driven input ships as the overlay's `opacity`, an expression, never
-  as a number.** `EntityOverlayResolver` walks the alpha lambda into the pose grammar and folds it
+- **A layer alpha ships as the overlay's `opacity`, an expression, and a pass has no other
+  spelling of one.** `EntityOverlayResolver` walks the alpha lambda into the pose grammar and folds it
   against `StyleRoster.DRIVEN` as a pose is folded; what still reads an input - the warden's spots
   on the age, its heart on its clock - is written self-contained by `PoseJson.inline` and kept
   whatever it answers at the first frame, and the style flow drives every input it reads. A
   constant, an alpha reading only resting inputs and one the walk cannot read keep the frozen-frame
-  number in `pipeline.alpha`.
+  number, written below one as the grammar's own `{"const": ...}`.
 - **A stride walks at its subject's vanilla pace, and the pace is read, not declared.**
   `EntityPaceResolver` joins the jar reads - the movement speed, the idle stroll, the walk feed, the
   move control and the fastest behaviour - with the rows of `EntityPacePolicies` where the jar
   cannot answer, into a wander and a ceiling per (entity, age). `StyleFlow` drives a stride side
   whose sources read the walk clock at its wander - the swing held at its speed, the clock ramped at
-  its rate - and writes its ceiling, the fastest walk, as the row's `ceiling` member; a side reading
-  no walk clock keeps hold 1 / ramp 1 and carries none. A side reading the walk clock with no pace
-  stops the flow rather than shipping the literal pair.
+  its rate - and writes its ceiling, the fastest walk, once for the catalog in the model's `ceilings`
+  member under its age's token, a fact about how fast the subject moves rather than about one row; a
+  side reading no walk clock keeps hold 1 / ramp 1 and records none. A side reading the walk clock
+  with no pace stops the flow rather than shipping the literal pair.
 - **A renderer's `setupRotations` is a self-refusing walk of its own, not an extension of
   `PoseWalk`.** It reads ten statements against a closed grammar and refuses the whole body on
   anything outside it, where the pose walk follows both arms of everything it cannot decide - so the
@@ -282,17 +283,18 @@ root project.
     as `carried_field` and `item_field` are, spelled as the calls it replayed. A derivation that deep
     copies an entry carries it, and the two that replay a vanilla surgery append it:
     `EntityMeshOverlays`' subset as `retainExactParts`, its no-hat mesh as
-    `clearChild(name).clearRecursively()`. `GeometryFlow.write` replays the calls, orders the bones by
-    the result and takes the member off, so no table ships it.
+    `clearChild(name).clearRecursively()`. `GeometryFlow.bakeOrder`, the entity flow's last step
+    before the write, replays the calls and orders the bones by the result, and `GeometryFlow.write`
+    takes the member off, so no table ships it.
   - **A call the replay cannot place refuses the tree rather than guessing.** A part hung from a name
     it does not hold, a name hung under a second parent, a surgery on a receiver other than the mesh
     root, or a `PartDefinition` call the walk does not replay each stop the entity flow, and
     `GeometryFlow.requireBakeOrder` stops it right after the parse, ahead of every table the flow
     writes before the geometry.
 
-  `block_geometry.json` is written in declaration order by the same writer, `BoneOrder.DECLARED`: no
-  block-entity render has been measured under the bake order, which is `RENDERER-RULES.md`'s to
-  decide.
+  `block_geometry.json` is written in declaration order by the same writer, the block-entity flow
+  taking no bake-order step: no block-entity render has been measured under the bake order, which is
+  `RENDERER-RULES.md`'s to decide.
 - **A figure the model carries between poses is named, and only when it is stepped along.** A field a
   body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
   is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla
@@ -384,14 +386,14 @@ stands it with its legs together.
   generation-only member `RestStrip` takes off with `rest`. Where the wearer's body asks `isEmpty` of
   that field, `PoseFlow` folds the body once more exactly as it folds the body's own row, with that
   one question answered zero, and emits the result beside the row keyed
-  `<Model>@<field>.isEmpty=false`, named by the equipment row's `wearer_pose`. Only the happy ghast's
+  `<Model>@<field>.isEmpty=false`, named by `axes.equipment.options.<slot>.pose`. Only the happy ghast's
   body reshapes on it in 26.1, squeezing to `0.9375` inside its harness; the zombie nautilus's coral
   asks the same question of a flag and gets no row.
 - **A selected carried block folds its wearer's body the same way, through the field its draw is
   gated on.** `EntityBlockOverlayResolver` writes that field as the selectable block row's
   `carried_field`, generation-only and taken off by `RestStrip`, and `PoseFlow.foldCarriers` folds
-  the body once more beside its row with it answered as selected, naming the result by the block
-  row's `wearer_pose`: a field the body asks `isEmpty` of is answered zero, keyed
+  the body once more beside its row with it answered as selected, naming the result by
+  `axes.carried.options.block.pose`: a field the body asks `isEmpty` of is answered zero, keyed
   `<Model>@<field>.isEmpty=false` - the enderman's raised arms - and one `StyleRoster.COUNTDOWNS`
   names is read as its start less the elapsed age, the `int` the field is, keyed
   `<Model>@<field>=countdown` - the iron golem's offered flower, swaying until the count ends. The

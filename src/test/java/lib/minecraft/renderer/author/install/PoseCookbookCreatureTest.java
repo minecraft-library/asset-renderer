@@ -101,14 +101,14 @@ class PoseCookbookCreatureTest {
             for (String field : List.of("style$beg$body$x_rot", "style$beg$head$x_rot",
                 "style$beg$left_hind_leg$x_rot", "style$beg$right_hind_leg$x_rot",
                 "style$beg$left_front_leg$x_rot", "style$beg$right_front_leg$x_rot"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                     "'" + field + "' holds its stance");
             for (String field : List.of("style$beg$body$y", "style$beg$body$z",
                 "style$beg$left_front_leg$y", "style$beg$right_front_leg$y"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                     "'" + field + "' holds its settle");
             StyleDriver wag = installed.drivers().get("style$beg$tail$y_rot");
-            assertEquals(StyleDriver.Wave.SWEEP, wag.wave());
+            assertEquals(StyleDriver.Wave.Plain.SWEEP, wag.wave());
             assertEquals(rad(-25), wag.rest(), "the wag starts at its near bound");
             assertEquals(rad(25), wag.extent(), "and peaks at the far one mid-period");
 
@@ -118,7 +118,7 @@ class PoseCookbookCreatureTest {
             for (String seated : List.of("tail", "right_hind_leg", "left_hind_leg")) {
                 for (String token : List.of("y", "z")) {
                     String field = "style$beg$" + seated + "$" + token;
-                    assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                    assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                         "'" + field + "' carries the seat");
                 }
                 assertNull(installed.drivers().get("style$beg$" + seated + "$x"),
@@ -131,7 +131,7 @@ class PoseCookbookCreatureTest {
             // The mane is placed by hand in every state vanilla poses and rides nothing, so its
             // two channels are the chain's own held writes rather than a seat's carry.
             for (String token : List.of("x_rot", "y"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get("style$beg$upper_body$" + token).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get("style$beg$upper_body$" + token).wave(),
                     "'style$beg$upper_body$" + token + "' holds the mane where the chain names it");
             assertNull(installed.drivers().get("style$beg$upper_body$z"),
                 "a settle straight down spells no field along the axis it does not move");

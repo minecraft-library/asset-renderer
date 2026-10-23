@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -311,7 +312,7 @@ public final class PosePlayer {
      * @param opacity the pass's opacity expression
      * @param model the pass's mesh, which a channel read would be answered from
      * @param frame what each render-state figure reads as on the frame
-     * @return the opacity the pass draws at, none at or under {@link PassDeclaration#DRAWN_ALPHA_FLOOR}
+     * @return the opacity the pass draws at, none where {@link PassDeclaration#drawsNothing() it draws nothing}
      */
     static float opacityAt(
         @NotNull PoseExpr opacity, @NotNull EntityMesh model, @NotNull ToDoubleFunction<String> frame) {
@@ -415,11 +416,13 @@ public final class PosePlayer {
          * The strip a group member or variant coat is measured over - the one its own row, answered
          * as {@link #at(Entity, int)} answers it, derives.
          *
+         * @param strips the memo the strip is held in - the one the context answering the member carries
          * @param member the member or coat
          * @return its derived strip
          */
-        public @NotNull StripFit memberStrip(@NotNull Entity member) {
-            return PoseStrips.of(member, member.styles().memberRow(this.style.id(), this.style), this.periodTicks);
+        public @NotNull StripFit memberStrip(@NotNull StripMemo strips, @NotNull Entity member) {
+            return PoseStrips.of(strips, member, member.styles().memberRow(this.style.id(), this.style),
+                this.periodTicks);
         }
 
         /**

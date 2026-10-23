@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,9 +85,9 @@ class EntityStyleCatalogJoinTest {
         PoseStyle idle = catalog.byId("idle").orElseThrow();
         assertEquals(
             Map.of("swayAngle",
-                new StyleDriver("swayAngle", StyleDriver.Wave.SWEEP, 0f, 0.7853982f, Optional.empty()),
+                new StyleDriver("swayAngle", StyleDriver.Wave.Plain.SWEEP, 0f, 0.7853982f, Optional.empty()),
                 "idleHeadTiltAnimationState",
-                new StyleDriver("idleHeadTiltAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                new StyleDriver("idleHeadTiltAnimationState", StyleDriver.Wave.Plain.HOLD, 0f, 1f,
                     Optional.of("action"))),
             Map.copyOf(idle.drivers()), "the root row's own drives, rest and extent defaulted 0 and 1");
         assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
@@ -99,11 +100,11 @@ class EntityStyleCatalogJoinTest {
         assertEquals(idle.drivers().get("swayAngle"), stride.drivers().get("swayAngle"),
             "an inherited driver arrives as the base composed it");
         assertEquals(
-            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()),
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()),
             stride.drivers().get("walkAnimationPos"), "an own ungrouped drive is simply added");
         assertEquals(
             List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty()),
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             List.copyOf(stride.sources()), "the object spelling carries its gate beside the bare token");
 
         PoseStyle croak = catalog.byId("croak").orElseThrow();

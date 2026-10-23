@@ -45,18 +45,21 @@ import java.util.function.Supplier;
  * body and passes, and every form an appearance swaps in for it - in the order the install weaves
  * them, answering the row rebuilt over what each compile answered.
  *
- * <p>The walk decides which sites there are and what each is guarded by; a {@link Visitor} decides
- * what a compile runs over and what an address it reached nothing with means. An installer compiles
- * over the entity's pool and refuses over such an address when strict; an audit compiles over a
- * pool of its own and keeps it. Both read one walk, so what an audit reports is what an install
- * would refuse over. Each site carries the age it is drawn at - the baby for the baby form and
- * everything woven below it, the age the style is compiled at for every other - so a caller compiles
- * each against what drives it at that age.
+ * <p>The walk decides which sites there are, what each is guarded by and what each compiles
+ * against - the row's body against the row, and every other site against its own pose and mesh
+ * under its coordinate, at the row's catalog period and the stride the install keeps at the age the
+ * site is drawn at: the baby for the baby form and everything woven below it, the age the style is
+ * compiled at for every other. Its caller hands it the pool every compile shares, and a
+ * {@link Visitor} takes what each compile answered and decides what an address it reached nothing
+ * with means. An installer hands over the entity's pool and refuses over such an address when
+ * strict; an audit hands over a pool of its own and keeps it. Both read one walk compiling each
+ * site one way, so what an audit reports is what an install would refuse over. A visitor is handed
+ * each {@link Site} as the mesh its compile ran against, the pass it compiled, its coordinate and
+ * its scope; the pose a compile splices into and the evidence it reads stay the walk's own.
  *
- * <p>A form is woven body first, then its passes, then each pose an equipment slot swaps onto its
- * wearer as a body of its own under a coined {@code $equip:<slot>} coordinate, then each pose a
- * selectable block swaps onto its wearer the same way under a coined {@code $carried} coordinate,
- * its baby wherever the style's age admits a baby,
+ * <p>A form is woven body first, then its passes, then each form a filled equipment slot re-poses its
+ * wearer as and the form a selected carried block does, each as a form of its own, its baby wherever
+ * the style's age admits a baby,
  * the passes of each shape form over its body, each size form, and each coat as a form of its own.
  * A pass sharing the pose its form was loaded with is re-pointed at the woven body and follows it
  * uncompiled; a pass carrying a distinct pose row compiles once per row across the whole walk, the
@@ -106,8 +109,8 @@ public final class FormWalker {
     private static final String BABY_FORM = "age:baby";
 
     /**
-     * The name of the form a selected carried block swaps onto its wearer, as its scope and its
-     * coordinate spell it.
+     * The name of the form a selected carried block re-poses its wearer as, as its scope and its
+     * coordinate spell it - its axis's alone, the axis holding that one form.
      */
     private static final String CARRIED_FORM = "carried";
 
@@ -127,7 +130,19 @@ public final class FormWalker {
     private final @NotNull BuiltStyle style;
 
     /**
-     * What the caller does at each compiled site.
+     * The row the style installs on, which its body compiles against and whose catalog holds the
+     * period every compile frames at and the stride each form and layer compile reads at the age its
+     * site is drawn at.
+     */
+    private final @NotNull Entity row;
+
+    /**
+     * The interner pool every compile of the walk shares, as its caller hands it.
+     */
+    private final @NotNull GraphInterner pool;
+
+    /**
+     * What the caller does with each compiled site.
      */
     private final @NotNull Visitor visitor;
 
@@ -168,12 +183,14 @@ public final class FormWalker {
      */
     private final boolean hatCopyWrites;
 
-    private FormWalker(@NotNull String entityId, @NotNull BuiltStyle style, @NotNull Visitor visitor,
-                       boolean agesAlike) {
+    private FormWalker(@NotNull String entityId, @NotNull BuiltStyle style, @NotNull Entity row,
+                       @NotNull GraphInterner pool, @NotNull Visitor visitor) {
         this.entityId = entityId;
         this.style = style;
+        this.row = row;
+        this.pool = pool;
         this.visitor = visitor;
-        this.agesAlike = agesAlike;
+        this.agesAlike = PoseCompiler.refusesAlikeAtEveryAge(style, row);
         this.foldedTokens = containerTokens(style.script());
         Optional<PoseScript.Stance> copy = style.script().stances().stream()
             .filter(stance -> PoseCompiler.implicitHatMirror(style.script(), stance))
@@ -190,46 +207,33 @@ public final class FormWalker {
     /**
      * One place the walk compiles the style, as a visitor is handed it.
      *
-     * @param form the form the site belongs to, as the working definitions hold it
-     * @param given the same form as it was given
      * @param mesh the mesh the compile runs against - the form's own for a body, the pass's for a pass
-     * @param pose the pose the compile splices into - the form's for a body, the pass's for a pass
-     * @param evidence the pose as it was given, read for which bones vanilla articulates
      * @param pass the distinct pass the site compiles, empty for a form's body
      * @param coordinate the coordinate the site's own fields are spelled under, empty for the row's body
-     * @param age the age the site is drawn at - the baby for the baby form and every site woven below
-     *     it, the age the style is compiled at for every other
      * @param scope the diagnostics scope of the form the site belongs to
      */
     public record Site(
-        @NotNull Entity form,
-        @NotNull Entity given,
         @NotNull EntityMesh mesh,
-        @NotNull EntityPose pose,
-        @NotNull EntityPose evidence,
         @NotNull Optional<Entity.OverlayLayer> pass,
         @NotNull String coordinate,
-        @NotNull Age age,
         @NotNull Diagnostics scope
     ) {}
 
     /**
-     * What one caller does at each site the walk compiles.
+     * What one caller does with each site the walk compiles.
      */
     public interface Visitor {
 
         /**
-         * Compiles the style at one site - the form's body where the site names no pass, the pass
-         * over the body it is drawn over otherwise.
+         * Takes what the walk's compile of one site answered - the form's body where the site names
+         * no pass, the pass over the body it is drawn over otherwise - handed over as soon as the
+         * compile answers, ahead of the addresses it reached nothing with and of the checks the walk
+         * runs on the compiled pose.
          *
-         * @param site the site to compile
-         * @param playSite the play site of the body a pass is drawn over, carried by instance - empty
-         *     for a body, which has no body above it, and for a pass whose body keys no timeline; a
-         *     compile builds a site of its own for either
-         * @return the compile
-         * @throws StyleException if a lowering rule refuses the authored content
+         * @param site the compiled site
+         * @param compiled what the site's compile answered
          */
-        @NotNull PoseCompiler.Compiled compile(@NotNull Site site, @NotNull Optional<EntityPose.Clip> playSite);
+        void compiled(@NotNull Site site, @NotNull PoseCompiler.Compiled compiled);
 
         /**
          * Answers the addresses one site's compile reached nothing with, handed over only where
@@ -245,23 +249,27 @@ public final class FormWalker {
 
     /**
      * Walks every site an install of the style on the row compiles or guards, in the order the
-     * install weaves them, and answers the row rebuilt over what the visitor's compiles answered.
+     * install weaves them, compiling each over the given pool and handing each compile to the
+     * visitor, and answers the row rebuilt over what those compiles answered.
      *
      * @param entityId the namespaced id the row is installed under, as a refusal names it
      * @param style the built style being installed
-     * @param row the row as the working definitions hold it
+     * @param row the row as the working definitions hold it, whose catalog holds the period and the
+     *     strides every compile reads
      * @param given the same row as it was given, the evidence every compile reads
      * @param scope the install's diagnostics scope, under which every form records its own
-     * @param visitor what the caller does at each compiled site
+     * @param pool the interner pool every compile of the walk shares
+     * @param visitor what the caller does with each compiled site
      * @return the row carrying its woven pose, its passes and its rebuilt forms, its catalog left for
      *     the caller to set
-     * @throws StyleException if a guard refuses, or the visitor does
+     * @throws StyleException if a lowering rule or a guard refuses, or the visitor does
      */
     public static @NotNull Entity walk(@NotNull String entityId, @NotNull BuiltStyle style,
                                        @NotNull Entity row, @NotNull Entity given,
-                                       @NotNull Diagnostics scope, @NotNull Visitor visitor) {
-        return new FormWalker(entityId, style, visitor, PoseCompiler.refusesAlikeAtEveryAge(style, row))
-            .woven(row, given, "", PoseCompiler.compiledAge(style), scope);
+                                       @NotNull Diagnostics scope, @NotNull GraphInterner pool,
+                                       @NotNull Visitor visitor) {
+        return new FormWalker(entityId, style, row, pool, visitor)
+            .woven(row, given, "", style.compiledAge(), scope);
     }
 
     // ------------------------------------------------------------------------------------
@@ -270,8 +278,10 @@ public final class FormWalker {
 
     /**
      * Weaves one form and every form it carries, answering it rebuilt with its catalog left for
-     * the caller to set: its own body and passes, each pose a filled equipment slot or a selected
-     * carried block swaps onto it, its baby wherever the style's age admits a baby,
+     * the caller to set: its own body and passes, each form a filled equipment slot or a selected
+     * carried block re-poses it as - the same mesh at another pose, so an installed style keeps
+     * playing on a wearer whose selection swaps its body's pose, and a scale the style writes lands
+     * over that pose's own rests - its baby wherever the style's age admits a baby,
      * each shape form's passes over this body, each size form - woven as a form of its own where it
      * carries a pose other than this body's or a mesh resting apart from this body's, guarded where
      * it lends a mesh resting as this body's does to this body's pose - and each coat as a form of
@@ -289,11 +299,16 @@ public final class FormWalker {
                                   @NotNull Age age, @NotNull Diagnostics scope) {
         WovenBody body = this.body(form, given, coordinate, age, scope);
         ConcurrentList<Entity.OverlayLayer> overlays = this.passes(form, given, body, coordinate, age, scope);
-        Entity.Layers layers = this.wearers(form, given, coordinate, age, scope);
-        ConcurrentList<Entity.BlockOverlayLayer> blocks = this.carriers(form, given, coordinate, age, scope);
         Entity.Axes axes = form.axes();
         Entity.Axes givenAxes = given.axes();
 
+        Entity.Variation<String, Entity> equipment = mapped(axes.equipment(), (slot, worn) -> {
+            String name = "equipment:" + slot;
+            return this.woven(worn, givenAxes.equipment().select(slot).orElse(worn), coined(coordinate, name), age,
+                formScope(scope, name));
+        });
+        Optional<Entity> carried = axes.carried().map(held -> this.woven(held, givenAxes.carried().orElse(held),
+            coined(coordinate, CARRIED_FORM), age, formScope(scope, CARRIED_FORM)));
         Optional<Entity> baby = axes.baby().map(child -> admitsBaby(this.style)
             ? this.woven(child, givenAxes.baby().orElse(child), coined(coordinate, BABY_FORM), Age.BABY,
                 formScope(scope, BABY_FORM))
@@ -334,83 +349,19 @@ public final class FormWalker {
         return form.mutate()
             .pose(body.pose())
             .overlays(overlays)
-            .blockOverlays(blocks)
-            .layers(layers)
-            .axes(new Entity.Axes(baby, shape, axes.state(), size, variant))
+            .axes(new Entity.Axes(baby, shape, axes.state(), size, variant, carried, equipment))
             .build();
     }
 
     /**
-     * One form's equipment layers, each pose an equipment slot swaps onto its wearer woven as a body
-     * of its own over the form's mesh, under the coordinate {@code equip:<slot>} coined below the
-     * form's - so an installed style keeps playing on a wearer whose filled slot swaps its body's
-     * pose, and a scale the style writes lands over that pose's own rests. Answers the form's own
-     * layers by instance where no layer names a wearer pose.
-     */
-    private @NotNull Entity.Layers wearers(@NotNull Entity form, @NotNull Entity given, @NotNull String coordinate,
-                                           @NotNull Age age, @NotNull Diagnostics scope) {
-        ConcurrentList<Entity.EquipmentOverlay> equipment = form.layers().equipment();
-        if (equipment.stream().allMatch(overlay -> overlay.wearerPose().isEmpty())) return form.layers();
-
-        ConcurrentList<Entity.EquipmentOverlay> givenEquipment = given.layers().equipment();
-        List<Entity.EquipmentOverlay> out = new ArrayList<>(equipment.size());
-        for (int index = 0; index < equipment.size(); index++) {
-            Entity.EquipmentOverlay overlay = equipment.get(index);
-            if (overlay.wearerPose().isEmpty()) {
-                out.add(overlay);
-                continue;
-            }
-            EntityPose wearer = overlay.wearerPose().get();
-            EntityPose evidence = index < givenEquipment.size()
-                ? givenEquipment.get(index).wearerPose().orElse(wearer)
-                : wearer;
-            String name = "equip:" + overlay.slot();
-            WovenBody woven = this.body(form.mutate().pose(wearer).build(), given.mutate().pose(evidence).build(),
-                coined(coordinate, name), age, formScope(scope, name));
-            out.add(overlay.withWearerPose(woven.pose()));
-        }
-        return new Entity.Layers(Concurrent.newUnmodifiableList(out), form.layers().humanoidArmor(),
-            form.layers().wings());
-    }
-
-    /**
-     * One form's block overlays, the pose its carrier row swaps onto its wearer woven as a body of
-     * its own over the form's mesh, under the coordinate {@code carried} coined below the form's - so
-     * an installed style keeps playing on a wearer whose selected carried block swaps its body's
-     * pose, the enderman's raised arms and the iron golem's offered flower. Only the carrier row is
-     * woven, being the one row whose pose a selected carried block swaps in, so one coordinate never
-     * spells two poses. Answers the form's own block overlays by instance where no row is a carrier.
-     */
-    private @NotNull ConcurrentList<Entity.BlockOverlayLayer> carriers(@NotNull Entity form, @NotNull Entity given,
-                                                                       @NotNull String coordinate, @NotNull Age age,
-                                                                       @NotNull Diagnostics scope) {
-        ConcurrentList<Entity.BlockOverlayLayer> blocks = form.blockOverlays();
-        int index = carrierIndex(blocks);
-        if (index < 0) return blocks;
-
-        Entity.BlockOverlayLayer block = blocks.get(index);
-        EntityPose wearer = block.wearerPose().get();
-        ConcurrentList<Entity.BlockOverlayLayer> givenBlocks = given.blockOverlays();
-        EntityPose evidence = index < givenBlocks.size()
-            ? givenBlocks.get(index).wearerPose().orElse(wearer)
-            : wearer;
-        WovenBody woven = this.body(form.mutate().pose(wearer).build(), given.mutate().pose(evidence).build(),
-            coined(coordinate, CARRIED_FORM), age, formScope(scope, CARRIED_FORM));
-        List<Entity.BlockOverlayLayer> out = new ArrayList<>(blocks);
-        out.set(index, block.withWearerPose(woven.pose()));
-        return Concurrent.newUnmodifiableList(out);
-    }
-
-    /**
-     * The body one form evaluates, woven: the shipped-clip scan, the visitor's compile, the
-     * visitor's answer to whatever that compile reached nothing with, and the self-checks a
-     * hand-built row skips at load. The row compiles its own splices; any other form compiles
-     * against its own mesh under its coined coordinate, so what depends on its own mesh - its
-     * rests, its pivots and the factor it is flattened at - is spelled apart from every other
-     * mesh's. A form evaluating the pose and mesh an earlier form of this walk was woven over,
-     * against the same evidence, takes that weave rather than compiling it again, which is what
-     * keeps a coat drawing the row's own mesh from adding a field - where the earlier weave
-     * {@link #serves serves} the age the form is drawn at.
+     * The body one form evaluates, woven: the shipped-clip scan, the compile, the visitor's answer
+     * to whatever that compile reached nothing with, and the self-checks a hand-built row skips at
+     * load. The row compiles its own splices; any other form compiles against its own mesh under its
+     * coined coordinate, so what depends on its own mesh - its rests, its pivots and the factor it is
+     * flattened at - is spelled apart from every other mesh's. A form evaluating the pose and mesh an
+     * earlier form of this walk was woven over, against the same evidence, takes that weave rather
+     * than compiling it again, which is what keeps a coat drawing the row's own mesh from adding a
+     * field - where the earlier weave {@link #serves serves} the age the form is drawn at.
      */
     private @NotNull WovenBody body(@NotNull Entity form, @NotNull Entity given, @NotNull String coordinate,
                                     @NotNull Age age, @NotNull Diagnostics scope) {
@@ -427,9 +378,8 @@ public final class FormWalker {
             install.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
                 joined(this.foldedTokens), joined(displacing));
 
-        Site site = new Site(form, given, form.model(), form.pose(), given.pose(), Optional.empty(),
-            coordinate, age, scope);
-        PoseCompiler.Compiled compiled = this.visitor.compile(site, Optional.empty());
+        Site site = new Site(form.model(), Optional.empty(), coordinate, scope);
+        PoseCompiler.Compiled compiled = this.compile(site, form.pose(), given.pose(), age, Optional.empty());
         if (!compiled.drops().isEmpty())
             this.visitor.unreached(site, compiled.drops());
 
@@ -471,8 +421,8 @@ public final class FormWalker {
                 EntityPose evidence = index < given.overlays().size()
                     ? given.overlays().get(index).pose()
                     : layer.pose();
-                woven = Possible.ofOptional(this.wovenLayer(form, given, layer, evidence,
-                    coordinate + LAYER_PREFIX + index, body, age, scope));
+                woven = Possible.ofOptional(this.wovenLayer(layer, evidence, coordinate + LAYER_PREFIX + index,
+                    body, age, scope));
                 this.layers.computeIfAbsent(age, key -> new IdentityHashMap<>()).put(layer.pose(), woven);
             }
             woven.ifPresent(weave -> this.guardHatCopy(install, piece, layer, weave.model(), weave.body()));
@@ -520,8 +470,7 @@ public final class FormWalker {
      * given, for the reason the body's is. The scale scan resolves what the style scales on the
      * layer's own mesh, the one this compile lowers against.
      */
-    private @NotNull Optional<WovenLayer> wovenLayer(@NotNull Entity form, @NotNull Entity given,
-                                                     @NotNull Entity.OverlayLayer layer,
+    private @NotNull Optional<WovenLayer> wovenLayer(@NotNull Entity.OverlayLayer layer,
                                                      @NotNull EntityPose evidence, @NotNull String coined,
                                                      @NotNull WovenBody body, @NotNull Age age,
                                                      @NotNull Diagnostics scope) {
@@ -546,8 +495,8 @@ public final class FormWalker {
             events.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
                 joined(this.foldedTokens), joined(displacing));
 
-        Site site = new Site(form, given, mesh, layer.pose(), evidence, Optional.of(layer), coined, age, scope);
-        PoseCompiler.Compiled arm = this.visitor.compile(site, body.site());
+        Site site = new Site(mesh, Optional.of(layer), coined, scope);
+        PoseCompiler.Compiled arm = this.compile(site, layer.pose(), evidence, age, body.site());
         if (!arm.drops().isEmpty()) {
             // Recorded BEFORE the visitor answers, so a strict refusal adds the error and never
             // subtracts the warning: both forks say the same thing about the same drop, and the
@@ -561,6 +510,35 @@ public final class FormWalker {
 
         this.checkSelectSites(install, arm.pose());
         return Optional.of(new WovenLayer(arm.pose(), mesh, body));
+    }
+
+    /**
+     * Compiles the style at one site over the walk's pool and hands the compile to the visitor - the
+     * row's body against the row, the one site spelled under no coordinate, and every other site
+     * against the given pose and the site's mesh under its coordinate, at the row's catalog period
+     * and the stride the install keeps at the age the site is drawn at.
+     *
+     * @param site the site to compile
+     * @param pose the pose the compile splices into - the form's for a body, the pass's for a pass
+     * @param evidence the same pose as it was given, read for which bones vanilla articulates
+     * @param age the age the site is drawn at - the baby for the baby form and every site woven below
+     *     it, the age the style is compiled at for every other
+     * @param playSite the play site of the body a pass is drawn over, carried by instance - empty
+     *     for a body, which has no body above it, and for a pass whose body keys no timeline; a
+     *     compile builds a site of its own for either
+     * @return the compile
+     * @throws StyleException if a lowering rule refuses the authored content
+     */
+    private @NotNull PoseCompiler.Compiled compile(@NotNull Site site, @NotNull EntityPose pose,
+                                                   @NotNull EntityPose evidence, @NotNull Age age,
+                                                   @NotNull Optional<EntityPose.Clip> playSite) {
+        PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
+            ? PoseCompiler.compile(this.style, this.row, evidence, site.scope(), this.pool)
+            : PoseCompiler.compileLayer(this.style, pose, evidence, site.mesh(), site.coordinate(),
+                site.scope(), this.pool, playSite, this.row.styles().periodTicks(),
+                PoseCompiler.strideOf(this.style, this.row, age));
+        this.visitor.compiled(site, compiled);
+        return compiled;
     }
 
     /**
@@ -906,19 +884,6 @@ public final class FormWalker {
     }
 
     /**
-     * The index of the carrier row - the first selectable block row, whose wearer pose a selected
-     * carried block swaps in - or {@code -1} where no row is selectable or the first names no wearer
-     * pose.
-     */
-    private static int carrierIndex(@NotNull List<Entity.BlockOverlayLayer> blocks) {
-        for (int index = 0; index < blocks.size(); index++) {
-            Entity.BlockOverlayLayer block = blocks.get(index);
-            if (block.selectable()) return block.wearerPose().isPresent() ? index : -1;
-        }
-        return -1;
-    }
-
-    /**
      * Whether a stance captured any verb at all - an empty lambda addresses nothing.
      */
     private static boolean carries(@NotNull PoseScript.Stance stance) {
@@ -949,7 +914,8 @@ public final class FormWalker {
         return form.mutate()
             .pose(pose)
             .overlays(overlays)
-            .axes(new Entity.Axes(baby, axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .axes(new Entity.Axes(baby, axes.shape(), axes.state(), axes.size(), axes.variant(), axes.carried(),
+                axes.equipment()))
             .build();
     }
 

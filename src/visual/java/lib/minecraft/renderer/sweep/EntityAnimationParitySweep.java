@@ -299,7 +299,8 @@ public final class EntityAnimationParitySweep {
             String entityId = subject.key().entityId();
             AppearanceOptions appearance = subject.key().appearance();
             String age = appearance.isBaby() ? "baby" : "adult";
-            StyleResolution resolved = StyleResolution.of(context.findEntity(entityId), entityId, GAIT.style(), appearance);
+            StyleResolution resolved = StyleResolution.of(context.strips(), context.findEntity(entityId), entityId,
+                GAIT.style(), appearance);
             Schedule own = Schedule.of(resolved);
             if (!sidecar.entity().equals(entityId) || !sidecar.age().equals(age) || !sidecar.schedule().equals(own)) {
                 System.err.printf("       %-44s schedule parted: sidecar %s %s %s, own resolution %s %s %s%n",

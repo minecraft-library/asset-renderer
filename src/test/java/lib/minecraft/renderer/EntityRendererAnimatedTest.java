@@ -178,7 +178,7 @@ class EntityRendererAnimatedTest {
     @DisplayName("a row whose strip takes the fine step plays a tick a frame with nothing named")
     void aFineStripPlaysATickAFrame() {
         StripFit strip = derived(FLAPPING, PoseStyle.IDLE);
-        assertEquals(StripFit.FINE_STEP, strip.ticksPerFrame(), "a bee's idle row derives the fine step");
+        assertEquals(1, strip.ticksPerFrame(), "a bee's idle row derives the fine step, a tick a frame");
         ImageData data = renderer.render(base(FLAPPING).style(PoseStyle.IDLE).build()).image();
         assertEquals(strip.frames(), data.getFrames().size(),
             "a bee at rest with nothing named is expected to render the strip its row derives");
@@ -273,7 +273,7 @@ class EntityRendererAnimatedTest {
 
     /** The strip a render of one entity's style naming no knob draws, as the render resolves it. */
     private static @NotNull StripFit derived(@NotNull String id, @NotNull String style) {
-        return StyleResolution.of(context.findEntity(id), id, style, AppearanceOptions.defaults()).strip();
+        return StyleResolution.of(context.strips(), context.findEntity(id), id, style, AppearanceOptions.defaults()).strip();
     }
 
     /** Renders one style of each member at one age under the group scope and holds every canvas to the first's. */

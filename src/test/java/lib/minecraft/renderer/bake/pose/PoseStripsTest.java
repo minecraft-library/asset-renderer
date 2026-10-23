@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.StripTrack;
@@ -24,6 +25,7 @@ import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
@@ -56,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The strip a resolved row is drawn over, fitted once per key and held for the process.
+ * The strip a resolved row is drawn over, fitted once per key and held by the memo it was asked under.
  *
  * <p>The key is what is pinned: a row compared by value, since every resolve rebuilds a narrowed
  * one; every pose the sampler reads compared by instance; every mesh it reads compared by what a
@@ -70,12 +72,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * apart over the one they differ in, and a mesh differing only where nothing reads it keys with the
  * mesh it copies. Over the shipped corpus, every appearance resolved twice, the key is sufficient:
  * two resolved subjects it keys equal sample equal tracks. A row nothing moves never reaches the key
- * at all.
+ * at all, and a fit is shared by the asks of one memo and by no other.
  */
-@DisplayName("the fitted strip of a resolved row, held for the process")
+@DisplayName("the fitted strip of a resolved row, held by the memo it was asked under")
 class PoseStripsTest {
 
     private static ConcurrentMap<String, Entity> entities;
+
+    /** The memo every fit one test asks for is held in, fresh for each test. */
+    private final @NotNull StripMemo strips = new StripMemo();
 
     @BeforeAll
     static void load() {
@@ -89,10 +94,26 @@ class PoseStripsTest {
         PoseStyle stride = row(zombie, PoseStyle.STRIDE);
         int period = zombie.styles().periodTicks();
 
-        StripFit first = PoseStrips.of(zombie, stride, period);
-        assertSame(first, PoseStrips.of(zombie, stride, period), "the second ask answers the first fit itself");
+        StripFit first = PoseStrips.of(this.strips, zombie, stride, period);
+        assertSame(first, PoseStrips.of(this.strips, zombie, stride, period), "the second ask answers the first fit itself");
         assertEquals(StripFit.fit(StripSampler.tracks(zombie, stride, period)), first,
             "which is the fit of the row's sampled tracks");
+    }
+
+    @Test
+    @DisplayName("a fit is held by the memo it was asked under, and another memo fits the row afresh")
+    void aFitIsHeldByItsMemo() {
+        // A memo is held by the context owning the definitions, so a second context asking for the
+        // same row takes a fit of its own rather than reaching one another context holds.
+        Entity zombie = AppearanceOptions.defaults().resolve(definition("minecraft:zombie"));
+        PoseStyle stride = row(zombie, PoseStyle.STRIDE);
+        int period = zombie.styles().periodTicks();
+
+        StripFit held = PoseStrips.of(this.strips, zombie, stride, period);
+        StripFit afresh = PoseStrips.of(new StripMemo(), zombie, stride, period);
+        assertNotSame(held, afresh, "another memo does not answer the first memo's fit");
+        assertEquals(held, afresh, "and fits the same strip");
+        assertSame(held, PoseStrips.of(this.strips, zombie, stride, period), "while the first memo still answers its own");
     }
 
     @Test
@@ -109,8 +130,8 @@ class PoseStripsTest {
         assertEquals(firstRow, secondRow, "to one value");
         assertTrue(firstRow.moves(), "which still walks");
 
-        assertSame(PoseStrips.of(first, firstRow, first.styles().periodTicks()),
-            PoseStrips.of(second, secondRow, second.styles().periodTicks()),
+        assertSame(PoseStrips.of(this.strips, first, firstRow, first.styles().periodTicks()),
+            PoseStrips.of(this.strips, second, secondRow, second.styles().periodTicks()),
             "so both resolves meet one fit");
     }
 
@@ -145,7 +166,7 @@ class PoseStripsTest {
         assertTrue(idle.sources().isEmpty(), "the universal standing row names no source");
         assertThrows(RenderException.class, () -> StripSampler.tracks(subject, idle, period),
             "sampling the subject would throw");
-        assertSame(StripFit.STILL, PoseStrips.of(subject, idle, period), "so the still strip is answered unsampled");
+        assertSame(StripFit.STILL, PoseStrips.of(this.strips, subject, idle, period), "so the still strip is answered unsampled");
     }
 
     @Test
@@ -157,11 +178,11 @@ class PoseStripsTest {
         EntityPose pose = armSwing();
         Entity armless = posed(pose, mesh(TextureSize.DEFAULT, "body"));
         Entity armed = posed(pose, mesh(TextureSize.DEFAULT, "body", "arm"));
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         int period = armless.styles().periodTicks();
 
-        StripFit armlessFit = PoseStrips.of(armless, row, period);
-        StripFit armedFit = PoseStrips.of(armed, row, period);
+        StripFit armlessFit = PoseStrips.of(this.strips, armless, row, period);
+        StripFit armedFit = PoseStrips.of(this.strips, armed, row, period);
         assertEquals(StripFit.fit(StripSampler.tracks(armed, row, period)), armedFit,
             "the armed mesh answers its own fit");
         assertNotEquals(armlessFit, armedFit, "which is not the armless mesh's");
@@ -186,7 +207,7 @@ class PoseStripsTest {
         bones.put("arm", arm);
         EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableLinkedMap(bones),
             Concurrent.newUnmodifiableList(), Optional.empty());
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
 
         Entity plain = posed(pose, skeleton(Vector3f.ZERO, EulerRotation.NONE, "arm", 1f, "body"));
         Map<String, Entity> altered = new LinkedHashMap<>();
@@ -214,7 +235,7 @@ class PoseStripsTest {
         // one owning other cubes, one over another sheet and one culling all read as the plain one and
         // meet its fit.
         EntityPose pose = armSwing();
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         Entity plain = posed(pose, mesh(TextureSize.DEFAULT, "body", "arm"));
         int period = plain.styles().periodTicks();
 
@@ -230,7 +251,7 @@ class PoseStripsTest {
         others.put("a culling mesh",
             new EntityMesh(TextureSize.DEFAULT, mesh(TextureSize.DEFAULT, "body", "arm").getBones(), true));
 
-        StripFit fit = PoseStrips.of(plain, row, period);
+        StripFit fit = PoseStrips.of(this.strips, plain, row, period);
         List<StripTrack> plainTracks = StripSampler.tracks(plain, row, period);
         for (Map.Entry<String, EntityMesh> other : others.entrySet()) {
             Entity subject = posed(pose, other.getValue());
@@ -239,7 +260,7 @@ class PoseStripsTest {
                 other.getKey() + " samples the plain mesh's tracks");
             assertEquals(PoseStrips.Key.of(plain, row, period), PoseStrips.Key.of(subject, row, period),
                 "so " + other.getKey() + " keys with the plain mesh");
-            assertSame(fit, PoseStrips.of(subject, row, period), "and meets its fit");
+            assertSame(fit, PoseStrips.of(this.strips, subject, row, period), "and meets its fit");
         }
     }
 
@@ -253,7 +274,7 @@ class PoseStripsTest {
         EntityMesh body = mesh(TextureSize.DEFAULT, "body", "arm");
         Entity redrawn = overlaid(pose, body, body);
         Entity copied = overlaid(pose, body, mesh(TextureSize.DEFAULT, "body", "arm"));
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         int period = redrawn.styles().periodTicks();
 
         assertFalse(sameTracks(StripSampler.tracks(redrawn, row, period), StripSampler.tracks(copied, row, period)),
@@ -320,8 +341,8 @@ class PoseStripsTest {
         PoseStyle row = style(StyleClock.SCROLL);
         int period = narrow.styles().periodTicks();
 
-        StripFit narrowFit = PoseStrips.of(narrow, row, period);
-        StripFit wideFit = PoseStrips.of(wide, row, period);
+        StripFit narrowFit = PoseStrips.of(this.strips, narrow, row, period);
+        StripFit wideFit = PoseStrips.of(this.strips, wide, row, period);
         assertEquals(StripFit.fit(StripSampler.tracks(wide, row, period)), wideFit,
             "the wide sheet answers its own fit");
         assertNotEquals(narrowFit, wideFit, "which is not the narrow sheet's");
@@ -341,8 +362,8 @@ class PoseStripsTest {
         PoseStyle row = style(StyleClock.SCROLL);
         int period = slow.styles().periodTicks();
 
-        StripFit slowFit = PoseStrips.of(slow, row, period);
-        StripFit fastFit = PoseStrips.of(fast, row, period);
+        StripFit slowFit = PoseStrips.of(this.strips, slow, row, period);
+        StripFit fastFit = PoseStrips.of(this.strips, fast, row, period);
         assertEquals(StripFit.fit(StripSampler.tracks(fast, row, period)), fastFit,
             "the fast scroll answers its own fit");
         assertNotEquals(slowFit, fastFit, "which is not the slow scroll's");
@@ -360,11 +381,11 @@ class PoseStripsTest {
         EntityMesh mesh = mesh(TextureSize.DEFAULT, "body");
         Entity slow = glowing(pose, mesh, pulse(0.045f));
         Entity fast = glowing(pose, mesh, pulse(0.1f));
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         int period = slow.styles().periodTicks();
 
-        StripFit slowFit = PoseStrips.of(slow, row, period);
-        StripFit fastFit = PoseStrips.of(fast, row, period);
+        StripFit slowFit = PoseStrips.of(this.strips, slow, row, period);
+        StripFit fastFit = PoseStrips.of(this.strips, fast, row, period);
         assertEquals(StripFit.fit(StripSampler.tracks(fast, row, period)), fastFit,
             "the fast pulse answers its own fit");
         assertNotEquals(slowFit, fastFit, "which is not the slow pulse's");
@@ -373,31 +394,29 @@ class PoseStripsTest {
     }
 
     @Test
-    @DisplayName("two subjects wearing one equipment mesh under one pose in two slots fit apart")
+    @DisplayName("two subjects wearing one equipment mesh twice under one pose, in two slots and in one, fit apart")
     void twoSlotsFitApart() {
-        // A layer's slot names the channels it is sampled under, and the fit names the channel the
-        // restart's worst jump is on. The two subjects share every pose and mesh instance and differ
-        // in the slot.
+        // A layer's slot names the channels it is sampled under, and two layers sampled under one
+        // channel sum there. The two subjects share every pose and mesh instance and differ in the
+        // second layer's slot, so one swings two legs apart and the other one leg twice as far.
         EntityMesh body = mesh(TextureSize.DEFAULT, "body");
         EntityMesh worn = mesh(TextureSize.DEFAULT, "leg");
         Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
         bones.put("leg", swing(0.05f));
         EntityPose pose = new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableLinkedMap(bones),
             Concurrent.newUnmodifiableList(), Optional.empty());
-        Entity saddled = equipped(body, "saddle", worn, pose);
-        Entity armoured = equipped(body, "body", worn, pose);
-        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-        int period = saddled.styles().periodTicks();
+        Entity apart = equipped(body, worn, pose, "saddle", "body");
+        Entity together = equipped(body, worn, pose, "saddle", "saddle");
+        PoseStyle row = style(StyleClock.TICK, new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
+        int period = apart.styles().periodTicks();
 
-        StripFit saddledFit = PoseStrips.of(saddled, row, period);
-        StripFit armouredFit = PoseStrips.of(armoured, row, period);
-        assertEquals(Optional.of("equip:saddle.leg.x_rot"), saddledFit.worstChannel(),
-            "the restart's worst jump is on the worn leg, named for its slot");
-        assertEquals(StripFit.fit(StripSampler.tracks(armoured, row, period)), armouredFit,
-            "the other slot answers its own fit");
-        assertNotEquals(saddledFit, armouredFit, "which is not the first slot's");
-        assertNotEquals(PoseStrips.Key.of(saddled, row, period), PoseStrips.Key.of(armoured, row, period),
-            "because the two slots key apart");
+        StripFit apartFit = PoseStrips.of(this.strips, apart, row, period);
+        StripFit togetherFit = PoseStrips.of(this.strips, together, row, period);
+        assertEquals(StripFit.fit(StripSampler.tracks(together, row, period)), togetherFit,
+            "the shared slot answers its own fit");
+        assertNotEquals(apartFit, togetherFit, "which is not the two slots' fit");
+        assertNotEquals(PoseStrips.Key.of(apart, row, period), PoseStrips.Key.of(together, row, period),
+            "because the two slot lists key apart");
     }
 
     // ------------------------------------------------------------------------------------
@@ -443,7 +462,8 @@ class PoseStripsTest {
         int period = first.styles().periodTicks();
         assertEquals(PoseStrips.Key.of(first, firstRow, period), PoseStrips.Key.of(second, secondRow, period),
             id + "'s two resolves key equal");
-        assertSame(PoseStrips.of(first, firstRow, period), PoseStrips.of(second, secondRow, period),
+        StripMemo strips = new StripMemo();
+        assertSame(PoseStrips.of(strips, first, firstRow, period), PoseStrips.of(strips, second, secondRow, period),
             "so the second resolve of " + id + " meets the first one's fit");
     }
 
@@ -554,9 +574,7 @@ class PoseStripsTest {
             .id(ResourceId.parse("minecraft:test"))
             .model(body)
             .pose(pose)
-            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(pass, Optional.empty(),
-                PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), pose)))
+            .overlays(Concurrent.newUnmodifiableList(RegistrarFixtures.overlay(pass, pose)))
             .build();
     }
 
@@ -569,7 +587,7 @@ class PoseStripsTest {
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(pose)
-            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(mesh, Optional.empty(),
+            .overlays(Concurrent.newUnmodifiableList(RegistrarFixtures.pass(mesh, Optional.empty(),
                 PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), pose, Optional.of(rate))))
             .build();
@@ -592,17 +610,20 @@ class PoseStripsTest {
             .build();
     }
 
-    /** A subject whose body stands unposed, wearing one equipment mesh in a slot under a pose. */
+    /** A subject whose body stands unposed, wearing one equipment mesh under a pose in each slot named, in order. */
     private static @NotNull Entity equipped(
-        @NotNull EntityMesh body, @NotNull String slot, @NotNull EntityMesh worn, @NotNull EntityPose pose) {
+        @NotNull EntityMesh body, @NotNull EntityMesh worn, @NotNull EntityPose pose, @NotNull String @NotNull ... slots) {
 
+        List<Entity.EquipmentOverlay> layers = new ArrayList<>();
+        for (String slot : slots) {
+            layers.add(new Entity.EquipmentOverlay(slot, worn, pose, LayerType.HORSE_BODY, Concurrent.newUnmodifiableMap(),
+                Optional.empty()));
+        }
         return Entity.builder()
             .id(ResourceId.parse("minecraft:test"))
             .model(body)
             .pose(EntityPose.NONE)
-            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(new Entity.EquipmentOverlay(slot, worn, pose,
-                LayerType.HORSE_BODY, Concurrent.newUnmodifiableMap(), Optional.empty(), Optional.empty())),
-                Optional.empty(), false))
+            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(layers), Optional.empty(), false))
             .build();
     }
 

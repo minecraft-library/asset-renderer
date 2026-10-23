@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -104,7 +105,7 @@ class StyleCatalogTest {
         PoseStyle idle = new PoseStyle(PoseStyle.IDLE,
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(StyleClock.FIGURE, Optional.empty()),
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
         PoseStyle babyRow = new PoseStyle("roll_up",
@@ -112,7 +113,7 @@ class StyleCatalogTest {
                 new PoseStyle.StyleSource(StyleClock.SELECT, Optional.empty())),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
             Optional.of(Age.BABY), Optional.empty());
-        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(idle, babyRow));
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(idle, babyRow));
 
         StyleCatalog narrowed = catalog.inForce(false, gate -> false);
         assertEquals(1, narrowed.styles().size(), "the baby-only row drops for an adult subject");
@@ -127,20 +128,39 @@ class StyleCatalogTest {
     }
 
     @Test
-    @DisplayName("a stride the in-force view narrows keeps its ceiling")
-    void aNarrowedRowKeepsItsCeiling() {
+    @DisplayName("a catalog the in-force view narrows keeps its ceilings, and an age it records none at has none")
+    void aNarrowedCatalogKeepsItsCeilings() {
         PaceCeiling ceiling = new PaceCeiling(0.79f, 2.38f);
         PoseStyle stride = new PoseStyle(PoseStyle.STRIDE,
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty()),
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
-            Optional.empty(), Optional.of(ceiling));
-        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(stride));
+            Optional.empty());
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(Map.of(Age.BABY, ceiling)),
+            Concurrent.newUnmodifiableList(stride));
 
-        PoseStyle kept = catalog.inForce(false, gate -> false).styles().getFirst();
-        assertEquals(1, kept.sources().size(), "the gated entry drops, so the row is rebuilt");
-        assertEquals(Optional.of(ceiling), kept.ceiling(), "and the rebuilt row records the ceiling it shipped");
+        StyleCatalog narrowed = catalog.inForce(false, gate -> false);
+        assertEquals(1, narrowed.styles().getFirst().sources().size(), "the gated entry drops, so the row is rebuilt");
+        assertEquals(Optional.of(ceiling), narrowed.ceilingAt(Age.BABY), "and the catalog records the ceiling it shipped");
+        assertTrue(narrowed.ceilingAt(Age.ADULT).isEmpty(), "an age it records none at walks at no pace of its own");
+    }
+
+    @Test
+    @DisplayName("the stride an age draws is the shipped stride applying to it, the universal one where none does")
+    void theStrideAtAnAgeIsTheOneItDraws() {
+        PoseStyle babyStride = new PoseStyle(PoseStyle.STRIDE, Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.of(Age.BABY),
+            Optional.empty());
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(babyStride));
+
+        assertSame(babyStride, catalog.strideAt(Age.BABY), "the baby draws its own stride");
+        assertEquals(StyleCatalog.BIND_ONLY.strideAt(Age.ADULT), catalog.strideAt(Age.ADULT),
+            "and the adult the universal one");
+        assertEquals(List.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed"),
+            StyleCatalog.BIND_ONLY.strideAt(Age.ADULT).drivers().keySet().stream().sorted().toList(),
+            "which drives elapsed age and the walk pair");
     }
 
     @Test
@@ -148,11 +168,11 @@ class StyleCatalogTest {
     void animatedFollowsTheInForceInventory() {
         PoseStyle scrollsWhenCharged = new PoseStyle(PoseStyle.IDLE,
             Concurrent.newUnmodifiableList(
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
         StyleCatalog catalog =
-            new StyleCatalog(24, Concurrent.newUnmodifiableList(scrollsWhenCharged));
+            new StyleCatalog(24, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(scrollsWhenCharged));
 
         assertEquals(PoseStyle.IDLE, catalog.animated().id(),
             "the shipped union carries the charged movement");
@@ -166,10 +186,10 @@ class StyleCatalogTest {
         PoseStyle rest = new PoseStyle("rest",
             Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("restAnimationState",
-                new StyleDriver("restAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                new StyleDriver("restAnimationState", StyleDriver.Wave.Plain.HOLD, 0f, 1f,
                     Optional.of("action")))),
             Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
-        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rest));
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(rest));
 
         assertTrue(rest.sources().isEmpty(), "the row holds still");
         assertEquals(List.of(PoseStyle.BIND, "rest"), List.copyOf(catalog.ids()),
@@ -179,7 +199,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("an age-split pair is listed once, after bind")
     void anAgeSplitPairIsListedOnce() {
-        StyleCatalog catalog = new StyleCatalog(24,
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(playDead(Age.ADULT), playDead(Age.BABY)));
         assertEquals(List.of(PoseStyle.BIND, "play_dead"), List.copyOf(catalog.ids()),
             "one id names both ages");
@@ -188,7 +208,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("resolve answers the row of a shared id that applies to the subject")
     void resolvePicksTheApplyingRowOfASharedId() {
-        StyleCatalog catalog = new StyleCatalog(24,
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(playDead(Age.ADULT), playDead(Age.BABY)));
         Predicate<PoseStyle> adult = style -> style.age().equals(Optional.of(Age.ADULT));
         Predicate<PoseStyle> baby = style -> style.age().equals(Optional.of(Age.BABY));
@@ -205,7 +225,7 @@ class StyleCatalogTest {
     private static @NotNull PoseStyle playDead(@NotNull Age age) {
         return new PoseStyle("play_dead", Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("playingDeadAnimationState",
-                new StyleDriver("playingDeadAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                new StyleDriver("playingDeadAnimationState", StyleDriver.Wave.Plain.HOLD, 0f, 1f,
                     Optional.of("action")))),
             Concurrent.newUnmodifiableList(), Optional.of(age), Optional.empty());
     }

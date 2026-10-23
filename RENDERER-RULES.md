@@ -669,9 +669,10 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   nothing else in the corpus. Reading the baking class instead answers the
   wearer's `chest` gate for a mesh whose gated bones are reins. The layer poses under the wearer's
   style and tick, as vanilla runs every equipment model's own animation with its wearer's render
-  state. A row may also carry `wearer_pose`, the body pose its wearer takes while the slot is
-  filled, which the tooling derives from the layer's own item getter - the happy ghast's harness,
-  whose getter reads the very field the body asks `isEmpty` of.
+  state. The body pose its wearer takes while the slot is filled is a form of the wearer's rather
+  than a member of the row: `axes.equipment.options.<slot>.pose`, which the tooling derives from the
+  layer's own item getter - the happy ghast's harness, whose getter reads the very field the body
+  asks `isEmpty` of.
 - **A filled slot can hide a bone of its wearer's, and that is a toggle rather than a pose.** A row's
   `wearer_toggle` names the bone toggle the wearer's mesh takes while the slot is filled, and
   `AppearanceOptions.resolve` adds it to the selection for any selected slot, whatever its material,
@@ -1110,9 +1111,10 @@ sixty-six frames at the most, and so 198 ticks at three a frame; the one strip t
 too fast for three ticks holding a slower part longer than sixty-six ticks, which runs on up to 198
 one-tick frames so that part is not cut. A one-shot that does not end where it starts stops the strip
 at its own length, and a row whose motion is too small to see is one frame. It is worked out the
-first time a row is drawn in a process and held for the process, so shipped, universal and authored
-rows take one derivation and the table ships no frame count. Named alone, a frame count keeps the
-row's step and a step fills as many frames as cover the loop; named together, both are the caller's.
+first time a row is drawn through a context and held for as long as the context holds the definition,
+so shipped, universal and authored rows take one derivation and the table ships no frame count. Named
+alone, a frame count keeps the row's step and a step fills as many frames as cover the loop; named
+together, both are the caller's.
 `PoseStripsCorpusTest` pins every shipped row's strip at each age, in-force gate set, axis form whose
 pose program differs and posed trait subject.
 
@@ -1126,12 +1128,14 @@ samples the opacity as it draws it, so a pulse longer than the pose's loop lengt
 the pulse is shown whole once; where the strip restarts is judged on the body alone, and the glow may
 jump there.
 
-**A selected carried block takes its wearer's arms with it.** A selectable block row names the body
-pose its wearer takes while a caller selects a block - the enderman's raised arms, the iron golem's
-offered flower, whose offer counts down on the age clock from the moment it is selected - and the
-appearance swaps it in for the body's pose, as a filled equipment slot swaps its own. Only a posed
-render moves; a bind render poses nothing, so a still render and the still references draw the arms
-at rest.
+**A selected carried block takes its wearer's arms with it.** The body pose its wearer takes while a
+caller selects a block - the enderman's raised arms, the iron golem's offered flower, whose offer
+counts down on the age clock from the moment it is selected - is a form on the `carried` axis,
+`axes.carried.options.block.pose`, and the appearance swaps that form's pose and passes in for the
+body's, as a filled equipment slot swaps in its `equipment` form, the carried one answering first.
+Neither swaps where a shape form has already swapped its passes in or a size form a pose of its own.
+Only a posed render moves; a bind render poses nothing, so a still render and the still references
+draw the arms at rest.
 
 **The canvas is a union of silhouettes, each measured over the frames its own render draws.** The
 subject is measured across every frame of the render's schedule, each through its own posed mesh and

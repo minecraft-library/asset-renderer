@@ -151,19 +151,24 @@ class StyleRegistrarAuditTest {
         // The walk pair and elapsed age are driven whatever stride a site compiles against, so only a
         // clock of the row's own stride tells the carrier's stride from none.
         Entity enderman = row(shipped(), ENDERMAN);
+        EntityPose reading = CompilerFixtures.boneWrite("right_arm", PoseChannel.X_ROT, CompilerFixtures.input(CLOCK));
+        Entity carrier = enderman.axes().carried().orElseThrow();
+        Entity.Axes axes = enderman.axes();
         Entity clocked = enderman.mutate()
             .pose(EntityPose.NONE)
             .overlays(enderman.overlays().stream()
                 .map(pass -> pass.withPose(EntityPose.NONE))
                 .collect(Concurrent.toUnmodifiableList()))
-            .blockOverlays(enderman.blockOverlays().stream()
-                .map(block -> block.wearerPose().isPresent()
-                    ? block.withWearerPose(CompilerFixtures.boneWrite("right_arm", PoseChannel.X_ROT,
-                        CompilerFixtures.input(CLOCK)))
-                    : block)
-                .collect(Concurrent.toUnmodifiableList()))
+            .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(), axes.variant(),
+                Optional.of(carrier.mutate()
+                    .pose(reading)
+                    .overlays(carrier.overlays().stream()
+                        .map(pass -> pass.pose() == carrier.pose() ? pass.withPose(reading) : pass)
+                        .collect(Concurrent.toUnmodifiableList()))
+                    .build()),
+                axes.equipment()))
             .styles(catalog(styleRow(PoseStyle.STRIDE, Map.of(CLOCK,
-                new StyleDriver(CLOCK, StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())))))
+                new StyleDriver(CLOCK, StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty())))))
             .build();
         ConcurrentMap<String, Entity> definitions = definitions(clocked);
         BuiltStyle reach = Poses.custom("reach").keepStride().bone("right_arm", arm -> arm.pitch(10)).build();
@@ -555,7 +560,7 @@ class StyleRegistrarAuditTest {
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(sizes), Optional.empty()),
-                Entity.Variation.none()))
+                Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .build();
     }
 
@@ -574,7 +579,8 @@ class StyleRegistrarAuditTest {
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(shapes), Optional.of("small")),
-                Entity.Variation.none(), Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Entity.Variation.none(), Optional.empty(),
+                Entity.Variation.none()))
             .build();
     }
 

@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -121,7 +122,7 @@ class EntityDrawnTest {
         @NotNull EntityMesh model, @NotNull Optional<EntityMesh> noHat,
         @NotNull EntityPose pose) {
 
-        return new Entity.OverlayLayer(model, Optional.empty(), PassDeclaration.DEFAULT,
+        return RegistrarFixtures.pass(model, Optional.empty(), PassDeclaration.DEFAULT,
             0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(), noHat, pose);
     }
 

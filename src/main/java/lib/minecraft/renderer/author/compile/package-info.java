@@ -16,9 +16,9 @@
  * <p>{@link lib.minecraft.renderer.author.compile.FormWalker FormWalker} is the order an install
  * compiles in: a row's body and passes and every form an appearance swaps in for it, each site with
  * the coordinate its fields are spelled under and the guards it owes. It decides which sites there
- * are, and a caller decides what a compile runs over and what an address it reached nothing with
- * means - so the installer that refuses over one and the audit that reports it read one list of
- * sites.
+ * are and compiles each over the pool its caller hands it, and the caller decides what an address
+ * a compile reached nothing with means - so the installer that refuses over one and the audit that
+ * reports it read one list of sites, each compiled one way.
  *
  * <p>Two relationships are derived here that no author spells and no shipped row states outright.
  * An anatomical stance lands on the articulation the pose as it shipped turns for that part, read

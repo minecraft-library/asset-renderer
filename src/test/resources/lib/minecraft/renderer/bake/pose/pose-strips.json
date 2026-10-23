@@ -1,24 +1,24 @@
 {
   "minecraft:allay": {
     "adult": {
-      "idle": {"frames": 54, "ticks_per_frame": 3, "seam": 4.17, "worst_channel": "body.left_arm.z_rot"},
-      "stride": {"frames": 66, "ticks_per_frame": 3, "seam": 0.65, "worst_channel": "body.left_wing.y_rot"}
+      "idle": {"frames": 54, "ticks_per_frame": 3, "seam": 4.17},
+      "stride": {"frames": 66, "ticks_per_frame": 3, "seam": 0.65}
     }
   },
   "minecraft:armadillo": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "peek": {"frames": 50, "ticks_per_frame": 1, "seam": 8.00, "worst_channel": "body.right_front_leg.z"},
-      "roll_out": {"frames": 30, "ticks_per_frame": 1, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "roll_up": {"frames": 10, "ticks_per_frame": 1, "seam": 85.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "stride": {"frames": 41, "ticks_per_frame": 1, "seam": 0.67, "worst_channel": "body.right_hind_leg.x_rot"}
+      "peek": {"frames": 50, "ticks_per_frame": 1, "seam": 8.00},
+      "roll_out": {"frames": 30, "ticks_per_frame": 1, "seam": 90.00},
+      "roll_up": {"frames": 10, "ticks_per_frame": 1, "seam": 85.00},
+      "stride": {"frames": 41, "ticks_per_frame": 1, "seam": 0.67}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "peek": {"frames": 50, "ticks_per_frame": 1, "seam": 8.00, "worst_channel": "body.right_front_leg.z"},
-      "roll_out": {"frames": 30, "ticks_per_frame": 1, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "roll_up": {"frames": 10, "ticks_per_frame": 1, "seam": 85.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "stride": {"frames": 58, "ticks_per_frame": 1, "seam": 0.25, "worst_channel": "body.right_front_leg.x_rot"}
+      "peek": {"frames": 50, "ticks_per_frame": 1, "seam": 8.00},
+      "roll_out": {"frames": 30, "ticks_per_frame": 1, "seam": 90.00},
+      "roll_up": {"frames": 10, "ticks_per_frame": 1, "seam": 85.00},
+      "stride": {"frames": 58, "ticks_per_frame": 1, "seam": 0.25}
     }
   },
   "minecraft:armor_stand": {
@@ -29,128 +29,128 @@
   },
   "minecraft:axolotl": {
     "adult": {
-      "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.72, "worst_channel": "body.tail.y_rot"},
-      "on_ground": {"frames": 23, "ticks_per_frame": 3, "seam": 0.87, "worst_channel": "body.tail.y_rot"},
+      "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.72},
+      "on_ground": {"frames": 23, "ticks_per_frame": 3, "seam": 0.87},
       "play_dead": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 57, "ticks_per_frame": 3, "seam": 8.10, "worst_channel": "body.tail.y_rot"}
+      "stride": {"frames": 57, "ticks_per_frame": 3, "seam": 8.10}
     },
     "baby": {
-      "idle": {"frames": 35, "ticks_per_frame": 3, "seam": 0.95, "worst_channel": "body.right_gills.y_rot"},
-      "idle_on_ground": {"frames": 58, "ticks_per_frame": 1, "seam": 0.67, "worst_channel": "body.tail.y_rot"},
-      "idle_under_water_on_ground": {"frames": 35, "ticks_per_frame": 3, "seam": 1.51, "worst_channel": "body.right_gills.y_rot"},
+      "idle": {"frames": 35, "ticks_per_frame": 3, "seam": 0.95},
+      "idle_on_ground": {"frames": 58, "ticks_per_frame": 1, "seam": 0.67},
+      "idle_under_water_on_ground": {"frames": 35, "ticks_per_frame": 3, "seam": 1.51},
       "play_dead": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.right_front_leg.z_rot"}
+      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.00}
     }
   },
   "minecraft:bat": {
     "adult": {
-      "idle": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.right_wing_tip.y_rot"},
+      "idle": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00},
       "rest": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.right_wing_tip.y_rot"}
+      "stride": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00}
     }
   },
   "minecraft:bee": {
     "adult": {
-      "idle": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05, "worst_channel": "body.left_wing.z_rot"},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05, "worst_channel": "body.left_wing.z_rot"}
+      "idle": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05},
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05}
     },
     "baby": {
-      "idle": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05, "worst_channel": "body.left_wing.z_rot"},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05, "worst_channel": "body.left_wing.z_rot"}
+      "idle": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05},
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 4.05}
     }
   },
   "minecraft:blaze": {
     "adult": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 21.16, "worst_channel": "body.part1.x"},
-      "stride": {"frames": 66, "ticks_per_frame": 3, "seam": 21.16, "worst_channel": "body.part1.x"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 21.16},
+      "stride": {"frames": 66, "ticks_per_frame": 3, "seam": 21.16}
     }
   },
   "minecraft:bogged": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.left_arm.x_rot"},
-      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42}
     }
   },
   "minecraft:breeze": {
     "adult": {
-      "idle": {"frames": 53, "ticks_per_frame": 1, "seam": 30.72, "worst_channel": "pass0.scroll.u"},
-      "inhale": {"frames": 51, "ticks_per_frame": 1, "seam": 90.00, "worst_channel": "pass0.wind_bottom.y_rot"},
-      "long_jump": {"frames": 51, "ticks_per_frame": 1, "seam": 180.00, "worst_channel": "pass0.wind_mid.y_rot"},
-      "shoot": {"frames": 53, "ticks_per_frame": 1, "seam": 30.72, "worst_channel": "pass0.scroll.u"},
-      "slide_back": {"frames": 51, "ticks_per_frame": 1, "seam": 63.00, "worst_channel": "body.rods.y_rot"},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 63.00, "worst_channel": "body.rods.y_rot"}
+      "idle": {"frames": 53, "ticks_per_frame": 1, "seam": 30.72},
+      "inhale": {"frames": 51, "ticks_per_frame": 1, "seam": 90.00},
+      "long_jump": {"frames": 51, "ticks_per_frame": 1, "seam": 180.00},
+      "shoot": {"frames": 53, "ticks_per_frame": 1, "seam": 30.72},
+      "slide_back": {"frames": 51, "ticks_per_frame": 1, "seam": 63.00},
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 63.00}
     }
   },
   "minecraft:camel": {
     "adult": {
-      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.left_front_leg.x_rot"},
+      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00},
       "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
-      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
+      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00},
       "sit_pose": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
-      "sit_up": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "stride": {"frames": 35, "ticks_per_frame": 3, "seam": 0.32, "worst_channel": "body.right_hind_leg.x_rot"}
+      "sit_up": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00},
+      "stride": {"frames": 35, "ticks_per_frame": 3, "seam": 0.32}
     },
     "baby": {
-      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.left_front_leg.x_rot"},
-      "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.29, "worst_channel": "body.tail.z_rot"},
-      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 3.45, "worst_channel": "body.head.x_rot"},
-      "sit_pose": {"frames": 27, "ticks_per_frame": 3, "seam": 0.29, "worst_channel": "body.tail.z_rot"},
-      "sit_up": {"frames": 52, "ticks_per_frame": 3, "seam": 1.08, "worst_channel": "body.right_ear.z_rot"},
-      "stride": {"frames": 152, "ticks_per_frame": 1, "seam": 2.75, "worst_channel": "body.left_hind_leg.y"}
+      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00},
+      "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.29},
+      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 3.45},
+      "sit_pose": {"frames": 27, "ticks_per_frame": 3, "seam": 0.29},
+      "sit_up": {"frames": 52, "ticks_per_frame": 3, "seam": 1.08},
+      "stride": {"frames": 152, "ticks_per_frame": 1, "seam": 2.75}
     }
   },
   "minecraft:camel_husk": {
     "adult": {
-      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.left_front_leg.x_rot"},
+      "dash": {"frames": 80, "ticks_per_frame": 1, "seam": 0.00},
       "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
-      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
+      "sit": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00},
       "sit_pose": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
-      "sit_up": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.x_rot"},
-      "stride": {"frames": 35, "ticks_per_frame": 3, "seam": 0.32, "worst_channel": "body.right_hind_leg.x_rot"}
+      "sit_up": {"frames": 27, "ticks_per_frame": 3, "seam": 90.00},
+      "stride": {"frames": 35, "ticks_per_frame": 3, "seam": 0.32}
     }
   },
   "minecraft:cat": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 37, "ticks_per_frame": 1, "seam": 0.75, "worst_channel": "body.tail2.x_rot"}
+      "stride": {"frames": 37, "ticks_per_frame": 1, "seam": 0.75}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 62, "ticks_per_frame": 1, "seam": 3.31, "worst_channel": "body.tail2.x_rot"}
+      "stride": {"frames": 62, "ticks_per_frame": 1, "seam": 3.31}
     }
   },
   "minecraft:cave_spider": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 28, "ticks_per_frame": 1, "seam": 0.97, "worst_channel": "body.left_front_leg.y_rot"}
+      "stride": {"frames": 28, "ticks_per_frame": 1, "seam": 0.97}
     }
   },
   "minecraft:chicken": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "idle~variant=cold": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70, "worst_channel": "body.left_leg.x_rot"},
-      "stride~variant=cold": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70},
+      "stride~variant=cold": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58}
     }
   },
   "minecraft:cod": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87, "worst_channel": "body.tail_fin.y_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87, "worst_channel": "body.tail_fin.y_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87}
     }
   },
   "minecraft:copper_golem": {
     "adult": {
       "idle": {"frames": 24, "ticks_per_frame": 3, "seam": 0.00},
-      "interaction_drop_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00, "worst_channel": "body.head.x_rot"},
-      "interaction_drop_no_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00, "worst_channel": "body.head.x_rot"},
-      "interaction_get_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00, "worst_channel": "body.head.x_rot"},
-      "interaction_get_no_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00, "worst_channel": "body.head.x_rot"},
-      "stride": {"frames": 63, "ticks_per_frame": 3, "seam": 2.07, "worst_channel": "body.right_arm.x_rot"}
+      "interaction_drop_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00},
+      "interaction_drop_no_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00},
+      "interaction_get_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00},
+      "interaction_get_no_item": {"frames": 40, "ticks_per_frame": 3, "seam": 0.00},
+      "stride": {"frames": 63, "ticks_per_frame": 3, "seam": 2.07}
     }
   },
   "minecraft:cow": {
@@ -158,102 +158,102 @@
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "idle~variant=cold": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "idle~variant=warm": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"},
-      "stride~variant=cold": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"},
-      "stride~variant=warm": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73},
+      "stride~variant=cold": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73},
+      "stride~variant=warm": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06}
     }
   },
   "minecraft:creaking": {
     "adult": {
-      "attack": {"frames": 28, "ticks_per_frame": 1, "seam": 8.97, "worst_channel": "body.head.y_rot"},
-      "death": {"frames": 45, "ticks_per_frame": 1, "seam": 17.33, "worst_channel": "body.upper_body.x_rot"},
+      "attack": {"frames": 28, "ticks_per_frame": 1, "seam": 8.97},
+      "death": {"frames": 45, "ticks_per_frame": 1, "seam": 17.33},
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "invulnerability": {"frames": 6, "ticks_per_frame": 1, "seam": 0.00},
-      "stride": {"frames": 57, "ticks_per_frame": 1, "seam": 10.70, "worst_channel": "body.head.y_rot"}
+      "stride": {"frames": 57, "ticks_per_frame": 1, "seam": 10.70}
     }
   },
   "minecraft:creeper": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "idle@charged": {"frames": 34, "ticks_per_frame": 3, "seam": 5.12, "worst_channel": "pass0.scroll.u"},
-      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"},
-      "stride@charged": {"frames": 35, "ticks_per_frame": 3, "seam": 12.80, "worst_channel": "pass0.scroll.u"}
+      "idle@charged": {"frames": 34, "ticks_per_frame": 3, "seam": 5.12},
+      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73},
+      "stride@charged": {"frames": 35, "ticks_per_frame": 3, "seam": 12.80}
     }
   },
   "minecraft:dolphin": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.51, "worst_channel": "body.tail_fin.x_rot"}
+      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.51}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.51, "worst_channel": "body.tail_fin.x_rot"}
+      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.51}
     }
   },
   "minecraft:donkey": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.20, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.20}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 22, "ticks_per_frame": 1, "seam": 0.66, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 22, "ticks_per_frame": 1, "seam": 0.66}
     }
   },
   "minecraft:drowned": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63}
     },
     "baby": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41}
     }
   },
   "minecraft:elder_guardian": {
     "adult": {
-      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.90, "worst_channel": "body.tail2.y_rot"},
-      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 1.79, "worst_channel": "body.tail2.y_rot"}
+      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.90},
+      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 1.79}
     }
   },
   "minecraft:ender_dragon": {
     "adult": {
-      "idle": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.$container0.y"},
-      "stride": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.$container0.y"}
+      "idle": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00},
+      "stride": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00}
     }
   },
   "minecraft:enderman": {
     "adult": {
-      "idle": {"frames": 44, "ticks_per_frame": 3, "seam": 0.79, "worst_channel": "body.left_arm.x_rot"},
+      "idle": {"frames": 44, "ticks_per_frame": 3, "seam": 0.79},
       "idle~carried=minecraft__grass_block": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 32, "ticks_per_frame": 3, "seam": 13.73, "worst_channel": "body.left_leg.x_rot"},
+      "stride": {"frames": 32, "ticks_per_frame": 3, "seam": 13.73},
       "stride~carried=minecraft__grass_block": {"frames": 11, "ticks_per_frame": 1, "seam": 0.00}
     }
   },
   "minecraft:endermite": {
     "adult": {
-      "idle": {"frames": 7, "ticks_per_frame": 1, "seam": 0.07, "worst_channel": "body.segment0.y_rot"},
-      "stride": {"frames": 7, "ticks_per_frame": 1, "seam": 0.07, "worst_channel": "body.segment0.y_rot"}
+      "idle": {"frames": 7, "ticks_per_frame": 1, "seam": 0.07},
+      "stride": {"frames": 7, "ticks_per_frame": 1, "seam": 0.07}
     }
   },
   "minecraft:evoker": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 0.94, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 0.94}
     }
   },
   "minecraft:fox": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 1.88, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 1.88}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.56, "worst_channel": "body.right_hind_leg.x_rot"}
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.56}
     }
   },
   "minecraft:frog": {
@@ -261,111 +261,113 @@
       "croak": {"frames": 60, "ticks_per_frame": 1, "seam": 0.00},
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "jump": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 61, "ticks_per_frame": 1, "seam": 6.40, "worst_channel": "body.right_leg.x_rot"},
-      "swim_idle": {"frames": 60, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.left_arm.z_rot"},
+      "stride": {"frames": 61, "ticks_per_frame": 1, "seam": 6.40},
+      "swim_idle": {"frames": 60, "ticks_per_frame": 1, "seam": 0.00},
       "tongue": {"frames": 10, "ticks_per_frame": 1, "seam": 0.00}
     }
   },
   "minecraft:ghast": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19}
     }
   },
   "minecraft:giant": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63}
     }
   },
   "minecraft:glow_squid": {
     "adult": {
-      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19}
     },
     "baby": {
-      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19}
     }
   },
   "minecraft:goat": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06}
     }
   },
   "minecraft:guardian": {
     "adult": {
-      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.90, "worst_channel": "body.tail2.y_rot"},
-      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 1.79, "worst_channel": "body.tail2.y_rot"}
+      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.90},
+      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 1.79}
     }
   },
   "minecraft:happy_ghast": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19},
+      "idle~equipment=body": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19},
+      "stride~equipment=body": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19}
     },
     "baby": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.19}
     }
   },
   "minecraft:hoglin": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 49, "ticks_per_frame": 1, "seam": 0.48, "worst_channel": "body.left_ear.z_rot"}
+      "stride": {"frames": 49, "ticks_per_frame": 1, "seam": 0.48}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.04, "worst_channel": "body.left_ear.z_rot"}
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.04}
     }
   },
   "minecraft:horse": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 41, "ticks_per_frame": 1, "seam": 0.93, "worst_channel": "body.head_parts.x_rot"}
+      "stride": {"frames": 41, "ticks_per_frame": 1, "seam": 0.93}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 24, "ticks_per_frame": 3, "seam": 0.33, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 24, "ticks_per_frame": 3, "seam": 0.33}
     }
   },
   "minecraft:husk": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63}
     },
     "baby": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41}
     }
   },
   "minecraft:illusioner": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 0.94, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 0.94}
     }
   },
   "minecraft:iron_golem": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "idle~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.33, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 65, "ticks_per_frame": 1, "seam": 0.60, "worst_channel": "body.left_leg.x_rot"},
-      "stride~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.44, "worst_channel": "body.left_leg.x_rot"}
+      "idle~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.33},
+      "stride": {"frames": 65, "ticks_per_frame": 1, "seam": 0.60},
+      "stride~carried=minecraft__poppy": {"frames": 22, "ticks_per_frame": 3, "seam": 0.44}
     }
   },
   "minecraft:llama": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.35, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.35}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.35, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.35}
     }
   },
   "minecraft:magma_cube": {
@@ -377,129 +379,129 @@
   "minecraft:mooshroom": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 9, "ticks_per_frame": 1, "seam": 1.06}
     }
   },
   "minecraft:mule": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.20, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.20}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 22, "ticks_per_frame": 1, "seam": 0.66, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 22, "ticks_per_frame": 1, "seam": 0.66}
     }
   },
   "minecraft:nautilus": {
     "adult": {
-      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.upper_mouth.x_rot"},
-      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 0.96, "worst_channel": "body.upper_mouth.x_rot"}
+      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00},
+      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 0.96}
     },
     "baby": {
-      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.upper_mouth.x_rot"},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.90, "worst_channel": "body.upper_mouth.x_rot"}
+      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00},
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.90}
     }
   },
   "minecraft:ocelot": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 37, "ticks_per_frame": 1, "seam": 0.75, "worst_channel": "body.tail2.x_rot"}
+      "stride": {"frames": 37, "ticks_per_frame": 1, "seam": 0.75}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 62, "ticks_per_frame": 1, "seam": 3.31, "worst_channel": "body.tail2.x_rot"}
+      "stride": {"frames": 62, "ticks_per_frame": 1, "seam": 3.31}
     }
   },
   "minecraft:panda": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 45, "ticks_per_frame": 1, "seam": 0.91, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 45, "ticks_per_frame": 1, "seam": 0.91}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 16, "ticks_per_frame": 1, "seam": 0.37, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 16, "ticks_per_frame": 1, "seam": 0.37}
     }
   },
   "minecraft:parched": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.left_arm.x_rot"},
-      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42}
     }
   },
   "minecraft:parrot": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 26, "ticks_per_frame": 1, "seam": 0.73}
     }
   },
   "minecraft:phantom": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 1, "seam": 0.89, "worst_channel": "body.tail_base.x_rot"},
-      "stride": {"frames": 46, "ticks_per_frame": 1, "seam": 0.89, "worst_channel": "body.tail_base.x_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 1, "seam": 0.89},
+      "stride": {"frames": 46, "ticks_per_frame": 1, "seam": 0.89}
     }
   },
   "minecraft:pig": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
       "idle~variant=cold": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70, "worst_channel": "body.left_front_leg.x_rot"},
-      "stride~variant=cold": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70},
+      "stride~variant=cold": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58}
     }
   },
   "minecraft:piglin": {
     "adult": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_ear.z_rot"},
-      "stride": {"frames": 64, "ticks_per_frame": 3, "seam": 10.07, "worst_channel": "body.left_ear.z_rot"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68},
+      "stride": {"frames": 64, "ticks_per_frame": 3, "seam": 10.07}
     },
     "baby": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_ear.z_rot"},
-      "stride": {"frames": 101, "ticks_per_frame": 1, "seam": 12.57, "worst_channel": "body.left_ear.z_rot"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68},
+      "stride": {"frames": 101, "ticks_per_frame": 1, "seam": 12.57}
     }
   },
   "minecraft:piglin_brute": {
     "adult": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_ear.z_rot"},
-      "stride": {"frames": 64, "ticks_per_frame": 3, "seam": 10.07, "worst_channel": "body.left_ear.z_rot"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68},
+      "stride": {"frames": 64, "ticks_per_frame": 3, "seam": 10.07}
     }
   },
   "minecraft:pillager": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 24, "ticks_per_frame": 1, "seam": 0.35, "worst_channel": "body.left_arm.x_rot"}
+      "stride": {"frames": 24, "ticks_per_frame": 1, "seam": 0.35}
     }
   },
   "minecraft:polar_bear": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.70}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 1.58}
     }
   },
   "minecraft:pufferfish": {
     "adult": {
-      "idle": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_blue_fin.z_rot"},
-      "idle~size=medium": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_blue_fin.z_rot"},
-      "idle~size=small": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_fin.z_rot"},
-      "stride": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_blue_fin.z_rot"},
-      "stride~size=medium": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_blue_fin.z_rot"},
-      "stride~size=small": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54, "worst_channel": "body.left_fin.z_rot"}
+      "idle": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54},
+      "idle~size=medium": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54},
+      "idle~size=small": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54},
+      "stride": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54},
+      "stride~size=medium": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54},
+      "stride~size=small": {"frames": 42, "ticks_per_frame": 3, "seam": 1.54}
     }
   },
   "minecraft:rabbit": {
     "adult": {
       "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 15, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.right_ear.x_rot"}
+      "stride": {"frames": 15, "ticks_per_frame": 1, "seam": 0.00}
     },
     "baby": {
       "idle": {"frames": 27, "ticks_per_frame": 3, "seam": 0.00},
@@ -509,51 +511,51 @@
   "minecraft:ravager": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 24, "ticks_per_frame": 3, "seam": 0.09, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 24, "ticks_per_frame": 3, "seam": 0.09}
     }
   },
   "minecraft:salmon": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.48, "worst_channel": "body.body_back.y_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.48, "worst_channel": "body.body_back.y_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.48},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.48}
     }
   },
   "minecraft:sheep": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.74, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 20, "ticks_per_frame": 1, "seam": 0.74}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 27, "ticks_per_frame": 1, "seam": 0.54, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 27, "ticks_per_frame": 1, "seam": 0.54}
     }
   },
   "minecraft:shulker": {
     "adult": {
-      "idle": {"frames": 25, "ticks_per_frame": 1, "seam": 0.39, "worst_channel": "body.lid.y"},
-      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 0.39, "worst_channel": "body.lid.y"}
+      "idle": {"frames": 25, "ticks_per_frame": 1, "seam": 0.39},
+      "stride": {"frames": 25, "ticks_per_frame": 1, "seam": 0.39}
     }
   },
   "minecraft:silverfish": {
     "adult": {
-      "idle": {"frames": 7, "ticks_per_frame": 1, "seam": 0.43, "worst_channel": "body.layer1.y_rot"},
-      "stride": {"frames": 7, "ticks_per_frame": 1, "seam": 0.43, "worst_channel": "body.layer1.y_rot"}
+      "idle": {"frames": 7, "ticks_per_frame": 1, "seam": 0.43},
+      "stride": {"frames": 7, "ticks_per_frame": 1, "seam": 0.43}
     }
   },
   "minecraft:skeleton": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.left_arm.x_rot"},
-      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42}
     }
   },
   "minecraft:skeleton_horse": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.68, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.68}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.68, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.68}
     }
   },
   "minecraft:slime": {
@@ -564,22 +566,22 @@
   },
   "minecraft:sniffer": {
     "adult": {
-      "digging": {"frames": 54, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.z_rot"},
-      "feeling_happy": {"frames": 40, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.head.x_rot"},
+      "digging": {"frames": 54, "ticks_per_frame": 3, "seam": 90.00},
+      "feeling_happy": {"frames": 40, "ticks_per_frame": 1, "seam": 0.00},
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "rising": {"frames": 60, "ticks_per_frame": 1, "seam": 90.00, "worst_channel": "body.right_front_leg.z_rot"},
+      "rising": {"frames": 60, "ticks_per_frame": 1, "seam": 90.00},
       "scenting": {"frames": 54, "ticks_per_frame": 3, "seam": 0.00},
       "sniffing": {"frames": 20, "ticks_per_frame": 1, "seam": 0.00},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 4.62, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 4.62}
     },
     "baby": {
-      "digging": {"frames": 54, "ticks_per_frame": 3, "seam": 90.00, "worst_channel": "body.right_front_leg.z_rot"},
-      "feeling_happy": {"frames": 40, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.head.x_rot"},
+      "digging": {"frames": 54, "ticks_per_frame": 3, "seam": 90.00},
+      "feeling_happy": {"frames": 40, "ticks_per_frame": 1, "seam": 0.00},
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "rising": {"frames": 60, "ticks_per_frame": 1, "seam": 90.00, "worst_channel": "body.right_front_leg.z_rot"},
+      "rising": {"frames": 60, "ticks_per_frame": 1, "seam": 90.00},
       "scenting": {"frames": 54, "ticks_per_frame": 3, "seam": 0.00},
       "sniffing": {"frames": 20, "ticks_per_frame": 1, "seam": 0.00},
-      "stride": {"frames": 28, "ticks_per_frame": 3, "seam": 1.51, "worst_channel": "body.right_mid_leg.x_rot"}
+      "stride": {"frames": 28, "ticks_per_frame": 3, "seam": 1.51}
     }
   },
   "minecraft:snow_golem": {
@@ -591,195 +593,195 @@
   "minecraft:spider": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 28, "ticks_per_frame": 1, "seam": 0.97, "worst_channel": "body.left_front_leg.y_rot"}
+      "stride": {"frames": 28, "ticks_per_frame": 1, "seam": 0.97}
     }
   },
   "minecraft:squid": {
     "adult": {
-      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19}
     },
     "baby": {
-      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"},
-      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19, "worst_channel": "body.tentacle0.x_rot"}
+      "idle": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19},
+      "stride": {"frames": 51, "ticks_per_frame": 1, "seam": 0.19}
     }
   },
   "minecraft:stray": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.left_arm.x_rot"},
-      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42}
     }
   },
   "minecraft:strider": {
     "adult": {
-      "idle": {"frames": 31, "ticks_per_frame": 1, "seam": 0.95, "worst_channel": "body.left_top_bristle.z_rot"},
-      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 0.97, "worst_channel": "body.left_top_bristle.z_rot"}
+      "idle": {"frames": 31, "ticks_per_frame": 1, "seam": 0.95},
+      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 0.97}
     },
     "baby": {
-      "idle": {"frames": 31, "ticks_per_frame": 1, "seam": 0.95, "worst_channel": "body.bristle2.x_rot"},
-      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 1.40, "worst_channel": "body.bristle1.x_rot"}
+      "idle": {"frames": 31, "ticks_per_frame": 1, "seam": 0.95},
+      "stride": {"frames": 31, "ticks_per_frame": 1, "seam": 1.40}
     }
   },
   "minecraft:tadpole": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.24, "worst_channel": "body.tail.y_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.24, "worst_channel": "body.tail.y_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.24},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.24}
     }
   },
   "minecraft:trader_llama": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.35, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 0.35}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.35, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.35}
     }
   },
   "minecraft:tropical_fish": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87, "worst_channel": "body.tail.y_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87, "worst_channel": "body.tail.y_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87},
+      "stride": {"frames": 21, "ticks_per_frame": 1, "seam": 0.87}
     }
   },
   "minecraft:turtle": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 39, "ticks_per_frame": 3, "seam": 3.82, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 39, "ticks_per_frame": 3, "seam": 3.82}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 47, "ticks_per_frame": 1, "seam": 0.90, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 47, "ticks_per_frame": 1, "seam": 0.90}
     }
   },
   "minecraft:vex": {
     "adult": {
-      "idle": {"frames": 21, "ticks_per_frame": 3, "seam": 1.36, "worst_channel": "body.left_wing.y_rot"},
-      "stride": {"frames": 21, "ticks_per_frame": 3, "seam": 1.36, "worst_channel": "body.left_wing.y_rot"}
+      "idle": {"frames": 21, "ticks_per_frame": 3, "seam": 1.36},
+      "stride": {"frames": 21, "ticks_per_frame": 3, "seam": 1.36}
     }
   },
   "minecraft:villager": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.35, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 17, "ticks_per_frame": 1, "seam": 0.35}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 0.79, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 40, "ticks_per_frame": 1, "seam": 0.79}
     }
   },
   "minecraft:vindicator": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.84, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 23, "ticks_per_frame": 1, "seam": 0.84}
     }
   },
   "minecraft:wandering_trader": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 18, "ticks_per_frame": 1, "seam": 0.46, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 18, "ticks_per_frame": 1, "seam": 0.46}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 6, "ticks_per_frame": 1, "seam": 1.10, "worst_channel": "body.left_leg.x_rot"}
+      "stride": {"frames": 6, "ticks_per_frame": 1, "seam": 1.10}
     }
   },
   "minecraft:warden": {
     "adult": {
-      "attack": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85, "worst_channel": "body.head.x_rot"},
-      "digging": {"frames": 47, "ticks_per_frame": 3, "seam": 160.00, "worst_channel": "body.body.y"},
-      "emerge": {"frames": 47, "ticks_per_frame": 3, "seam": 252.00, "worst_channel": "body.body.y"},
-      "idle": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85, "worst_channel": "body.head.x_rot"},
-      "roar": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85, "worst_channel": "body.head.x_rot"},
-      "sniff": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85, "worst_channel": "body.head.x_rot"},
-      "sonic_boom": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85, "worst_channel": "body.head.x_rot"},
-      "stride": {"frames": 61, "ticks_per_frame": 3, "seam": 2.03, "worst_channel": "body.head.x_rot"}
+      "attack": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85},
+      "digging": {"frames": 47, "ticks_per_frame": 3, "seam": 160.00},
+      "emerge": {"frames": 47, "ticks_per_frame": 3, "seam": 252.00},
+      "idle": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85},
+      "roar": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85},
+      "sniff": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85},
+      "sonic_boom": {"frames": 62, "ticks_per_frame": 3, "seam": 0.85},
+      "stride": {"frames": 61, "ticks_per_frame": 3, "seam": 2.03}
     }
   },
   "minecraft:witch": {
     "adult": {
-      "idle": {"frames": 23, "ticks_per_frame": 3, "seam": 0.33, "worst_channel": "body.nose.x_rot"},
-      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_leg.x_rot"}
+      "idle": {"frames": 23, "ticks_per_frame": 3, "seam": 0.33},
+      "stride": {"frames": 23, "ticks_per_frame": 3, "seam": 3.68}
     }
   },
   "minecraft:wither": {
     "adult": {
-      "idle": {"frames": 60, "ticks_per_frame": 1, "seam": 0.72, "worst_channel": "body.tail.x_rot"},
-      "stride": {"frames": 60, "ticks_per_frame": 1, "seam": 0.72, "worst_channel": "body.tail.x_rot"}
+      "idle": {"frames": 60, "ticks_per_frame": 1, "seam": 0.72},
+      "stride": {"frames": 60, "ticks_per_frame": 1, "seam": 0.72}
     }
   },
   "minecraft:wither_skeleton": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.left_arm.x_rot"},
-      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 40, "ticks_per_frame": 3, "seam": 3.42}
     }
   },
   "minecraft:wolf": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 1.88, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 12, "ticks_per_frame": 1, "seam": 1.88}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 4, "ticks_per_frame": 1, "seam": 3.56, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 4, "ticks_per_frame": 1, "seam": 3.56}
     }
   },
   "minecraft:zoglin": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 49, "ticks_per_frame": 1, "seam": 0.48, "worst_channel": "body.left_ear.z_rot"}
+      "stride": {"frames": 49, "ticks_per_frame": 1, "seam": 0.48}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.04, "worst_channel": "body.left_ear.z_rot"}
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 0.04}
     }
   },
   "minecraft:zombie": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63}
     },
     "baby": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41}
     }
   },
   "minecraft:zombie_horse": {
     "adult": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 1.01, "worst_channel": "body.head_parts.x_rot"}
+      "stride": {"frames": 33, "ticks_per_frame": 1, "seam": 1.01}
     },
     "baby": {
       "idle": {"frames": 1, "ticks_per_frame": 3, "seam": 0.00},
-      "stride": {"frames": 59, "ticks_per_frame": 1, "seam": 1.13, "worst_channel": "body.left_front_leg.x_rot"}
+      "stride": {"frames": 59, "ticks_per_frame": 1, "seam": 1.13}
     }
   },
   "minecraft:zombie_nautilus": {
     "adult": {
-      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.upper_mouth.x_rot"},
-      "idle~variant=warm": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00, "worst_channel": "body.upper_mouth.x_rot"},
-      "stride": {"frames": 29, "ticks_per_frame": 1, "seam": 0.96, "worst_channel": "body.upper_mouth.x_rot"},
-      "stride~variant=warm": {"frames": 29, "ticks_per_frame": 1, "seam": 0.96, "worst_channel": "body.upper_mouth.x_rot"}
+      "idle": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00},
+      "idle~variant=warm": {"frames": 50, "ticks_per_frame": 1, "seam": 0.00},
+      "stride": {"frames": 29, "ticks_per_frame": 1, "seam": 0.96},
+      "stride~variant=warm": {"frames": 29, "ticks_per_frame": 1, "seam": 0.96}
     }
   },
   "minecraft:zombie_villager": {
     "adult": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 54, "ticks_per_frame": 3, "seam": 4.63}
     },
     "baby": {
-      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64, "worst_channel": "body.right_arm.x_rot"},
-      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41, "worst_channel": "body.left_arm.z_rot"}
+      "idle": {"frames": 46, "ticks_per_frame": 3, "seam": 0.64},
+      "stride": {"frames": 110, "ticks_per_frame": 1, "seam": 5.41}
     }
   },
   "minecraft:zombified_piglin": {
     "adult": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_ear.z_rot"},
-      "stride": {"frames": 33, "ticks_per_frame": 3, "seam": 20.97, "worst_channel": "body.right_ear.z_rot"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68},
+      "stride": {"frames": 33, "ticks_per_frame": 3, "seam": 20.97}
     },
     "baby": {
-      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68, "worst_channel": "body.left_ear.z_rot"},
-      "stride": {"frames": 173, "ticks_per_frame": 1, "seam": 22.59, "worst_channel": "body.left_ear.z_rot"}
+      "idle": {"frames": 66, "ticks_per_frame": 3, "seam": 3.68},
+      "stride": {"frames": 173, "ticks_per_frame": 1, "seam": 22.59}
     }
   }
 }

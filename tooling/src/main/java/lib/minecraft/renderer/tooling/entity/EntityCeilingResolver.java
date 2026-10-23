@@ -5,12 +5,12 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Body;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operand;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operands;
+import lib.minecraft.renderer.tooling.entity.OperandWalk.Operand;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -71,10 +71,12 @@ final class EntityCeilingResolver {
     private static final @NotNull Map<ClassNodeCache, Memo> MEMOS = new WeakHashMap<>();
 
     /**
-     * The fastest speed setting a census finds at one age.
+     * The fastest speed setting a subject walks at one age, and what it was read off.
      *
      * @param modifier the speed modifier handed the navigation
-     * @param source the behaviour it was read off, {@code goal <Goal>} or {@code brain <Behaviour>}
+     * @param source what it was read off, as the pace basis spells it - the behaviour a census finds it
+     *     on, {@code goal <Goal>} or {@code brain <Behaviour>}, or, for a setting no census found, the
+     *     policy row declaring it or the stroll the pace falls back to
      */
     record Fastest(double modifier, @NotNull String source) { }
 
@@ -93,10 +95,10 @@ final class EntityCeilingResolver {
      * @param stored each parameter's index, to the fields it is stored in on the object built
      * @param handed each call the constructor makes up its own chain, with what it is handed
      */
-    record ConstructorFlow(@NotNull Map<Integer, Set<String>> stored, @NotNull List<Handed> handed) {
+    private record ConstructorFlow(@NotNull Map<Integer, Set<String>> stored, @NotNull List<Handed> handed) {
 
         /** The flow of a constructor the jar does not hold. */
-        static final @NotNull ConstructorFlow NONE = new ConstructorFlow(Map.of(), List.of());
+        private static final @NotNull ConstructorFlow NONE = new ConstructorFlow(Map.of(), List.of());
 
     }
 
@@ -123,12 +125,12 @@ final class EntityCeilingResolver {
      *
      * @param session the live run
      * @param subject the subject read
-     * @param age the age token the census is taken at
+     * @param age the age the census is taken at
      * @param diagnostics the consulting scope
      * @return the fastest setting, or empty where the census finds none
      */
     static @NotNull Optional<Fastest> fastest(
-        @NotNull ToolingRun session, @NotNull EntitySubject subject, @NotNull String age, @NotNull Diagnostics diagnostics) {
+        @NotNull ToolingRun session, @NotNull EntitySubject subject, @NotNull Age age, @NotNull Diagnostics diagnostics) {
         return fastest(session, subject, age, EntityPacePolicies::excludesGoal, diagnostics);
     }
 
@@ -137,14 +139,14 @@ final class EntityCeilingResolver {
      *
      * @param session the live run
      * @param subject the subject read
-     * @param age the age token the census is taken at
+     * @param age the age the census is taken at
      * @param excluded whether a goal, by internal name, is dropped at an age
      * @param diagnostics the consulting scope
      * @return the fastest setting, or empty where the census finds none
      */
     static @NotNull Optional<Fastest> fastest(
-        @NotNull ToolingRun session, @NotNull EntitySubject subject, @NotNull String age,
-        @NotNull BiPredicate<String, String> excluded, @NotNull Diagnostics diagnostics) {
+        @NotNull ToolingRun session, @NotNull EntitySubject subject, @NotNull Age age,
+        @NotNull BiPredicate<String, Age> excluded, @NotNull Diagnostics diagnostics) {
 
         Candidate best = null;
         for (Candidate candidate : census(session, subject, diagnostics)) {
@@ -172,7 +174,7 @@ final class EntityCeilingResolver {
                 .map(method -> new Body(entity.name, method))
                 .toList();
             for (Body body : EntityWanderResolver.reach(cache, subject.entityClass(), starts, true)) {
-                Operands.run(body.method(), new Operands.Listener() {
+                OperandWalk.run(body.method(), new OperandWalk.Listener() {
                     @Override
                     public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                         if (!(receiver instanceof Operand.Fresh) || !ClassKit.INIT.equals(call.name)
@@ -281,7 +283,7 @@ final class EntityCeilingResolver {
         if (known != null) return known;
         Set<String> out = new LinkedHashSet<>();
         for (MethodNode method : owner.methods) {
-            Operands.run(method, new Operands.Listener() {
+            OperandWalk.run(method, new OperandWalk.Listener() {
                 @Override
                 public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                     if (isNavigation(cache, call) && !arguments.isEmpty()) out.addAll(Operand.fieldsOf(arguments.getLast()));
@@ -323,7 +325,7 @@ final class EntityCeilingResolver {
         }
         Map<Integer, Set<String>> stored = new LinkedHashMap<>();
         List<Handed> handed = new ArrayList<>();
-        Operands.run(constructor, new Operands.Listener() {
+        OperandWalk.run(constructor, new OperandWalk.Listener() {
             @Override
             public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                 if (receiver == Operand.Self.THIS && call.getOpcode() == Opcodes.INVOKESPECIAL && ClassKit.INIT.equals(call.name))
@@ -361,11 +363,11 @@ final class EntityCeilingResolver {
         }
         for (ClassNode node : classes) {
             for (MethodNode method : node.methods) {
-                Operands.run(method, new Operands.Listener() {
+                OperandWalk.run(method, new OperandWalk.Listener() {
                     @Override
                     public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                         if (isBrainFactory(call)) {
-                            for (double speed : Operand.literalsOf(arguments.get(EntityWanderResolver.firstOf(call.desc, Type.FLOAT))))
+                            for (double speed : Operand.literalsOf(arguments.get(ClassKit.firstArgOfSort(call.desc, Type.FLOAT))))
                                 out.add(new Candidate(speed, "brain " + ClassKit.simpleName(call.owner), Optional.empty()));
                         } else if (receiver instanceof Operand.Fresh && ClassKit.INIT.equals(call.name) && isBrainBehaviour(cache, call.owner)) {
                             for (double speed : brainSpeeds(cache, memo, call.owner, call.desc, arguments))
@@ -379,7 +381,7 @@ final class EntityCeilingResolver {
 
     /** Whether a call is a brain factory handed its speed as a float - the chase, the retreat or a stroll. */
     private static boolean isBrainFactory(@NotNull MethodInsnNode call) {
-        if (call.getOpcode() != Opcodes.INVOKESTATIC || EntityWanderResolver.firstOf(call.desc, Type.FLOAT) < 0) return false;
+        if (call.getOpcode() != Opcodes.INVOKESTATIC || ClassKit.firstArgOfSort(call.desc, Type.FLOAT) < 0) return false;
         if (SourceClasses.Types.SET_WALK_TARGET_FROM_ATTACK_TARGET.equals(call.owner)) return SourceClasses.Methods.CREATE.equals(call.name);
         if (SourceClasses.Types.SET_WALK_TARGET_AWAY_FROM.equals(call.owner))
             return SourceClasses.Methods.ENTITY.equals(call.name) || SourceClasses.Methods.POS.equals(call.name);
@@ -414,7 +416,7 @@ final class EntityCeilingResolver {
 
         Set<Integer> out = new LinkedHashSet<>();
         if (isBrainEntry(type)) {
-            int speed = EntityWanderResolver.firstOf(desc, Type.FLOAT);
+            int speed = ClassKit.firstArgOfSort(desc, Type.FLOAT);
             if (speed >= 0) out.add(speed);
             return out;
         }

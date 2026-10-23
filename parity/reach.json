@@ -3197,6 +3197,22 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/StripMemo": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/StripMemoTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/StyleCohortTest": {
       "artifacts": [],
       "source": "derived"
@@ -5257,6 +5273,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -6274,6 +6291,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/animation/StyleRoster": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/animation/WalkPace": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6664,6 +6687,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/OperandWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/PaceChain": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6869,12 +6898,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/policy/NavigationPolicy": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/tooling/policy/StyleRoster": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -7261,6 +7284,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",

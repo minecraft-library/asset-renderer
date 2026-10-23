@@ -120,7 +120,7 @@ class EntityOverlayResolverAlphaTest {
         open(lambda("lambda$half", ldc(0.5f), op(Opcodes.FRETURN)));
 
         assertEquals(new EntityOverlayResolver.Alpha.Frozen(0.5f), alphaOf("lambda$half"),
-            "a constant ships as the pass's pipeline alpha");
+            "a constant ships as the pass's constant opacity");
     }
 
     @Test

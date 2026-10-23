@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -66,12 +67,11 @@ class EntityResolveTest {
     void carriedBlockSwapsTheWearerPose() {
         for (String id : List.of("minecraft:enderman", "minecraft:iron_golem")) {
             Entity definition = DEFS.get(id);
-            EntityPose carrier = definition.blockOverlays().stream()
-                .filter(Entity.BlockOverlayLayer::selectable)
-                .findFirst()
-                .flatMap(Entity.BlockOverlayLayer::wearerPose)
-                .orElseThrow(() -> new AssertionError(id + " ships no carrier pose on its selectable block row"));
+            Entity form = definition.axes().carried()
+                .orElseThrow(() -> new AssertionError(id + " ships no carried form"));
+            EntityPose carrier = form.pose();
             assertThat(id + "'s carrier pose is not its body's", carrier == definition.pose(), is(false));
+            assertThat(id + "'s carried form draws the row's own mesh", form.model() == definition.model(), is(true));
 
             AppearanceOptions held = AppearanceOptions.builder().carried("minecraft:poppy").build();
             Entity resolved = held.resolve(definition);
@@ -80,12 +80,12 @@ class EntityResolveTest {
                 resolved.overlays().stream().filter(pass -> pass.pose() == definition.pose()).count(), is(0L));
             assertThat(id + " carries a pass that follows", resolved.overlays().stream()
                 .anyMatch(pass -> pass.pose() == carrier), is(true));
-            assertThat(id + " admits the carried gate while a block is selected", held.admits("carried"), is(true));
+            assertThat(id + " selects the carried flag while a block is selected", held.selects(Flag.CARRIED), is(true));
 
             for (AppearanceOptions empty : List.of(AppearanceOptions.builder().build(),
                 AppearanceOptions.builder().carried("none").build())) {
                 assertThat(id + " keeps its body's pose with no block held", empty.resolve(definition).pose() == definition.pose(), is(true));
-                assertThat(id + " admits no carried gate with no block held", empty.admits("carried"), is(false));
+                assertThat(id + " selects no carried flag with no block held", empty.selects(Flag.CARRIED), is(false));
             }
         }
     }

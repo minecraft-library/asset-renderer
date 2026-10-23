@@ -18,6 +18,7 @@ import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
@@ -659,6 +660,7 @@ class EntityGeometryKitTest {
 
         int attached = 0;
         int seated = 0;
+        StripMemo strips = new StripMemo();
         for (Entity entity : shipped.values()) {
             if (entity.blockOverlays().isEmpty()) continue;
             Map<String, EntityMesh.Bone> loaded = entity.model().getBones();
@@ -668,7 +670,7 @@ class EntityGeometryKitTest {
             rows.add(entity.styles().resolve(PoseStyle.STRIDE, row -> false, entity.id().toString()));
             for (PoseStyle style : rows) {
                 String id = style.id();
-                StripFit strip = PoseStrips.of(entity, style, entity.styles().periodTicks());
+                StripFit strip = PoseStrips.of(strips, entity, style, entity.styles().periodTicks());
                 for (int frame = 0; frame < strip.frames(); frame++) {
                     int tick = frame * strip.ticksPerFrame();
                     EntityMesh posed = PosePlayer.posed(entity, style, entity.styles().periodTicks(), tick).model();

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -21,17 +21,15 @@ public record EntityPace(@NotNull Optional<AgePace> adult, @NotNull Optional<Age
     public static final @NotNull EntityPace NONE = new EntityPace(Optional.empty(), Optional.empty());
 
     /**
-     * The walks of one age side - {@code adult} for a row that names no age.
+     * The walks of one age side.
      *
-     * @param age the age token a style row carries, {@code adult}, {@code baby} or empty for both
+     * @param age the side's age, the adult for a row that names none
      * @return that side's walks, empty where it has none
-     * @throws ToolingException if the token names no age
      */
-    public @NotNull Optional<AgePace> at(@NotNull String age) {
+    @NotNull Optional<AgePace> at(@NotNull Age age) {
         return switch (age) {
-            case "", "adult" -> this.adult;
-            case "baby" -> this.baby;
-            default -> throw new ToolingException("No age side is spelled '%s'", age);
+            case ADULT -> this.adult;
+            case BABY -> this.baby;
         };
     }
 

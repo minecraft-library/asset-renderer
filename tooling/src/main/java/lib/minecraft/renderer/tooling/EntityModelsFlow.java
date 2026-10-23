@@ -126,8 +126,9 @@ public final class EntityModelsFlow {
             // it runs after every mesh surgery and ahead of the write.
             StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
                 posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS, paces);
-            GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"),
-                GeometryFlow.BoneOrder.BAKED);
+            // Every mesh in vanilla's draw order, over the part tree as the surgeries above left it.
+            GeometryFlow.bakeOrder(geometries);
+            GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"));
             TableWriter.write(session, root, "entity_models.json");
             StrictGate.apply(session);
         }

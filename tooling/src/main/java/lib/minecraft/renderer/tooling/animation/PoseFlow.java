@@ -14,7 +14,6 @@ import lib.minecraft.renderer.tooling.geometry.EntityMeshShift;
 import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -112,10 +111,19 @@ public final class PoseFlow {
     public static final @NotNull String BABY_POSER = "poser";
 
     /**
-     * The member of an equipment row naming the pose its wearer's body takes while the slot is filled,
-     * and of a selectable block row naming the pose it takes while a caller selects a block.
+     * The axis whose {@link #CARRIED_OPTION} names the pose a subject's body takes while a caller
+     * selects a block for it to hold.
      */
-    static final @NotNull String WEARER_POSE = "wearer_pose";
+    static final @NotNull String CARRIED_AXIS = "carried";
+
+    /** The one option of the {@link #CARRIED_AXIS}, selected whatever block is held. */
+    private static final @NotNull String CARRIED_OPTION = "block";
+
+    /**
+     * The axis whose options, keyed by equipment slot, name the pose a subject's body takes while
+     * that slot is filled.
+     */
+    static final @NotNull String EQUIPMENT_AXIS = "equipment";
 
     /** The member of the model table holding each subject's block-model composites. */
     private static final @NotNull String BLOCK_OVERLAYS = "block_overlays";
@@ -538,7 +546,8 @@ public final class PoseFlow {
      * asks {@code F.isEmpty} is folded exactly as {@link #foldAll} folds the body's unsplit row - the
      * same frame, the same age, the same rests - with that one question answered zero. Where the
      * residual's container or bones differ from the body's row it is emitted beside that row, keyed
-     * {@code <Model>@<F>.isEmpty=false}, and the equipment row names it as {@link #WEARER_POSE}.
+     * {@code <Model>@<F>.isEmpty=false}, and the {@link #EQUIPMENT_AXIS} names it as the {@code pose}
+     * of the option the row's slot keys.
      * Where only the flags differ, nothing is emitted: a flag is settled onto the mesh rather than
      * carried in a pose. No state silhouettes are placed for the new row, the filled slot being a
      * frame rather than a state.
@@ -555,7 +564,8 @@ public final class PoseFlow {
      * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
      * @param diagnostics the scope each emitted row is recorded against
      * @return the folded rows, with each wearer row added
-     * @throws ToolingException if a body reading the age at two ages folds filled apart by age
+     * @throws ToolingException if a body reading the age at two ages folds filled apart by age, or two
+     *     rows of one slot fold apart
      */
     static @NotNull Map<String, PoseOutcome> foldWearers(
         @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
@@ -573,7 +583,8 @@ public final class PoseFlow {
         models.members().forEach((entity, row) -> row.find("equipment").ifPresent(list ->
             list.elements().toList().forEach(item -> {
                 String field = item.findString(ITEM_FIELD).orElse(null);
-                if (field == null) return;
+                String slot = item.findString("slot").orElse(null);
+                if (field == null || slot == null) return;
                 String question = field + '.' + IS_EMPTY;
                 Set<String> keys = bodies.getOrDefault(entity, Set.of());
                 for (String body : keys) {
@@ -599,9 +610,9 @@ public final class PoseFlow {
                     }
                     String key = body + SPLIT + question + "=false";
                     out.put(key, new PoseOutcome.Extracted(program));
-                    item.put(WEARER_POSE, key);
+                    nameWearerForm(entity, row, EQUIPMENT_AXIS, slot, key);
                     diagnostics.info("%s wears '%s' while its %s slot is filled, folded with %s answered zero",
-                        entity, key, item.findString("slot").orElse("?"), question);
+                        entity, key, slot, question);
                 }
             })));
         return out;
@@ -626,7 +637,8 @@ public final class PoseFlow {
      *
      * <p>Each is folded beside the body's row by {@link #foldWearers}' rules - the same frame, the same
      * age, an agreed fold where two ages reach it - and emitted only where its container or bones
-     * differ from that row's. The block row names it as {@link #WEARER_POSE}. No state silhouettes are
+     * differ from that row's. The {@link #CARRIED_AXIS} names it as the {@code pose} of its one option,
+     * which holds one pose whichever selectable row the block is drawn in. No state silhouettes are
      * placed for it, the selection being a frame rather than a state.
      *
      * @param walked every model's pose as the walk left it
@@ -638,7 +650,8 @@ public final class PoseFlow {
      * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
      * @param diagnostics the scope each emitted row is recorded against
      * @return the folded rows, with each carrier variant added
-     * @throws ToolingException if a body reading the age at two ages folds its variant apart by age
+     * @throws ToolingException if a body reading the age at two ages folds its variant apart by age, or
+     *     two selectable rows of one subject fold apart
      */
     static @NotNull Map<String, PoseOutcome> foldCarriers(
         @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
@@ -696,12 +709,35 @@ public final class PoseFlow {
                     }
                     String key = body + SPLIT + (asks ? question + "=false" : field + "=" + COUNTDOWN);
                     out.put(key, new PoseOutcome.Extracted(program));
-                    block.put(WEARER_POSE, key);
+                    nameWearerForm(entity, row, CARRIED_AXIS, CARRIED_OPTION, key);
                     diagnostics.info("%s carries '%s' while its block is selected, folded with %s answered %s",
                         entity, key, answered, answer);
                 }
             })));
         return out;
+    }
+
+    /**
+     * Names the pose a subject's body takes while one option of a wearer axis is selected, as that
+     * option's {@code pose} - the form the reader re-poses the body as.
+     *
+     * @param entity the subject being written, for the refusal
+     * @param row the subject's model row
+     * @param axis the {@link #CARRIED_AXIS} or the {@link #EQUIPMENT_AXIS}
+     * @param option the option the selection keys
+     * @param key the pose row folded for the selection
+     * @throws ToolingException if the option already names another pose, which one form cannot carry
+     */
+    private static void nameWearerForm(
+        @NotNull String entity, @NotNull JsonTree row, @NotNull String axis, @NotNull String option,
+        @NotNull String key) {
+
+        JsonTree form = row.child("axes").child(axis).child(OPTIONS).child(option);
+        String named = form.findString("pose").orElse(key);
+        if (!named.equals(key))
+            throw new ToolingException("'%s' folds both '%s' and '%s' for its %s option '%s', and one form carries one pose",
+                entity, named, key, axis, option);
+        form.put("pose", key);
     }
 
     /**
@@ -1153,10 +1189,7 @@ public final class PoseFlow {
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
             // A wearer row stands in for the body it is folded beside, so it takes that body's steps -
             // a filled slot's and a selected block's alike.
-            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
-                item.findString(WEARER_POSE).ifPresent(reached::add)));
-            row.find(BLOCK_OVERLAYS).ifPresent(list -> list.elements().toList().forEach(block ->
-                block.findString(WEARER_POSE).ifPresent(reached::add)));
+            wearerPoses(row).forEach(reached::add);
             for (String key : reached) {
                 List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
@@ -1407,8 +1440,8 @@ public final class PoseFlow {
      * <p>A missing key is SILENT at render: the reader answers the empty pose, whose refusal is
      * empty, so the mesh draws unposed and unstripped with nothing said. A coordinate the walk never
      * looked at is entitled to answer nothing - a worn shell, a mesh derived under a suffix - but a
-     * name a row DECLARES is a statement that there is a pose there, an equipment row's or a block
-     * row's {@link #WEARER_POSE} as much as any poser.
+     * name a row DECLARES is a statement that there is a pose there, the {@code pose} of a carried or
+     * an equipment option as much as any poser.
      *
      * @param models the model table as it will be written
      * @param poses the rows the table carries
@@ -1420,13 +1453,25 @@ public final class PoseFlow {
         models.members().forEach((entity, row) -> {
             requirePose(poses, entity, namedPoser(row));
             row.findPath("axes", AGE, OPTIONS, BABY).ifPresent(baby -> requirePose(poses, entity, babyPoser(baby)));
-            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item -> {
-                requirePose(poses, entity, namedPoser(item));
-                requirePose(poses, entity, item.findString(WEARER_POSE).orElse(null));
-            }));
-            row.find(BLOCK_OVERLAYS).ifPresent(list -> list.elements().toList().forEach(block ->
-                requirePose(poses, entity, block.findString(WEARER_POSE).orElse(null))));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                requirePose(poses, entity, namedPoser(item))));
+            wearerPoses(row).forEach(key -> requirePose(poses, entity, key));
         });
+    }
+
+    /**
+     * The pose keys one subject's wearer axes name - each {@code pose} of its {@link #EQUIPMENT_AXIS}
+     * and its {@link #CARRIED_AXIS}, the bodies a selection swaps in for the body's own.
+     *
+     * @param row the subject's model row
+     * @return the named keys, each axis's in table order
+     */
+    private static @NotNull List<String> wearerPoses(@NotNull JsonTree row) {
+        List<String> keys = new ArrayList<>();
+        for (String axis : List.of(EQUIPMENT_AXIS, CARRIED_AXIS))
+            row.findPath("axes", axis, OPTIONS).ifPresent(options -> options.members().forEach((option, form) ->
+                form.findString("pose").ifPresent(keys::add)));
+        return keys;
     }
 
     private static void requirePose(

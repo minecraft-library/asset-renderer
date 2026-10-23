@@ -113,7 +113,7 @@ class EntityRendererOpacityTest {
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableMap(Map.of(Entity.BASE_STATE, BODY)),
                     Optional.of(Entity.BASE_STATE)),
-                Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .build();
     }
 

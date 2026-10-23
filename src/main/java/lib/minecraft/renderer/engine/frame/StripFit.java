@@ -66,10 +66,9 @@ import java.util.OptionalDouble;
  * @param ticksPerFrame the game ticks each frame spans
  * @param frames the number of frames, one exactly for a still strip
  * @param seam the restart's worst jump, in tolerances of the channel it is on
- * @param worstChannel the channel that jump is on, empty where the seam is zero
  */
 @Parity(subject = Subject.ENTITY)
-public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Optional<String> worstChannel) {
+public record StripFit(int ticksPerFrame, int frames, double seam) {
 
     /**
      * The frame step a strip takes where coarse frames alias none of its motion and a strip at
@@ -82,7 +81,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
      * this step shows every visible part whole and restarts no worse than one at {@link #COARSE_STEP} - a
      * tick a frame.
      */
-    public static final int FINE_STEP = 1;
+    static final int FINE_STEP = 1;
 
     /**
      * The most frames a derived strip draws - as many coarse frames as fit in {@link Timeline#MAX_LOOP_TICKS},
@@ -101,7 +100,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
     public static final int WINDOW_TICKS = 256;
 
     /** The still strip - one frame, for a row with no visible motion. */
-    public static final @NotNull StripFit STILL = new StripFit(COARSE_STEP, 1, 0d, Optional.empty());
+    public static final @NotNull StripFit STILL = new StripFit(COARSE_STEP, 1, 0d);
 
     /** The share of a channel's motion faster than two coarse frames that makes it too fast for them. */
     private static final double HIGH_BAND_FRACTION = 0.5;
@@ -173,7 +172,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
      *
      * @return true where the seam is at most one tolerance
      */
-    public boolean closes() {
+    boolean closes() {
         return this.seam <= 1d;
     }
 
@@ -244,20 +243,14 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
 
         // A one-shot that does not end where it started stops the strip at the floor.
         double oneShotJump = 0d;
-        String jumping = null;
         for (Channel channel : channels) {
             if (channel.oneShots.isEmpty()) continue;
             double jump = channel.oneShotJump();
-            if (jump > oneShotJump) {
-                oneShotJump = jump;
-                jumping = channel.key;
-            }
+            if (jump > oneShotJump) oneShotJump = jump;
         }
         if (oneShotJump > 1d) {
             int length = lengthFloor(cover, step, capTicks);
-            double rest = seamAt(channels, length, step);
-            return new StripFit(step, length / step, Math.max(oneShotJump, rest),
-                oneShotJump >= rest ? Optional.of(jumping) : worstChannel(channels, length, step));
+            return new StripFit(step, length / step, Math.max(oneShotJump, seamAt(channels, length, step)));
         }
 
         int floor = lengthFloor(searchCover, step, capTicks);
@@ -275,8 +268,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
                 bestSeam = seam;
             }
         }
-        return new StripFit(step, bestLength / step, bestSeam,
-            bestSeam > 0d ? worstChannel(channels, bestLength, step) : Optional.empty());
+        return new StripFit(step, bestLength / step, bestSeam);
     }
 
     /**
@@ -317,28 +309,6 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
         for (Channel channel : channels)
             if (channel.judgedAt(length)) worst = Math.max(worst, channel.jumpAt(length, step));
         return worst;
-    }
-
-    /**
-     * Names the channel the restart's worst jump at a length is on, the first in channel order on a tie.
-     *
-     * @param channels the row's channels
-     * @param length the candidate length
-     * @param step the frame step
-     * @return the channel's key, empty where no judged channel moves
-     */
-    private static @NotNull Optional<String> worstChannel(@NotNull Collection<Channel> channels, int length, int step) {
-        double worst = 0d;
-        String key = null;
-        for (Channel channel : channels) {
-            if (!channel.judgedAt(length)) continue;
-            double jump = channel.jumpAt(length, step);
-            if (jump > worst) {
-                worst = jump;
-                key = channel.key;
-            }
-        }
-        return Optional.ofNullable(key);
     }
 
     /**

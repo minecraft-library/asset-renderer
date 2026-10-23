@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.frame;
 
+import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
@@ -58,7 +59,6 @@ public record StripTrack(
      * leaves its start by more is still, a restart that jumps no more closes, and motion smaller than
      * one cannot buy a finer step.
      */
-    @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor
     public enum Kind {
 
@@ -82,6 +82,7 @@ public record StripTrack(
         OPACITY(1d / 64);
 
         /** How far a channel of this kind may move, in its own unit, and still read as not moving. */
+        @Getter(value = AccessLevel.PACKAGE, style = NamingStyle.FLUENT)
         private final double tolerance;
 
     }

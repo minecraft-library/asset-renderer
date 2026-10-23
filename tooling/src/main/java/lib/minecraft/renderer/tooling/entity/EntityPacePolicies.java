@@ -6,6 +6,7 @@ import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -244,8 +245,8 @@ enum EntityPacePolicies implements NavigationPolicy {
     CEILING_GOAL_EXCLUSIONS(
         List.of(),
         Map.of(
-            "net/minecraft/world/entity/ai/goal/RunAroundLikeCrazyGoal", Set.of("baby"),
-            "net/minecraft/world/entity/animal/turtle/Turtle$TurtleGoToWaterGoal", Set.of("adult", "baby")),
+            "net/minecraft/world/entity/ai/goal/RunAroundLikeCrazyGoal", Set.of(Age.BABY),
+            "net/minecraft/world/entity/animal/turtle/Turtle$TurtleGoToWaterGoal", Set.of(Age.ADULT, Age.BABY)),
         "RunAroundLikeCrazyGoal needs a rider aboard, which a baby never carries; Turtle$TurtleGoToWaterGoal moves"
             + " the turtle on land, where its control floors the speed, outside the water its fastest is taken"
             + " in");
@@ -377,12 +378,12 @@ enum EntityPacePolicies implements NavigationPolicy {
      * Whether the fastest-walk census drops a goal at an age ({@link #CEILING_GOAL_EXCLUSIONS}).
      *
      * @param goal the goal's internal name
-     * @param age the age token the census is taken at
+     * @param age the age the census is taken at
      * @return whether the goal is dropped there
      */
     @SuppressWarnings("unchecked")
-    static boolean excludesGoal(@NotNull String goal, @NotNull String age) {
-        Set<String> ages = (Set<String>) table(CEILING_GOAL_EXCLUSIONS, Set.class).get(goal);
+    static boolean excludesGoal(@NotNull String goal, @NotNull Age age) {
+        Set<Age> ages = (Set<Age>) table(CEILING_GOAL_EXCLUSIONS, Set.class).get(goal);
         return ages != null && ages.contains(age);
     }
 

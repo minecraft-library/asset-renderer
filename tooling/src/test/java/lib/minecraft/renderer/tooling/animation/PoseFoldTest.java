@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
@@ -79,7 +80,7 @@ class PoseFoldTest {
         // An argument is folded like any other expression, so a frame blind to it would merge two
         // subjects the pose plays a clip at two amplitudes for.
         PoseProgram program = new PoseProgram("Model", List.of(), Map.of(), Map.of(),
-            List.of(new PoseClipSite("Model#clip", PoseClipSite.Gate.NONE, "", List.of(onArmPose()),
+            List.of(new PoseClipSite("Model#clip", ClipDrive.NONE, "", List.of(onArmPose()),
                 PoseClipSite.ALWAYS)));
         assertNotEquals(PoseFold.frameOf(program, EVOKER, MODEL_RESTS_NEUTRAL),
             PoseFold.frameOf(program, PILLAGER, MODEL_RESTS_NEUTRAL),

@@ -584,8 +584,11 @@ class EntityModelLoaderTest {
         Entity.EquipmentOverlay harness = equipmentLayer(defs, "minecraft:happy_ghast", "body");
         assertThat("the harness is posed by its own model", harness.pose(),
             sameInstance(poses.get("HappyGhastHarnessModel")));
-        assertThat("and names the body folded with its slot filled", harness.wearerPose().orElseThrow(),
+        Entity ghast = defs.get("minecraft:happy_ghast");
+        Entity harnessed = ghast.axes().equipment().select("body").orElseThrow();
+        assertThat("and the body slot's form is the body folded with its slot filled", harnessed.pose(),
             sameInstance(poses.get("HappyGhastModel@bodyItem.isEmpty=false")));
+        assertThat("drawn over the body's own mesh", harnessed.model(), sameInstance(ghast.model()));
 
         for (String entityId : List.of("minecraft:donkey", "minecraft:mule")) {
             Entity.EquipmentOverlay saddle = equipmentLayer(defs, entityId, "saddle");
@@ -595,14 +598,14 @@ class EntityModelLoaderTest {
                 not(sameInstance(poses.get("DonkeyModel"))));
         }
 
-        for (Entity definition : defs.values())
-            for (Entity.EquipmentOverlay equipment : definition.layers().equipment()) {
-                if (definition.id().id().equals("minecraft:happy_ghast")) continue;
-                assertThat(definition.id() + " " + equipment.slot() + " changes no pose of its wearer's",
-                    equipment.wearerPose(), is(Optional.empty()));
+        for (Entity definition : defs.values()) {
+            if (!definition.id().id().equals("minecraft:happy_ghast"))
+                assertThat(definition.id() + " re-poses its wearer for no filled slot",
+                    definition.axes().equipment().options().keySet(), is(empty()));
+            for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
                 assertThat(definition.id() + " " + equipment.slot() + " resolves a pose",
                     equipment.pose(), not(sameInstance(EntityPose.NONE)));
-            }
+        }
     }
 
     @Test
@@ -610,7 +613,7 @@ class EntityModelLoaderTest {
     void aFilledBodySlotSwapsTheWearerPose() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity ghast = defs.get("minecraft:happy_ghast");
-        EntityPose harnessed = equipmentLayer(defs, "minecraft:happy_ghast", "body").wearerPose().orElseThrow();
+        EntityPose harnessed = ghast.axes().equipment().select("body").orElseThrow().pose();
 
         assertThat("a harnessed adult takes the harnessed pose",
             AppearanceOptions.builder().equipment(Map.of("body", "white_harness")).build().resolve(ghast).pose(),

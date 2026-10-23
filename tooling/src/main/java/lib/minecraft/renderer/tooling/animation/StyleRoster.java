@@ -1,6 +1,8 @@
-package lib.minecraft.renderer.tooling.policy;
+package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.util.StringUtil;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
@@ -47,27 +49,12 @@ public final class StyleRoster {
     public record Clock(@NotNull String field, @NotNull Motion idle, @NotNull Optional<Motion> stride) {}
 
     /**
-     * One half of a clock - the wave a gait drives its field by, in the table's own tokens.
+     * One half of a clock - the wave a gait drives its field by, travelling from a rest of zero.
      *
-     * @param wave the wave token the drive is emitted with
-     * @param rest what the field holds at the near end of a stroke or a trapezoid
+     * @param wave the wave the drive travels, with whatever that wave reads beside its extent
      * @param extent the held level, the slope of a ramp, or the far end of a stroke or a trapezoid
-     * @param rate the radians of stroke phase a tick, zero on every other wave
-     * @param rise the ticks a trapezoid climbs from its rest to its extent
-     * @param dwell the ticks a trapezoid holds at its extent
-     * @param fall the ticks a trapezoid returns to its rest
-     * @param gap the ticks a trapezoid holds at its rest before the next rise
      */
-    public record Motion(
-        @NotNull String wave,
-        float rest,
-        float extent,
-        float rate,
-        int rise,
-        int dwell,
-        int fall,
-        int gap
-    ) {
+    public record Motion(@NotNull StyleDriver.Wave wave, float extent) {
 
         /**
          * Creates a level held at every tick.
@@ -76,7 +63,7 @@ public final class StyleRoster {
          * @return the held half
          */
         public static @NotNull Motion hold(float extent) {
-            return new Motion("hold", 0f, extent, 0f, 0, 0, 0, 0);
+            return new Motion(StyleDriver.Wave.Plain.HOLD, extent);
         }
 
         /**
@@ -86,7 +73,7 @@ public final class StyleRoster {
          * @return the ramped half
          */
         public static @NotNull Motion ramp(float extent) {
-            return new Motion("ramp", 0f, extent, 0f, 0, 0, 0, 0);
+            return new Motion(StyleDriver.Wave.Plain.RAMP, extent);
         }
 
         /**
@@ -96,9 +83,10 @@ public final class StyleRoster {
          * @param extent the far end of the flare
          * @param rate the radians of stroke phase a tick
          * @return the stroked half
+         * @throws IllegalArgumentException if the rate is not a finite rate above zero
          */
         public static @NotNull Motion stroke(float extent, float rate) {
-            return new Motion("stroke", 0f, extent, rate, 0, 0, 0, 0);
+            return new Motion(new StyleDriver.Wave.Stroke(rate), extent);
         }
 
         /**
@@ -111,9 +99,10 @@ public final class StyleRoster {
          * @param fall the ticks the return takes
          * @param gap the ticks the rest is held before the next climb
          * @return the trapezoid half
+         * @throws IllegalArgumentException if a span is negative or the four span no tick
          */
         public static @NotNull Motion trapezoid(float extent, int rise, int dwell, int fall, int gap) {
-            return new Motion("trapezoid", 0f, extent, 0f, rise, dwell, fall, gap);
+            return new Motion(new StyleDriver.Wave.Trapezoid(rise, dwell, fall, gap), extent);
         }
 
     }
@@ -154,15 +143,15 @@ public final class StyleRoster {
      * @param members the members in roster order
      * @param idleSelected the name of the member a resting subject stands in
      * @param strideSelected the name of the member a walking subject stands in
-     * @param age the age token whose forms alone read every driven member - {@code baby} or
-     *     {@code adult} - empty where either age's forms read the group
+     * @param age the age whose forms alone read every driven member, empty where either age's forms
+     *     read the group
      */
     public record Group(
         @NotNull String name,
         @NotNull List<Member> members,
         @NotNull String idleSelected,
         @NotNull String strideSelected,
-        @NotNull String age
+        @NotNull Optional<Age> age
     ) {
 
         /**
@@ -284,40 +273,40 @@ public final class StyleRoster {
             new Member("IN_WATER", "inWaterFactor"),
             new Member("ON_GROUND", "onGroundFactor"),
             new Member("IN_AIR", "")),
-            "IN_WATER", "IN_WATER", "adult"),
+            "IN_WATER", "IN_WATER", Optional.of(Age.ADULT)),
         new Group("DOLPHIN", List.of(
             new Member("MOVING", "isMoving"),
             new Member("STILL", "")),
-            "STILL", "MOVING", ""),
+            "STILL", "MOVING", Optional.empty()),
         new Group("BAT", List.of(
             new Member("FLYING", "flyAnimationState"),
             new Member("RESTING", "restAnimationState")),
-            "FLYING", "FLYING", ""),
+            "FLYING", "FLYING", Optional.empty()),
         new Group("IDLE_CLIP", List.of(
             new Member("IDLING", "idleAnimationState"),
             new Member("NOT_IDLING", "")),
-            "IDLING", "IDLING", ""),
+            "IDLING", "IDLING", Optional.empty()),
         new Group("RABBIT", List.of(
             new Member("TILTING", "idleHeadTiltAnimationState"),
             new Member("HOPPING", "hopAnimationState"),
             new Member("NOT_TILTING", "")),
-            "TILTING", "HOPPING", ""),
+            "TILTING", "HOPPING", Optional.empty()),
         new Group("ARMADILLO_SHELL", List.of(
             new Member("ROLLING_UP", "rollUpAnimationState"),
             new Member("ROLLING_OUT", "rollOutAnimationState"),
             new Member("PEEKING", "peekAnimationState"),
             new Member("UNBALLED", "")),
-            "UNBALLED", "UNBALLED", ""),
+            "UNBALLED", "UNBALLED", Optional.empty()),
         new Group("CAMEL_STANCE", List.of(
             new Member("SITTING_DOWN", "sitAnimationState"),
             new Member("SITTING", "sitPoseAnimationState"),
             new Member("STANDING_UP", "sitUpAnimationState"),
             new Member("DASHING", "dashAnimationState"),
             new Member("STANDING", "")),
-            "STANDING", "STANDING", ""),
+            "STANDING", "STANDING", Optional.empty()),
         new Group("BREEZE_WHIRL", List.of(
             new Member("WHIRLING", "idle")),
-            "WHIRLING", "WHIRLING", ""),
+            "WHIRLING", "WHIRLING", Optional.empty()),
         new Group("BREEZE_POSE", List.of(
             new Member("SLIDING", "slide"),
             new Member("SLIDING_BACK", "slideBack"),
@@ -325,21 +314,21 @@ public final class StyleRoster {
             new Member("SHOOTING", "shoot"),
             new Member("LONG_JUMPING", "longJump"),
             new Member("GROUNDED", "")),
-            "GROUNDED", "SLIDING", ""),
+            "GROUNDED", "SLIDING", Optional.empty()),
         new Group("CHEST_INTERACTION", List.of(
             new Member("GETTING_ITEM", "interactionGetItem"),
             new Member("GETTING_NOTHING", "interactionGetNoItem"),
             new Member("DROPPING_ITEM", "interactionDropItem"),
             new Member("DROPPING_NOTHING", "interactionDropNoItem"),
             new Member("NOT_INTERACTING", "")),
-            "NOT_INTERACTING", "NOT_INTERACTING", ""),
+            "NOT_INTERACTING", "NOT_INTERACTING", Optional.empty()),
         new Group("FROG_ACTION", List.of(
             new Member("JUMPING", "jumpAnimationState"),
             new Member("TONGUING", "tongueAnimationState"),
             new Member("SWIM_IDLING", "swimIdleAnimationState"),
             new Member("CROAKING", "croakAnimationState"),
             new Member("FROG_RESTING", "")),
-            "FROG_RESTING", "FROG_RESTING", ""),
+            "FROG_RESTING", "FROG_RESTING", Optional.empty()),
         new Group("AXOLOTL_CLIP", List.of(
             new Member("BABY_SWIMMING", "swimAnimation"),
             new Member("BABY_IDLING_UNDERWATER_ON_GROUND", "idleUnderWaterOnGroundAnimationState"),
@@ -347,7 +336,7 @@ public final class StyleRoster {
             new Member("BABY_IDLING_ON_GROUND", "idleOnGroundAnimationState"),
             new Member("BABY_PLAYING_DEAD", "playDeadAnimationState"),
             new Member("BABY_AXOLOTL_STILL", "")),
-            "BABY_IDLING_UNDERWATER", "BABY_SWIMMING", "baby"),
+            "BABY_IDLING_UNDERWATER", "BABY_SWIMMING", Optional.of(Age.BABY)),
         new Group("ACTION_CLIP", List.of(
             new Member("ATTACKING", "attackAnimationState"),
             new Member("DIGGING", "diggingAnimationState"),
@@ -362,7 +351,7 @@ public final class StyleRoster {
             new Member("FEELING_HAPPY", "feelingHappyAnimationState"),
             new Member("SCENTING", "scentingAnimationState"),
             new Member("NOT_ACTING", "")),
-            "NOT_ACTING", "NOT_ACTING", ""));
+            "NOT_ACTING", "NOT_ACTING", Optional.empty()));
 
     /**
      * The one select-gated field no roster member drives - a baby axolotl's walk clip reads it, the

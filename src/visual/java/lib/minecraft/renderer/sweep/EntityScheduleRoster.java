@@ -16,6 +16,7 @@ import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -136,12 +137,12 @@ public final class EntityScheduleRoster {
             StripFit strip = resolved.strip();
             PoseStyle row = resolved.row();
             StyleDriver speed = row.drivers().get("walkAnimationSpeed");
-            if (speed != null && speed.wave() != StyleDriver.Wave.HOLD) {
+            if (speed != null && speed.wave() != StyleDriver.Wave.Plain.HOLD) {
                 throw new IllegalStateException(String.format(
                     "Row '%s' drives the walk speed on wave '%s', and a schedule carries a held speed alone", row.id(), speed.wave()));
             }
             StyleDriver rate = row.drivers().get("walkAnimationPos");
-            if (rate != null && rate.wave() != StyleDriver.Wave.RAMP) {
+            if (rate != null && rate.wave() != StyleDriver.Wave.Plain.RAMP) {
                 throw new IllegalStateException(String.format(
                     "Row '%s' drives the walk clock on wave '%s', and a schedule carries a ramped clock alone", row.id(), rate.wave()));
             }
@@ -149,7 +150,7 @@ public final class EntityScheduleRoster {
             Map<String, List<Float>> clocks = new TreeMap<>();
             for (StyleDriver driver : row.drivers().values()) {
                 if (driver.group().isPresent() || STRIDE_TRIO.contains(driver.field())) continue;
-                if (driver.wave() == StyleDriver.Wave.SWEEP || driver.wave() == StyleDriver.Wave.CYCLE) {
+                if (driver.wave() == StyleDriver.Wave.Plain.SWEEP || driver.wave() == StyleDriver.Wave.Plain.CYCLE) {
                     throw new IllegalStateException(String.format(
                         "Row '%s' drives clock '%s' on wave '%s', which reads a window a schedule does not carry",
                         row.id(), driver.field(), driver.wave()));
@@ -176,6 +177,7 @@ public final class EntityScheduleRoster {
     public static void main(String @NotNull [] args) throws IOException {
         ClientOptions options = ClientOptions.defaults();
         RendererContext context = RendererContext.load(ClientAcquisition.acquire(options));
+        StripMemo strips = context.strips();
         // Every row, the types vanilla draws nothing for included: the context answers those empty,
         // and they are written like any other key.
         ConcurrentMap<String, Entity> entities = EntityModelLoader.loadAll();
@@ -197,14 +199,14 @@ public final class EntityScheduleRoster {
                 JsonObject gaits = new JsonObject();
                 for (Gait gait : Gait.BOTH) {
                     AppearanceOptions appearance = AppearanceOptions.builder().age(age.getValue()).build();
-                    Schedule schedule = resolve(found, id, age.getKey(), gait, "default", appearance);
+                    Schedule schedule = resolve(strips, found, id, age.getKey(), gait, "default", appearance);
                     JsonObject entry = entryOf(schedule);
                     tally.entry(schedule);
 
                     JsonObject coats = new JsonObject();
                     if (found.isPresent()) {
                         for (String coat : new TreeMap<>(found.get().axes().variant().options()).keySet()) {
-                            Schedule coated = resolve(found, id, age.getKey(), gait, "coat=" + coat,
+                            Schedule coated = resolve(strips, found, id, age.getKey(), gait, "coat=" + coat,
                                 AppearanceOptions.builder().age(age.getValue()).variant(coat).build());
                             if (coated.equals(schedule)) continue;
                             coats.add(coat, entryOf(coated));
@@ -216,7 +218,8 @@ public final class EntityScheduleRoster {
                     if (age.getValue() == Age.ADULT && POSED_TRAITS.containsKey(id)) {
                         JsonObject traits = new JsonObject();
                         for (String key : POSED_TRAITS.get(id)) {
-                            Schedule trait = resolve(found, id, age.getKey(), gait, key, traitKey(codec, id, key).appearance());
+                            Schedule trait = resolve(strips, found, id, age.getKey(), gait, key,
+                                traitKey(codec, id, key).appearance());
                             traits.add(key, entryOf(trait));
                             tally.trait(trait);
                         }
@@ -245,6 +248,7 @@ public final class EntityScheduleRoster {
     /**
      * Resolves one subject's schedule at one gait, refusing an idle one that walks.
      *
+     * @param strips the memo of the context the entity id is answered by
      * @param found what the index answers for the entity id
      * @param id the entity id
      * @param age the age key the entry is written under
@@ -254,11 +258,12 @@ public final class EntityScheduleRoster {
      * @return the subject's schedule
      * @throws IllegalStateException if the subject resolves no schedule, or walks at the idle gait
      */
-    private static @NotNull Schedule resolve(@NotNull Possible<Entity> found, @NotNull String id, @NotNull String age,
-                                             @NotNull Gait gait, @NotNull String form, @NotNull AppearanceOptions appearance) {
+    private static @NotNull Schedule resolve(@NotNull StripMemo strips, @NotNull Possible<Entity> found,
+                                             @NotNull String id, @NotNull String age, @NotNull Gait gait,
+                                             @NotNull String form, @NotNull AppearanceOptions appearance) {
         Schedule schedule;
         try {
-            schedule = Schedule.of(StyleResolution.of(found, id, gait.row(), appearance));
+            schedule = Schedule.of(StyleResolution.of(strips, found, id, gait.row(), appearance));
         } catch (RuntimeException ex) {
             throw new IllegalStateException(String.format(
                 "Entity '%s' age '%s' gait '%s' as '%s' resolves no schedule", id, age, gait.key(), form), ex);

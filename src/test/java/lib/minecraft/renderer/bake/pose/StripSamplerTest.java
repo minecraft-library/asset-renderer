@@ -25,6 +25,7 @@ import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -271,7 +272,7 @@ class StripSamplerTest {
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(EntityPose.NONE)
-            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(mesh, Optional.empty(),
+            .overlays(Concurrent.newUnmodifiableList(RegistrarFixtures.pass(mesh, Optional.empty(),
                 PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), EntityPose.NONE, Optional.of(rate))))
             .build();
@@ -390,13 +391,13 @@ class StripSamplerTest {
 
     /** A row elapsed age drives, ramped at one - the shape of every shipped standing row. */
     private static final @NotNull PoseStyle TICKING = style("idle", StyleClock.TICK,
-        new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
 
     /** A row an authored timeline selects - its gate held at one and its clock ramped at one, beside elapsed age. */
     private static final @NotNull PoseStyle AUTHORED = style("authored", StyleClock.SELECT,
-        new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()),
-        new StyleDriver("authored", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()),
-        new StyleDriver("authored$clock", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()),
+        new StyleDriver("authored", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()),
+        new StyleDriver("authored$clock", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
 
     /** A loaded definition at its adult age, resolved as a default render resolves it. */
     private static @NotNull Entity adult(@NotNull String id) {

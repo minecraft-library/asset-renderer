@@ -12,8 +12,8 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxis;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawModel;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawOption;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawOverlay;
-import lib.minecraft.renderer.content.table.EntityModelsTable.RawPipeline;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
@@ -48,10 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * non-emissive pass that sorts, and an additive pass that is emissive too - so any rule inferring
  * one declaration from another fails at least one row.
  * <p>
- * A pass's opacity is declared one of two ways - a constant {@code pipeline.alpha}, or an
- * {@code opacity} expression the frame evaluates - and a row may carry one of them. The two fixture
- * cases hold that an expression lands on the pass as written and that a row naming both is refused
- * rather than drawn at whichever the loader happened to read.
+ * A pass's opacity is declared one way - an {@code opacity} expression the frame evaluates, a
+ * constant one spelled as the grammar's own {@code const}. The fixture cases hold that an expression
+ * lands on the pass as written, that a constant draws at its own value, and that a constant drawing
+ * nothing is refused rather than shipped.
  */
 @DisplayName("overlay pipeline declarations")
 class EntityModelLoaderOverlayPassTest {
@@ -69,7 +69,7 @@ class EntityModelLoaderOverlayPassTest {
     /** Overlays whose pipeline blends additively - vanilla's two energy swirls. */
     private static final Set<String> ADDITIVE = Set.of("minecraft:creeper", "minecraft:wither");
 
-    /** The fixture entity the two opacity cases assemble. */
+    /** The fixture entity the opacity cases assemble. */
     private static final @NotNull String ENTITY = "minecraft:test";
 
     /** The fixture entity's one geometry coordinate. */
@@ -132,7 +132,7 @@ class EntityModelLoaderOverlayPassTest {
     @Test
     @DisplayName("an overlay's opacity loads onto its pass as the expression the row spells")
     void anOpacityLoadsOntoItsPass() {
-        ConcurrentMap<String, Entity> assembled = assemble(null,
+        ConcurrentMap<String, Entity> assembled = assemble(
             JsonParser.parseString("{\"mul\": [{\"input\": \"ageInTicks\"}, {\"const\": 0.01}]}"));
         Entity.OverlayLayer pass = assembled.get(ENTITY).overlays().getFirst();
 
@@ -141,12 +141,21 @@ class EntityModelLoaderOverlayPassTest {
     }
 
     @Test
-    @DisplayName("a row declaring an alpha and an opacity is refused, a pass drawing at one opacity")
-    void aRowCarryingBothIsRefused() {
-        ContentException raised = assertThrows(ContentException.class, () -> assemble(0.25f,
-            JsonParser.parseString("{\"input\": \"ageInTicks\"}")));
+    @DisplayName("a constant opacity loads as the grammar's constant and draws its pass at that value")
+    void aConstantOpacityDrawsAtItsValue() {
+        Entity.OverlayLayer pass = assemble(JsonParser.parseString("{\"const\": 0.25}")).get(ENTITY).overlays().getFirst();
+
+        assertThat(pass.opacity(), is(Optional.of(new PoseExpr.Constant(0.25f, PoseWidth.FLOAT))));
+        assertThat(pass.pass().alpha(), is(PassDeclaration.drawnAlpha(0.25f)));
+    }
+
+    @Test
+    @DisplayName("a constant opacity at or under zero is refused, a pass that draws nothing being one the generator drops")
+    void aConstantOpacityDrawingNothingIsRefused() {
+        ContentException raised = assertThrows(ContentException.class, () ->
+            assemble(JsonParser.parseString("{\"const\": 0.0}")));
         assertThat(raised.getMessage(),
-            is("Entity 'minecraft:test' overlay '0' declares an alpha and an opacity, and a pass has one"));
+            is("Entity 'minecraft:test' overlay '0' declares opacity '0.0', and a shipped pass draws"));
     }
 
     // ------------------------------------------------------------------------------------
@@ -154,11 +163,10 @@ class EntityModelLoaderOverlayPassTest {
     /**
      * Assembles the fixture entity with one pass drawing its body's mesh.
      *
-     * @param alpha the pass's {@code pipeline.alpha}, or {@code null} where the row declares none
      * @param opacity the pass's {@code opacity}, or {@code null} where the row declares none
      * @return the assembled index
      */
-    private static @NotNull ConcurrentMap<String, Entity> assemble(@Nullable Float alpha, @Nullable JsonElement opacity) {
+    private static @NotNull ConcurrentMap<String, Entity> assemble(@Nullable JsonElement opacity) {
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                                         // renderer
@@ -170,7 +178,7 @@ class EntityModelLoaderOverlayPassTest {
                 null,                                                     // tint
                 null,                                                     // tint_by
                 null,                                                     // texture_by
-                alpha == null ? null : new RawPipeline(true, null, alpha, false, false),  // pipeline
+                null,                                                     // pipeline
                 null,                                                     // texture_scroll
                 false,                                                    // skip_bounds
                 null,                                                     // when
@@ -182,7 +190,8 @@ class EntityModelLoaderOverlayPassTest {
             null,                                                         // equipment
             ageAxis(),                                                    // axes
             null,                                                         // members
-            null));                                                       // styles
+            null,                                                         // styles
+            null));                                                       // ceilings
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", new EntityMesh.Bone());
         return EntityIndexBuilder.assemble(Map.of(COORD, mesh), new EntityModelsTable(models, null), Map.of());
@@ -191,7 +200,7 @@ class EntityModelLoaderOverlayPassTest {
     private static @NotNull RawAxes ageAxis() {
         Map<String, RawOption> options = new LinkedHashMap<>();
         options.put("adult", new RawOption(COORD, "test", null, null, null, null, null, null));
-        return new RawAxes(null, new RawAxis(null, options), null, null, null);
+        return new RawAxes(null, new RawAxis(null, options), null, null, null, null, null);
     }
 
 }

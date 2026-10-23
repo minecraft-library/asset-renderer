@@ -126,8 +126,8 @@ class FoldSeatAbTest {
         // drivers by hand: the gate held at one and elapsed age ramping, off the authoring
         // surface on purpose.
         Map<String, StyleDriver> shove = new LinkedHashMap<>();
-        shove.put("shoot", new StyleDriver("shoot", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-        shove.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        shove.put("shoot", new StyleDriver("shoot", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+        shove.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         Map<String, StyleDriver> augmented = new LinkedHashMap<>(hoverFields(installed, "hover_shove"));
         augmented.putAll(shove);
         PoseStyle foldedRig = styleRow("shove_rig", augmented);
@@ -221,9 +221,9 @@ class FoldSeatAbTest {
      */
     private static @NotNull Map<String, StyleDriver> strideTrio() {
         Map<String, StyleDriver> drivers = new LinkedHashMap<>();
-        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-        drivers.put("walkAnimationSpeed", new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-        drivers.put("walkAnimationPos", new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationSpeed", new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationPos", new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         return drivers;
     }
 

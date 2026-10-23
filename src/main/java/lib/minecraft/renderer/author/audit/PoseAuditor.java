@@ -18,6 +18,7 @@ import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.mesh.BoneKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.pose.PoseStrips;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -69,10 +70,13 @@ import java.util.stream.IntStream;
  * than against them.
  *
  * <p>The audited age is the one the style is compiled at - the adult where the style spans both -
- * and the idle and stride are the shipped rows applying to it. A stride recording no fastest pace
- * enters the envelope at the walk it drives. A style an install appends as an adult row and a baby
- * row is audited once per row, each walking at its own age's stride against the envelope at that
- * age, and each of its findings names the age it was measured for.
+ * and the idle and stride are the shipped rows applying to it. The stride walks at the ceiling the
+ * catalog records for that age, and a row carrying no baby form, which draws its adult mesh at the
+ * same stride at every age, is read at the adult's ceiling whatever the audited age; at an age the
+ * catalog records no ceiling at, the stride enters the envelope at the walk it drives. A style an
+ * install appends as an adult row and a baby row is audited once per row, each walking at its own
+ * age's stride against the envelope at that age, and each of its findings names the age it was
+ * measured for.
  */
 @UtilityClass
 @Parity(subject = Subject.ENTITY)
@@ -146,19 +150,19 @@ public final class PoseAuditor {
         Set<String> stanced = carried(mesh, stancedBones(row.pose(), compiled, style.styleId()));
 
         List<PoseAudit.Finding> findings = new ArrayList<>();
-        if (PoseCompiler.installsAsPair(style, row)) {
-            // The pair's two rows pose the one woven body, each walking at its own age's stride.
-            String entityId = row.id().toString();
-            PoseStyle adult = compiled.style();
-            PoseStyle baby = new PoseStyle(adult.id(), adult.sources(),
-                PoseCompiler.restrided(adult.drivers(), PoseCompiler.strideOf(row.styles(), Age.ADULT, entityId),
-                    PoseCompiler.strideOf(row.styles(), Age.BABY, entityId)),
-                adult.toggles(), Optional.of(Age.BABY), adult.periodTicks());
-            findings.addAll(measured(row, sampled, bind, pairs, stanced, adult, Age.ADULT, Optional.of(Age.ADULT)));
-            findings.addAll(measured(row, sampled, bind, pairs, stanced, baby, Age.BABY, Optional.of(Age.BABY)));
+        ConcurrentList<PoseStyle> installed = PoseCompiler.installedRows(style, row, compiled.style().drivers(),
+            compiled.style().periodTicks());
+        // An audit holds no context, so the strips it fits are held for this one ask - which a pair's
+        // two rows share, both measuring against the shipped rows that apply at either age.
+        StripMemo strips = new StripMemo();
+        if (installed.size() == 1) {
+            findings.addAll(measured(strips, row, sampled, bind, pairs, stanced, installed.getFirst(),
+                style.compiledAge(), Optional.empty()));
         } else {
-            findings.addAll(measured(row, sampled, bind, pairs, stanced, compiled.style(), auditedAge(style),
-                Optional.empty()));
+            // The pair's two rows pose the one woven body, each walking at its own age's stride.
+            for (PoseStyle each : installed)
+                findings.addAll(measured(strips, row, sampled, bind, pairs, stanced, each, each.age().orElseThrow(),
+                    each.age()));
         }
 
         return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
@@ -169,6 +173,7 @@ public final class PoseAuditor {
      * The findings of one installed row - the woven body posed by the row's drivers across the
      * style's strip, measured against the envelope the shipped styles define at one age.
      *
+     * @param strips the memo the audit's strips are fitted through
      * @param row the shipped row the style would install on
      * @param sampled the woven bones over the shipped container list
      * @param bind each cube-bearing bone's oriented cubes at bind
@@ -180,7 +185,8 @@ public final class PoseAuditor {
      * @return the row's findings, in mesh order
      */
     private static @NotNull List<PoseAudit.Finding> measured(
-        @NotNull Entity row, @NotNull EntityPose sampled, @NotNull Map<String, List<OrientedBox>> bind,
+        @NotNull StripMemo strips, @NotNull Entity row, @NotNull EntityPose sampled,
+        @NotNull Map<String, List<OrientedBox>> bind,
         @NotNull List<String[]> pairs, @NotNull Set<String> stanced, @NotNull PoseStyle installed,
         @NotNull Age age, @NotNull Optional<Age> recorded) {
 
@@ -192,8 +198,11 @@ public final class PoseAuditor {
             float at = clearance(bind.get(pair[0]), bind.get(pair[1]));
             known.put(key(pair), new float[]{at, at});
         }
-        for (PoseStyle shipped : knownStyles(row.styles(), age))
-            for (int tick : ticks(row, shipped, catalogPeriod))
+        // A row carrying no baby form draws its adult mesh at the same stride at every age, and its
+        // catalog records no ceiling but the adult's, so its stride walks at the adult's.
+        Age ceilingAge = row.axes().baby().isPresent() ? age : Age.ADULT;
+        for (PoseStyle shipped : knownStyles(row.styles(), age, ceilingAge))
+            for (int tick : ticks(strips, row, shipped, catalogPeriod))
                 widen(known, pairs, worldBoxes(PosePlayer.posed(row.pose(), mesh, shipped, catalogPeriod, tick)));
         for (String state : Seats.derive(row.pose(), mesh).witnesses()) {
             EntityPose.Silhouette silhouette = row.pose().states().get(state);
@@ -202,7 +211,7 @@ public final class PoseAuditor {
 
         Map<String, float[]> posed = new LinkedHashMap<>();
         Map<String, int[]> worst = new LinkedHashMap<>();
-        for (int tick : ticks(row.mutate().pose(sampled).build(), installed, catalogPeriod)) {
+        for (int tick : ticks(strips, row.mutate().pose(sampled).build(), installed, catalogPeriod)) {
             Map<String, List<OrientedBox>> boxes = worldBoxes(PosePlayer.posed(sampled, mesh, installed, catalogPeriod, tick));
             for (String[] pair : pairs) {
                 List<OrientedBox> a = boxes.get(pair[0]);
@@ -240,9 +249,9 @@ public final class PoseAuditor {
     }
 
     /**
-     * Walks every site a strict install of the style on the row compiles or guards, compiling each as
-     * the install does over one pool of its own, and answers the row's body compile with every address
-     * a strict install would refuse over.
+     * Walks every site a strict install of the style on the row compiles or guards, the walk
+     * compiling each as it does for the install over one pool of the audit's own, and answers the
+     * row's body compile with every address a strict install would refuse over.
      *
      * <p>An address counts where the install compiles and a strict one refuses: the row's body, a baby,
      * a coat, a size form weaving a pose or rests of its own, and every pass carrying a distinct pose
@@ -260,41 +269,22 @@ public final class PoseAuditor {
      *     refuse
      */
     private static @NotNull Prediction predict(@NotNull BuiltStyle style, @NotNull Entity row) {
-        Prediction prediction = new Prediction(style, row.styles().periodTicks(), row);
+        Prediction prediction = new Prediction();
+        // One pool of the audit's own, which every compile of the walk shares as an install's share
+        // the entity's.
         FormWalker.walk(row.id().toString(), style, row, row,
             Diagnostics.root("audit", Diagnostics.Output.NONE, null)
                 .child(row.id().toString()).child(style.styleId()),
-            prediction);
+            new GraphInterner(), prediction);
         return prediction;
     }
 
     /**
-     * What an audit does at each site the walk compiles - compiles it with the install's own
-     * arguments over one pool of its own, keeps the row's body compile for the clearance measure,
-     * and keeps every address a compile reached nothing with rather than refusing over it.
+     * What an audit does with each site the walk compiles - keeps the row's body compile for the
+     * clearance measure, and keeps every address a compile reached nothing with rather than
+     * refusing over it.
      */
     private static final class Prediction implements FormWalker.Visitor {
-
-        /**
-         * The built style being audited.
-         */
-        private final @NotNull BuiltStyle style;
-
-        /**
-         * The row's catalog period, the figure period every compile frames at.
-         */
-        private final int periodTicks;
-
-        /**
-         * The row the style would install on, whose catalog holds the stride each layer and form
-         * compile reads at the age its site is drawn at.
-         */
-        private final @NotNull Entity row;
-
-        /**
-         * The interner pool every compile of the audit shares, as an install's share the entity's.
-         */
-        private final @NotNull GraphInterner pool = new GraphInterner();
 
         /**
          * Every address a compile reached nothing with, in first-written order and each once.
@@ -306,25 +296,12 @@ public final class PoseAuditor {
          */
         private @NotNull Optional<PoseCompiler.Compiled> body = Optional.empty();
 
-        private Prediction(@NotNull BuiltStyle style, int periodTicks, @NotNull Entity row) {
-            this.style = style;
-            this.periodTicks = periodTicks;
-            this.row = row;
-        }
-
         /** {@inheritDoc} */
         @Override
-        public @NotNull PoseCompiler.Compiled compile(@NotNull FormWalker.Site site,
-                                                      @NotNull Optional<EntityPose.Clip> playSite) {
-            PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
-                ? PoseCompiler.compile(this.style, site.form(), site.evidence(), site.scope(), this.pool)
-                : PoseCompiler.compileLayer(this.style, site.pose(), site.evidence(), site.mesh(),
-                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks,
-                    PoseCompiler.strideOf(this.style, this.row, site.age()));
+        public void compiled(@NotNull FormWalker.Site site, @NotNull PoseCompiler.Compiled compiled) {
             // The row's body is the one site spelled under no coordinate, and the walk's first.
             if (site.coordinate().isEmpty())
                 this.body = Optional.of(compiled);
-            return compiled;
         }
 
         /** {@inheritDoc} */
@@ -371,32 +348,24 @@ public final class PoseAuditor {
     }
 
     /**
-     * The age a one-row install is audited at, reading its known-good envelope there - the age the
-     * style is compiled at, and the adult where the style spans both ages. A pair install never
-     * reads it: each of its rows is audited at its own age, the baby row at the baby's.
-     *
-     * @param style the style being audited
-     * @return the audited age
-     */
-    static @NotNull Age auditedAge(@NotNull BuiltStyle style) {
-        return style.age().orElse(Age.ADULT);
-    }
-
-    /**
      * The shipped styles whose motion defines the known-good envelope at one age - bind always, then
      * the idle and the stride where the catalog carries them, each the row a render at that age
-     * draws, the stride at its {@link #atCeiling ceiling}.
+     * draws, the stride at the {@link #atCeiling ceiling} of the age its pace is read at.
      *
      * @param catalog the shipped catalog of the row being audited
-     * @param age the age the audited row applies to
+     * @param age the age the audited row applies to, which selects the rows
+     * @param ceilingAge the age whose ceiling the stride walks at - the audited age, or the adult for
+     *     a row carrying no baby form
      * @return the known styles, bind first
      */
-    static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog, @NotNull Age age) {
+    static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog, @NotNull Age age,
+                                                @NotNull Age ceilingAge) {
         Predicate<PoseStyle> applies = row -> row.age().map(age::equals).orElse(true);
         List<PoseStyle> known = new ArrayList<>();
         known.add(StyleCatalog.bind());
         drawnAt(catalog, PoseStyle.IDLE, applies).ifPresent(known::add);
-        drawnAt(catalog, PoseStyle.STRIDE, applies).map(PoseAuditor::atCeiling).ifPresent(known::add);
+        drawnAt(catalog, PoseStyle.STRIDE, applies).map(stride -> atCeiling(stride, catalog, ceilingAge))
+            .ifPresent(known::add);
         return known;
     }
 
@@ -413,36 +382,41 @@ public final class PoseAuditor {
     }
 
     /**
-     * Answers a stride row walking at its subject's fastest vanilla pace - its swing and walk clock
-     * raised to its ceiling, every other driver, and its sources, toggles, age, period and ceiling,
-     * kept; the row itself where it carries no ceiling.
+     * Answers a stride row walking at its subject's fastest vanilla pace at one age - its swing and
+     * walk clock raised to the ceiling the catalog records for that age, every other driver, and its
+     * sources, toggles, age and period, kept; the row itself where the catalog records none.
      *
      * @param stride a shipped stride row
-     * @return the row at its ceiling
+     * @param catalog the catalog the stride ships in
+     * @param age the age whose ceiling the stride walks at
+     * @return the row at the age's ceiling
      */
-    static @NotNull PoseStyle atCeiling(@NotNull PoseStyle stride) {
-        if (stride.ceiling().isEmpty()) return stride;
-        PaceCeiling ceiling = stride.ceiling().get();
+    static @NotNull PoseStyle atCeiling(@NotNull PoseStyle stride, @NotNull StyleCatalog catalog, @NotNull Age age) {
+        Optional<PaceCeiling> held = catalog.ceilingAt(age);
+        if (held.isEmpty()) return stride;
+        PaceCeiling ceiling = held.get();
         LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>(stride.drivers());
-        drivers.computeIfPresent("walkAnimationSpeed", (field, held) -> at(held, ceiling.speed()));
-        drivers.computeIfPresent("walkAnimationPos", (field, held) -> at(held, ceiling.rate()));
+        drivers.computeIfPresent("walkAnimationSpeed", (field, driver) -> at(driver, ceiling.speed()));
+        drivers.computeIfPresent("walkAnimationPos", (field, driver) -> at(driver, ceiling.rate()));
         return new PoseStyle(stride.id(), stride.sources(), Concurrent.adoptLinkedMap(drivers).toUnmodifiable(),
-            stride.toggles(), stride.age(), stride.periodTicks(), stride.ceiling());
+            stride.toggles(), stride.age(), stride.periodTicks());
     }
 
     /**
-     * One walk driver at another extent - its wave, rest, group and timing kept.
+     * One walk driver at another extent - its wave, rest and group kept.
      */
     private static @NotNull StyleDriver at(@NotNull StyleDriver held, float extent) {
-        return new StyleDriver(held.field(), held.wave(), held.rest(), extent, held.group(), held.timing());
+        return new StyleDriver(held.field(), held.wave(), held.rest(), extent, held.group());
     }
 
     /**
      * The ticks a style is sampled at - the strip a render of it draws, tick zero alone for a
      * statue.
      */
-    private static int @NotNull [] ticks(@NotNull Entity subject, @NotNull PoseStyle style, int catalogPeriod) {
-        StripFit strip = PoseStrips.of(subject, style, catalogPeriod);
+    private static int @NotNull [] ticks(
+        @NotNull StripMemo strips, @NotNull Entity subject, @NotNull PoseStyle style, int catalogPeriod) {
+
+        StripFit strip = PoseStrips.of(strips, subject, style, catalogPeriod);
         return IntStream.range(0, strip.frames()).map(frame -> frame * strip.ticksPerFrame()).toArray();
     }
 

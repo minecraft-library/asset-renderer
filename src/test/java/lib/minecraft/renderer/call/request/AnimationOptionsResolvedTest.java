@@ -1,12 +1,9 @@
 package lib.minecraft.renderer.call.request;
 
 import lib.minecraft.renderer.engine.frame.StripFit;
-import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,13 +25,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AnimationOptionsResolvedTest {
 
     /** A derived strip of twenty-two frames at three ticks - a sixty-six-tick loop. */
-    private static final @NotNull StripFit STRIP = new StripFit(3, 22, 0.5, Optional.empty());
+    private static final @NotNull StripFit STRIP = new StripFit(3, 22, 0.5);
 
     /** The longest strip a derivation covers - {@link StripFit#MAX_TICKS} ticks, every frame the coarse cap allows. */
-    private static final @NotNull StripFit CAPPED = new StripFit(3, StripFit.MAX_FRAMES, 0.5, Optional.empty());
+    private static final @NotNull StripFit CAPPED = new StripFit(3, StripFit.MAX_FRAMES, 0.5);
 
     /** A derived strip on the fine step - thirty-three frames at one tick, as a bee's wings take. */
-    private static final @NotNull StripFit FINE = new StripFit(StripFit.FINE_STEP, 33, 0.5, Optional.empty());
+    private static final @NotNull StripFit FINE = new StripFit(1, 33, 0.5);
 
     @Test
     @DisplayName("the defaults name neither knob and the compatible getters answer one")
@@ -129,11 +126,15 @@ class AnimationOptionsResolvedTest {
     }
 
     @Test
-    @DisplayName("a named step below one tick is refused")
+    @DisplayName("a named step below one tick is refused when the options are built")
     void aNamedStepBelowOneIsRefused() {
-        RenderException refusal = assertThrows(RenderException.class,
-            () -> AnimationOptions.builder().ticksPerFrame(0).build().resolved(STRIP));
-        assertTrue(refusal.getMessage().contains("'0'"), refusal.getMessage());
+        IllegalStateException refusal = assertThrows(IllegalStateException.class,
+            () -> AnimationOptions.builder().ticksPerFrame(0).build());
+        assertTrue(refusal.getMessage().contains("ticksPerFrame") && refusal.getMessage().contains("is 0"),
+            refusal.getMessage());
+        assertThrows(IllegalStateException.class, () -> AnimationOptions.defaults().mutate().ticksPerFrame(-3).build(),
+            "and so is one a copy names");
+        assertEquals(1, AnimationOptions.builder().ticksPerFrame(1).build().getTicksPerFrame(), "while one tick is a step");
     }
 
     // ------------------------------------------------------------------------------------

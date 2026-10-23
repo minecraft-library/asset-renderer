@@ -110,16 +110,11 @@ public final class ClipPlayer {
     /**
      * What one play site answers at one instant - the clip clock it reads and what it displaces.
      *
-     * @param site the play site
      * @param millis the clip clock at that instant, in the whole milliseconds vanilla truncates to,
      *     empty where the site does not play
      * @param displacement what the site displaces, nothing where it does not play
      */
-    public record SitePlay(
-        @NotNull EntityPose.Clip site,
-        @NotNull OptionalLong millis,
-        @NotNull Displacement displacement
-    ) {}
+    record SitePlay(@NotNull OptionalLong millis, @NotNull Displacement displacement) {}
 
     /**
      * What every clip this pose plays displaces at one instant.
@@ -168,7 +163,7 @@ public final class ClipPlayer {
      * @param frame what each render-state figure reads as
      * @return one answer per play site, in the order the pose declares them
      */
-    public static @NotNull ConcurrentList<SitePlay> siteDeltas(
+    static @NotNull ConcurrentList<SitePlay> siteDeltas(
         @NotNull EntityPose pose, @NotNull EntityMesh model,
         @NotNull ToDoubleFunction<String> frame) {
 
@@ -176,7 +171,7 @@ public final class ClipPlayer {
         for (EntityPose.Clip site : pose.clips()) {
             Drive drive = driveOf(site, model, frame);
             if (drive == null) {
-                sites.add(new SitePlay(site, OptionalLong.empty(), Displacement.NONE));
+                sites.add(new SitePlay(OptionalLong.empty(), Displacement.NONE));
                 continue;
             }
             // A pair of maps per site, insertion-ordered as the whole form's are, so the sites added
@@ -185,7 +180,7 @@ public final class ClipPlayer {
             Map<PoseChannel, Float> container = new EnumMap<>(PoseChannel.class);
             accumulate(bones, container, site.clip(), drive, model);
             Displacement displacement = new Displacement(bones, container);
-            sites.add(new SitePlay(site, OptionalLong.of(drive.millis()), displacement));
+            sites.add(new SitePlay(OptionalLong.of(drive.millis()), displacement));
         }
         return Concurrent.newUnmodifiableList(sites);
     }

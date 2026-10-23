@@ -97,7 +97,7 @@ public final class PlayerRig {
             .baseTintArgb(0xFFFFFFFF)
             .rendererScale(1f)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), steveState(),
-                Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), Optional.empty(), true))
             .members(Concurrent.newUnmodifiableList())
             .styles(StyleCatalog.BIND_ONLY)

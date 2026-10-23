@@ -448,8 +448,8 @@ class StyleRegistrarTest {
     void aPairsBabyRowDropsTheAdultOnlyStrideFields() {
         // The axolotl's shape: the adult's stride composes a moving and an in-water factor beside its
         // walk, while the baby's drives the walk alone.
-        StyleDriver moving = new StyleDriver("movingFactor", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty());
-        StyleDriver inWater = new StyleDriver("inWaterFactor", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty());
+        StyleDriver moving = new StyleDriver("movingFactor", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty());
+        StyleDriver inWater = new StyleDriver("inWaterFactor", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty());
         Entity row = withBabyForm(entity("minecraft:test", humanoid(), EntityPose.NONE,
             catalog(strideRow(Age.ADULT, 0.35f, 0.35f, moving, inWater), strideRow(Age.BABY, 0.35f, 1.05f))));
 
@@ -552,7 +552,7 @@ class StyleRegistrarTest {
             "head", Map.of(PoseChannel.Y_ROT, shippedHead),
             "hat", Map.of(PoseChannel.Y_ROT, shippedHead)), List.of());
         PoseStyle wob = styleRow("wob", Map.of("ageInTicks",
-            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())));
+            new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty())));
         Entity row = entity("minecraft:test", mesh, shipped, catalog(wob));
         StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
         registrar.add("minecraft:test",
@@ -581,7 +581,8 @@ class StyleRegistrarTest {
             .build();
         Entity.Axes axes = adult.axes();
         StyleRegistrar registrar = StyleRegistrar.of(definitions(adult.mutate()
-            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant(),
+                axes.carried(), axes.equipment()))
             .build()));
         registrar.add("minecraft:test", sit());
 
@@ -610,7 +611,8 @@ class StyleRegistrarTest {
             .build();
         Entity.Axes axes = adult.axes();
         StyleRegistrar registrar = StyleRegistrar.of(definitions(adult.mutate()
-            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant(),
+                axes.carried(), axes.equipment()))
             .build()));
         registrar.add("minecraft:test", Poses.humanoid("sit")
             .container(step -> step.offset(0, 7, 0))
@@ -722,11 +724,11 @@ class StyleRegistrarTest {
     private static @NotNull PoseStyle strideRow(@NotNull Age age, float speed, float rate,
                                                 StyleDriver @NotNull ... beside) {
         Map<String, StyleDriver> drivers = new LinkedHashMap<>();
-        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         drivers.put("walkAnimationSpeed",
-            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, speed, Optional.empty()));
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, speed, Optional.empty()));
         drivers.put("walkAnimationPos",
-            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, rate, Optional.empty()));
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, rate, Optional.empty()));
         for (StyleDriver driver : beside)
             drivers.put(driver.field(), driver);
         return new PoseStyle(PoseStyle.STRIDE,
@@ -742,7 +744,7 @@ class StyleRegistrarTest {
         Entity.Axes axes = row.axes();
         return row.mutate()
             .axes(new Entity.Axes(Optional.of(row.mutate().model(humanoid()).build()), axes.shape(),
-                axes.state(), axes.size(), axes.variant()))
+                axes.state(), axes.size(), axes.variant(), axes.carried(), axes.equipment()))
             .build();
     }
 

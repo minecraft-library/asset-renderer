@@ -462,7 +462,7 @@ class StyleRegistrarWeaveTest {
         PoseStyle installed = woven.styles().byId("nod").orElseThrow();
         StyleDriver sway = installed.drivers().get("style$nod$plume$x_rot");
         assertNotNull(sway, "the body dropped the bone, so the layer compile lands the shared driver");
-        assertEquals(StyleDriver.Wave.SWEEP, sway.wave());
+        assertEquals(StyleDriver.Wave.Plain.SWEEP, sway.wave());
         EntityPose layerPose = woven.overlays().getFirst().pose();
         assertEquals(-10f, PosePlayer.posed(layerPose, plumed, installed, PERIOD, 0)
             .getBones().get("plume").getRotation().pitch(), 1e-3f,
@@ -502,7 +502,8 @@ class StyleRegistrarWeaveTest {
         Entity.Axes axes = bare.axes();
         return bare.mutate()
             .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(),
-                new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(coats), Optional.empty())))
+                new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(coats), Optional.empty()), axes.carried(),
+                axes.equipment()))
             .build();
     }
 
@@ -513,7 +514,7 @@ class StyleRegistrarWeaveTest {
                                                           @NotNull EntityMesh alternate) {
         return new Entity.OverlayLayer(layer.model(), layer.textureRef(), layer.pass(), layer.tintArgb(),
             layer.skipBounds(), layer.tintBy(), layer.textureBy(), layer.gate(), Optional.of(alternate),
-            layer.pose(), layer.textureScroll());
+            layer.pose(), layer.textureScroll(), layer.opacity());
     }
 
     /**

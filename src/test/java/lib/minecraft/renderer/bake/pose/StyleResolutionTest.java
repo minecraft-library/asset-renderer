@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
@@ -15,8 +16,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -45,6 +48,9 @@ class StyleResolutionTest {
     /** The shipped entity tables, empty on a checkout that has not generated them. */
     private static ConcurrentMap<String, Entity> entities;
 
+    /** The memo every strip one test resolves is held in, fresh for each test. */
+    private final @NotNull StripMemo strips = new StripMemo();
+
     @BeforeAll
     static void load() {
         entities = EntityModelLoader.load();
@@ -54,7 +60,7 @@ class StyleResolutionTest {
     @DisplayName("an id the index holds no row for is refused, naming the id")
     void anIdTheIndexHoldsNoRowForIsRefused() {
         RenderException refusal = assertThrows(RenderException.class,
-            () -> StyleResolution.of(Possible.absent(), UNKNOWN, PoseStyle.IDLE, AppearanceOptions.defaults()));
+            () -> StyleResolution.of(this.strips, Possible.absent(), UNKNOWN, PoseStyle.IDLE, AppearanceOptions.defaults()));
         assertTrue(refusal.getMessage().contains(UNKNOWN), refusal.getMessage());
     }
 
@@ -62,14 +68,14 @@ class StyleResolutionTest {
     @DisplayName("a row that draws nothing resolves on the bind-only catalog, still and with no subject")
     void aRowThatDrawsNothingResolvesStillWithNoSubject() {
         AppearanceOptions appearance = AppearanceOptions.defaults();
-        StyleResolution resolution = StyleResolution.of(Possible.empty(), UNKNOWN, PoseStyle.STRIDE, appearance);
+        StyleResolution resolution = StyleResolution.of(this.strips, Possible.empty(), UNKNOWN, PoseStyle.STRIDE, appearance);
 
         assertTrue(resolution.subject().isEmpty(), "nothing is drawn, so there is no subject");
         assertEquals(StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, appearance::applies, UNKNOWN), resolution.row(),
             "the row is the bind-only catalog's answer");
         assertSame(StripFit.STILL, resolution.strip(), "and the strip is one frame");
         assertThrows(RenderException.class,
-            () -> StyleResolution.of(Possible.empty(), UNKNOWN, "croak", appearance),
+            () -> StyleResolution.of(this.strips, Possible.empty(), UNKNOWN, "croak", appearance),
             "a style the bind-only catalog refuses is refused, as a render of it is");
     }
 
@@ -85,7 +91,7 @@ class StyleResolutionTest {
         StyleResolution charged = resolve(creeper, PoseStyle.IDLE, AppearanceOptions.builder().charged(true).build());
         assertTrue(gated(charged.row()), "a charged creeper's idle keeps its charged scroll");
         Entity subject = charged.subject().orElseThrow();
-        assertSame(PoseStrips.of(subject, charged.row(), subject.styles().periodTicks()), charged.strip(),
+        assertSame(PoseStrips.of(this.strips, subject, charged.row(), subject.styles().periodTicks()), charged.strip(),
             "and its strip is the one fitted for that row over that subject");
     }
 
@@ -108,6 +114,22 @@ class StyleResolutionTest {
             "and a row entailing no toggle leaves the mesh as authored");
     }
 
+    @Test
+    @DisplayName("an appearance styled by a row selects the row's toggles beside its own, and is itself where the row entails none")
+    void anAppearanceStyledByARowUnionsItsToggles() {
+        Entity frog = definition("minecraft:frog");
+        AppearanceOptions caller = AppearanceOptions.builder().toggles(Set.of("saddle")).build();
+        PoseStyle croak = frog.styles().resolve("croak", caller::applies, frog.id().toString());
+        assertFalse(croak.toggles().isEmpty(), "the croak row entails a toggle");
+
+        Set<String> union = new LinkedHashSet<>(caller.getToggles());
+        union.addAll(croak.toggles());
+        assertEquals(union, caller.styled(croak).getToggles(), "the styled appearance selects both sets");
+        PoseStyle idle = frog.styles().resolve(PoseStyle.IDLE, caller::applies, frog.id().toString());
+        assertTrue(idle.toggles().isEmpty(), "the idle row entails none");
+        assertSame(caller, caller.styled(idle), "so the appearance styled by it is the caller's own");
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The shipped definition of one id, abandoning the case where the tables are absent. */
@@ -119,10 +141,10 @@ class StyleResolutionTest {
     }
 
     /** One style of a shipped definition resolved under one appearance. */
-    private static @NotNull StyleResolution resolve(
+    private @NotNull StyleResolution resolve(
         @NotNull Entity definition, @NotNull String style, @NotNull AppearanceOptions appearance) {
 
-        return StyleResolution.of(Possible.of(definition), definition.id().toString(), style, appearance);
+        return StyleResolution.of(this.strips, Possible.of(definition), definition.id().toString(), style, appearance);
     }
 
     /** Whether any source of a row is gated. */

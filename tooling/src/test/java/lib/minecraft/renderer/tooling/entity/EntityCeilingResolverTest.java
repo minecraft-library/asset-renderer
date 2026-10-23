@@ -4,6 +4,7 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -87,20 +88,20 @@ class EntityCeilingResolverTest {
         // new SubChase(this, 9.0, 1.7): the first double is a range the goal stores, the second the
         // speed it hands its super, which stores it where its tick sets the navigation's speed.
         open(subject(registerGoals(construct(SUB_CHASE, "(" + MOB_REF + "DD)V", 9.0, 1.7))));
-        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.7, "goal SubChase")), fastest(HUNTER, "adult"));
+        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.7, "goal SubChase")), fastest(HUNTER, Age.ADULT));
     }
 
     @Test
     @DisplayName("both arms of a select count - at the navigation call, and in the literal one arm hands a super")
     void bothArmsOfASelectCount() throws IOException {
         open(subject(registerGoals(construct(SELECTING, "(" + MOB_REF + "DD)V", 1.6, 1.8))));
-        assertEquals(1.8, fastest(HUNTER, "adult").orElseThrow().modifier(), 0d, "the field the taken arm reads");
+        assertEquals(1.8, fastest(HUNTER, Age.ADULT).orElseThrow().modifier(), 0d, "the field the taken arm reads");
         this.cache.close();
         open(subject(registerGoals(construct(SELECTING, "(" + MOB_REF + "DD)V", 1.9, 1.6))));
-        assertEquals(1.9, fastest(HUNTER, "adult").orElseThrow().modifier(), 0d, "the field the other arm reads");
+        assertEquals(1.9, fastest(HUNTER, Age.ADULT).orElseThrow().modifier(), 0d, "the field the other arm reads");
         this.cache.close();
         open(subject(registerGoals(construct(WADING, "(" + MOB_REF + "D)V", 1.0))));
-        assertEquals(2.0, fastest(HUNTER, "adult").orElseThrow().modifier(), 0d, "the literal one arm hands the super");
+        assertEquals(2.0, fastest(HUNTER, Age.ADULT).orElseThrow().modifier(), 0d, "the literal one arm hands the super");
     }
 
     @Test
@@ -109,7 +110,7 @@ class EntityCeilingResolverTest {
         open(subject(registerGoals(construct(CHASE, "(" + MOB_REF + "D)V", 1.0))));
         // The hunter's constructor installs a chase at 1.5, its own registerGoals adds one at 1.0, and
         // its parent's registerGoals - which the hunter's override never calls - one at 3.0.
-        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.5, "goal Chase")), fastest(HUNTER, "adult"));
+        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.5, "goal Chase")), fastest(HUNTER, Age.ADULT));
     }
 
     @Test
@@ -117,7 +118,7 @@ class EntityCeilingResolverTest {
     void theBrainCensusFollowsAPanicSubclassAndSkipsACharge() throws IOException {
         open(subject(registerGoals()));
         assertEquals(Optional.of(new EntityCeilingResolver.Fastest(4.0f, "brain CamelAi$CamelPanic")),
-            fastest("minecraft:camel", MOB, "adult"));
+            fastest("minecraft:camel", MOB, Age.ADULT));
     }
 
     @Test
@@ -126,20 +127,20 @@ class EntityCeilingResolverTest {
         // The run-around goes faster than anything else the hunter does; a baby never runs around, so
         // its fastest is the chase its constructor installs.
         open(subject(registerGoals(construct(RUN_AROUND, "(" + MOB_REF + "D)V", 1.6), construct(CHASE, "(" + MOB_REF + "D)V", 1.0))));
-        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.6, "goal RunAroundLikeCrazyGoal")), fastest(HUNTER, "adult"));
-        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.5, "goal Chase")), fastest(HUNTER, "baby"));
+        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.6, "goal RunAroundLikeCrazyGoal")), fastest(HUNTER, Age.ADULT));
+        assertEquals(Optional.of(new EntityCeilingResolver.Fastest(1.5, "goal Chase")), fastest(HUNTER, Age.BABY));
     }
 
     // ------------------------------------------------------------------------------------
     // fixtures
     // ------------------------------------------------------------------------------------
 
-    private @NotNull Optional<EntityCeilingResolver.Fastest> fastest(@NotNull String entityClass, @NotNull String age) {
+    private @NotNull Optional<EntityCeilingResolver.Fastest> fastest(@NotNull String entityClass, @NotNull Age age) {
         return fastest("minecraft:hunter", entityClass, age);
     }
 
     private @NotNull Optional<EntityCeilingResolver.Fastest> fastest(
-        @NotNull String id, @NotNull String entityClass, @NotNull String age) {
+        @NotNull String id, @NotNull String entityClass, @NotNull Age age) {
 
         Diagnostics diagnostics = Diagnostics.root("entityModels", Diagnostics.Output.NONE, null);
         ToolingRun run = new ToolingRun(ClientOptions.defaults(), this.cache, diagnostics);

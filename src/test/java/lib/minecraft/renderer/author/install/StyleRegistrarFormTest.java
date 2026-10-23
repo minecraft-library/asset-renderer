@@ -35,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
@@ -417,11 +418,10 @@ class StyleRegistrarFormTest {
         AppearanceOptions empty = AppearanceOptions.defaults();
         for (String entityId : List.of(ENDERMAN, IRON_GOLEM)) {
             Entity pristine = EntityModelLoader.load().get(entityId);
+            Entity.Axes axes = pristine.axes();
             Entity unworn = pristine.mutate()
-                .blockOverlays(pristine.blockOverlays().stream()
-                    .map(block -> new Entity.BlockOverlayLayer(block.blockId(), block.attachedBone(),
-                        block.transform(), block.selectable()))
-                    .collect(Concurrent.toUnmodifiableList()))
+                .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(), axes.variant(),
+                    Optional.empty(), axes.equipment()))
                 .build();
             Entity woven = empty.resolve(StyleRegistrar.ofShipped().add(entityId, wave()).definitions().get(entityId));
             Entity plain = empty.resolve(StyleRegistrar.of(RegistrarFixtures.definitions(unworn)).add(entityId, wave())
@@ -799,8 +799,8 @@ class StyleRegistrarFormTest {
      * Installs {@link #wave()} strictly on one carrier row, resolves the row holding one block the
      * way a render does, and holds what it draws to the woven carrier: at each tick posed, both arms
      * sway by what the style writes on the row's body while keeping the pitch the shipped carrier
-     * raises them to, the pose drawn is the one the installed row's selectable block names for its
-     * wearer rather than the shipped one, and every pass that shared the body's pose follows it.
+     * raises them to, the pose drawn is the installed row's carried form's rather than the shipped
+     * one, and every pass that shared the body's pose follows it.
      *
      * @param entityId the carrier row the sway installs on
      * @param block the block the appearance holds
@@ -834,21 +834,19 @@ class StyleRegistrarFormTest {
         assertTrue(swept.size() > 1, "the sway moves the arms from one tick to the next: " + swept);
 
         EntityPose carrier = carrierOf(row);
-        assertNotSame(carrierOf(pristine), carrier, "the installed row's selectable block names a woven carrier");
+        assertNotSame(carrierOf(pristine), carrier, "the installed row's carried form carries a woven pose");
         assertSame(carrier, carried.pose(), "which the held block swaps in for the body's pose");
         assertTrue(carried.overlays().stream().noneMatch(pass -> pass.pose() == row.pose()),
             "and every pass that shared the body's pose follows it");
     }
 
     /**
-     * The pose one row's first selectable block names for its wearer.
+     * The pose one row's carried form re-poses its wearer as.
      */
     private static @NotNull EntityPose carrierOf(@NotNull Entity row) {
-        return row.blockOverlays().stream()
-            .filter(Entity.BlockOverlayLayer::selectable)
-            .findFirst()
-            .flatMap(Entity.BlockOverlayLayer::wearerPose)
-            .orElseThrow(() -> new AssertionError(row.id() + " names no carrier pose on a selectable block"));
+        return row.axes().carried()
+            .orElseThrow(() -> new AssertionError(row.id() + " carries no carried form"))
+            .pose();
     }
 
     /**

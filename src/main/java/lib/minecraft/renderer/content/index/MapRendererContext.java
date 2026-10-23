@@ -30,6 +30,8 @@ import java.util.function.Function;
  * @param entities the entity definitions keyed by namespaced id
  * @param colorMaps the biome colormaps keyed by the tint target each serves
  * @param colorOverrides the pack colour overrides keyed by their {@code color.properties} key
+ * @param strips the memo every strip fitted over these entities is held in, for the context's whole
+ *     life
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -39,7 +41,8 @@ record MapRendererContext(
     @NotNull Map<String, Item> items,
     @NotNull Map<String, Entity> entities,
     @NotNull Map<TintSource, ColorMap> colorMaps,
-    @NotNull Map<String, Integer> colorOverrides
+    @NotNull Map<String, Integer> colorOverrides,
+    @NotNull StripMemo strips
 ) implements RendererContext {
 
     /**

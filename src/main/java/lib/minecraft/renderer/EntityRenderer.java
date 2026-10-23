@@ -215,7 +215,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // for the render and every reader of its schedule. An id whose row draws nothing answers no
         // subject, and its frame is the one a resolved form with no bones returns below.
         StyleResolution resolution = StyleResolution.of(
-            found, options.getEntityId(), options.getStyle(), options.getAppearance());
+            this.context.strips(), found, options.getEntityId(), options.getStyle(), options.getAppearance());
         if (resolution.subject().isEmpty()) return Timeline.empty();
 
         // The context every texture this render reads resolves against: the checkerboard for a texture
@@ -597,7 +597,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // A pass this frame draws at no opacity emits no triangle. Composited at alpha 0
                     // a fragment still reaches the composite and, on a pass that writes depth, the
                     // depth buffer, so drawing nothing is skipping the pass rather than drawing it clear.
-                    if (overlay.pass().alpha() <= PassDeclaration.DRAWN_ALPHA_FLOOR) continue;
+                    if (overlay.pass().drawsNothing()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     // The texture this pass draws, in one of three states. An axis answering empty
                     // selected nothing to draw - the "none" state (iron golem Crackiness.NONE) - so the
@@ -1238,9 +1238,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             bounds = bounds.union(computeUnionScreenBounds(textures, posedSubject, transform, modelScale, frameTexture,
                 tick, boundsBlockOverlays(posedSubject, base)));
         }
-        return scope == CanvasSolver.BoundsScope.GROUP_UNION
-            ? cohortBounds(textures, bounds, entityId, babyForm, resolved, base, options.getAnimation(), posed, transform)
-            : bounds;
+        return switch (scope) {
+            case ENTITY_UNION -> bounds;
+            case GROUP_UNION -> cohortBounds(textures, bounds, entityId, babyForm, resolved, base, options.getAnimation(),
+                posed, transform);
+        };
     }
 
     /**
@@ -1289,7 +1291,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (overlay.skipBounds()) continue;
             // A pass this frame draws at no opacity draws nothing, so it sizes nothing either - the
             // canvas is measured in what the frame draws.
-            if (overlay.pass().alpha() <= PassDeclaration.DRAWN_ALPHA_FLOOR) continue;
+            if (overlay.pass().drawsNothing()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             DebugChannel.overlayBounds(overlay.textureRef().orElse("<unset>"),
                 overlayBounds.minX(), overlayBounds.maxX(), overlayBounds.minY(), overlayBounds.maxY());
@@ -1397,7 +1399,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // reason: a canvas is a union, so every silhouette in it is measured in the poses its own
             // render draws. Measuring a member posed is only right where the harness unions the same
             // one, and it answers that from EntityRoster.FAMILY_OVERRIDES, which this list is held to.
-            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(memberDef)).timeline();
+            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(this.context.strips(), memberDef)).timeline();
             for (int frame = 0; frame < own.frames(); frame++) {
                 int tick = own.tickAt(frame);
                 bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(memberDef, tick), transform,
@@ -1431,7 +1433,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             List<Entity.BlockOverlayLayer> blockOverlays = fixedBlockOverlays(boundsBlockOverlays(coat, definition));
             // Posed through the shared memo over its own strip - a canvas is a union, so every
             // silhouette in it is measured in the poses its own render draws.
-            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(coat)).timeline();
+            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(this.context.strips(), coat)).timeline();
             for (int frame = 0; frame < own.frames(); frame++) {
                 int tick = own.tickAt(frame);
                 bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(coat, tick), transform,

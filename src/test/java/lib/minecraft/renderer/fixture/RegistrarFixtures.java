@@ -11,7 +11,11 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.CustomPose;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
+import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -21,7 +25,9 @@ import java.util.Optional;
 /**
  * Hand-built rows the registrar tests install onto - entities carrying catalogs and overlay
  * passes beside the compiler fixtures' meshes and poses - and vanilla's own silhouettes spelled
- * as styles, for laying a chain against what the client draws.
+ * as styles, for laying a chain against what the client draws. The pass factories are the
+ * spellings every hand-built overlay pass takes, each defaulting the members a pass's render type
+ * adds to none.
  */
 public final class RegistrarFixtures {
 
@@ -69,9 +75,38 @@ public final class RegistrarFixtures {
      * One overlay pass over a mesh and the pose row it evaluates.
      */
     public static @NotNull Entity.OverlayLayer overlay(@NotNull EntityMesh mesh, @NotNull EntityPose pose) {
-        return new Entity.OverlayLayer(mesh, Optional.empty(), PassDeclaration.DEFAULT,
-            0xFFFFFFFF, false, Optional.empty(), Optional.empty(), Optional.empty(),
-            Optional.empty(), pose);
+        return pass(mesh, Optional.empty(), PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(),
+            Optional.empty(), Optional.empty(), Optional.empty(), pose);
+    }
+
+    /**
+     * One overlay pass whose render type translates its texture by nothing and whose opacity is its
+     * declaration's constant one.
+     */
+    public static @NotNull Entity.OverlayLayer pass(@NotNull EntityMesh model, @NotNull Optional<String> textureRef,
+                                                    @NotNull PassDeclaration declaration, int tintArgb,
+                                                    boolean skipBounds, @NotNull Optional<TintAxis> tintBy,
+                                                    @NotNull Optional<TextureAxis> textureBy,
+                                                    @NotNull Optional<AppearanceGate> gate,
+                                                    @NotNull Optional<EntityMesh> noHatModel,
+                                                    @NotNull EntityPose pose) {
+        return pass(model, textureRef, declaration, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
+            pose, Optional.empty());
+    }
+
+    /**
+     * One overlay pass whose opacity is its declaration's constant one.
+     */
+    public static @NotNull Entity.OverlayLayer pass(@NotNull EntityMesh model, @NotNull Optional<String> textureRef,
+                                                    @NotNull PassDeclaration declaration, int tintArgb,
+                                                    boolean skipBounds, @NotNull Optional<TintAxis> tintBy,
+                                                    @NotNull Optional<TextureAxis> textureBy,
+                                                    @NotNull Optional<AppearanceGate> gate,
+                                                    @NotNull Optional<EntityMesh> noHatModel,
+                                                    @NotNull EntityPose pose,
+                                                    @NotNull Optional<Vector2f> textureScroll) {
+        return new Entity.OverlayLayer(model, textureRef, declaration, tintArgb, skipBounds, tintBy, textureBy,
+            gate, noHatModel, pose, textureScroll, Optional.empty());
     }
 
     /**
@@ -88,7 +123,7 @@ public final class RegistrarFixtures {
      * A catalog at the shipped period carrying the given rows in order.
      */
     public static @NotNull StyleCatalog catalog(PoseStyle @NotNull ... rows) {
-        return new StyleCatalog(24, Concurrent.newUnmodifiableList(rows));
+        return new StyleCatalog(24, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(rows));
     }
 
     /**

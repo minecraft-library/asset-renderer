@@ -66,7 +66,7 @@ class StyleCatalogMirrorTest {
 
     /** The generator's declared rests, among them the network id it folds every pose against. */
     private static final Path TOOLING =
-        Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/policy/StyleRoster.java");
+        Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/animation/StyleRoster.java");
 
     /** The network id both sides render every subject at, spelled apart for the same reason. */
     private static final Pattern PINNED_ID =
@@ -259,6 +259,7 @@ class StyleCatalogMirrorTest {
 
         int paced = 0;
         int inert = 0;
+        Set<String> ceiledSides = new TreeSet<>();
         for (Row row : rows) {
             String at = row.entity() + " row '" + row.id() + "'" + row.age().map(age -> " (" + age + ")").orElse("");
             for (JsonObject drive : row.drives()) {
@@ -282,7 +283,7 @@ class StyleCatalogMirrorTest {
             boolean ceiled = "stride".equals(row.id()) && reads;
             if (!ceiled) {
                 assertTrue(row.ceiling().isEmpty(),
-                    at + " carries a ceiling, which only a stride row walking at its own pace carries");
+                    at + " meets a ceiling its catalog records, which only a stride walking at its own pace meets");
             }
 
             Map<String, JsonObject> composed = composedDrives(row, byEntity.get(row.entity()));
@@ -321,8 +322,9 @@ class StyleCatalogMirrorTest {
             }
 
             if (ceiled) {
+                ceiledSides.add(row.entity() + " " + row.age().orElse("adult"));
                 JsonObject ceiling = row.ceiling().orElse(null);
-                assertNotNull(ceiling, at + " walks at its own pace and carries no ceiling");
+                assertNotNull(ceiling, at + " walks at its own pace and its catalog records no ceiling at its age");
                 assertTrue(ceiling.get("speed").getAsFloat() >= speed,
                     at + " ceiling speed " + ceiling.get("speed") + " sits under its pace " + speed);
                 assertTrue(ceiling.get("rate").getAsFloat() >= rate,
@@ -331,6 +333,13 @@ class StyleCatalogMirrorTest {
         }
         assertTrue(paced > 0, "no row of " + SHIPPED + " walks at a pace");
         assertTrue(inert > 0, "no row of " + SHIPPED + " carries the walk pair inert");
+        Set<String> recorded = new TreeSet<>();
+        for (Map.Entry<String, JsonElement> entity : shipped().getAsJsonObject("models").entrySet()) {
+            JsonObject ceilings = entity.getValue().getAsJsonObject().getAsJsonObject("ceilings");
+            if (ceilings != null) ceilings.keySet().forEach(age -> recorded.add(entity.getKey() + " " + age));
+        }
+        assertEquals(ceiledSides, recorded,
+            "a catalog records a ceiling at exactly the ages its stride walks at its own pace");
 
         for (Row row : rows) {
             Set<String> composed = composedDrives(row, byEntity.get(row.entity())).keySet();
@@ -373,7 +382,8 @@ class StyleCatalogMirrorTest {
      * @param base the id the row composes over, empty where it composes over none
      * @param age the age the row applies to, empty where it applies to both
      * @param sources the mechanisms the row's own inventory names, gates dropped
-     * @param ceiling the row's pace ceiling, empty where it carries none
+     * @param ceiling the pace ceiling the row's catalog records at the age a stride row walks at, empty
+     *     for every other row and where the catalog records none there
      * @param drives the row's own drives, in file order
      */
     private record Row(String entity, String id, Optional<String> base, Optional<String> age, List<String> sources,
@@ -386,8 +396,15 @@ class StyleCatalogMirrorTest {
         for (Map.Entry<String, JsonElement> entity : models.entrySet()) {
             JsonElement styles = entity.getValue().getAsJsonObject().get("styles");
             if (styles == null) continue;
+            JsonObject ceilings = entity.getValue().getAsJsonObject().getAsJsonObject("ceilings");
             for (JsonElement row : styles.getAsJsonArray()) {
                 JsonObject held = row.getAsJsonObject();
+                assertFalse(held.has("ceiling"), entity.getKey() + " row '" + held.get("id").getAsString()
+                    + "' carries a ceiling of its own, which its catalog's ceilings hold");
+                Optional<String> age = held.has("age") ? Optional.of(held.get("age").getAsString()) : Optional.empty();
+                Optional<JsonObject> ceiling = ceilings == null || !"stride".equals(held.get("id").getAsString())
+                    ? Optional.empty()
+                    : Optional.ofNullable(ceilings.getAsJsonObject(age.orElse("adult")));
                 List<JsonObject> drives = new ArrayList<>();
                 JsonArray spelled = held.getAsJsonArray("drives");
                 if (spelled != null)
@@ -404,10 +421,7 @@ class StyleCatalogMirrorTest {
                 }
                 out.add(new Row(entity.getKey(), held.get("id").getAsString(),
                     held.has("base") ? Optional.of(held.get("base").getAsString()) : Optional.empty(),
-                    held.has("age") ? Optional.of(held.get("age").getAsString()) : Optional.empty(),
-                    List.copyOf(sources),
-                    held.has("ceiling") ? Optional.of(held.getAsJsonObject("ceiling")) : Optional.empty(),
-                    drives));
+                    age, List.copyOf(sources), ceiling, drives));
             }
         }
         assertFalse(out.isEmpty(), "no style row read from " + SHIPPED);

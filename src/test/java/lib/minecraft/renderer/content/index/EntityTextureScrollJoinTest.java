@@ -13,6 +13,7 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawTextureScroll;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -87,7 +88,7 @@ class EntityTextureScrollJoinTest {
     @Test
     @DisplayName("a pass that scrolls nothing answers no offset rather than a zero one")
     void aStillPassAnswersNothing() {
-        assertTrue(new Entity.OverlayLayer(new EntityMesh(), Optional.empty(),
+        assertTrue(RegistrarFixtures.pass(new EntityMesh(), Optional.empty(),
             PassDeclaration.DEFAULT, 0, false, Optional.empty(), Optional.empty(), Optional.empty(),
             Optional.empty(), EntityPose.NONE).textureOffsetAt(7).isEmpty(),
             "a pass with no rate has no offset to answer, at any tick");
@@ -133,7 +134,8 @@ class EntityTextureScrollJoinTest {
             null,                                   // equipment
             ageAxis(),                              // axes
             null,                                   // members
-            null));                                 // styles
+            null,                                   // styles
+            null));                                 // ceilings
         return EntityIndexBuilder.assemble(
             Map.of(COORD, mesh()), new EntityModelsTable(models, null), Map.of()).get(ENTITY);
     }
@@ -141,7 +143,7 @@ class EntityTextureScrollJoinTest {
     private static @NotNull RawAxes ageAxis() {
         Map<String, RawOption> options = new LinkedHashMap<>();
         options.put("adult", new RawOption(COORD, "test", null, null, null, null, null, null));
-        return new RawAxes(null, new RawAxis(null, options), null, null, null);
+        return new RawAxes(null, new RawAxis(null, options), null, null, null, null, null);
     }
 
     private static @NotNull EntityMesh mesh() {

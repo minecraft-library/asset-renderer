@@ -54,9 +54,9 @@ import java.util.stream.IntStream;
  * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the GPU's {@code 1/256} sub-pixel
  * grid ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
  * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
- * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
- * (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails}, vanilla
- * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
+ * functions with a {@code 1/256} fixed-point sample and the GPU's top-left fill rule, taken in GL's
+ * Y-up frame (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails},
+ * vanilla {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
  * ({@link Shading}), and composited through the triangle's {@link BlendMode}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
@@ -915,7 +915,7 @@ public class Rasterizer {
         PixelMask glintMask = buffer.mask().orElse(null);
         // Every trace call in the pixel loop below sits behind this flag as well as DebugChannel's own
         // rectangle check. A trace call the loop takes rarely - the skip-fill inside a span, where the
-        // only rejection is a tie the top-left rule refuses - stays a real call the compiler neither
+        // only rejection is a tie the fill rule refuses - stays a real call the compiler neither
         // inlines nor turns into a trap, and a call anywhere in the loop slows every sample it visits:
         // the player bust at 256 px draws in 0.81 ms/op on one core with one there and 0.61 ms/op
         // without. Behind the flag the compiler folds each trace away whatever the profile says.
@@ -977,7 +977,7 @@ public class Rasterizer {
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
-            // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
+            // pixel coverage test drops to 3 add + sign check + at-most-3 fill-rule checks; no
             // re-quantization of the sample point. Bit-identical to per-pixel recompute -
             // integer addition is exact.
             //
@@ -986,7 +986,7 @@ public class Rasterizer {
             // box's first column and its stepX, every column outside it being a sample the inside
             // test rejects. The row's edge values are reseeded at the span's first column with the
             // same integer steps the walk would have taken to reach it, and the inside test runs
-            // unchanged within the span, top-left ties included. The per-pixel trace walks the whole
+            // unchanged within the span, fill-rule ties included. The per-pixel trace walks the whole
             // row so it still logs every rejected sample, and so does a box whose edge values could
             // leave a long. A degenerate triangle covers nothing, so outside the trace it is not
             // walked at all.
@@ -1038,7 +1038,7 @@ public class Rasterizer {
                     // the piston micro went 0.212 to 0.224 ms/op (+5.7%, 10 runs over 2 forks, error bars
                     // 0.008 and 0.009). The divisions overlap the long edge tests in the pipeline where a
                     // branch does not, so the work this looks like it wastes is cheaper than the branch
-                    // that would skip it. Inside a span the test rejects only top-left ties, so the order
+                    // that would skip it. Inside a span the test rejects only fill-rule ties, so the order
                     // makes no difference there.
                     RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate

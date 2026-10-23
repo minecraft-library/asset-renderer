@@ -202,16 +202,16 @@ class PoseEmitterTest {
      */
     private static @NotNull PoseStyle styleRow(@NotNull String id, boolean animated) {
         Map<String, StyleDriver> drivers = new LinkedHashMap<>();
-        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 0.01f, Optional.empty()));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 0.01f, Optional.empty()));
         drivers.put("style$" + id + "$head$y_rot",
-            new StyleDriver("style$" + id + "$head$y_rot", StyleDriver.Wave.HOLD, 0f, 0.2f, Optional.empty()));
+            new StyleDriver("style$" + id + "$head$y_rot", StyleDriver.Wave.Plain.HOLD, 0f, 0.2f, Optional.empty()));
         drivers.put("style$" + id + "$right_arm$x_rot",
-            new StyleDriver("style$" + id + "$right_arm$x_rot", StyleDriver.Wave.HOLD, 0f, -0.5f, Optional.empty()));
+            new StyleDriver("style$" + id + "$right_arm$x_rot", StyleDriver.Wave.Plain.HOLD, 0f, -0.5f, Optional.empty()));
         if (animated) {
             drivers.put("style$" + id,
-                new StyleDriver("style$" + id, StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
+                new StyleDriver("style$" + id, StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
             drivers.put("style$" + id + "$clock",
-                new StyleDriver("style$" + id + "$clock", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+                new StyleDriver("style$" + id + "$clock", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         }
         return new PoseStyle(id,
             Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),

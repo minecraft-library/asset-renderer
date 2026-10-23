@@ -96,7 +96,9 @@ class AppearanceGateTest {
                 new OptionCase(Flag.CHARGED, AppearanceOptions.builder().charged(true).build()),
                 // The collar axis reads tameness as well as the dye: a tamed subject wears the
                 // default red collar with no dye named.
-                new OptionCase(Flag.COLLARED, AppearanceOptions.builder().state(Optional.of("tame")).build()));
+                new OptionCase(Flag.COLLARED, AppearanceOptions.builder().state(Optional.of("tame")).build()),
+                // The carried flag reads the carried-block selection: a block named, not "none".
+                new OptionCase(Flag.CARRIED, AppearanceOptions.builder().carried("minecraft:poppy").build()));
             for (OptionCase option : options) {
                 AppearanceGate gate = new AppearanceGate.Selected(option.option(), true);
                 assertThat(option.option() + " fires for its selection", option.selecting().passes(gate), is(true));

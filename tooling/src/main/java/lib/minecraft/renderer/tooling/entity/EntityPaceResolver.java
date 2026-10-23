@@ -8,18 +8,19 @@ import lib.minecraft.renderer.tooling.animation.EntityPace;
 import lib.minecraft.renderer.tooling.animation.WalkPace;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.entity.EntityCeilingResolver.Fastest;
 import lib.minecraft.renderer.tooling.entity.EntityCeilingResolver.Handed;
 import lib.minecraft.renderer.tooling.entity.EntityMovementSpeedResolver.MovementSpeeds;
 import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Body;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operand;
-import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Operands;
 import lib.minecraft.renderer.tooling.entity.EntityWanderResolver.Stroll;
+import lib.minecraft.renderer.tooling.entity.OperandWalk.Operand;
 import lib.minecraft.renderer.tooling.entity.PaceChain.SwimFactors;
 import lib.minecraft.renderer.tooling.entity.PaceChain.WalkFeed;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -62,9 +63,6 @@ import java.util.stream.Collectors;
  */
 @UtilityClass
 public final class EntityPaceResolver {
-
-    private static final @NotNull String ADULT = "adult";
-    private static final @NotNull String BABY = "baby";
 
     /** The descriptor of {@code updateWalkAnimation}. */
     private static final @NotNull String FEED_DESC = "(F)V";
@@ -151,11 +149,11 @@ public final class EntityPaceResolver {
                 continue;
             }
             Inputs inputs = paced.get();
-            Optional<AgePace> adult = Optional.of(side(session, inputs, ADULT, decided, diagnostics));
+            Optional<AgePace> adult = Optional.of(side(session, inputs, Age.ADULT, decided, diagnostics));
             boolean offersBaby = models.find(subject.entityId())
-                .flatMap(row -> row.findPath("axes", "age", "options", BABY))
+                .flatMap(row -> row.findPath("axes", "age", "options", token(Age.BABY)))
                 .isPresent();
-            Optional<AgePace> baby = offersBaby ? Optional.of(side(session, inputs, BABY, decided, diagnostics)) : Optional.empty();
+            Optional<AgePace> baby = offersBaby ? Optional.of(side(session, inputs, Age.BABY, decided, diagnostics)) : Optional.empty();
             out.put(subject.entityId(), new EntityPace(adult, baby));
         }
 
@@ -259,23 +257,21 @@ public final class EntityPaceResolver {
 
     /** One age's wander and ceiling, recording which policy rows decide the ceiling. */
     private static @NotNull AgePace side(
-        @NotNull ToolingRun session, @NotNull Inputs inputs, @NotNull String age,
+        @NotNull ToolingRun session, @NotNull Inputs inputs, @NotNull Age age,
         @NotNull Map<String, List<String>> decided, @NotNull Diagnostics diagnostics) {
 
-        boolean baby = BABY.equals(age);
+        boolean baby = age == Age.BABY;
         String id = inputs.inputs().entityId();
         double attribute = attribute(inputs, baby);
         WalkPace wander = inputs.chain().pace(inputs.stroll().speed(), attribute, baby, inputs.swim(), inputs.feed(),
             wanderBasis(inputs, baby, attribute));
 
         // The setting: a declared one, else the census's, and never under the stroll.
-        Setting generic = atLeastTheStroll(inputs, EntityCeilingResolver.fastest(session, inputs.inputs(), age, diagnostics)
-            .map(fastest -> new Setting(fastest.modifier(), fastest.source())));
-        Setting unexcluded = atLeastTheStroll(inputs, EntityCeilingResolver.fastest(session, inputs.inputs(), age, (goal, at) -> false, diagnostics)
-            .map(fastest -> new Setting(fastest.modifier(), fastest.source())));
+        Fastest generic = atLeastTheStroll(inputs, EntityCeilingResolver.fastest(session, inputs.inputs(), age, diagnostics));
+        Fastest unexcluded = atLeastTheStroll(inputs, EntityCeilingResolver.fastest(session, inputs.inputs(), age, (goal, at) -> false, diagnostics));
         OptionalDouble declared = EntityPacePolicies.fastestSpeedOf(id);
-        Setting setting = declared.isPresent()
-            ? atLeastTheStroll(inputs, Optional.of(new Setting(declared.getAsDouble(), EntityPacePolicies.VILLAGER_FASTEST.name())))
+        Fastest setting = declared.isPresent()
+            ? atLeastTheStroll(inputs, Optional.of(new Fastest(declared.getAsDouble(), EntityPacePolicies.VILLAGER_FASTEST.name())))
             : generic;
 
         // The attribute: an adult's attack boost or targeted base, on the movement speed.
@@ -322,23 +318,20 @@ public final class EntityPaceResolver {
         }
         if (inputs.borrowed()) rows.addFirst(EntityPacePolicies.BORROWED_PACES.name());
 
-        if (!rows.isEmpty()) decided.put(inputs.subject().entityId() + " " + age, rows);
+        if (!rows.isEmpty()) decided.put(inputs.subject().entityId() + " " + token(age), rows);
         return new AgePace(wander, ceiling);
     }
 
-    /**
-     * A speed setting and the behaviour it was read off.
-     *
-     * @param modifier the speed modifier
-     * @param source the behaviour, as the basis spells it
-     */
-    private record Setting(double modifier, @NotNull String source) { }
+    /** The token the model table spells an age by - its age axis's option name. */
+    private static @NotNull String token(@NotNull Age age) {
+        return age.name().toLowerCase(Locale.ROOT);
+    }
 
     /** A setting, or the stroll's where there is none or it is slower. */
-    private static @NotNull Setting atLeastTheStroll(@NotNull Inputs inputs, @NotNull Optional<Setting> found) {
+    private static @NotNull Fastest atLeastTheStroll(@NotNull Inputs inputs, @NotNull Optional<Fastest> found) {
         Stroll stroll = inputs.stroll();
         if (found.isEmpty() || found.get().modifier() < stroll.speed())
-            return new Setting(stroll.speed(), "stroll (" + stroll.source() + ")");
+            return new Fastest(stroll.speed(), "stroll (" + stroll.source() + ")");
         return found.get();
     }
 
@@ -398,7 +391,7 @@ public final class EntityPaceResolver {
     /** The scale a baby's clock is read at - the third argument the walk clock's update is handed. */
     private static @NotNull Optional<Float> babyScale(@NotNull MethodNode feed) {
         List<Operand> handed = new ArrayList<>();
-        Operands.run(feed, new Operands.Listener() {
+        OperandWalk.run(feed, new OperandWalk.Listener() {
             @Override
             public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                 if (SourceClasses.Types.WALK_ANIMATION_STATE.equals(call.owner) && SourceClasses.Methods.UPDATE.equals(call.name)
@@ -435,7 +428,7 @@ public final class EntityPaceResolver {
             for (MethodNode constructor : node.methods) {
                 if (!ClassKit.INIT.equals(constructor.name)) continue;
                 Map<TypeInsnNode, Handed> built = new HashMap<>();
-                Operands.run(constructor, new Operands.Listener() {
+                OperandWalk.run(constructor, new OperandWalk.Listener() {
                     @Override
                     public void call(@NotNull MethodInsnNode call, @Nullable Operand receiver, @NotNull List<Operand> arguments) {
                         if (receiver instanceof Operand.Fresh fresh && ClassKit.INIT.equals(call.name))
@@ -509,7 +502,7 @@ public final class EntityPaceResolver {
 
     /** The ceiling's inputs, as its diagnostics line spells them. */
     private static @NotNull String ceilingBasis(
-        @NotNull Inputs inputs, boolean baby, @NotNull Setting setting, @NotNull PaceChain chain, boolean mediumMoved,
+        @NotNull Inputs inputs, boolean baby, @NotNull Fastest setting, @NotNull PaceChain chain, boolean mediumMoved,
         double attribute, @NotNull String boost) {
 
         String row = mediumMoved ? EntityPacePolicies.CEILING_MEDIA.name() : inputs.mediumDeclared() ? EntityPacePolicies.PACE_MEDIA.name() : "";

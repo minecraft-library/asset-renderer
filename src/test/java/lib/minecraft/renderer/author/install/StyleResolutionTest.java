@@ -153,10 +153,10 @@ class StyleResolutionTest {
         PoseStyle dance = new PoseStyle("dance",
             Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
             Concurrent.newUnmodifiableMap(Map.of("ageInTicks",
-                new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()))),
+                new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()))),
             Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
         return StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), EntityPose.NONE,
-            new StyleCatalog(PERIOD, Concurrent.newUnmodifiableList(dance)))));
+            new StyleCatalog(PERIOD, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(dance)))));
     }
 
     /**

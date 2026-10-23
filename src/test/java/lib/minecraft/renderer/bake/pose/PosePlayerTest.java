@@ -24,6 +24,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -531,7 +532,7 @@ class PosePlayerTest {
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(turns)
-            .overlays(Concurrent.newUnmodifiableList(new Entity.OverlayLayer(mesh, Optional.empty(),
+            .overlays(Concurrent.newUnmodifiableList(RegistrarFixtures.pass(mesh, Optional.empty(),
                 PassDeclaration.DEFAULT, 0xFFFFFFFF, false, Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), turns, scroll)))
             .build();

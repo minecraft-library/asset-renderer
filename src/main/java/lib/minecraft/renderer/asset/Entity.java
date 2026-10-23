@@ -68,7 +68,8 @@ import java.util.Set;
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
- *     textures, baby form, large shape, size meshes / scales) - see {@link Axes}
+ *     textures, baby form, large shape, size meshes / scales, and the forms a carried block and a
+ *     filled equipment slot re-pose the wearer as) - see {@link Axes}
  * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor,
  *     wings), each gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
@@ -202,7 +203,9 @@ public record Entity(
      * one, so every read answers absent rather than a value nothing selected. The state axis is the
      * exception and is never empty - a subject with no alternate textures is still in
      * {@link #BASE_STATE} rather than in no state, which is what lets one lookup answer for every
-     * base texture in the corpus.
+     * base texture in the corpus. The equipment axis is the other exception: its options are the
+     * slots whose filling re-poses the wearer, and it declares none, because the bare definition
+     * fills no slot.
      *
      * @param <K> the option key - a name for the state and variant axes, {@link Size} for the size one
      * @param <V> what an option selects
@@ -243,8 +246,8 @@ public record Entity(
 
     /**
      * The option-axis meshes and textures a render appearance selects among: the {@code state},
-     * {@code size} and {@code variant} axes, the baby form, and the {@code shape} axis's large
-     * alternative.
+     * {@code size} and {@code variant} axes, the baby form, the {@code shape} axis's large
+     * alternative, and the forms the {@code carried} and {@code equipment} axes re-pose the wearer as.
      *
      * @param baby the row as a baby draws it, in place of the definition when the {@code age} axis
      *     selects {@code baby}: the distinct baked baby mesh, the pose of that mesh's own model class,
@@ -282,13 +285,26 @@ public record Entity(
      *     pseudo-id) or the model has no variant axis. The render-time variant fold in
      *     {@link AppearanceOptions#resolve} swaps to the selected
      *     option's sub-definition, and the group canvas union measures every option's silhouette
+     * @param carried the row as drawn while a caller selects a block for it to hold: its own mesh and
+     *     passes at the pose its wearer takes - the enderman's raised arms, the iron golem's offered
+     *     flower - each pass that shared the row's pose sharing this one. Only its pose and passes
+     *     swap in, and only where neither a shape form swapped its passes in nor a size form a pose
+     *     of its own. A leaf, with no form of its own. Empty for a row whose wearer keeps its own pose
+     *     while it holds a block
+     * @param equipment the row as drawn while each equipment slot is filled, keyed by slot
+     *     ({@code body}) as the equipment layers are: its own mesh and passes at the pose its wearer
+     *     takes - the harnessed happy ghast's smaller body - each pass that shared the row's pose
+     *     sharing it. Swapped in on the terms the carried form is and behind it, each a leaf, and
+     *     declaring no option. Empty for a row no filled slot re-poses
      */
     public record Axes(
         @NotNull Optional<Entity> baby,
         @NotNull Variation<String, Entity> shape,
         @NotNull Variation<String, String> state,
         @NotNull Variation<Size, Entity> size,
-        @NotNull Variation<String, Entity> variant
+        @NotNull Variation<String, Entity> variant,
+        @NotNull Optional<Entity> carried,
+        @NotNull Variation<String, Entity> equipment
     ) {}
 
     /**
@@ -335,33 +351,15 @@ public record Entity(
      *     block, iron golem flower) rather than an always-present body decoration (mooshroom mushrooms,
      *     snow golem pumpkin): it renders only when {@link AppearanceOptions#carriedBlock()} answers a
      *     block id, which replaces {@link #blockId}. The default (unselected) render draws no
-     *     selectable overlay
-     * @param wearerPose the pose the wearer's body takes while a caller selects a block for this
-     *     selectable row - the enderman's raised arms, the iron golem's offered flower; empty for a
-     *     fixed row and for a selectable one whose wearer keeps its own pose
+     *     selectable overlay. The pose the wearer takes while it holds one is its
+     *     {@link Axes#carried() carried form}'s
      */
     public record BlockOverlayLayer(
         @NotNull String blockId,
         @Nullable String attachedBone,
         @NotNull Matrix4f transform,
-        boolean selectable,
-        @NotNull Optional<EntityPose> wearerPose
+        boolean selectable
     ) {
-
-        /**
-         * Constructs a new {@code BlockOverlayLayer} whose wearer keeps its own pose while it draws.
-         *
-         * @param blockId the block id to render
-         * @param attachedBone the entity bone whose pose pre-multiplies the transform, or {@code null}
-         * @param transform the block-unit placement
-         * @param selectable whether the caller's carried selection supplies the block
-         */
-        public BlockOverlayLayer(
-            @NotNull String blockId, @Nullable String attachedBone, @NotNull Matrix4f transform,
-            boolean selectable) {
-
-            this(blockId, attachedBone, transform, selectable, Optional.empty());
-        }
 
         /**
          * Returns a copy with {@link #blockId} replaced by {@code newBlockId}, for resolving a
@@ -371,19 +369,7 @@ public record Entity(
          * @return an otherwise-identical overlay rendering {@code newBlockId}
          */
         public @NotNull BlockOverlayLayer withBlockId(@NotNull String newBlockId) {
-            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transform, this.selectable,
-                this.wearerPose);
-        }
-
-        /**
-         * This overlay naming another pose for its wearer, every other component untouched.
-         *
-         * @param wearer the pose the wearer's body takes while a caller selects a block for this row
-         * @return the overlay naming {@code wearer}
-         */
-        public @NotNull BlockOverlayLayer withWearerPose(@NotNull EntityPose wearer) {
-            return new BlockOverlayLayer(this.blockId, this.attachedBone, this.transform, this.selectable,
-                Optional.of(wearer));
+            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transform, this.selectable);
         }
 
     }
@@ -494,60 +480,6 @@ public record Entity(
     ) {
 
         /**
-         * A pass whose render type translates its texture by nothing, which is every pass but one, and
-         * whose opacity is its declaration's constant one.
-         *
-         * @param model the pass's mesh
-         * @param textureRef the pass's texture, or empty to reuse the body's
-         * @param pass the declared pipeline state
-         * @param tintArgb the pass's multiplicative tint
-         * @param skipBounds whether the pass is excluded from the canvas-sizing union
-         * @param tintBy the tint axis overriding the tint, or empty
-         * @param textureBy the texture axis overriding the texture, or empty
-         * @param gate the render condition, or empty when unconditional
-         * @param noHatModel the alternate mesh a suppressed pass draws, or empty
-         * @param pose the pose belonging to this pass's own mesh
-         */
-        public OverlayLayer(
-            @NotNull EntityMesh model, @NotNull Optional<String> textureRef,
-            @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
-            @NotNull Optional<TintAxis> tintBy, @NotNull Optional<TextureAxis> textureBy,
-            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityMesh> noHatModel,
-            @NotNull EntityPose pose
-        ) {
-            this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
-                pose, Optional.empty(), Optional.empty());
-        }
-
-        /**
-         * A pass whose opacity is its declaration's constant one, which is every pass but those whose
-         * opacity follows the clock.
-         *
-         * @param model the pass's mesh
-         * @param textureRef the pass's texture, or empty to reuse the body's
-         * @param pass the declared pipeline state
-         * @param tintArgb the pass's multiplicative tint
-         * @param skipBounds whether the pass is excluded from the canvas-sizing union
-         * @param tintBy the tint axis overriding the tint, or empty
-         * @param textureBy the texture axis overriding the texture, or empty
-         * @param gate the render condition, or empty when unconditional
-         * @param noHatModel the alternate mesh a suppressed pass draws, or empty
-         * @param pose the pose belonging to this pass's own mesh
-         * @param textureScroll the fraction of the sheet the pass's texture translates by each tick, or
-         *     empty where it translates none
-         */
-        public OverlayLayer(
-            @NotNull EntityMesh model, @NotNull Optional<String> textureRef,
-            @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
-            @NotNull Optional<TintAxis> tintBy, @NotNull Optional<TextureAxis> textureBy,
-            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityMesh> noHatModel,
-            @NotNull EntityPose pose, @NotNull Optional<Vector2f> textureScroll
-        ) {
-            this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
-                pose, textureScroll, Optional.empty());
-        }
-
-        /**
          * This pass carrying another pose, every other component kept.
          *
          * @param newPose the pose the pass's mesh takes in place of its own
@@ -640,10 +572,8 @@ public record Entity(
      *     {@link #UNSELECTED} is a key like any other, holding what a caller naming no material gets
      * @param wearerToggle the bone toggle the wearer's mesh takes while this slot is filled - the warm
      *     zombie nautilus's corals, which its body draws only while its body armour slot is empty - or
-     *     empty where filling the slot draws every bone of the wearer's it drew
-     * @param wearerPose the pose the wearer's body takes while this slot is filled - the happy ghast's
-     *     body folded with its body slot answered filled - or empty where filling the slot changes no
-     *     pose of the wearer's
+     *     empty where filling the slot draws every bone of the wearer's it drew. The pose the wearer
+     *     takes while the slot is filled is its {@link Axes#equipment() equipment form}'s
      */
     public record EquipmentOverlay(
         @NotNull String slot,
@@ -651,8 +581,7 @@ public record Entity(
         @NotNull EntityPose pose,
         @NotNull LayerType layerType,
         @NotNull ConcurrentMap<String, ResourceId> materialAssets,
-        @NotNull Optional<String> wearerToggle,
-        @NotNull Optional<EntityPose> wearerPose
+        @NotNull Optional<String> wearerToggle
     ) {
         /**
          * The material a caller who named none is asking for - a saddle's {@code saddle}, horse body
@@ -699,18 +628,7 @@ public record Entity(
          */
         public @NotNull EquipmentOverlay withModel(@NotNull EntityMesh mesh) {
             return new EquipmentOverlay(this.slot, mesh, this.pose, this.layerType, this.materialAssets,
-                this.wearerToggle, this.wearerPose);
-        }
-
-        /**
-         * This overlay naming another pose for its wearer, every other component untouched.
-         *
-         * @param wearer the pose the wearer's body takes while this slot is filled
-         * @return the overlay naming {@code wearer}
-         */
-        public @NotNull EquipmentOverlay withWearerPose(@NotNull EntityPose wearer) {
-            return new EquipmentOverlay(this.slot, this.model, this.pose, this.layerType,
-                this.materialAssets, this.wearerToggle, Optional.of(wearer));
+                this.wearerToggle);
         }
     }
 

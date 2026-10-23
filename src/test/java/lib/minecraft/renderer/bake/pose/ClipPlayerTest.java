@@ -271,8 +271,8 @@ class ClipPlayerTest {
                                 ClipPlayer.siteDeltas(posed.pose(), posed.mesh(), frame);
                             String at = form.label() + " " + posed.label() + " '" + row.id() + "' @" + tick;
                             // A site answering nothing adds nothing to a sum, so the one-answer-per-site
-                            // contract is read off the answers themselves: one per declared site, in
-                            // declared order, a clock exactly where the site plays.
+                            // contract is read off the answers themselves: one per declared site, a
+                            // clock exactly where the site plays.
                             List<EntityPose.Clip> declared = posed.pose().clips();
                             if (sites.size() != declared.size()) {
                                 failures.add(at + ": " + sites.size() + " answers for "
@@ -281,8 +281,6 @@ class ClipPlayerTest {
                             for (int index = 0; index < Math.min(sites.size(), declared.size()); index++) {
                                 ClipPlayer.SitePlay site = sites.get(index);
                                 boolean plays = site.displacement() != ClipPlayer.Displacement.NONE;
-                                if (site.site() != declared.get(index))
-                                    failures.add(at + ": answer " + index + " is not its declared site");
                                 if (site.millis().isPresent() != plays) {
                                     failures.add(at + ": answer " + index + " clock " + site.millis()
                                         + ", plays " + plays);
@@ -398,8 +396,9 @@ class ClipPlayerTest {
     private record Posed(@NotNull String label, @NotNull EntityPose pose, @NotNull EntityMesh mesh) {}
 
     /**
-     * Every form one shipped row carries, the row itself first - its baby and each shape, size and
-     * variant sub-definition, each once however many axes reach it.
+     * Every form one shipped row carries, the row itself first - its baby, each shape, size and
+     * variant sub-definition, and its carried and equipment forms, each once however many axes reach
+     * it.
      */
     private static @NotNull List<Form> forms(@NotNull Entity row) {
         List<Form> forms = new ArrayList<>();
@@ -420,18 +419,18 @@ class ClipPlayerTest {
             .forEach((key, form) -> collect(label + " size=" + key, form, baby, seen, forms));
         entity.axes().variant().options()
             .forEach((key, form) -> collect(label + " variant=" + key, form, baby, seen, forms));
+        entity.axes().carried().ifPresent(form -> collect(label + " carried", form, baby, seen, forms));
+        entity.axes().equipment().options()
+            .forEach((key, form) -> collect(label + " equipment=" + key, form, baby, seen, forms));
     }
 
     /**
-     * Every mesh one form poses with the pose that poses it - the body, the body under each wearer
-     * pose a filled slot swaps in, each overlay pass and its no-hat alternate, and each equipment mesh.
+     * Every mesh one form poses with the pose that poses it - the body, each overlay pass and its
+     * no-hat alternate, and each equipment mesh.
      */
     private static @NotNull List<Posed> meshesOf(@NotNull Entity form) {
         List<Posed> meshes = new ArrayList<>();
         meshes.add(new Posed("body", form.pose(), form.model()));
-        for (Entity.EquipmentOverlay equipment : form.layers().equipment())
-            equipment.wearerPose().ifPresent(pose ->
-                meshes.add(new Posed("body wearing " + equipment.slot(), pose, form.model())));
         for (int index = 0; index < form.overlays().size(); index++) {
             Entity.OverlayLayer overlay = form.overlays().get(index);
             meshes.add(new Posed("pass " + index, overlay.pose(), overlay.model()));

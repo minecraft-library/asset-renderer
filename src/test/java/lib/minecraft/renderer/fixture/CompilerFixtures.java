@@ -359,7 +359,7 @@ public final class CompilerFixtures {
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(pose)
-            .styles(new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList()))
+            .styles(new StyleCatalog(periodTicks, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList()))
             .axes(noAxes())
             .build();
     }
@@ -382,14 +382,14 @@ public final class CompilerFixtures {
     }
 
     /**
-     * The axes of a row carrying no option axis - no baby form, and no shape, state, size or variant
-     * option.
+     * The axes of a row carrying no option axis - no baby, carried or equipment form, and no shape,
+     * state, size or variant option.
      *
      * @return a fresh axes record
      */
     public static @NotNull Entity.Axes noAxes() {
         return new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
-            Entity.Variation.none(), Entity.Variation.none());
+            Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none());
     }
 
     /**

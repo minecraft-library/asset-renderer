@@ -3,9 +3,10 @@ package lib.minecraft.renderer.tooling.gate;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.tooling.animation.StyleRoster;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -214,7 +215,7 @@ class ClockRosterJarTest {
         StyleRoster.Clock moving = clock("movingFactor");
         // The easing's low end is a negative zero, which holds the field at the same nothing the
         // roster's zero does, so the ends are compared as numbers.
-        assertEquals("hold", moving.idle().wave(), "movingFactor: the idle half holds");
+        assertEquals(StyleDriver.Wave.Plain.HOLD, moving.idle().wave(), "movingFactor: the idle half holds");
         assertEquals(still, moving.idle().extent(), 0f, "movingFactor: the idle half holds the animator's low end");
         assertEquals(StyleRoster.Motion.hold(moving.idle().extent()), moving.idle(), "movingFactor: the idle half is a plain hold");
         assertEquals(Optional.of(StyleRoster.Motion.hold(swimming)), moving.stride(),
@@ -280,7 +281,7 @@ class ClockRosterJarTest {
         StyleRoster.Clock tentacles = clock("tentacleAngle");
         assertEquals(StyleRoster.Motion.stroke(turn * quarter, rate), tentacles.idle(),
             "tentacleAngle: the idle half strokes as far as Squid.aiStep reaches at entity id " + id + "'s rate");
-        assertEquals(0x3decbdab, Float.floatToIntBits(tentacles.idle().rate()),
+        assertEquals(0x3decbdab, Float.floatToIntBits(assertInstanceOf(StyleDriver.Wave.Stroke.class, tentacles.idle().wave()).rate()),
             "tentacleAngle: the roster's stroke rate bits");
         assertEquals(Optional.empty(), tentacles.stride(), "tentacleAngle: the stroke runs alike at both gaits");
     }
@@ -318,11 +319,13 @@ class ClockRosterJarTest {
         float extent = (float) raw * unit;
         int rise = (int) Math.ceil(extent / step);
         StyleRoster.Motion peek = clock("peekAmount").idle();
+        StyleDriver.Wave.Trapezoid shape = assertInstanceOf(StyleDriver.Wave.Trapezoid.class, peek.wave(),
+            "peekAmount: the lid peeks as a trapezoid");
         assertEquals(extent, peek.extent(), "peekAmount: the lid rises to ShulkerPeekGoal.start's raw peek times its unit");
-        assertEquals(rise, peek.rise(), "peekAmount: the lid climbs a step a tick");
-        assertEquals(rise, peek.fall(), "peekAmount: the lid falls a step a tick");
-        assertEquals(hold - rise, peek.dwell(), "peekAmount: the shortest hold counts from the raise, so the lid sits for it less the climb");
-        assertEquals(0, peek.gap(), "peekAmount: the gap of 0 is chosen - vanilla waits a random interval between peeks, "
+        assertEquals(rise, shape.rise(), "peekAmount: the lid climbs a step a tick");
+        assertEquals(rise, shape.fall(), "peekAmount: the lid falls a step a tick");
+        assertEquals(hold - rise, shape.dwell(), "peekAmount: the shortest hold counts from the raise, so the lid sits for it less the climb");
+        assertEquals(0, shape.gap(), "peekAmount: the gap of 0 is chosen - vanilla waits a random interval between peeks, "
             + "and the roster loops the shortest peek with no wait");
         assertEquals(StyleRoster.Motion.trapezoid(extent, rise, hold - rise, rise, 0), peek,
             "peekAmount: the idle half is the shortest peek");

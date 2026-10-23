@@ -68,8 +68,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *     so each subject the posed references render apart is pinned at the strip they render it over -
  *     the list read rather than copied, so the golden, the roster and the harness name one set.</li>
  * </ul>
- * The golden holds each row on one line - frames, step, the restart's seam to two places and the
- * channel it is on - so a moved row is a one-line diff.
+ * The golden holds each row on one line - frames, step and the restart's seam to two places - so a
+ * moved row is a one-line diff.
  *
  * <p>Beside the pin: every derived strip keeps the cap and the two steps whatever the golden says; no
  * shipped row carries two gates, and every gate, form axis and trait is one the test can spell, so a new
@@ -100,7 +100,8 @@ class PoseStripsCorpusTest {
     private static final @NotNull Map<String, BiFunction<AppearanceOptions.Builder, String, AppearanceOptions.Builder>> AXES = Map.of(
         "variant", AppearanceOptions.Builder::variant,
         "size", (builder, option) -> builder.size(Size.valueOf(option.toUpperCase(Locale.ROOT))),
-        "shape", (builder, option) -> builder.pattern(firstPattern(option)));
+        "shape", (builder, option) -> builder.pattern(firstPattern(option)),
+        "equipment", (builder, option) -> builder.equipment(Map.of(option, "")));
 
     /**
      * How an appearance takes each posed trait, the value spelled as a reference stem spells it - a
@@ -110,6 +111,9 @@ class PoseStripsCorpusTest {
      */
     private static final @NotNull Map<String, BiFunction<AppearanceOptions.Builder, String, AppearanceOptions.Builder>> TRAITS = Map.of(
         "carried", (builder, value) -> builder.carried(value.replace("__", ":")));
+
+    /** The finer of the two steps a derived strip takes - a tick a frame. */
+    private static final int FINE_STEP = 1;
 
     /** The ages a key is pinned at, in the golden's order. */
     private static final @NotNull List<Age> AGES = List.of(Age.ADULT, Age.BABY);
@@ -186,13 +190,13 @@ class PoseStripsCorpusTest {
     void everyDerivedStripKeepsTheCap() {
         List<String> broken = new ArrayList<>();
         each((key, strip) -> {
-            boolean step = strip.ticksPerFrame() == StripFit.FINE_STEP || strip.ticksPerFrame() == StripFit.COARSE_STEP;
+            boolean step = strip.ticksPerFrame() == FINE_STEP || strip.ticksPerFrame() == StripFit.COARSE_STEP;
             boolean frames = strip.frames() >= 1 && strip.loopTicks() <= StripFit.MAX_TICKS;
             boolean still = !strip.isStill() || strip.ticksPerFrame() == StripFit.COARSE_STEP;
             if (!step || !frames || !still) broken.add(key + ": " + strip);
         });
         assertEquals(List.of(), broken, "a derived strip runs from one frame to " + StripFit.MAX_TICKS
-            + " ticks at a step of " + StripFit.FINE_STEP + " or " + StripFit.COARSE_STEP + ", a still one at "
+            + " ticks at a step of " + FINE_STEP + " or " + StripFit.COARSE_STEP + ", a still one at "
             + StripFit.COARSE_STEP);
     }
 
@@ -217,12 +221,12 @@ class PoseStripsCorpusTest {
             if (coats.isEmpty()) continue;
             AppearanceOptions adult = AppearanceOptions.builder().age(Age.ADULT).build();
             for (String rowId : List.of(PoseStyle.IDLE, PoseStyle.STRIDE)) {
-                StyleResolution family = StyleResolution.of(found, id, rowId, adult);
+                StyleResolution family = StyleResolution.of(context.strips(), found, id, rowId, adult);
                 Entity subject = family.subject().orElseThrow();
                 PosePlayer.PosedFrames posed = PosePlayer.frames(subject, family.row(), subject.styles().periodTicks());
                 for (Map.Entry<String, Entity> coat : coats.entrySet()) {
-                    StripFit measuredOver = posed.memberStrip(coat.getValue());
-                    StripFit drawn = StyleResolution.of(found, id, rowId,
+                    StripFit measuredOver = posed.memberStrip(context.strips(), coat.getValue());
+                    StripFit drawn = StyleResolution.of(context.strips(), found, id, rowId,
                         AppearanceOptions.builder().age(Age.ADULT).variant(coat.getKey()).build()).strip();
                     measured++;
                     if (!measuredOver.equals(drawn)) {
@@ -263,7 +267,7 @@ class PoseStripsCorpusTest {
             SortedMap<String, StripFit> rows = new TreeMap<>();
             List<String> rowIds = rowIds(renderer, found, id, appearance);
             for (String rowId : rowIds) {
-                rows.put(rowId, StyleResolution.of(found, id, rowId, appearance).strip());
+                rows.put(rowId, StyleResolution.of(context.strips(), found, id, rowId, appearance).strip());
                 if (found.isPresent()) gates(found, id, rowId, age, rows);
             }
             if (found.isPresent()) forms(found, id, rowIds, age, rows);
@@ -297,7 +301,7 @@ class PoseStripsCorpusTest {
         PoseStyle shipped = found.get().styles().resolve(rowId, AppearanceOptions.builder().age(age).build()::applies, id);
         Set<String> tokens = new LinkedHashSet<>();
         for (PoseStyle.StyleSource source : shipped.sources())
-            source.gate().ifPresent(tokens::add);
+            source.gate().map(PoseStripsCorpusTest::spelled).ifPresent(tokens::add);
         if (tokens.size() > 1) doubleGated.add(id + " " + spelled(age) + " " + rowId + " " + tokens);
         for (String token : tokens) {
             if (TRAITS.containsKey(token)) {
@@ -310,7 +314,7 @@ class PoseStripsCorpusTest {
                 continue;
             }
             AppearanceOptions admitting = admits.apply(AppearanceOptions.builder().age(age)).build();
-            rows.put(rowId + "@" + token, StyleResolution.of(found, id, rowId, admitting).strip());
+            rows.put(rowId + "@" + token, StyleResolution.of(context.strips(), found, id, rowId, admitting).strip());
         }
     }
 
@@ -335,7 +339,7 @@ class PoseStripsCorpusTest {
                 if (selecting.resolve(definition).pose() == defaultPose) continue;
                 for (String rowId : rowIds) {
                     rows.put(rowId + "~" + axis.getName() + "=" + option,
-                        StyleResolution.of(found, id, rowId, selecting).strip());
+                        StyleResolution.of(context.strips(), found, id, rowId, selecting).strip());
                 }
             }
         }
@@ -356,7 +360,7 @@ class PoseStripsCorpusTest {
             }
             AppearanceOptions taking = take.apply(AppearanceOptions.builder().age(Age.ADULT), key.substring(split + 1)).build();
             for (String rowId : List.of(PoseStyle.IDLE, PoseStyle.STRIDE))
-                rows.put(rowId + "~" + key, StyleResolution.of(found, id, rowId, taking).strip());
+                rows.put(rowId + "~" + key, StyleResolution.of(context.strips(), found, id, rowId, taking).strip());
         }
     }
 
@@ -423,12 +427,11 @@ class PoseStripsCorpusTest {
         return out.append("}\n").toString();
     }
 
-    /** One strip as its golden row - frames, step, the seam to two places and the channel it is on. */
+    /** One strip as its golden row - frames, step and the seam to two places. */
     private static @NotNull String row(@NotNull StripFit strip) {
         BigDecimal seam = new BigDecimal(String.format(Locale.ROOT, "%.2f", strip.seam()));
         return "{\"frames\": " + strip.frames() + ", \"ticks_per_frame\": " + strip.ticksPerFrame()
-            + ", \"seam\": " + seam.toPlainString()
-            + strip.worstChannel().map(channel -> ", \"worst_channel\": " + quoted(channel)).orElse("") + "}";
+            + ", \"seam\": " + seam.toPlainString() + "}";
     }
 
     /** A JSON string literal. */
