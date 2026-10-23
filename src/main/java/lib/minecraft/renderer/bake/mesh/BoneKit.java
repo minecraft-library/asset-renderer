@@ -403,8 +403,8 @@ public class BoneKit {
     /**
      * The atlas UV corners of one cube's faces against one texture size, each face resolved once by
      * {@link #resolveFaceUv} and answered from then on. A build holds one for each cube it draws,
-     * because its cull test, its translucency test and its emit stage ask the same cube for the same
-     * faces, and a face's corners read nothing but the cube and the texture size.
+     * because its translucency test and its emit stage ask the same cube for the same faces, and a
+     * face's corners read nothing but the cube and the texture size.
      * <p>
      * It serves one cube of one build on the thread running that build, and nothing else reads it. The
      * corner arrays it hands out are shared between the asks, so a caller reads them and never writes

@@ -60,11 +60,14 @@ public class EntityMesh {
     /**
      * Whether vanilla renders this entity through a back-face-culling render type
      * ({@code RenderTypes.entityCutoutCull}) rather than the no-cull default ({@code entityCutout}).
-     * The tooling detects it from the model class constructor's render-type function. When set, the
-     * geometry kit culls back faces on every cube - including zero-thickness plane cubes, whose two
+     * The tooling detects it from the model class constructor's render-type function. The geometry kit
+     * takes every cube's back-face cull from this flag alone and reads no texel to decide it.
+     * <p>
+     * When set, every cube culls its back faces - including zero-thickness plane cubes, whose two
      * coincident sides would otherwise both draw and let the depth tie-break pick the away side (the
      * bat ear's brown outer winning over its pink inner under vanilla-matching LEQUAL). With culling
-     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla.
+     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla. When
+     * unset, every cube draws both sides, as the no-cull render types do.
      */
     private boolean cull = false;
 

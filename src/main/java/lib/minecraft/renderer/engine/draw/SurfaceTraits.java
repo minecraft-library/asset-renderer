@@ -40,7 +40,7 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
 
     /**
      * Opaque, back-face-culled, directionally lit body geometry drawn through the
-     * {@link PassDeclaration#DEFAULT default pass} - skin, blocks, and entity bodies.
+     * {@link PassDeclaration#DEFAULT default pass} - player skin boxes, fluids and the shield.
      */
     public static final SurfaceTraits OPAQUE_BODY =
         new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);

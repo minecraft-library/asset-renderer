@@ -435,7 +435,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // One table per frame build, keyed by mesh reference, so a frame baking on another worker
             // never reads it: a model overlay drawing the very mesh instance the body drew reuses the
             // body's corners, normals and tags, and its UVs where it resolves them at the same width and
-            // height, and reads its cull and translucency off its own texture.
+            // height, and reads its translucency off its own texture.
             Map<EntityMesh, Object> sharedGeometry = new IdentityHashMap<>();
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posedSubject.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
