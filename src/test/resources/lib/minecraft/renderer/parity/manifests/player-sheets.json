@@ -40,35 +40,35 @@
     },
     {
       "path": "armor-3d.png",
-      "sha256": "98235b13453c9bf2d9fd5d9149732ddb46e044ff4f1c86b2a36722dd71ce7948"
+      "sha256": "d93303a6f43fd8bedf60dec4f9084ff5d976825e9bef7d0c0caf107bc9e77b24"
     },
     {
       "path": "armor-3d/chainmail_THREE_D.png",
-      "sha256": "27372a3164731ccb359899942c42dbfc70a4e99ee29753cdfdd720dc53a11379"
+      "sha256": "d83a7ce9fc06ded2a0d8d8038b771543fa0064aa285c152218aeae5290cec70d"
     },
     {
       "path": "armor-3d/copper_THREE_D.png",
-      "sha256": "fc81648782c876814cf92a426ba4453116f865a697166a36506e8b1ccd0006a8"
+      "sha256": "fd80073f39f3e27da68e3edf332ac959eea42ef2acdf1301833ba8ded80581bb"
     },
     {
       "path": "armor-3d/diamond_THREE_D.png",
-      "sha256": "bbeab102fe3ecd557535cb42efb2aab402db61df953ce0f6d050881f5554526f"
+      "sha256": "5f72cc2856e852cd19b68c8e99201feadcb61c74a3d1d43869a36c8b0e147fe2"
     },
     {
       "path": "armor-3d/golden_THREE_D.png",
-      "sha256": "bdcfe081e90ea95ccc0e8cdc61aeb0f05c7d396d419985863acaffea5f4e15f8"
+      "sha256": "f03db898096690013d213e52ff8ef39f2bbf493f66bd9e7a20b14f288bd33f52"
     },
     {
       "path": "armor-3d/iron_THREE_D.png",
-      "sha256": "3aa5af64d5f37c20926ef76711424b095109d90996319bfcb257be63e5454a39"
+      "sha256": "6f10259fc5b48ff578730832116d19e69495733cd4c399807ee888f78ba9dad2"
     },
     {
       "path": "armor-3d/leather_THREE_D.png",
-      "sha256": "63a256a6cfa5ff218df8d8416f641c0a4a330eee22fe6282935a871cfad7c250"
+      "sha256": "935175f8f38b15b2477e2e3bbab8cbe6e7617286a5e252afcc41f3783435a502"
     },
     {
       "path": "armor-3d/netherite_THREE_D.png",
-      "sha256": "a8ca801277c0906f39107f29a3a8ccf68a468b990b22f349e8416418c7ca196c"
+      "sha256": "f7e84bf1e00d1e9e50777e9d98f9f54aedea14472ca0d0b2a0ddba0a1bdcdd85"
     },
     {
       "path": "armor-3d/turtle_scute_THREE_D.png",
@@ -76,7 +76,7 @@
     },
     {
       "path": "armor-per-slot.png",
-      "sha256": "3f2ecdd4eff717e101dd2b57ae32e7334c8b4faeba20d8c7e5ff0c2c945cc618"
+      "sha256": "1bce9b5a0198dda1f4a894230de8affd9c40d9028b378f723b9d903c61fea66a"
     },
     {
       "path": "armor-per-slot/boots_only_2D.png",
@@ -92,11 +92,11 @@
     },
     {
       "path": "armor-per-slot/chestplate_only_3D.png",
-      "sha256": "077b344462d2716004ed383380af56d1707bdbc1a7eba9e594f8b4b2eb924ccf"
+      "sha256": "f9317e1a87ad944907a84ea4aa9502c337bf6817383e29256e4a3fad69109904"
     },
     {
       "path": "armor-per-slot/enchanted_iron_3D.png",
-      "sha256": "8559f5f6a6fdf91be535dcc7ebbf14b8b7017423c28d78635cd602dcba6a973d"
+      "sha256": "02f785ef7c19c80de7be5dbd2ef11ec4215cd3610b24faab8753634714626d7c"
     },
     {
       "path": "armor-per-slot/helmet_only_2D.png",
@@ -112,7 +112,7 @@
     },
     {
       "path": "armor-per-slot/leggings_only_3D.png",
-      "sha256": "840a2926ce229a536cec8a0ac79565fabd88de5266729424fa317d295f264645"
+      "sha256": "f40e08cfe9074f05fcb55dbd1881a0030256559eb2a65fab9ed365216a37107b"
     },
     {
       "path": "core-matrix.png",
@@ -176,7 +176,7 @@
     },
     {
       "path": "glint-per-slot/all_slots_3D.gif",
-      "sha256": "a2e9ddf105da44c305e9a65422337d12eb3867362463cc34c2686586fb1ee959"
+      "sha256": "b55121a2e7897f9c70303cfea62e2c6bbeb9ec7342b07625fe5a870b9dd4ee88"
     },
     {
       "path": "glint-per-slot/boots_2D.gif",
@@ -192,7 +192,7 @@
     },
     {
       "path": "glint-per-slot/chestplate_3D.gif",
-      "sha256": "bdfe422ffc0e79109211ad66fa9c5e3e2579c76c2a28531f7bea06e3feafd5b3"
+      "sha256": "00807975e3fc2723be0799a089c62cca03a1119e9bb835926d5800eb1637b3e6"
     },
     {
       "path": "glint-per-slot/helmet_2D.gif",
@@ -208,15 +208,15 @@
     },
     {
       "path": "glint-per-slot/leggings_3D.gif",
-      "sha256": "3fcb5528b290b54a9d6abba352cb1bfa0cba00387178c8835d39ecb23c755ef3"
+      "sha256": "7f4c17e052d615b3ea31b0b14db732c3caab204cf773e04a368547343f9c726e"
     },
     {
       "path": "leather-dye.png",
-      "sha256": "1782baf0db0a7ed40e055276b7e0ba6350b642fa4eea18e824dd0b676217a1f4"
+      "sha256": "bb53342091b33281248822a930f852fd701538195e7b2fff9fec63dc4f0fefae"
     },
     {
       "path": "leather-dye/blue_THREE_D.png",
-      "sha256": "8b4a5566e6912ab4904742bc5f4306810fe0093c57840a35e7fdce3d0126875e"
+      "sha256": "8733d5cbc63708055c41541b1e5e8609e9d965e2f9760985059dcd99e028fdd8"
     },
     {
       "path": "leather-dye/blue_TWO_D.png",
@@ -224,7 +224,7 @@
     },
     {
       "path": "leather-dye/cyan_THREE_D.png",
-      "sha256": "9ed42500bfc394e1a863fe0bee3e335168b1b35ddd4b812ab872e9bc11525a7d"
+      "sha256": "b24d3bbc6caf77d699db770f5d3af9d5cc881ecb147c86a213190a715308f688"
     },
     {
       "path": "leather-dye/cyan_TWO_D.png",
@@ -232,7 +232,7 @@
     },
     {
       "path": "leather-dye/default_THREE_D.png",
-      "sha256": "63a256a6cfa5ff218df8d8416f641c0a4a330eee22fe6282935a871cfad7c250"
+      "sha256": "935175f8f38b15b2477e2e3bbab8cbe6e7617286a5e252afcc41f3783435a502"
     },
     {
       "path": "leather-dye/default_TWO_D.png",
@@ -240,7 +240,7 @@
     },
     {
       "path": "leather-dye/green_THREE_D.png",
-      "sha256": "b9122566acac8324b6c77e7facdc29f129747b6e2a706737ba3e69ee07746ad0"
+      "sha256": "92de275b377ba290f407b554c5473fe482583fda1b2e112c7f62797f78e44c41"
     },
     {
       "path": "leather-dye/green_TWO_D.png",
@@ -248,7 +248,7 @@
     },
     {
       "path": "leather-dye/orange_THREE_D.png",
-      "sha256": "ad4c3298f20fe1496b47713ff857e45663f64d7f0d39377bf9279469e3065f98"
+      "sha256": "2723d24cbeaea0819a6d9466e6e23848c857948195bc9ea8146b9e0d58925cc8"
     },
     {
       "path": "leather-dye/orange_TWO_D.png",
@@ -256,7 +256,7 @@
     },
     {
       "path": "leather-dye/red_THREE_D.png",
-      "sha256": "535d9cb1074a7aec6ce560b57e3f7f2287b73ab93643e0f25abc54c22326f6b5"
+      "sha256": "c286635d967a05efde46daa304dc19925aae9b740f5941985b7fe2df43ac4695"
     },
     {
       "path": "leather-dye/red_TWO_D.png",
@@ -360,7 +360,7 @@
     },
     {
       "path": "toggles/rot_15_210_0.png",
-      "sha256": "4ca2d92c0dec8c86c8481948e08033db3c29be42dded30f1200b280b08e81322"
+      "sha256": "691b11384f346efae98e9809a3c68b6308801e4a4a37944d442fc954a6e3e713"
     },
     {
       "path": "toggles/ssaa_1_raw_.png",
@@ -372,51 +372,51 @@
     },
     {
       "path": "trims.png",
-      "sha256": "86735c970eb9a2ce9bcad4c817a8d85c990f4f07c11505fcbbea1d23cac75c14"
+      "sha256": "a08aef1180949fecdec079c63ac633dfe1d293930e9913e2aebe99af6728908f"
     },
     {
       "path": "trims/all_slots_tide_copper.png",
-      "sha256": "0ad616c712a0a1fafd2261a106ec492833d2515b1fa84ad6d9afeb7f73c06317"
+      "sha256": "678c048fdd7134946565937d534c38be7d294bdfa68a54abf8a8b4852b688fcc"
     },
     {
       "path": "trims/coast_lapis.png",
-      "sha256": "d44df4ff6525305f39b4afab9204676fb418e6c5b5431f589101714d7e4fbead"
+      "sha256": "ded69dfa5ce99b880c9905b00504339018a8a1130381c753ff781e407ea49d42"
     },
     {
       "path": "trims/eye_redstone.png",
-      "sha256": "eefa6840ae8ae76b67cc124af784d2e1be2ad26ff82f91d9fb14610093907c37"
+      "sha256": "45fd2efdc920d6a02def7325944eee20c029ad497346238bbb11e2f4193e3226"
     },
     {
       "path": "trims/sentry_gold.png",
-      "sha256": "93f36655c07741cb5327a786c0fe9e2e6c92264a4a3a65ebf9b604e166f78a44"
+      "sha256": "e73b1909a09ee5cfd182228657f33e5fb024a78f9ea430168c118869b37f5e3d"
     },
     {
       "path": "trims/silence_copper_chest.png",
-      "sha256": "be70338a4c087bd88f5d3b60fb242581bc96da1515a32b57391278501e7634da"
+      "sha256": "2c0ea21acd1bc54950710ae2a4a90afce5852b313f941e60c5bcc81d3655f618"
     },
     {
       "path": "trims/silence_diamond_chest.png",
-      "sha256": "0bb313864c0adcee387889181d6b12c22688f782ae2023d3f1af00b1b12c238d"
+      "sha256": "307c6446bc2d71fafed9f5cc13f3a263a978d473544ef4a2867a30aa3ffa5c03"
     },
     {
       "path": "trims/silence_gold_chest.png",
-      "sha256": "db0dbf92bc7540f5197e62f38182efa6e41735dc86506f150908d4e873e95687"
+      "sha256": "4cdb253b7d1b5cb3cdec4b230d10f125f5f0f5300e41ec8ed5cea2192d7d37b3"
     },
     {
       "path": "trims/silence_netherite_darker_chest.png",
-      "sha256": "0fd85c6dde048d4cf395f043ad1175b2705325cd08e019b257a051e9ffdba5c3"
+      "sha256": "0fc2548d6cc03c3d437f9f62cca3fb068c96b1c693e036973c4d3be4816f16c8"
     },
     {
       "path": "trims/spire_amethyst.png",
-      "sha256": "470b7b8e368db10c28ea659ade2c3f577b941c90436326711f22c7271b0769ab"
+      "sha256": "a0e105028b2b66a5163371762260a9b8a38b2ed5589d4910fbdf607e8d44b025"
     },
     {
       "path": "trims/ward_iron_darker.png",
-      "sha256": "4f22be1c01947bc3861c2b485a83ce86cecc2299619aba1e4512117a9a3598dd"
+      "sha256": "bfd316205338a7224a7a868c6fe24e5824736c5bf28f7cc71dcd7b09d3a79a6e"
     },
     {
       "path": "trims/wild_emerald.png",
-      "sha256": "ac009723d653d2edb47eddf8fed806c2ad5d445a3a2a79a2f6dd0fd88fbddc1c"
+      "sha256": "d62af8fb77d8871b915951dafb2f88be0121cf9a7d3995c011d714de64201361"
     }
   ],
   "format": 1,
@@ -424,9 +424,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "1f954dda037a07d5165cc56f52a5cb16a53aa91d4c366ede8d8ea4265047c76e",
+    "asset_content_digest": "014f16cd342ccef8b4b5d628309f06e8a97f27c0ee657795de516e0658077e9f",
     "asset_dirty": true,
-    "asset_sha": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
+    "asset_sha": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
     "counts": {
       "files": 104
     },
@@ -435,21 +435,21 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "A pixel centre exactly on a horizontal shared edge goes to the face above it in image space, as the GPU applies its top-left rule in its own y-up window frame, where the face below took it. The elder guardian's idle strip loses the one-pixel crack its extended spikes showed - the edge between each spike's upper and lower faces lands exactly on row 393's centres after the corner snap, where the lower face's boundary texel is transparent - and its mean delta to vanilla goes 0.1142 to 0.0159 (worst 0.1486 to 0.0492); no other sweep row moves. The player sheet's one-point projection loses one row of 246 pixels along a shape's top edge, which lies exactly on row 5's pixel centres: with no face above that edge, the GPU's rule leaves the row unfilled, and the composite projections sheet carries the same row; nothing else in the planned bundle moves.",
+    "reason": "The depth plane is solved from the corners coverage and texture coordinates read after the 1/256 snap, where it read the unsnapped corners, so a sample between the snapped and unsnapped edge of two faces no longer reads both planes extrapolated - the GPU interpolates depth over the snapped window positions. Measured against vanilla, the moved rows' summed mean delta falls 7.9051 to 3.1258 on the still sweep (75 better, 3 worse), 0.9401 to 0.8345 idle and 2.1624 to 1.6190 walking with no idle or walk row worse, and 14.1761 to 13.9362 on the armour sweep; the largest gains are the baby drowned still 0.9674 to 0.0193, the giant in iron 0.6855 to 0.0055, the baby husk walk 0.0923 to 0.0047 and the sheep walk 0.0869 to 0.0201. Two rows grow, each traced to a corner sitting on a 1/512 snap midpoint, which now tilts the depth plane as it already moved coverage: the charged creeper still 1.1823 to 1.7686 (its swirl's doubling, while its wrong pixels fall 1327 to 835) and the zombie villager in iron 0.0002 to 0.1112. The two leather glint diagnostics rise by under 0.01. pin.player-crc's armoured iso body moves 0xF82EAD8A to 0x1AC298B3, and the armour sweep's raw renders, the player sheets and the zombie's projection sheets move with the same depth reads; the block, item, menu, fluid and portal artifacts hold.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
       "entities": 406,
       "glint": 330,
-      "idle": 2059,
+      "idle": 2547,
       "items": 479,
       "menus": 10,
       "players": 2,
-      "walk": 3739
+      "walk": 4896
     },
     "root": "cache/visual/player-render",
-    "timestamp": "2026-10-23T03:31:27Z",
+    "timestamp": "2026-10-23T13:31:04Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 8720
+    "wall_time_ms": 7555
   }
 }

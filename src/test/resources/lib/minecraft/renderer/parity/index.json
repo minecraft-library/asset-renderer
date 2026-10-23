@@ -58,9 +58,9 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "last_duration_ms": 28454,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "98f05c184f55267459017365b2b95529fabb6468187d9ac4e1ce8de406fa8b8f"
+      "last_duration_ms": 8087,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "4f77a6907804c325e76d9035150547f0c43ff8d9a69ff5730eceb4d325bd939d"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 8720,
-      "promoted_at": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
-      "sha256": "8116ca070fd0452f7c53f3005814d389af8da83497cb653163e6d16adca049d3"
+      "last_duration_ms": 7555,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "b9fab8a44303b3e2f3ad3bc3d67f5f2868f061ad0ddb8d7e1eeaf77380514b36"
     },
     "manifest.portal": {
       "baselined": true,
@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 37369,
-      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
-      "sha256": "b91be5fb7a690ff90254d6c310aa57ca21e9cbb76c877311fe8b23d6a3180573"
+      "last_duration_ms": 33333,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "bc4644889aa7c2c3f64f743dbb082f3f6b471cf32dab8658332c3114d594d27c"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -159,8 +159,8 @@
       "file": "pins/player-crc.json",
       "kind": "pin-set",
       "last_duration_ms": 19235,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "5af1d7b10f38e621ffd51b608c258cbfea305fe5cd918cba688dabd275312156"
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "44b087f432f0df2ab61686f7ecf058ff1d1a87b8fa5024e7f7fb7efb6da52200"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -200,10 +200,10 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 15169,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "925216560b6ab5cb991ed9b7ea9181edcc4fc9dfab7b157e90815ee100481c60",
-      "sum": "17.9822"
+      "last_duration_ms": 4702,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "afa3d0691e50bdecf922a9e12ab19b46ad155a03302e4374d62ce1aab53f8565",
+      "sum": "17.7423"
     },
     "sweep.block": {
       "baselined": true,
@@ -222,10 +222,10 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 12580,
-      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
-      "sha256": "72c3a90719cb33f039eb429ec014bdc2764fcffd272446448d80b4ac4f6e18d1",
-      "sum": "15.8703"
+      "last_duration_ms": 12178,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "feafc5bb1cb688bc1a1bbc3f3911f5a8af6c2bc86affc4609e07a642e6f963f9",
+      "sum": "11.0910"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 25770,
-      "promoted_at": "6e5de7f5099416cbd2ab266205407e699e117927",
-      "sha256": "166bf0019caab098626731cf62fd3a7f4c4560b9ab7580ab1c75aa0818280233",
-      "sum": "1.9535"
+      "last_duration_ms": 25454,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "4f0f1cd8d9bf3c04c76d628fa8331231423d78a2e903892a5df459f30b2c15ad",
+      "sum": "1.8479"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 134,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 46927,
-      "promoted_at": "6e5de7f5099416cbd2ab266205407e699e117927",
-      "sha256": "fef845f68eae5d3c521d833deeed39f8b000055be4794a841498f760fa5cf7e9",
-      "sum": "2.4426"
+      "last_duration_ms": 39470,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "5433c98da3461327b9c48f24006af9d1ef40bacc7bdf5d55f1663f5e4b60ef72",
+      "sum": "1.8992"
     },
     "sweep.glint": {
       "baselined": true,
@@ -255,10 +255,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 22310,
-      "promoted_at": "181f4ab9b8180f98fafc72869bb9232a390fb1cc",
-      "sha256": "5f01e8f156568235b7d71c2f54d9c2cc09acd4d18a4f264fde8bc0432fdb84fb",
-      "sum": "527.7254"
+      "last_duration_ms": 19196,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "49dc594c583779cf67bd1f7312ab19b9e693118a4920dc47ae41cd5d47a4a062",
+      "sum": "527.7353"
     },
     "sweep.item": {
       "baselined": true,

@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.armor",
-    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
+    "asset_content_digest": "014f16cd342ccef8b4b5d628309f06e8a97f27c0ee657795de516e0658077e9f",
     "asset_dirty": true,
-    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+    "asset_sha": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
     "counts": {
       "failed": 0,
       "rows": 7
@@ -18,25 +18,28 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "armorParityVanilla",
-    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
+    "reason": "The depth plane is solved from the corners coverage and texture coordinates read after the 1/256 snap, where it read the unsnapped corners, so a sample between the snapped and unsnapped edge of two faces no longer reads both planes extrapolated - the GPU interpolates depth over the snapped window positions. Measured against vanilla, the moved rows' summed mean delta falls 7.9051 to 3.1258 on the still sweep (75 better, 3 worse), 0.9401 to 0.8345 idle and 2.1624 to 1.6190 walking with no idle or walk row worse, and 14.1761 to 13.9362 on the armour sweep; the largest gains are the baby drowned still 0.9674 to 0.0193, the giant in iron 0.6855 to 0.0055, the baby husk walk 0.0923 to 0.0047 and the sheep walk 0.0869 to 0.0201. Two rows grow, each traced to a corner sitting on a 1/512 snap midpoint, which now tilts the depth plane as it already moved coverage: the charged creeper still 1.1823 to 1.7686 (its swirl's doubling, while its wrong pixels fall 1327 to 835) and the zombie villager in iron 0.0002 to 0.1112. The two leather glint diagnostics rise by under 0.01. pin.player-crc's armoured iso body moves 0xF82EAD8A to 0x1AC298B3, and the armour sweep's raw renders, the player sheets and the zombie's projection sheets move with the same depth reads; the block, item, menu, fluid and portal artifacts hold.",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
-      "entities": 402,
+      "blocks": 1096,
+      "entities": 406,
       "glint": 330,
+      "idle": 2547,
       "items": 479,
-      "players": 2
+      "menus": 10,
+      "players": 2,
+      "walk": 4896
     },
-    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
-    "timestamp": "2026-08-30T20:31:23Z",
+    "reference_manifest_digest": "3d2144bd3ca7c5ddb6a94fdb77cdfd93b4dfd74db92db958b3f93d1ad5890740",
+    "timestamp": "2026-10-23T13:31:07Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 15169
+    "wall_time_ms": 4702
   },
   "rows": [
     {
-      "differing_pixels": "6622",
+      "differing_pixels": "6407",
       "java_coverage": "0.2983",
-      "mean_argb_delta": "2.4764",
+      "mean_argb_delta": "2.4531",
       "status": "ok",
       "subject": "minecraft__piglin_iron",
       "vanilla_coverage": "0.2986"
@@ -58,33 +61,33 @@
       "vanilla_coverage": "0.4322"
     },
     {
-      "differing_pixels": "5776",
+      "differing_pixels": "5296",
       "java_coverage": "0.2970",
-      "mean_argb_delta": "2.4151",
+      "mean_argb_delta": "2.2652",
       "status": "ok",
       "subject": "minecraft__zombie_iron",
       "vanilla_coverage": "0.2996"
     },
     {
-      "differing_pixels": "6882",
+      "differing_pixels": "6938",
       "java_coverage": "0.3907",
-      "mean_argb_delta": "3.1150",
+      "mean_argb_delta": "3.1182",
       "status": "ok",
       "subject": "minecraft__zombie_iron_baby",
       "vanilla_coverage": "0.3948"
     },
     {
-      "differing_pixels": "27925",
+      "differing_pixels": "27558",
       "java_coverage": "0.2990",
-      "mean_argb_delta": "2.4943",
+      "mean_argb_delta": "2.4236",
       "status": "ok",
       "subject": "minecraft__zombie_leather-dyeb04030",
       "vanilla_coverage": "0.3016"
     },
     {
-      "differing_pixels": "36181",
+      "differing_pixels": "36224",
       "java_coverage": "0.3907",
-      "mean_argb_delta": "3.6753",
+      "mean_argb_delta": "3.6761",
       "status": "ok",
       "subject": "minecraft__zombie_leather-dyeb04030_baby",
       "vanilla_coverage": "0.3948"
@@ -101,6 +104,6 @@
     },
     "failed": 0,
     "rows": 7,
-    "sum": "17.9822"
+    "sum": "17.7423"
   }
 }
