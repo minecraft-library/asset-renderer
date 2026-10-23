@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 11283,
-      "promoted_at": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
-      "sha256": "719ad1ea9bf9cb898af64d19958f516050e9dc741b21db87e92e04e15062e21b"
+      "last_duration_ms": 8720,
+      "promoted_at": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
+      "sha256": "8116ca070fd0452f7c53f3005814d389af8da83497cb653163e6d16adca049d3"
     },
     "manifest.portal": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 21332,
-      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
-      "sha256": "1ccb1b68066f2c9e3f66e31e632376a1461c92e002ea980db4b4b439ac4a0def",
-      "sum": "2.1441"
+      "last_duration_ms": 33900,
+      "promoted_at": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
+      "sha256": "102f650a33442cf8e68ead70efe11748847c516c037a59d7fcfb0d89fc4bb774",
+      "sum": "2.0458"
     },
     "sweep.entity-walk": {
       "baselined": true,

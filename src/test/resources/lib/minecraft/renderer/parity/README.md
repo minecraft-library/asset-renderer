@@ -22,7 +22,7 @@ Values this store holds, one file each.
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `f30ef46e881fe4a626ea7606eae6d0191152ca32` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 8131 | 8131 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
@@ -39,7 +39,7 @@ Values this store holds, one file each.
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.block` | `sweeps/block.json` | 1063 | sum 7.6024 | `addedec7a23b08d02a4f18bc83d435010e342988` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 16.1129 | `5d6a57b11dd0f6277066dc6e9065c6c627b5b120` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 2.1441 | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 2.0458 | `f30ef46e881fe4a626ea7606eae6d0191152ca32` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 2.4877 | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7254 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |

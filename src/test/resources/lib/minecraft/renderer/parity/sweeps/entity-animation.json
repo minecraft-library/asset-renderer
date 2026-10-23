@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "10eec924320ea2ea3e6ae120bc34888d9476a94c3ec61379708fed2644dbcb8f",
-    "asset_dirty": false,
-    "asset_sha": "ac143fe237b7f844043f13645f27a06ccde5c735",
+    "asset_content_digest": "1f954dda037a07d5165cc56f52a5cb16a53aa91d4c366ede8d8ea4265047c76e",
+    "asset_dirty": true,
+    "asset_sha": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
     "counts": {
       "failed": 0,
       "rows": 134
@@ -16,11 +16,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "entityAnimationParityVanilla",
-    "reason": "Every posed stem now walks at its subject's vanilla wandering pace and steps by the strip derived for its row, both sides from the one schedule roster; the entity tables gain the paces, ceilings, vanilla's clocks (guardian tail and spikes, squid stroke, dragon wing beat, shulker peek, axolotl factors, warden heart), the warden's clock-following opacity, the standing parrot, the trader's baby and the carried-block and offered-flower arms. Three populations moved by design: manifest.references, whose moved, added and dropped paths all lie under idle/ and walk/ (134 stems in each, the enderman's and iron golem's carried trait stems among them, every stem's frame count equal to its schedule sidecar) while every path outside them held - B61's probe, run as this capture's one boot; and sweep.entity-animation and sweep.entity-walk, every row's frames equal to the strip golden (268 rows) plus the two trait rows. Determinism: two scratch captures from fresh client boots moved 0 rows of the references or either sweep. The store described the effort's base: a whole-bundle capture there held every artifact. digest.shipped-tables and manifest.tooling-tables move on the three entity tables and the entityModels log alone; both dumps move on entities.json alone, at the guardian and elder guardian poses, the parrot's standing rest, the trader's baby axes and the warden's two added passes, its base dump re-rendered equal to the stored digest. Every mean delta to vanilla sits under 0.15 and most walks close sharply (creeper 0.4914 to 0.0209, baby goat 0.2764 to 0.0153, cow 0.1770 to 0.0287, zoglin 0.1496 to 0.0063). Rows that grew are measured, not new defects: the elder guardian's idle 0.0111 to 0.1142 is the rasterizer giving an exact-tie horizontal shared edge to the face below where the GPU gives it to the face above, exposed by its spikes standing out (a one-line probe of the edge rule gives 0.0159 and moves no other row); the adult axolotl's idle, the sheep's and the llamas' walks are the one-step shade floor and a shared-plane leg tie, now drawn in more frames. The carried trait rows before the arm fix against now: enderman idle 163.3147 to 0.0066, walk 158.0949 to 0.0055; iron golem idle 118.9529 to 0.0529, walk 95.0336 to 0.0299.",
+    "reason": "A pixel centre exactly on a horizontal shared edge goes to the face above it in image space, as the GPU applies its top-left rule in its own y-up window frame, where the face below took it. The elder guardian's idle strip loses the one-pixel crack its extended spikes showed - the edge between each spike's upper and lower faces lands exactly on row 393's centres after the corner snap, where the lower face's boundary texel is transparent - and its mean delta to vanilla goes 0.1142 to 0.0159 (worst 0.1486 to 0.0492); no other sweep row moves. The player sheet's one-point projection loses one row of 246 pixels along a shape's top edge, which lies exactly on row 5's pixel centres: with no face above that edge, the GPU's rule leaves the row unfilled, and the composite projections sheet carries the same row; nothing else in the planned bundle moves.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -33,9 +31,9 @@
       "walk": 3739
     },
     "reference_manifest_digest": "cad73d668d3a7eb6d338189731f37a6ffa022298ee9721e9d67138e1ad60a9f2",
-    "timestamp": "2026-10-22T22:52:14Z",
+    "timestamp": "2026-10-23T03:31:49Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 21332
+    "wall_time_ms": 33900
   },
   "rows": [
     {
@@ -455,16 +453,16 @@
       "worst_frame": "17"
     },
     {
-      "frame_spread": "0.0419",
+      "frame_spread": "0.0393",
       "frames": "17",
       "java_h": "726",
       "java_w": "1024",
-      "mean_argb_delta": "0.1142",
+      "mean_argb_delta": "0.0159",
       "status": "ok",
       "subject": "minecraft__elder_guardian",
       "vanilla_h": "726",
       "vanilla_w": "1024",
-      "worst_delta": "0.1486",
+      "worst_delta": "0.0492",
       "worst_frame": "6"
     },
     {
@@ -1792,6 +1790,6 @@
     },
     "failed": 0,
     "rows": 134,
-    "sum": "2.1441"
+    "sum": "2.0458"
   }
 }
