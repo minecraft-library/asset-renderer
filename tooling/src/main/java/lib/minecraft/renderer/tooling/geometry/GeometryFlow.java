@@ -104,9 +104,29 @@ public final class GeometryFlow {
             if (GeometryCullResolver.usesCullRenderType(run.cache(), request.factoryClass()))
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));
+            node.putIf(PartTree.MEMBER, parsed.find(PartTree.MEMBER));
             entries.put(key, node);
         }
         return entries;
+    }
+
+    /**
+     * Stops the flow on an entry whose part tree the walk could not replay, before anything is written.
+     *
+     * <p>The bones are put in vanilla's draw order at the write, after every derivation; checking here
+     * as well means a factory the replay does not follow stops the run ahead of the tables written
+     * before the geometry, rather than after them. So does a JDK whose {@code HashMap} sizes a copy unlike
+     * the one vanilla runs on, the replay reading every copy off this JVM's own map.
+     *
+     * @param entries the parsed entries
+     * @throws ToolingException if an entry's part tree is refused, or the JDK sizes a copy unlike
+     *     vanilla's
+     */
+    public static void requireBakeOrder(@NotNull Map<String, JsonTree> entries) {
+        PartTree.requireVanillaCopySizing(Runtime.version().feature());
+        entries.forEach((key, entry) -> PartTree.of(entry).refusal().ifPresent(reason -> {
+            throw new ToolingException("Geometry '%s' has no vanilla draw order to be written in: %s", key, reason);
+        }));
     }
 
     /**
@@ -162,20 +182,70 @@ public final class GeometryFlow {
      * Writes the parsed entries as the geometry file, logging it by file name alone so the
      * diagnostics log reads the same from any checkout and under any output root.
      *
+     * <p>Each entry's bones are written in the order the table's reader draws them in and its part
+     * tree is taken off, being the generation's own record rather than anything a reader reads.
+     *
      * @param run the live run
      * @param entries the entry per minted key, in registration order
      * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
+     * @param order the order each mesh's bones are written in
+     * @throws ToolingException if the order is {@link BoneOrder#BAKED} and the JDK sizes a copy unlike
+     *     vanilla's, or an entry's part tree is refused or holds no part of a bone the entry carries
      */
     public static void write(
-        @NotNull ToolingRun run, @NotNull Map<String, JsonTree> entries, @NotNull Path out) {
+        @NotNull ToolingRun run, @NotNull Map<String, JsonTree> entries, @NotNull Path out,
+        @NotNull BoneOrder order) {
 
         JsonTree root = TableEnvelope.mint(run.diagnostics().path(),
             "GeometryManifest registration order (walk order; append-last as a data-structure property)",
             run.options().getVersion());
         JsonTree geometries = root.child("geometries");
-        entries.forEach(geometries::put);
+        if (order == BoneOrder.BAKED) PartTree.requireVanillaCopySizing(Runtime.version().feature());
+        entries.forEach((key, entry) -> {
+            if (order == BoneOrder.BAKED) bakeOrder(key, entry);
+            entry.remove(PartTree.MEMBER);
+            geometries.put(key, entry);
+        });
         root.write(out);
         run.diagnostics().child("geometry").info("wrote %s", out.getFileName());
+    }
+
+    /**
+     * Puts one entry's bones in the order vanilla's baked model draws them, which its part tree
+     * answers over every part vanilla holds - a bone the parser or the marking dropped is simply not
+     * there to place.
+     */
+    private static void bakeOrder(@NotNull String key, @NotNull JsonTree entry) {
+        PartTree tree = PartTree.of(entry);
+        tree.refusal().ifPresent(reason -> {
+            throw new ToolingException("Geometry '%s' has no vanilla draw order to be written in: %s", key, reason);
+        });
+        JsonTree bones = entry.find("bones").orElse(null);
+        if (bones == null) return;
+
+        JsonTree ordered = JsonTree.object();
+        for (String name : tree.order())
+            bones.find(name).ifPresent(bone -> ordered.put(name, bone));
+        List<String> unplaced = bones.keys()
+            .filter(name -> !ordered.has(name))
+            .toList();
+        if (!unplaced.isEmpty())
+            throw new ToolingException("Geometry '%s' carries bones its part tree holds no part of: '%s'", key, unplaced);
+        entry.put("bones", ordered);
+    }
+
+    /**
+     * The order a written geometry table holds each mesh's bones in, which is the order its reader
+     * draws them in and so the priority of a coplanar tie.
+     */
+    public enum BoneOrder {
+
+        /** The order the factory's {@code addOrReplaceChild} calls first named each part. */
+        DECLARED,
+
+        /** The order vanilla's baked model draws the parts in, replayed by the part tree. */
+        BAKED
+
     }
 
     /**

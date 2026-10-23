@@ -175,7 +175,14 @@ public final class EntityMeshOverlays {
     private static void materialise(@NotNull JsonTree mesh, @NotNull Surgery surgery) {
         JsonTree bones = mesh.find("bones").orElse(null);
         if (bones == null) return;
-        if (!surgery.retain().isEmpty()) retain(bones, surgery.retain());
+        if (!surgery.retain().isEmpty()) {
+            retain(bones, surgery.retain());
+            // Vanilla's subset replaces every part it empties, and a replaced part's children are a
+            // copy - which the draw order of the parts it keeps follows.
+            PartTree parts = PartTree.of(mesh);
+            parts.retainExactParts(new LinkedHashSet<>(surgery.retain()));
+            parts.writeTo(mesh);
+        }
         if (surgery.inflate() != 0f) inflate(bones, surgery.inflate());
     }
 
@@ -265,7 +272,8 @@ public final class EntityMeshOverlays {
     /**
      * Empties the cubes of one bone and of every descendant - vanilla's
      * {@code clearChild(name).clearRecursively()}. Every bone keeps its pivot, rotations, scale and
-     * parent, so the chain is untouched and a bone with no cubes simply draws nothing.
+     * parent, so the chain is untouched and a bone with no cubes simply draws nothing. The part tree
+     * replays the same call, which replaces every emptied part and so copies each level below it.
      */
     private static void clearSubtree(@NotNull JsonTree mesh, @NotNull String root) {
         JsonTree bones = mesh.find("bones").orElse(null);
@@ -276,6 +284,9 @@ public final class EntityMeshOverlays {
             if (bone == null) continue;
             if (root.equals(name) || hasNamedAncestor(bones, bone, named)) bone.remove("cubes");
         }
+        PartTree parts = PartTree.of(mesh);
+        parts.clearSubtree(root);
+        parts.writeTo(mesh);
     }
 
     /** Whether any proper ancestor of one bone is named. */

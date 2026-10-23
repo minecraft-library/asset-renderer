@@ -42,6 +42,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>So that half reports rather than merges. A duplicate across the two tables is not on its own an
  * error - the copper golem is a real subject that a block render and an entity render both need - and
  * what earns the digest its place is naming the NEXT one rather than fixing this one.
+ *
+ * <p>The two tables do not write a mesh's bones in one order. The entity table holds vanilla's bake
+ * order and the block-entity table its factory's declaration order, the rule `RENDERER-RULES.md` states
+ * under "Depth: the contract", so a mesh both flows bake carries one bone set in two orders. That is a
+ * verdict of its own here, and a difference in what the bones hold still reads as two payloads.
  */
 @DisplayName("each geometry table names a mesh once, and the coordinates both flows bake are the ones already known")
 class CrossFlowGeometryTest {
@@ -57,6 +62,8 @@ class CrossFlowGeometryTest {
     void crossFlowDuplicatesAreKnown() {
         Map<String, String> entity = payloadDigests("entity_geometry.json");
         Map<String, String> block = payloadDigests("block_geometry.json");
+        Map<String, String> entityBones = boneSetDigests("entity_geometry.json");
+        Map<String, String> blockBones = boneSetDigests("block_geometry.json");
 
         Map<String, String> shared = new TreeMap<>();
         entity.forEach((coordinate, digest) -> {
@@ -64,10 +71,13 @@ class CrossFlowGeometryTest {
             if (other == null) return;
             // The payload rather than the whole entry, so a coordinate both flows bake DIFFERENTLY
             // reads as a disagreement rather than as a duplicate.
-            shared.put(coordinate, digest.equals(other) ? "one payload" : "TWO PAYLOADS");
+            String verdict = digest.equals(other) ? "one payload"
+                : entityBones.get(coordinate).equals(blockBones.get(coordinate)) ? "one bone set, two orders"
+                : "TWO PAYLOADS";
+            shared.put(coordinate, verdict);
         });
 
-        assertEquals(Map.of("CopperGolemModel#createBodyLayer", "one payload"), shared,
+        assertEquals(Map.of("CopperGolemModel#createBodyLayer", "one bone set, two orders"), shared,
             "coordinates both geometry flows bake");
     }
 
@@ -116,6 +126,31 @@ class CrossFlowGeometryTest {
             // The twin restates the key and the key is what this joins on, so digesting it would only
             // make two identical bone sets look different when one of them was reached another way.
             payload.remove("source");
+            out.put(entry.getKey(), sha256(payload.toString()));
+        }
+        return out;
+    }
+
+    /**
+     * Digests each coordinate's payload as {@link #payloadDigests} does, with its bones taken in name
+     * order rather than the table's, so two payloads match when they hold one bone set whatever order
+     * each table writes it in.
+     *
+     * @param table the shipped table's file name
+     * @return each coordinate to its bone-set digest, in table order
+     */
+    private static @NotNull Map<String, String> boneSetDigests(@NotNull String table) {
+        JsonObject geometries = read(table).getAsJsonObject("geometries");
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : geometries.entrySet()) {
+            JsonObject payload = entry.getValue().getAsJsonObject().deepCopy();
+            payload.remove("source");
+            JsonObject bones = payload.getAsJsonObject("bones");
+            if (bones != null) {
+                JsonObject byName = new JsonObject();
+                new TreeMap<>(bones.asMap()).forEach(byName::add);
+                payload.add("bones", byName);
+            }
             out.put(entry.getKey(), sha256(payload.toString()));
         }
         return out;

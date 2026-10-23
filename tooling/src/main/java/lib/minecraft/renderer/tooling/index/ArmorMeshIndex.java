@@ -66,12 +66,12 @@ import java.util.Objects;
  * atlas the unwrap is resolved against. A later {@code map} that wraps rather than creates - the
  * whole-mesh scale below - leaves the size it was already carrying alone.
  *
- * <p><b>The whole-mesh scale is carried, and the mesh stays unscaled.</b> Three sets are registered
- * through {@code ArmorModelSet.map(MeshTransformer.scaling(F))} - giant {@code 6.0}, husk
- * {@code 1.0625}, wither skeleton {@code 1.2} - and the factor rides the wearer's armor row rather
- * than the geometry, so the four sets that share the generic mesh still share one geometry entry.
- * The renderer applies it to the shell alone; the wearer's own body carries the same transformer
- * baked into its geometry, so nothing is applied twice.
+ * <p><b>The whole-mesh scale is carried to the mesh it builds.</b> Three sets are registered through
+ * {@code ArmorModelSet.map(MeshTransformer.scaling(F))} - giant {@code 6.0}, husk {@code 1.0625},
+ * wither skeleton {@code 1.2} - and the scaling rebuilds each slot mesh's root with a copy of its
+ * children, which draws the parts in an order of their own as well as at another size. So a scaled
+ * set's shell is registered under its factor, {@code @scaled=F} as a body's scaled mesh is, beside the
+ * generic mesh the unscaled wearers share.
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ArmorMeshIndex {

@@ -421,15 +421,12 @@ public record EntityModelsTable(
      *
      * @param geometry the shell's geometry coordinate
      * @param grow the armor set's two layer deformations
-     * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
-     *     identity - the eleven wearers vanilla registers unscaled
      * @param alternate the shell this wearer's other form is dressed in, or {@code null} when vanilla
      *     hands its armor layer one shell twice
      */
     public record RawArmor(
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @Nullable RawArmorAlternate alternate
     ) {}
 
@@ -480,7 +477,7 @@ public record EntityModelsTable(
 
     /**
      * The armor row's {@code alternate} node - the second shell vanilla hands this wearer's armor layer,
-     * carrying the same three members the first writes into the row's {@code overlay} body plus the
+     * carrying the same two members the first writes into the row's {@code overlay} body plus the
      * selection that reaches it and which of the two shells it is.
      *
      * <p>Both extras are carried rather than assumed. Vanilla reaches every second set through one flag,
@@ -491,14 +488,12 @@ public record EntityModelsTable(
      * @param when the appearance selection that swaps to this shell
      * @param geometry the shell's geometry coordinate
      * @param grow the set's two layer deformations
-     * @param scaled the whole-mesh scale the set is registered through, or {@code null} at the identity
      * @param form which of vanilla's two shells this is ({@code adult} / {@code baby})
      */
     public record RawArmorAlternate(
         @Nullable RawLayerWhen when,
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @Nullable String form
     ) {}
 

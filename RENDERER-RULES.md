@@ -487,10 +487,30 @@ entry rather than the entity's.
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair ties only where its two triangles solve one plane - they share their corners, as an
   overlay emitted over its base's geometry does, or their snaps happen to tilt them alike. A tie is
-  last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion order is the tied-depth
-  priority - do not swap it for a hash map. Measured at both seams that carry one: over the fleet the
-  base mesh reordered that way reads `21.4733` against `20.9361`, and a worn shell reordered at
-  `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+  last-drawn-wins, as `GL_LEQUAL` is, so the draw order is the tied-depth priority, and an entity
+  mesh's draw order is vanilla's bake order. `PartDefinition.children` is a `java.util.HashMap`;
+  `bake` collects its entries into an `Object2ObjectArrayMap` in the order the map iterates them, and
+  `ModelPart.render` draws a part's own cubes and then its children in that order, depth first - one
+  map per parent.
+  - A level iterates its names in `put` order bucketed by the table, except where vanilla filled it
+    with a `putAll` copy: a whole-mesh scaling copies the root, a replaced part copies its old children
+    into the new one, and every retain and clear surgery replaces each part it empties. On the JDK 19
+    and later vanilla runs on, a copy of `n` names is sized `tableSizeFor(ceil(n / 0.75))` first - two
+    to eight slots for one to six names, where a level built by `put` holds sixteen - so it iterates in
+    a different order from the map it copied.
+  - The tooling replays every such call a factory makes on `java.util.HashMap`s of its own, over
+    vanilla's full key set before any part is dropped, and writes `entity_geometry.json`'s bones in the
+    resulting order. The renderer holds no hash map: `EntityMesh.getBones()` is the priority at both of
+    `EntityGeometryKit`'s bone loops, the full build and the replay alike, and at `ShellIndex.of`, so a
+    mesh is drawn in the order it is read. How the replay runs is in [tooling/CLAUDE.md].
+  - The three armour sets vanilla registers through a whole-mesh scaling - giant, husk and wither
+    skeleton - are meshes of their own in the table, written in the order the scaling's copy of the root
+    iterates: those three draw `body` between the arms and between the legs, where the unscaled sets
+    draw it last.
+  - A block-entity mesh keeps its factory's declaration order: `block_geometry.json` is written in
+    `addOrReplaceChild` order and `BlockGeometryKit.buildFromBones` draws it as given. Vanilla bakes a
+    block entity's parts the same way, but no block-entity render has been measured under the bake
+    order, so the table keeps the order its renders are measured in.
 - **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
   own, so two calls over one buffer paint the second over the first wherever it covers. A picture
   made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
@@ -546,10 +566,12 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 
 - Being armoured is carrying a resolved shell: one `Optional<Shell>` with no classification flag, so
   a failed mesh walk fails loudly rather than falling back.
-- The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
-  the row, and `ShellIndex.of` sums a cube's deformation with the row's when the walk is resolved, in
-  the parser's operand order. `Shell.meshOffset()` derives the feet anchor as
-  `24.016f * (1f - meshScale)`.
+- The mesh is registered ungrown; both layer deformations ride the row, and `ShellIndex.of` sums a
+  cube's deformation with the row's when the walk is resolved, in the parser's operand order. A set
+  vanilla registers through a whole-mesh scaling - giant, husk, wither skeleton - names a mesh of its
+  own, `HumanoidModel#createBaseArmorMesh@scaled=<f>`, whose bones carry the factor and the feet anchor
+  as a scaled body's do and are held in the order the scaling's copy iterates the root (Depth: the
+  contract).
 - `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
   subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
   meshes the wearer names, and an armour row names none of them.
@@ -831,8 +853,8 @@ disagree.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
   posed *definition* goes into `FeatureContext`, so a feature reading `ctx.definition()` gets posed
   passes without a gate of its own, and the collar redraws the posed body.
-- The rebuild preserves the mesh's **own bone order**, that order being the tied-depth priority. A
-  `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
+- The rebuild preserves the mesh's **own bone order**, which is vanilla's bake order and the tied-depth
+  priority. A `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
 - Composition is channel-wise on the Euler triplet `BoneKit.applyBoneRotation` feeds to
   `Quaternionf.rotationZYX`. **Do not pre-compose a rotation as a matrix** - it reaches that call
   through different arithmetic and parts from the authored pose at a delta of zero.
@@ -1386,22 +1408,14 @@ Renderer-wide:
   only play-dead appearance an adult has and the baby row drives a field the adult mesh never reads.
   The two sharing one id is deliberate and is one entry of `StyleRoster`'s id-override table, not a
   vanilla fact - the derivation would otherwise spell the adult row `playing_dead`.
-- **Do not swap the two legs in a shell's walk on the strength of the humanoid rows.** A worn shell
-  inflates both leg boxes until they intersect, and their south faces are coplanar to the bit - both
-  read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellIndex.of`'s bone
-  order settles. Ours draws `left_leg` last; every plausible bone key set puts `left_leg` in a lower
-  `HashMap` bucket than `right_leg`, so vanilla's bake draws `right_leg` last, and the swap is worth
-  `skeleton~armor=iron` `0.2046 -> 0.0269`, 818 differing pixels to 73. It is not applied because the
-  same swap costs six other wearers about as much as it wins the eight - `piglin`, `piglin_brute`,
-  `zombified_piglin` and `zombie_villager` each `+0.21`, `wither_skeleton` `+0.19`, `giant` `+0.16`,
-  for a fleet of `20.7366` against `20.9361`. The losers carry a large unrelated defect already
-  (`wither_skeleton` spreads 2104 tail pixels over its whole silhouette where `skeleton` has 615 in
-  two bands), so what the swap interacts with there is not the leg tie and is not understood. A
-  constant that helps eight rows and hurts six is a fitted constant.
-- Do not reorder a shell's bones into vanilla's whole bake order either: `body`'s bucket moves with
-  the key set, and the tooling records declaration order rather than the pre-drop key set vanilla
-  hashed, so `body` lands last on the seven names we ship and that is much worse - `skeleton~armor=iron`
-  `0.6577`. The leg pair is the one relative order that is stable across every key set tried.
+- **Do not swap or move one bone of a worn shell's walk on its own.** The walk is vanilla's draw
+  order, not a choice of the renderer's: the base mesh's bake order, which draws `right_leg` after
+  `left_leg`, and for a scaled set the order of its own mesh, whose copied root puts `body` between the
+  arms and between the legs. Under the snapped depth plane the two shell legs' `south` faces are
+  separated by their own corners' snap rather than tied, so a reorder reaches only the exact ties left,
+  where vanilla's order is vanilla's answer by construction. A tie the renderer still loses is not an
+  order it chose, and a constant moving one bone to win it back is a fitted constant; the corner snap
+  the renderer does not reproduce is in [TEXEL-RULES.md].
 - Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
   `EulerRotationAdapter`, `TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - or
   `CubeGrowFactory` a declaration that plans the renders their decoded values feed. The contributor
@@ -1433,8 +1447,8 @@ Renderer-wide:
   degrees, where vanilla's `ModelPart` holds the float radian, so a radian no float degree converts
   back to is one ULP off - three rest values at 26.1, the wither's tail and the adult armadillo's
   ear cubes. `BoneRestRadianTest` in the tooling suite pins that set against the client jar, so a
-  bump that moves it fails there. The measurement under the bullet above covers both the rest and the posed half and
-  moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
+  bump that moves it fails there. The measurement under the bullet above covers both the rest and the
+  posed half and moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
   retype every reader of a bone's rotation, the generator, the table and the pipeline dump.
 
 Geometry:
@@ -1446,9 +1460,9 @@ Geometry:
 
 Depth:
 
-- Do not reorder bones to chase a tied-depth seam - bone order is the tooling's `addOrReplaceChild`
-  order, not vanilla's `PartDefinition.children` bake order, and reproducing it was priced and
-  refused.
+- Do not reorder bones to chase a tied-depth seam. An entity mesh's bone order is vanilla's
+  `PartDefinition.children` bake order, replayed by the tooling over vanilla's own map calls, so a seam
+  it leaves is not an order the renderer chose, and moving a bone to win it there is a fitted constant.
 - Do not add a depth tolerance - a depth buffer stores a quantised value and compares it exactly, so
   slack is a fitted constant.
 - Do not replace the per-triangle depth plane with per-pixel barycentrics under an orthographic lens.

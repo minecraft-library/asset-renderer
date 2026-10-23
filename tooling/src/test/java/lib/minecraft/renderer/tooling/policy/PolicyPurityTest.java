@@ -156,7 +156,6 @@ class PolicyPurityTest {
         row("EntityNamingPolicies", "DATA_VARIANT_SUFFIXES", Navigation.Value.class),
         row("EntityNamingPolicies", "SUFFIX_MIN_RECURRENCE", Navigation.Value.class),
         row("EntityNamingPolicies", "LEFT_RIGHT_STEMS", Navigation.Value.class),
-        row("EntityOverlayPolicies", "FULL_MESH_REUSE_ALPHA_EPSILON", Navigation.Value.class),
         row("EntityOverlayPolicies", "DECOR_SKIP_BOUNDS", Navigation.Value.class),
         row("EntityOverlayPolicies", "FROZEN_FRAME", Navigation.Value.class),
         row("EntityOverlayPolicies", "PRESENCE_GATE_FIXED_WHEN_GUARDED", Navigation.Value.class),

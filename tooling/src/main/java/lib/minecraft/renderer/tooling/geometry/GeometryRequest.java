@@ -235,7 +235,7 @@ public record GeometryRequest(
     /**
      * A worn-armor shell request: an {@link #overlay} that is never grown - the shell's two
      * deformations ride the wearer's row, not the mesh - carrying the pose binding a baby shell's
-     * factory seats its arms through.
+     * factory seats its arms through and the whole-mesh scale the set is registered through.
      *
      * @param factoryClass the factory class's internal name
      * @param factoryMethod the factory method
@@ -243,6 +243,7 @@ public record GeometryRequest(
      * @param texWidthOverride the texture-width override, or {@code null}
      * @param texHeightOverride the texture-height override, or {@code null}
      * @param poseParam the bound pose parameter, or {@code null} when the factory takes none
+     * @param appliedMeshTransformerScale the set's whole-mesh scale ({@code 1f} = none)
      * @return the request
      */
     public static @NotNull GeometryRequest armor(
@@ -251,10 +252,12 @@ public record GeometryRequest(
         @NotNull String subjectId,
         @Nullable Integer texWidthOverride,
         @Nullable Integer texHeightOverride,
-        @Nullable PoseParam poseParam
+        @Nullable PoseParam poseParam,
+        float appliedMeshTransformerScale
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
-            texWidthOverride, texHeightOverride, null, new float[8], NO_GROW, 1f, null, poseParam, null);
+            texWidthOverride, texHeightOverride, null, new float[8], NO_GROW, appliedMeshTransformerScale,
+            null, poseParam, null);
     }
 
     /**

@@ -1140,9 +1140,10 @@ public final class EntityOverlayResolver {
      * which ships whatever it answers at the first frame (the anti-phase spots, the heart), and
      * is otherwise evaluated at the frozen frame, a non-positive result dropping the pass (the
      * creaking's glow-gated eyes); the texture provider resolves a static field or a state-driven
-     * dispatch (the weathering axis); the model argument picks same-geometry, full-mesh reuse, or
-     * the retain-subset registration - an opacity never the full-mesh reuse, which is exact only
-     * at full opacity.
+     * dispatch (the weathering axis); the model argument picks same-geometry or the retain-subset
+     * registration, at any alpha - a subset layer drawn at full opacity is still the layer vanilla
+     * registers, with its own cubes and its own copied levels, which is the mesh the warden's
+     * bioluminescent pass draws.
      *
      * @return the emitted rows, or {@code null} when the site is not provider-shaped
      */
@@ -1213,16 +1214,6 @@ public final class EntityOverlayResolver {
                 .putIf("texture_by", texture.textureBy())
                 .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted));
             putOpacity(node, opacity, site);
-            return List.of(node);
-        }
-        if (opacity.isEmpty() && alpha >= EntityOverlayPolicies.FULL_MESH_REUSE_ALPHA_EPSILON.floatValue()) {
-            // Full-opacity glow reuses the FAMILY mesh - exact because the glow texture is
-            // transparent outside its retained parts (a deliberate policy call, not a fallback).
-            node.putIf("geometry", this.geometryRef.primaryKey())
-                .put("texture", texture.path())
-                .putIf("texture_by", texture.textureBy())
-                .putIf("pipeline", pipelineNode(emissive, blend, 1f, writesDepth, sorted))
-                .put("skip_bounds", true);
             return List.of(node);
         }
         LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(modelField);

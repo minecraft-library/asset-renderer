@@ -1678,6 +1678,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/armor/ShellIndexTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/armor/WornBox": {
       "artifacts": [
         "manifest.player-raw",
@@ -6745,6 +6749,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/geometry/MeshDeclarationSite": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/PartTree": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

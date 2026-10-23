@@ -2948,12 +2948,11 @@
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 1,
-        "geometry": "HumanoidModel#createBaseArmorMesh",
+        "geometry": "HumanoidModel#createBaseArmorMesh@scaled=6.0",
         "grow": {
           "inner": 0.5,
           "outer": 1.0
-        },
-        "scaled": 6.0
+        }
       },
       "styles": [
         {
@@ -3496,12 +3495,11 @@
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
-        "geometry": "HumanoidModel#createBaseArmorMesh",
+        "geometry": "HumanoidModel#createBaseArmorMesh@scaled=1.0625",
         "grow": {
           "inner": 0.5,
           "outer": 1.0
         },
-        "scaled": 1.0625,
         "alternate": {
           "when": {
             "age": "baby"
@@ -7031,7 +7029,7 @@
         {
           "source": "LivingEntityEmissiveLayer",
           "layer_index": 0,
-          "geometry": "WardenModel#createBodyLayer",
+          "geometry": "WardenModel#createBioluminescentLayer",
           "texture": "warden/warden_bioluminescent_layer",
           "pipeline": {
             "blend": "translucent",
@@ -7446,12 +7444,11 @@
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
-        "geometry": "HumanoidModel#createBaseArmorMesh",
+        "geometry": "HumanoidModel#createBaseArmorMesh@scaled=1.2",
         "grow": {
           "inner": 0.5,
           "outer": 1.0
-        },
-        "scaled": 1.2
+        }
       },
       "styles": [
         {

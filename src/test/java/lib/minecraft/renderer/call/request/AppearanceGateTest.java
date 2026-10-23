@@ -271,7 +271,7 @@ class AppearanceGateTest {
      * @return the shell
      */
     private static Shell shellOf(ArmorForm form, Optional<Shell.Alternate> alternate) {
-        return new Shell(new EntityMesh(), Vector3f.ZERO, Vector3f.ZERO, 1f, form, alternate);
+        return new Shell(new EntityMesh(), Vector3f.ZERO, Vector3f.ZERO, form, alternate);
     }
 
     /**

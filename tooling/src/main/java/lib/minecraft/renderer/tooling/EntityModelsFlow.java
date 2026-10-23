@@ -68,6 +68,9 @@ public final class EntityModelsFlow {
             // are held until it has been taken, and written once. The pose flow reads them as well,
             // for where a row two ages reach rests its parts on each mesh.
             Map<String, JsonTree> geometries = GeometryFlow.parse(session, manifest);
+            // Every mesh is written in vanilla's draw order, so a factory the part tree cannot replay
+            // stops the run here, ahead of the pose table written below.
+            GeometryFlow.requireBakeOrder(geometries);
             Map<String, Set<String>> rootBones = GeometryFlow.rootBones(manifest, geometries);
             // The classes the renderers pose with, which the geometry manifest does not name: a model
             // reusing its parent's layer bakes no mesh, so nothing would have walked its pose. The
@@ -123,7 +126,8 @@ public final class EntityModelsFlow {
             // it runs after every mesh surgery and ahead of the write.
             StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
                 posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS, paces);
-            GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"));
+            GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"),
+                GeometryFlow.BoneOrder.BAKED);
             TableWriter.write(session, root, "entity_models.json");
             StrictGate.apply(session);
         }

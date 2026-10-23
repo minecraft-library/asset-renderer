@@ -269,33 +269,30 @@ public final class EntityLayersResolver {
             .put("when", JsonTree.object().put(axis, option))
             .put("geometry", registerShell(set))
             .put("grow", growPair(set));
-        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
         return node.put("form", set.babyParts() ? BABY_FORM : ADULT_FORM);
     }
 
     /**
-     * One shell's payload - its registered mesh, the two deformations the armor layers apply to it,
-     * and the whole-mesh scale it is registered through. The adult shell writes this into the armor
-     * node itself and a second shell writes the same shape under {@code alternate}.
+     * One shell's payload - its registered mesh and the two deformations the armor layers apply to it.
+     * The adult shell writes this into the armor node itself and a second shell writes the same shape
+     * under {@code alternate}.
      */
     private @NotNull JsonTree shellNode(@NotNull ArmorMeshIndex.Set set) {
-        JsonTree node = JsonTree.object()
+        return JsonTree.object()
             .put("geometry", registerShell(set))
             .put("grow", growPair(set));
-        // Omitted at the identity, the way every other scale in the tree is - the eleven wearers
-        // vanilla registers unscaled write no key.
-        if (set.meshScale() != 1f) node.put("scaled", set.meshScale());
-        return node;
     }
 
     /**
-     * Registers one shell's mesh and returns its geometry coordinate. The mesh is registered ungrown
-     * and unscaled - both ride the row - but an aged-down whole-mesh transformer is baked, because it
-     * builds different boxes rather than resizing the same ones.
+     * Registers one shell's mesh and returns its geometry coordinate. The mesh is registered ungrown -
+     * both deformations ride the row - but the set's whole-mesh transformers are baked: an aged-down one
+     * builds different boxes rather than resizing the same ones, and a scaling rebuilds the root, so a
+     * scaled set draws its parts in an order of its own and its mesh is a coordinate of its own,
+     * {@code @scaled=} as a body's scaled mesh is.
      */
     private @NotNull String registerShell(@NotNull ArmorMeshIndex.Set set) {
         return this.manifest.register(GeometryRequest.armor(set.meshClass(), set.meshMethod(),
-                this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set))
+                this.entityId, set.textureWidth(), set.textureHeight(), poseParamOf(set), set.meshScale())
             .withBabyTransform(set.babyTransform()));
     }
 

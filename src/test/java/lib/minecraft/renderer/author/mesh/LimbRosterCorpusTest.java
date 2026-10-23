@@ -71,7 +71,9 @@ class LimbRosterCorpusTest {
             .forEach(row -> row.members()
                 .forEach(member -> tally.merge(member.kind(), 1, Integer::sum))));
 
-        assertEquals(358, tally.get(LimbRoster.Kind.ROOT), () -> "leg roots, over " + tally);
+        // The warden's bioluminescent pass draws a mesh of its own, whose two legs are two of these roots,
+        // and the three armour sets vanilla registers through a scaling each draw one, whose legs are six.
+        assertEquals(366, tally.get(LimbRoster.Kind.ROOT), () -> "leg roots, over " + tally);
         assertEquals(7, tally.get(LimbRoster.Kind.FUSED), () -> "fused rows, over " + tally);
         assertEquals(21, tally.get(LimbRoster.Kind.SEGMENT), () -> "segments, over " + tally);
     }
@@ -83,11 +85,11 @@ class LimbRosterCorpusTest {
         rosters().values().forEach(roster -> buckets.merge(roster.rows().size(), 1, Integer::sum));
 
         assertEquals(42, buckets.getOrDefault(0, 0), () -> "legless geometries, over " + buckets);
-        assertEquals(50, buckets.getOrDefault(1, 0), () -> "one-row geometries, over " + buckets);
+        assertEquals(54, buckets.getOrDefault(1, 0), () -> "one-row geometries, over " + buckets);
         assertEquals(58, buckets.getOrDefault(2, 0), () -> "two-row geometries, over " + buckets);
         assertEquals(4, buckets.getOrDefault(3, 0), () -> "three-row geometries, over " + buckets);
         assertEquals(2, buckets.getOrDefault(4, 0), () -> "four-row geometries, over " + buckets);
-        assertEquals(156, buckets.values().stream().mapToInt(Integer::intValue).sum(),
+        assertEquals(160, buckets.values().stream().mapToInt(Integer::intValue).sum(),
             () -> "every geometry answers, over " + buckets);
     }
 

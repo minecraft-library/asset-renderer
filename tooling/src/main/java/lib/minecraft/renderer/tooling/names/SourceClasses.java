@@ -498,9 +498,11 @@ public final class SourceClasses {
         public static final @NotNull String CREATE = "create";
 
         /**
-         * The method name {@code apply}, shared by two readers: {@code LayerDefinition.apply(MeshTransformer)},
-         * the out-of-body scale chain, and {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a
-         * clip only while its state runs. Each site pairs it with the owner it means.
+         * The method name {@code apply}, shared by three readers: {@code LayerDefinition.apply(MeshTransformer)},
+         * the out-of-body scale chain; that call and {@code MeshDefinition.apply(MeshTransformer)} in the
+         * geometry walk, where a captured scaling copies the mesh root; and
+         * {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a clip only while its state runs.
+         * Each site pairs it with the owner it means.
          */
         public static final @NotNull String APPLY = "apply";
 

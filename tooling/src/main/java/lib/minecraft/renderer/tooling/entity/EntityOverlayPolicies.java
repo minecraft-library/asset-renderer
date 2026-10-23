@@ -17,17 +17,6 @@ import java.util.Map;
 enum EntityOverlayPolicies implements NavigationPolicy {
 
     /**
-     * The warden full-mesh-reuse judgment plus its frozen-alpha epsilon: an
-     * emissive-provider layer whose frozen-frame alpha is {@code >= 0.999f} reuses the
-     * FAMILY mesh (no subset, no alpha node) - exact only because the glow texture is
-     * transparent outside its retained parts, a texture-content fact no bytecode walk sees.
-     */
-    FULL_MESH_REUSE_ALPHA_EPSILON(
-        0.999f,
-        "warden bioluminescent full-mesh reuse is exact because the glow texture is transparent outside the"
-            + " retained parts (texture content, not bytecode)"),
-
-    /**
      * The equipment default-decor bounds exclusion: the trader-llama carpet overlay is
      * excluded from the canvas-fit silhouette, mirroring the vanilla-reference-harness's
      * {@code NO_RENDER_LAYER_SUFFIXES} treatment of {@code LlamaDecorLayer}.

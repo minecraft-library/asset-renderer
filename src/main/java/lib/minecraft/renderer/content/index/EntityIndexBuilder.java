@@ -979,11 +979,10 @@ public final class EntityIndexBuilder {
 
     /**
      * Returns the worn-armor shell the family's armor row is dressed in - the row's mesh joined against
-     * the geometry table, the two layer deformations, and the whole-mesh scale the set is registered
-     * through. Empty when the family carries no armor row, which wears none; absent when the row's
-     * shell does not resolve - its mesh or deformations are missing, or its alternate is unreadable -
-     * which warns and drops the wearer rather than dressing it in a guess. An absent {@code scaled} is
-     * the identity, which is what the eleven wearers vanilla registers unscaled omit.
+     * the geometry table and the two layer deformations. Empty when the family carries no armor row,
+     * which wears none; absent when the row's shell does not resolve - its mesh or deformations are
+     * missing, or its alternate is unreadable - which warns and drops the wearer rather than dressing it
+     * in a guess.
      *
      * <p>The mesh arrives as the shell's own - what a wearer rests without, the subset a pass of its is
      * restricted to and the deformation one surrounds it with are derived onto meshes the wearer names,
@@ -1008,8 +1007,8 @@ public final class EntityIndexBuilder {
             alternate = alternateShellOf(raw, geometries, entityId);
             if (alternate.isEmpty()) return Possible.absent();
         }
-        return Possible.ofOptional(shellOf(armor.geometry(), armor.grow(), armor.scaled(), ArmorForm.ADULT,
-            alternate, geometries, entityId)).or(Possible::absent);
+        return Possible.ofOptional(shellOf(armor.geometry(), armor.grow(), ArmorForm.ADULT, alternate,
+            geometries, entityId)).or(Possible::absent);
     }
 
     /**
@@ -1042,8 +1041,7 @@ public final class EntityIndexBuilder {
                 entityId, raw.form());
             return Optional.empty();
         }
-        return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
-            geometries, entityId)
+        return shellOf(raw.geometry(), raw.grow(), form.get(), Optional.empty(), geometries, entityId)
             .map(shell -> new Shell.Alternate(when.get(), shell));
     }
 
@@ -1072,15 +1070,14 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One shell of an armor row - its mesh joined against the geometry table, the two layer
-     * deformations, and the whole-mesh scale the set is registered through. Empty when the shell does
-     * not resolve: being armored is carrying a resolved shell, so a shell whose mesh or deformations
-     * are missing warns and drops the wearer rather than dressing it in a guess.
+     * One shell of an armor row - its mesh joined against the geometry table and the two layer
+     * deformations. Empty when the shell does not resolve: being armored is carrying a resolved shell,
+     * so a shell whose mesh or deformations are missing warns and drops the wearer rather than dressing
+     * it in a guess.
      */
     private static @NotNull Optional<Shell> shellOf(
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @NotNull ArmorForm form,
         @NotNull Optional<Shell.Alternate> alternate,
         @NotNull Map<String, EntityMesh> geometries,
@@ -1099,8 +1096,7 @@ public final class EntityIndexBuilder {
                 entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
-        return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
-            scaled == null ? 1f : scaled, form, alternate));
+        return Optional.of(new Shell(mesh, grow.inner(), grow.outer(), form, alternate));
     }
 
     /**

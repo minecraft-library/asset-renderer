@@ -263,6 +263,36 @@ root project.
   a fork did not write alike, which is what keeps the internal sentinel out of the shipped bytes.
   Which bones the container held is a fact only the mesh has, so `GeometryFlow.rootBones` answers it
   and `PoseFlow` takes it; a class whose derivations disagree gets no answer rather than one of them.
+- **`entity_geometry.json` holds each mesh's bones in vanilla's bake order, and that order is
+  replayed, never read off the bones a mesh ends with.** A part's children draw in the order its
+  `PartDefinition.children` hash map iterates them, which follows from the sequence of map calls the
+  factory made - a `put` per new name, and a `putAll` copy wherever a scaling rebuilds the root, a part
+  is replaced or a surgery empties one - so the walk replays each call on `PartTree`, one
+  `java.util.HashMap` per part as `PartDefinition` holds one, as it meets it. Four things keep it
+  exact:
+  - **It runs on a JDK that sizes a copy as vanilla's does.** From JDK 19 on, `putAll` into an empty
+    map sizes `n` names `tableSizeFor(ceil(n / 0.75))`, as the JDK vanilla runs on does; an older JDK
+    sizes a copy larger and iterates it in another order. `PartTree.requireVanillaCopySizing` stops
+    the flow on one, and `PartTreeTest` pins it.
+  - **It holds every part vanilla holds.** The parser's own `clearChild` and `retainPartsAndChildren`
+    drops and the marking's drops leave the tree whole, because a copy is sized by every name its
+    level holds at that moment; dropping a name afterwards moves no other, so the bones that survive
+    are written in the tree's order with the dropped names left out.
+  - **It rides the entry as `PartTree.MEMBER` from the parse to the write**, a generation-only member
+    as `carried_field` and `item_field` are, spelled as the calls it replayed. A derivation that deep
+    copies an entry carries it, and the two that replay a vanilla surgery append it:
+    `EntityMeshOverlays`' subset as `retainExactParts`, its no-hat mesh as
+    `clearChild(name).clearRecursively()`. `GeometryFlow.write` replays the calls, orders the bones by
+    the result and takes the member off, so no table ships it.
+  - **A call the replay cannot place refuses the tree rather than guessing.** A part hung from a name
+    it does not hold, a name hung under a second parent, a surgery on a receiver other than the mesh
+    root, or a `PartDefinition` call the walk does not replay each stop the entity flow, and
+    `GeometryFlow.requireBakeOrder` stops it right after the parse, ahead of every table the flow
+    writes before the geometry.
+
+  `block_geometry.json` is written in declaration order by the same writer, `BoneOrder.DECLARED`: no
+  block-entity render has been measured under the bake order, which is `RENDERER-RULES.md`'s to
+  decide.
 - **A figure the model carries between poses is named, and only when it is stepped along.** A field a
   body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
   is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla
@@ -453,6 +483,13 @@ key.** Deriving a shared mesh in place would deform the body along with the pass
 mesh nothing else draws would leave an orphan `GeometryRefClosureTest` refuses. The same rule decides
 both the marking's splits and the overlays'.
 
+**A provider layer drawing a subset of its body draws the subset vanilla registers, at any alpha.**
+`EntityOverlayResolver` registers the layer's own factory and carries its `retainExactParts` set as
+`retain_bones`, so the warden's bioluminescent pass, drawn at a constant one, draws
+`WardenModel#createBioluminescentLayer` - the parts vanilla empties emptied and the levels vanilla
+copies copied - as its spots and heart passes draw theirs. A subset layer whose retain set the walk
+cannot read drops its pass rather than drawing the whole body.
+
 **A geometry key is not a complete identity, and `GeometryManifest` is what makes that safe.** Two
 request members the emitted mesh IS a function of are spelled in no key: the texture-size override,
 which `GeometryFlow.parse` stamps `texture_size` from; and the float-parameter table, whose mere
@@ -548,21 +585,22 @@ The pose walk keeps what the fold reads:
 
 `./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
 hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
-classes; eight walks read the real client jar - `EnumConstantTableTest`,
+classes; nine walks read the real client jar - `EnumConstantTableTest`,
 `KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest`, `GeometryParserTest`,
-`BoneRestRadianTest`, `EntityPaceJarTest` and `ClockRosterJarTest`. The renderer's `check` schedules
-it as `toolingTest`, which is the name it had when this was a build of its own.
+`BoneRestRadianTest`, `GeometryBakeOrderTest`, `EntityPaceJarTest` and `ClockRosterJarTest`. The
+renderer's `check` schedules it as `toolingTest`, which is the name it had when this was a build of
+its own.
 
 **A walk reads the jar the cache already holds and never downloads one.** Each gates on
 `ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
 has cached one, so the suite reaches no network and costs a stat rather than 25MB.
-`ClientJarGuardTest` is the one test that FAILS on an absent jar, because eight classes assuming
+`ClientJarGuardTest` is the one test that FAILS on an absent jar, because nine classes assuming
 away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
 naming only tooling classes fails on the renderer's own `test` and the other way round.
 
-**Four of those eight are the only pins holding the geometry table to the jar.**
+**Five of those nine are the only pins holding the geometry table to the jar.**
 `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
 `PoseWalkTest` hold class rosters the table's coordinates feed. Those three used to sit in a
 `slowTest` of their own that nothing scheduled - not `check`, not the renderer's `check`, not any
@@ -574,6 +612,11 @@ version bump that moves either set fails as the re-measurement the `RENDERER-RUL
 not carry a bone's rotation in radians" owes.
 `GeometryFlowPartRestsTest` value-pins four shipped floats besides - the x of each armour stand's
 arm pivots - reading the table alone rather than holding it to the jar.
+`GeometryBakeOrderTest` holds the part tree a walk replays to the orders vanilla's own factories bake
+on the JDK 25 they run on, at the levels vanilla fills with a copy - the scaled roots, the scaled
+armour shells, the replaced parts and the retain surgeries - and holds the shipped table's bone order
+to that replay, so a version bump that moves one fails there rather than shipping a draw order nothing
+measured.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare

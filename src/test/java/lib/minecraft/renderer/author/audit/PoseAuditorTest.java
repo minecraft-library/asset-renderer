@@ -149,7 +149,7 @@ class PoseAuditorTest {
         // tail and the hips, so neither placement reads as a fault.
         PoseAudit seated = PoseAuditor.validate(sitting(false), wolf);
         assertTrue(seated.findings().stream().noneMatch(finding ->
-                finding.boneA().equals("body") && (finding.boneB().equals("upper_body") || finding.boneB().equals("real_tail"))),
+                names(finding, "body", "upper_body") || names(finding, "body", "real_tail")),
             "the mane and the tail read inside what vanilla draws:\n" + seated.report());
     }
 
@@ -159,7 +159,9 @@ class PoseAuditorTest {
         PoseAudit audit = PoseAuditor.validate(BEG, withoutSilhouettes(row("minecraft:wolf")));
 
         assertFalse(audit.clean(), "with no seat to derive, the beg leaves the shipped envelope");
-        assertEquals(List.of("OVERLAP body <-> upper_body", "SPLIT body <-> real_tail"), pairs(audit),
+        // The audit spells a pair in the mesh's bone order, which is vanilla's bake order: the wolf's
+        // mane and tail iterate ahead of its body.
+        assertEquals(List.of("OVERLAP upper_body <-> body", "SPLIT real_tail <-> body"), pairs(audit),
             audit.report());
         PoseAudit.Finding tail = finding(audit, PoseAudit.Kind.SPLIT, "body", "real_tail");
         assertTrue(tail.posedMin() > tail.knownMax(),
@@ -552,15 +554,15 @@ class PoseAuditorTest {
     }
 
     /**
-     * The one finding of a kind on a pair, failing with the whole report when absent.
+     * The one finding of a kind on a pair, failing with the whole report when absent. A pair is
+     * matched either way round, the audit spelling it in the mesh's bone order.
      */
     private static @NotNull PoseAudit.Finding finding(
         @NotNull PoseAudit audit, @NotNull PoseAudit.Kind kind,
         @NotNull String boneA, @NotNull String boneB) {
 
         return audit.findings().stream()
-            .filter(candidate -> candidate.kind() == kind
-                && candidate.boneA().equals(boneA) && candidate.boneB().equals(boneB))
+            .filter(candidate -> candidate.kind() == kind && names(candidate, boneA, boneB))
             .findFirst()
             .orElseThrow(() -> new AssertionError(
                 "no " + kind + " finding on " + boneA + " <-> " + boneB + " in:\n" + audit.report()));
