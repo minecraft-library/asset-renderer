@@ -1,15 +1,20 @@
 package lib.minecraft.renderer.author.install;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.CustomPose;
 import lib.minecraft.renderer.author.Gait;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.author.audit.PoseAuditor;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
@@ -37,6 +42,7 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.row;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.walker;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,6 +56,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("the compiler refuses authored content the runtime cannot honour")
 class PoseCompilerRefusalTest {
+
+    /** The row whose stride copies a clock its adult and baby tentacles both read. */
+    private static final @NotNull String SQUID = "minecraft:squid";
 
     @Test
     @DisplayName("loop() and once() mixed across limbs refuse - a clip loops or holds as one")
@@ -118,6 +127,58 @@ class PoseCompilerRefusalTest {
         assertTrue(refusal.getMessage().contains("walkAnimationSpeed"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("no additive scale spelling exists"),
             refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a kept stride's absolute write over a copied clock refuses on the body, recorded under the body's compile")
+    void aKeptStrideRefusesOverACopiedClockOnTheBody() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(squid()));
+        StyleException refusal = assertThrows(StyleException.class,
+            () -> registrar.add(SQUID, grip().keepStride().build()));
+
+        assertTrue(refusal.getMessage().contains("driven field 'tentacleAngle'"), refusal.getMessage());
+        assertEquals(List.of("styles/" + SQUID + "/grip/compile"), errorPaths(registrar),
+            "the squid's own tentacles read the clock its stride copies, so the body is the arm that refuses");
+    }
+
+    @Test
+    @DisplayName("a kept stride's absolute write over a copied clock refuses on the baby form as it does on the body")
+    void aKeptStrideRefusesOverACopiedClockOnTheBabyForm() {
+        // The body posed by nothing, so the baby's tentacles are the one base reading the clock.
+        Entity unposed = squid().mutate().pose(EntityPose.NONE).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(unposed));
+        StyleException baby = assertThrows(StyleException.class,
+            () -> registrar.add(SQUID, grip().keepStride().build()),
+            "the baby form compiles against the stride its install keeps");
+        StyleException body = assertThrows(StyleException.class,
+            () -> StyleRegistrar.of(definitions(squid())).add(SQUID, grip().keepStride().build()));
+
+        assertEquals(body.getMessage(), baby.getMessage(), "one install refuses one write alike on every arm");
+        assertEquals(List.of("styles/" + SQUID + "/grip/form/age:baby/compile"), errorPaths(registrar),
+            "and the baby form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class,
+            () -> PoseAuditor.validate(grip().keepStride().build(), unposed),
+            "an audit predicts the refusal the install makes");
+        assertEquals(baby.getMessage(), audited.getMessage());
+    }
+
+    @Test
+    @DisplayName("an absolute write over a field the install's stride does not drive installs on the baby form")
+    void anAbsoluteWriteOverAnUndrivenFieldInstallsOnTheBabyForm() {
+        Entity unposed = squid().mutate().pose(EntityPose.NONE).build();
+        assertInstallsOnTheBaby(unposed, grip().build(),
+            "keeping no stride, nothing drives the clock, so the write rebases against its rest");
+        assertInstallsOnTheBaby(squid(), grip().build(), "on the body as on the baby");
+
+        Entity unclocked = squid().mutate().styles(StyleCatalog.BIND_ONLY).build();
+        assertInstallsOnTheBaby(unclocked, grip().keepStride().build(),
+            "a stride copying no clock the tentacles read leaves the write free at either age");
+        assertInstallsOnTheBaby(squid(), Poses.custom("lean")
+                .allAges()
+                .keepStride()
+                .bone("body", body -> body.pitch(30))
+                .build(),
+            "as a kept stride leaves free a write over a base reading no field at all");
     }
 
     @Test
@@ -980,6 +1041,44 @@ class PoseCompilerRefusalTest {
     }
 
     // ------------------------------------------------------------------------------------
+
+    /**
+     * The shipped squid, whose adult and baby tentacles both read the clock its stride copies.
+     */
+    private static @NotNull Entity squid() {
+        return EntityModelLoader.load().get(SQUID);
+    }
+
+    /**
+     * An every-age absolute turn on a squid tentacle, whose shipped base reads the squid's tentacle
+     * clock at either age.
+     */
+    private static CustomPose.@NotNull Builder grip() {
+        return Poses.custom("grip").allAges().bone("tentacle0", tentacle -> tentacle.pitch(30));
+    }
+
+    /**
+     * Installs a style strictly on the given squid row, alone in its definitions, and asserts the
+     * install lands with the baby form among the arms it compiled.
+     */
+    private static void assertInstallsOnTheBaby(@NotNull Entity squid, @NotNull BuiltStyle style,
+                                                @NotNull String message) {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(squid));
+        assertDoesNotThrow(() -> registrar.add(SQUID, style), message);
+        String baby = "styles/" + SQUID + "/" + style.styleId() + "/form/age:baby/compile";
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry -> entry.path().equals(baby)),
+            () -> message + " - and the baby form is an arm the install compiled");
+    }
+
+    /**
+     * The paths every refusal a registrar's installs recorded lands at, in record order.
+     */
+    private static @NotNull List<String> errorPaths(@NotNull StyleRegistrar registrar) {
+        return registrar.diagnostics().entries().stream()
+            .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+            .map(Diagnostics.Entry::path)
+            .toList();
+    }
 
     /**
      * One cycle running every leg with the one across the body from it, half a cycle apart.

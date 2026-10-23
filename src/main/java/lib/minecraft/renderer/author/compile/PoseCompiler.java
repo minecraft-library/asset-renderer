@@ -292,8 +292,8 @@ public final class PoseCompiler {
      * row. The evidence pose is the row's pose as it shipped: an installer whose row has been
      * woven by earlier installs hands the pristine one here, so what the joint rule reads as
      * "the pose turns this bone" is vanilla's articulation and never an author's splice. A style
-     * keeping the stride carries the row's own {@link #strideOf stride} at the age the style is
-     * compiled at, the adult where it spans both.
+     * keeping the stride carries the row's own {@link #strideOf(BuiltStyle, Entity) stride} at the
+     * age the style is compiled at, the adult where it spans both.
      *
      * @param style the built style to lower
      * @param row the target row whose mesh and shipped pose the lowering runs against
@@ -308,7 +308,7 @@ public final class PoseCompiler {
                                      @NotNull GraphInterner pool) {
         double window = row.styles().periodTicks() / (double) Timeline.TICKS_PER_SECOND;
         return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
-            Optional.empty(), window, strideOf(row.styles(), style.age().orElse(Age.ADULT), row.id().toString()))
+            Optional.empty(), window, strideOf(style, row))
             .lower();
     }
 
@@ -319,7 +319,8 @@ public final class PoseCompiler {
      * this compile's splices read - per-layer spellings for a rebased turn, a seat carry, a scale
      * and a position delta, the shared spelling for a turn's delta - so the result stands alone,
      * and an installer merging rows first-wins keeps the body compile's copy of a shared field.
-     * With no catalog in reach the compile frames at the default figure period.
+     * With no catalog in reach the compile frames at the default figure period, and a style keeping
+     * the stride refuses an absolute write only over a field the universal walk drives.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -333,7 +334,7 @@ public final class PoseCompiler {
                                                  @NotNull EntityMesh mesh, @NotNull String layer,
                                                  @NotNull Diagnostics scope) {
         return compileLayer(style, pose, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
-            StyleCatalog.FIGURE_PERIOD_TICKS);
+            StyleCatalog.FIGURE_PERIOD_TICKS, Map.of());
     }
 
     /**
@@ -341,7 +342,10 @@ public final class PoseCompiler {
      * and, when given, the body compile's play site - so the layer's woven row carries the very
      * clip and site instances the body's does. The target catalog's period is the figure period
      * the compile frames at, exactly as the body compile's is, and the evidence pose is the layer's
-     * as it shipped, for the reason the body compile takes one.
+     * as it shipped, for the reason the body compile takes one. The install's stride is the one the
+     * body compile keeps, so a style keeping the stride refuses an absolute write over a field it
+     * drives on this arm exactly as on the body; the layer's row copies none of it, the body's
+     * carrying it already.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -355,6 +359,8 @@ public final class PoseCompiler {
      *     caller holds no body compile; each builds an identical site of this compile's own
      * @param periodTicks the target catalog's period in ticks - the figure period where the
      *     script declares none
+     * @param stride the stride of the install the layer belongs to - {@link #strideOf(BuiltStyle, Entity)}
+     *     of the style on the target row
      * @return the compiled layer arm
      * @throws StyleException if any lowering rule refuses the authored content
      */
@@ -362,15 +368,29 @@ public final class PoseCompiler {
                                           @NotNull EntityPose evidence, @NotNull EntityMesh mesh,
                                           @NotNull String layer, @NotNull Diagnostics scope,
                                           @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
-                                          int periodTicks) {
+                                          int periodTicks, @NotNull Map<String, StyleDriver> stride) {
         double window = periodTicks / (double) Timeline.TICKS_PER_SECOND;
-        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window, Map.of())
+        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window, stride)
             .lower();
     }
 
     // ------------------------------------------------------------------------------------
     // the kept stride
     // ------------------------------------------------------------------------------------
+
+    /**
+     * The stride one install of a style on a target row keeps - the row's own stride at the age the
+     * style is compiled at, the adult where it spans both. The body compile and every layer and form
+     * compile of the install read this one stride.
+     *
+     * @param style the built style being installed
+     * @param row the target row whose catalog holds the stride
+     * @return the stride's composed drivers
+     */
+    public static @NotNull ConcurrentMap<String, StyleDriver> strideOf(@NotNull BuiltStyle style,
+                                                                       @NotNull Entity row) {
+        return strideOf(row.styles(), style.age().orElse(Age.ADULT), row.id().toString());
+    }
 
     /**
      * The whole driver map of the stride a render of one age draws on a target catalog - its walk
@@ -521,8 +541,9 @@ public final class PoseCompiler {
         private final float flattened;
 
         /**
-         * The target's stride at the compiled age, which a style keeping the stride copies onto its
-         * row - empty on a layer compile, whose row takes no stride.
+         * The install's stride at the compiled age - what a style keeping the stride drives and
+         * refuses an absolute write over on every compile of the install, and what the body compile
+         * copies onto its row.
          */
         private final @NotNull Map<String, StyleDriver> stride;
         private final @NotNull Set<String> drivenFields;
@@ -677,7 +698,9 @@ public final class PoseCompiler {
         /**
          * Copies the target's stride at the built row's age onto it - its walk pair, elapsed age,
          * every clock and every selection it holds - so the vanilla walk runs live under the authored
-         * stances. A field the target's stride does not drive takes the universal trio's driver.
+         * stances. A field the target's stride does not drive takes the universal trio's driver. A
+         * layer or form compile copies none of it, its drivers joining the body's row, which carries
+         * the stride already.
          */
         private void strideDrivers() {
             if (this.layer.isPresent()) return;
