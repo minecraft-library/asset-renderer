@@ -435,14 +435,20 @@ public class RasterMath {
     }
 
     /**
-     * Returns {@code true} if the directed edge from {@code (sx, sy)} to {@code (ex, ey)}
-     * is a top or left edge in CW Y-down screen space - the OpenGL fill-rule classification
-     * for which adjacent triangle "owns" a shared-edge pixel. Operates on the sub-pixel
-     * fixed-point endpoints so the classification is deterministic regardless of upstream
+     * Returns {@code true} if the directed edge from {@code (sx, sy)} to {@code (ex, ey)} owns the
+     * samples lying exactly on it - a top or left edge under the GPU's top-left fill rule, which
+     * decides which of two adjacent triangles takes a sample on the edge they share. Operates on the
+     * sub-pixel fixed-point endpoints so the classification is deterministic regardless of upstream
      * float drift.
+     * <p>
+     * <b>The GPU applies the rule in GL's window frame, where Y runs up.</b> Image space runs Y down,
+     * so the same rule reads bottom-left here: a sample exactly on a horizontal edge two faces share
+     * belongs to the face above it in image space, and a sample exactly on any other shared edge to
+     * the face on its right, flipping Y leaving left and right where they are.
      * <ul>
-     * <li>Top edge: horizontal ({@code sy == ey}) going right ({@code ex > sx})</li>
-     * <li>Left edge: non-horizontal going up ({@code ey < sy})</li>
+     * <li>Top edge in GL's frame: horizontal ({@code sy == ey}) going left ({@code ex < sx}), the
+     * interior above it in image space</li>
+     * <li>Left edge: non-horizontal going up ({@code ey < sy}), the interior to its right</li>
      * </ul>
      *
      * <p><b>The two arms follow from the winding rather than being free to choose.</b> Callers hand
@@ -450,13 +456,15 @@ public class RasterMath {
      * evaluate it, which is the winding where {@code e >= 0} marks the interior - clockwise on
      * screen with Y running down. Under that winding {@code e_ij >= 0} puts the interior to the left
      * of a downward edge, so a downward edge is the triangle's <em>right</em> one and the
-     * <em>upward</em> edge is its left; the horizontal arm follows the same derivation and lands on
-     * left-to-right for top. The mirrored reading is equally self-consistent - it still hands every
-     * shared edge to exactly one side - but it is the bottom-right rule, and it hands that edge to
-     * the opposite side from the GPU.
+     * <em>upward</em> edge is its left. The same derivation puts the interior below an edge going
+     * right and above an edge going left, so the edge going left is the triangle's bottom edge in
+     * image space, which is its top edge in GL's frame. Reading either arm the other way round is
+     * equally self-consistent - it still hands every shared edge to exactly one side - but it hands
+     * that edge to the opposite side from the GPU; the horizontal arm read that way is the top-left
+     * rule taken in image space.
      */
     private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
-        if (sy == ey) return ex > sx;
+        if (sy == ey) return ex < sx;
         return ey < sy;
     }
 

@@ -505,10 +505,14 @@ entry rather than the entity's.
   needs the write and the sort together.
 - The sort is by quad centroid, so a later quad still loses over the part of its area behind an
   earlier one, and `quadCamDepthKey` identifies the shared diagonal in camera space, never on screen.
-- The fill rule is classified on the sign-normalized edge direction: `EdgeCoefficients.of` negates the
-  coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
-  edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
-  opposite face from the GPU.
+- The fill rule is the GPU's top-left rule, and the GPU applies it in GL's window frame, where y runs
+  up. Image space runs y down, so here it reads bottom-left: a sample exactly on a horizontal edge two
+  faces share belongs to the face above it, and one exactly on any other shared edge to the face on
+  its right. It is classified on the sign-normalized edge direction: `EdgeCoefficients.of` negates the
+  coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and the
+  horizontal edge that owns its samples goes left. Reading either arm the other way round still hands
+  a shared sample to exactly one face, but to the opposite face from the GPU - the horizontal arm read
+  that way is the top-left rule taken in image space.
 - How a covered sample's texture coordinate becomes a texel - the boundary rule, the face and sheet
   bounds, the scrolled pass, and what the snapped corners decide for it - is [TEXEL-RULES.md], beside
   what the reference GPU does to the coordinate and what the renderer does not reproduce of it.
