@@ -12,6 +12,7 @@ import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,10 +39,10 @@ import static org.hamcrest.Matchers.not;
  * at whoever reads the compare as a mover to investigate. The recorded case is real: a blend mode
  * spelled {@code ADDITIVE} became {@code ADD}, and the only thing that changed was the word.
  *
- * <p>What earns a row is being written as a <b>value</b>, because a key site's rename breaks a
- * loader loudly rather than quietly: the entity index builder calls {@code Size.valueOf} on keys out
- * of shipped JSON. {@code Size} is here all the same - it keys two sections and is written as a value
- * in a third, and the third is what earns it the row. {@code TintSource} earns two rows for the
+ * <p>What earns a row is being written as a <b>value</b>. A key site is read back by name off
+ * shipped JSON instead, which refuses a ceiling's renamed age at load; a renamed size key is dropped
+ * rather than refused, which is why {@code Size} is here all the same - it keys two sections and is
+ * written as a value in a third, and the third is what earns it the row. {@code TintSource} earns two rows for the
  * opposite reason: it is written as a value at the block tint and spells the keys of the colour-map
  * section, and nothing outside the digest guards the second - the colour-map loader composes its
  * texture path from the target's own {@code colorMapName} rather than from the constant, so a rename
@@ -111,7 +112,13 @@ final class DumpEnumNameTest {
             + "size -> new JsonPrimitive(size.name()));", Size.class,
             List.of("SMALL", "MEDIUM", "LARGE")),
         new ValueSite("root.addProperty(\"flag\", flag.name().toLowerCase(Locale.ROOT));", Flag.class,
-            List.of("SHEARED", "CHARGED", "COLLARED")));
+            List.of("SHEARED", "CHARGED", "COLLARED", "CARRIED")),
+        new ValueSite("CanonicalJson.put(entry, \"gate\", source.gate(), gate -> new JsonPrimitive(gate.name()));",
+            Flag.class, List.of("SHEARED", "CHARGED", "COLLARED", "CARRIED")),
+        new ValueSite("CanonicalJson.put(root, \"age\", style.age(), age -> new JsonPrimitive(age.name()));",
+            Age.class, List.of("ADULT", "BABY")),
+        new ValueSite("root.addProperty(\"form\", shell.form().name());", ArmorForm.class,
+            List.of("ADULT", "BABY")));
 
     /** The dump writer, which is the file every site below is counted in. */
     private static final Path DUMP =
@@ -121,7 +128,7 @@ final class DumpEnumNameTest {
      * The two spellings that turn something into its own name.
      *
      * <p>A call and a method reference handed to one of the canonical-JSON factories, and the second
-     * is the form three of the sites below use - a pattern that saw only the call could not see a
+     * is the form several of the sites below use - a pattern that saw only the call could not see a
      * whole map's keys or a whole array's elements being spelled by an enum.
      */
     private static final Pattern NAME_CALL = Pattern.compile("\\.name\\(\\)|Enum::name");
@@ -129,12 +136,15 @@ final class DumpEnumNameTest {
     /**
      * The lines that spell a map's keys off an enum a rename would stop a loader on.
      *
-     * <p>Here rather than in the roster above because the digest is not what protects them: the entity
-     * index builder reads the constant back through {@code valueOf} on shipped JSON, so the rename
-     * fails before anything is hashed.
+     * <p>Here rather than in the roster above because the digest is not what protects them. A
+     * ceiling's age is read back by its name off shipped JSON and refused where no constant answers, so
+     * its rename fails at load before anything is hashed. A size option's key is not refused - the
+     * index builder drops a key no constant answers - and what guards a {@code Size} rename is its two
+     * value sites in the roster above.
      */
     private static final List<String> KEY_SITES = List.of(
-        "root.add(\"sizes\", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));");
+        "root.add(\"sizes\", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));",
+        "root.add(\"ceilings\", CanonicalJson.map(catalog.ceilings(), Enum::name, ceiling -> {");
 
     /** The lines that match the scan and are not enums at all - a path segment and an NBT key. */
     private static final List<String> PLAIN_SITES = List.of(

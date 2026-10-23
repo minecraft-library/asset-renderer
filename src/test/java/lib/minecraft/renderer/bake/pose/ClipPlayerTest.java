@@ -16,15 +16,23 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3f;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.ToDoubleFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,14 +43,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The authored clips a model plays, evaluated onto its bones.
  *
- * <p>Four things are worth pinning. The linear curve has to be JOML's OWN arithmetic, because
+ * <p>Five things are worth pinning. The linear curve has to be JOML's OWN arithmetic, because
  * vanilla reaches it through {@code Vector3fc.lerp} and JOML's {@code fma} is not the intrinsic one
  * - a mirror written from the method's name rather than its body is wrong at the last bit on every
  * interpolated frame. A state-driven clip has to contribute nothing, because that is what a subject
  * standing still gets and it is what the breeze's own reference says vanilla does. A walk-driven one
  * has to contribute even when nothing walks, because that is where the corpus puts the terms that
- * keep a clip running at rest. And a clip has to reach the bone's DESCENDANTS through the scale it
- * writes, which is the whole reason that scale is not the uniform factor beside it.
+ * keep a clip running at rest. A clip has to reach the bone's DESCENDANTS through the scale it
+ * writes, which is the whole reason that scale is not the uniform factor beside it. And what each
+ * play site displaces apart has to add up to what the sites displace together, bit for bit, because
+ * the two forms keep separate bodies and only the corpus says they still agree.
  */
 @DisplayName("the authored clips a model plays")
 class ClipPlayerTest {
@@ -238,6 +248,60 @@ class ClipPlayerTest {
         assertEquals(PoseChannel.Kind.SCALE, PoseChannel.Kind.SCALE.channel(0).kind());
     }
 
+    @Test
+    @DisplayName("what each play site displaces adds up to what the sites displace together, bit for bit")
+    void deltasAreTheSumOfTheirSites() {
+        // The two forms keep separate bodies over the same two steps, so nothing but this holds them
+        // together. Adding the sites back in site order is the order the whole form merges in, which
+        // is what lets the floats agree to the bit rather than to a tolerance. Every shipped pose on
+        // every mesh it poses, under every row its form renders at that form's age, across one figure
+        // period's ticks.
+        List<String> failures = new ArrayList<>();
+        int compared = 0;
+        int together = 0;
+        for (Entity entity : entities.values())
+            for (Form form : forms(entity))
+                for (Posed posed : meshesOf(form.entity())) {
+                    if (posed.pose().clips().isEmpty()) continue;
+                    for (PoseStyle row : rowsOf(form))
+                        for (int tick = 0; tick < StyleCatalog.FIGURE_PERIOD_TICKS; tick++) {
+                            ToDoubleFunction<String> frame =
+                                row.frameAt(tick, form.entity().styles().periodTicks());
+                            ConcurrentList<ClipPlayer.SitePlay> sites =
+                                ClipPlayer.siteDeltas(posed.pose(), posed.mesh(), frame);
+                            String at = form.label() + " " + posed.label() + " '" + row.id() + "' @" + tick;
+                            // A site answering nothing adds nothing to a sum, so the one-answer-per-site
+                            // contract is read off the answers themselves: one per declared site, a
+                            // clock exactly where the site plays.
+                            List<EntityPose.Clip> declared = posed.pose().clips();
+                            if (sites.size() != declared.size()) {
+                                failures.add(at + ": " + sites.size() + " answers for "
+                                    + declared.size() + " sites");
+                            }
+                            for (int index = 0; index < Math.min(sites.size(), declared.size()); index++) {
+                                ClipPlayer.SitePlay site = sites.get(index);
+                                boolean plays = site.displacement() != ClipPlayer.Displacement.NONE;
+                                if (site.millis().isPresent() != plays) {
+                                    failures.add(at + ": answer " + index + " clock " + site.millis()
+                                        + ", plays " + plays);
+                                }
+                            }
+                            List<String> whole = ledger(ClipPlayer.deltas(posed.pose(), posed.mesh(), frame));
+                            List<String> summed = ledger(summed(sites));
+                            if (!whole.equals(summed))
+                                failures.add(at + ": whole " + whole + ", summed " + summed);
+                            if (sites.stream().filter(site -> !site.displacement().isEmpty()).count() > 1)
+                                together++;
+                            compared++;
+                        }
+                }
+
+        assertTrue(compared > 0, "the walk reaches a pose that plays clips");
+        assertTrue(together > 0, "and an instant at which two sites displace at once, " + compared + " compared");
+        assertTrue(failures.isEmpty(), failures.size() + " of " + compared + " instants disagree, the first "
+            + failures.subList(0, Math.min(5, failures.size())));
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The two ends of the mirrored ramp, chosen to disagree in the middle rather than at the ends. */
@@ -311,6 +375,113 @@ class ClipPlayerTest {
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
         return entity;
+    }
+
+    /**
+     * One form a shipped row carries.
+     *
+     * @param label how a failure names the form
+     * @param entity the form's own definition, carrying its meshes, poses and catalog
+     * @param baby whether the form is the row's baby
+     */
+    private record Form(@NotNull String label, @NotNull Entity entity, boolean baby) {}
+
+    /**
+     * One mesh with the pose that poses it.
+     *
+     * @param label how a failure names the mesh within its form
+     * @param pose the pose posing the mesh
+     * @param mesh the mesh posed
+     */
+    private record Posed(@NotNull String label, @NotNull EntityPose pose, @NotNull EntityMesh mesh) {}
+
+    /**
+     * Every form one shipped row carries, the row itself first - its baby, each shape, size and
+     * variant sub-definition, and its carried and equipment forms, each once however many axes reach
+     * it.
+     */
+    private static @NotNull List<Form> forms(@NotNull Entity row) {
+        List<Form> forms = new ArrayList<>();
+        collect(row.id().toString(), row, false, Collections.newSetFromMap(new IdentityHashMap<>()), forms);
+        return forms;
+    }
+
+    private static void collect(
+        @NotNull String label, @NotNull Entity entity, boolean baby,
+        @NotNull Set<Entity> seen, @NotNull List<Form> forms) {
+
+        if (!seen.add(entity)) return;
+        forms.add(new Form(label, entity, baby));
+        entity.axes().baby().ifPresent(form -> collect(label + " age=baby", form, true, seen, forms));
+        entity.axes().shape().options()
+            .forEach((key, form) -> collect(label + " shape=" + key, form, baby, seen, forms));
+        entity.axes().size().options()
+            .forEach((key, form) -> collect(label + " size=" + key, form, baby, seen, forms));
+        entity.axes().variant().options()
+            .forEach((key, form) -> collect(label + " variant=" + key, form, baby, seen, forms));
+        entity.axes().carried().ifPresent(form -> collect(label + " carried", form, baby, seen, forms));
+        entity.axes().equipment().options()
+            .forEach((key, form) -> collect(label + " equipment=" + key, form, baby, seen, forms));
+    }
+
+    /**
+     * Every mesh one form poses with the pose that poses it - the body, each overlay pass and its
+     * no-hat alternate, and each equipment mesh.
+     */
+    private static @NotNull List<Posed> meshesOf(@NotNull Entity form) {
+        List<Posed> meshes = new ArrayList<>();
+        meshes.add(new Posed("body", form.pose(), form.model()));
+        for (int index = 0; index < form.overlays().size(); index++) {
+            Entity.OverlayLayer overlay = form.overlays().get(index);
+            meshes.add(new Posed("pass " + index, overlay.pose(), overlay.model()));
+            int pass = index;
+            overlay.noHatModel().ifPresent(alternate ->
+                meshes.add(new Posed("pass " + pass + " no-hat", overlay.pose(), alternate)));
+        }
+        for (Entity.EquipmentOverlay equipment : form.layers().equipment())
+            meshes.add(new Posed("equip " + equipment.slot(), equipment.pose(), equipment.model()));
+        return meshes;
+    }
+
+    /** Every shipped row one form renders at its own age, then the universal standing and walking rows. */
+    private static @NotNull List<PoseStyle> rowsOf(@NotNull Form form) {
+        Age age = form.baby() ? Age.BABY : Age.ADULT;
+        List<PoseStyle> rows = new ArrayList<>();
+        for (PoseStyle row : form.entity().styles().styles())
+            if (row.age().map(age::equals).orElse(true)) rows.add(row);
+        for (String universal : List.of(PoseStyle.IDLE, PoseStyle.STRIDE))
+            rows.add(StyleCatalog.BIND_ONLY.resolve(universal, any -> true, form.label()));
+        return rows;
+    }
+
+    /** What a pose's sites displace added together in site order, channel by channel. */
+    private static @NotNull ClipPlayer.Displacement summed(@NotNull List<ClipPlayer.SitePlay> sites) {
+        Map<String, Map<PoseChannel, Float>> bones = new LinkedHashMap<>();
+        Map<PoseChannel, Float> container = new EnumMap<>(PoseChannel.class);
+        for (ClipPlayer.SitePlay site : sites) {
+            site.displacement().bones().forEach((bone, channels) -> {
+                Map<PoseChannel, Float> written =
+                    bones.computeIfAbsent(bone, any -> new EnumMap<>(PoseChannel.class));
+                channels.forEach((channel, value) -> written.merge(channel, value, Float::sum));
+            });
+            site.displacement().container()
+                .forEach((channel, value) -> container.merge(channel, value, Float::sum));
+        }
+        return new ClipPlayer.Displacement(bones, container);
+    }
+
+    /** Every displaced channel in order with its value's raw bits, so two ledgers agree only bit for bit. */
+    private static @NotNull List<String> ledger(@NotNull ClipPlayer.Displacement displacement) {
+        List<String> entries = new ArrayList<>();
+        displacement.bones().forEach((bone, channels) -> channels.forEach((channel, value) ->
+            entries.add("'" + bone + "' " + channel.token() + " " + bits(value))));
+        displacement.container().forEach((channel, value) ->
+            entries.add("container " + channel.token() + " " + bits(value)));
+        return entries;
+    }
+
+    private static @NotNull String bits(float value) {
+        return value + " (" + Integer.toHexString(Float.floatToRawIntBits(value)) + ")";
     }
 
 }

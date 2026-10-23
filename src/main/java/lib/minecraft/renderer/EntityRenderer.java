@@ -23,6 +23,7 @@ import lib.minecraft.renderer.bake.armor.EquipmentKit;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.StyleResolution;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
@@ -71,12 +72,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -203,24 +202,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The appearance with the style's entailed bone toggles unioned in - a selection that inflates
-     * a bone draws it without the caller naming the toggle beside the style.
-     *
-     * @param appearance the appearance the caller named
-     * @param toggles the style's entailed toggles
-     * @return the appearance carrying both toggle sets, or the appearance itself when the style
-     *     entails none
-     */
-    private static @NotNull AppearanceOptions styled(
-        @NotNull AppearanceOptions appearance, @NotNull ConcurrentList<String> toggles) {
-
-        if (toggles.isEmpty()) return appearance;
-        Set<String> union = new LinkedHashSet<>(appearance.getToggles());
-        union.addAll(toggles);
-        return appearance.mutate().toggles(union).build();
-    }
-
-    /**
      * Resolves the entity definition, style, texture, and bounds; sizes the canvas; assembles the
      * base body plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then
      * rasterizes every layer in one shared depth pass through {@link Rasterizer}. An id the context
@@ -230,33 +211,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         Possible<Entity> found = indexed(options.getEntityId());
-
-        // An id whose row draws nothing: the style still has to be one the bind-only catalog answers,
-        // and the frame is the one a resolved form with no bones returns below.
-        if (found.isEmpty()) {
-            StyleCatalog.BIND_ONLY.resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
-            return Timeline.empty();
-        }
+        // The subject, the in-force row and the strip a render naming no knob draws, resolved once
+        // for the render and every reader of its schedule. An id whose row draws nothing answers no
+        // subject, and its frame is the one a resolved form with no bones returns below.
+        StyleResolution resolution = StyleResolution.of(
+            this.context.strips(), found, options.getEntityId(), options.getStyle(), options.getAppearance());
+        if (resolution.subject().isEmpty()) return Timeline.empty();
 
         // The context every texture this render reads resolves against: the checkerboard for a texture
         // no pack serves or that cannot be read. The entity lookups below stay on the context itself.
         RendererContext textures = this.context.withMissingTexture();
         Entity definition = found.get();
-        // Resolved twice on purpose: the first answers against the shipped union, so a refusal lists
-        // every id the entity supports and the row's entailed toggles are in hand before the
-        // appearance resolves; the second reads the same id off the in-force view, so what moves is
-        // what the resolved subject moves.
-        PoseStyle requested = definition.styles()
-            .resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
-        // Fold the age / carried policy into a single resolved definition up front, so every
-        // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
-        // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity resolved = styled(options.getAppearance(), requested.toggles()).resolve(definition);
-        PoseStyle style = resolved.styles()
-            .resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
-        AnimationOptions anim = options.getAnimation().resolved(
-            style.moves() ? StyleCatalog.STRIP_FRAMES : 1,
-            resolved.styles().stripTicksPerFrame(style));
+        Entity resolved = resolution.subject().get();
+        PoseStyle style = resolution.row();
+        AnimationOptions anim = options.getAnimation().resolved(resolution.strip());
         PosePlayer.PosedFrames posed = PosePlayer.frames(resolved, style, resolved.styles().periodTicks());
         EntityMesh model = resolved.model();
 
@@ -467,7 +435,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // One table per frame build, keyed by mesh reference, so a frame baking on another worker
             // never reads it: a model overlay drawing the very mesh instance the body drew reuses the
             // body's corners, normals and tags, and its UVs where it resolves them at the same width and
-            // height, and reads its cull and translucency off its own texture.
+            // height, and reads its translucency off its own texture.
             Map<EntityMesh, Object> sharedGeometry = new IdentityHashMap<>();
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posedSubject.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
@@ -513,13 +481,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // direction; at frameCount>1 it bakes the strip and stamps per frame. Default (startTick=0,
         // frameCount=1) is byte-identical.
         //
-        // The orthographic canvas + NATIVE_SCALE silhouette are measured across EVERY frame the
-        // schedule samples, each through its own posed mesh and its own tick's texture, and the
-        // union is what the canvas is sized from. Both halves of a growing silhouette need that: a
-        // bone the pose swings wider at a later tick, and a flipbook painting opaque texels outside
-        // frame 0's outline. A static schedule measures the one frame it draws, so it sizes exactly
-        // the canvas it always did. The perspective path measures nothing here - it auto-fills per
-        // frame in the engine.
+        // The orthographic canvas + NATIVE_SCALE silhouette are measured with the subject across EVERY
+        // frame its schedule samples, each through its own posed mesh and its own tick's texture, and
+        // under the group scope each coat and member across every frame of its own strip; the union
+        // is what the canvas is sized from. Both halves of a growing silhouette need that: a bone the
+        // pose swings wider at a later tick, and a flipbook painting opaque texels outside frame 0's
+        // outline. A static schedule measures the one frame it draws. The perspective path measures
+        // nothing here - it auto-fills per frame in the engine.
         int ssaa = options.getOutput().getSupersample();
         return timeline.bake(
             RasterPass.of(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
@@ -626,6 +594,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // than beside it, so there is one definition of the condition.
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
                         .filter(gate -> !appearance.passes(gate)).isPresent()) continue;
+                    // A pass this frame draws at no opacity emits no triangle. Composited at alpha 0
+                    // a fragment still reaches the composite and, on a pass that writes depth, the
+                    // depth buffer, so drawing nothing is skipping the pass rather than drawing it clear.
+                    if (overlay.pass().drawsNothing()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     // The texture this pass draws, in one of three states. An axis answering empty
                     // selected nothing to draw - the "none" state (iron golem Crackiness.NONE) - so the
@@ -1216,44 +1188,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Computes the screen-space bounds for the active {@link CanvasSolver.BoundsScope}. The two existing
-     * primitives ({@link #computeUnionScreenBounds} for one entity, {@link
-     * #computeGroupUnionScreenBounds} for the whole group) stay unchanged; this method is
-     * the single dispatch point so canvas-sizing and centring agree on which bounds to use.
-     */
-    private @NotNull Box computeScreenBoundsFor(
-        @NotNull RendererContext textures,
-        @NotNull CanvasSolver.BoundsScope scope,
-        @NotNull String entityId,
-        boolean babyForm,
-        @NotNull Entity definition,
-        @NotNull PosePlayer.PosedFrames posed,
-        @NotNull Matrix4f transform,
-        float modelScale,
-        @NotNull PixelBuffer texture,
-        int tick
-    ) {
-        return switch (scope) {
-            case ENTITY_UNION -> computeUnionScreenBounds(textures, definition, transform, modelScale, texture, tick,
-                boundsBlockOverlays(definition, this.context.findEntity(entityId).orElse(null)));
-            case GROUP_UNION ->
-                computeGroupUnionScreenBounds(textures, entityId, babyForm, definition, posed, transform, modelScale,
-                    texture, tick);
-        };
-    }
-
-    /**
-     * Unions {@link #computeScreenBoundsFor} across every frame the schedule samples - the canvas has
-     * to hold each of them, and it is sized once.
+     * The canvas union: the subject over every frame of its schedule, and under the group scope each
+     * coat and member over its own strip ({@link #cohortBounds}) - the canvas has to hold each of
+     * them, and it is sized once.
      *
-     * <p>Wrapped from outside that dispatch rather than folded into it, so the two unions compose:
-     * a frame is measured against whichever scope the fit mode asked for, and neither the group union
-     * nor this one swallows the other.
-     *
-     * <p>Each frame is measured through its own posed mesh and its own tick's texture, which is what
-     * a frame actually draws. A one-frame schedule is one measurement of the frame it draws, at the
-     * start tick and through the texture already resolved there - the same call, with the same
-     * arguments, that sizing has always made.
+     * <p>Each frame of the subject is measured through its own posed mesh and its own tick's texture,
+     * which is what a frame actually draws. A one-frame schedule is one measurement of the frame it
+     * draws, at the start tick and through the texture already resolved there.
      *
      * @param textures the texture context every texture a frame is measured through is read from, which
      *     answers each with pixels and reports no stand-in
@@ -1262,14 +1203,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param babyForm whether the render draws the subject's baby form, which the group scope
      *     measures the subject's own adult beside
      * @param resolved the age / carried-resolved definition being measured
-     * @param options the render options supplying the texture precedence
+     * @param options the render options supplying the texture precedence and the animation options
+     *     each coat's and member's own strip resolves through
      * @param posed the per-render memo every frame's subject - and every member and coat measured
      *     beside it - is posed through
      * @param timeline the frame schedule whose sample ticks are measured
      * @param transform the exact render orientation the silhouette is measured through
      * @param modelScale the per-entity render scale the bounds are taken at
      * @param startTexture the base texture already resolved at the schedule's start tick
-     * @return the union of every frame's projected silhouette
+     * @return the union of every measured silhouette
      */
     private @NotNull Box computeScreenBoundsAcrossFrames(
         @NotNull RendererContext textures,
@@ -1284,16 +1226,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale,
         @NotNull PixelBuffer startTexture
     ) {
+        Entity base = this.context.findEntity(entityId).orElse(null);
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(textures, scope, entityId, babyForm, posed.at(startTick),
-            posed, transform, modelScale, startTexture, startTick);
+        Entity startSubject = posed.at(startTick);
+        Box bounds = computeUnionScreenBounds(textures, startSubject, transform, modelScale, startTexture, startTick,
+            boundsBlockOverlays(startSubject, base));
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(textures, scope, entityId, babyForm, posed.at(tick),
-                posed, transform, modelScale, frameTexture, tick));
+            Entity posedSubject = posed.at(tick);
+            bounds = bounds.union(computeUnionScreenBounds(textures, posedSubject, transform, modelScale, frameTexture,
+                tick, boundsBlockOverlays(posedSubject, base)));
         }
-        return bounds;
+        return switch (scope) {
+            case ENTITY_UNION -> bounds;
+            case GROUP_UNION -> cohortBounds(textures, bounds, entityId, babyForm, resolved, base, options.getAnimation(),
+                posed, transform);
+        };
     }
 
     /**
@@ -1340,6 +1289,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // render but don't contribute to bounds, mirroring the vanilla harness's
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
+            // A pass this frame draws at no opacity draws nothing, so it sizes nothing either - the
+            // canvas is measured in what the frame draws.
+            if (overlay.pass().drawsNothing()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             DebugChannel.overlayBounds(overlay.textureRef().orElse("<unset>"),
                 overlayBounds.minX(), overlayBounds.maxX(), overlayBounds.minY(), overlayBounds.maxY());
@@ -1361,13 +1313,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Unions screen-space bounds across every group member of {@code entityId}, mirroring the
-     * vanilla harness's {@code EntitySweep.prepare} pre-pass so grouped siblings
-     * (camel_husk in camel's group, stray in skeleton's group) render into a single canvas sized
-     * to the largest member. Without this the group's smaller members canvas-fit to their own
-     * (tighter) bound and the group-locked geometry shifts position between members - vanilla's
-     * pixel-identical-canvas guarantee requires every group member to share the same canvas
+     * Unions into the subject's bounds the screen-space bounds of every variant coat and every group
+     * member of {@code entityId}, mirroring the vanilla harness's {@code EntitySweep.prepare} pre-pass
+     * so grouped siblings (camel_husk in camel's group, stray in skeleton's group) render into a
+     * single canvas sized to the largest member. Without this the group's smaller members canvas-fit
+     * to their own (tighter) bound and the group-locked geometry shifts position between members -
+     * vanilla's pixel-identical-canvas guarantee requires every group member to share the same canvas
      * dimensions, scale, and anchor.
+     * <p>
+     * Each coat and member is measured across every frame of its own strip - the one its own row
+     * derives, resolved through the caller's animation options exactly as the subject's is - so the
+     * measured set is the same whichever member is drawn, and a caller naming both knobs measures every
+     * silhouette at their ticks.
      * <p>
      * Per-member: load the member's own definition + default texture (NOT the current render's
      * options-override texture), apply the member's {@link Entity#rendererScale rendererScale} model
@@ -1380,8 +1337,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Members are read from the definition's own {@link Entity#members()} - the canvas-group
      * membership the generators bake onto every member of a group, clustered on shared primary
      * geometry and written as the same self-inclusive list on each, so the reader joins nothing. A
-     * singleton carries an empty member list, so this method collapses to
-     * {@link #computeUnionScreenBounds} for non-group-bearing entities.
+     * singleton carries an empty member list, so this method collapses to the coats alone for
+     * non-group-bearing entities.
      * <p>
      * <b>This list and the harness's {@code EntityRoster.FAMILY_OVERRIDES} are one set spelled
      * twice, and they have to stay that way.</b> A member is measured in the pose the render draws,
@@ -1394,40 +1351,40 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * A subject drawn as its baby form is framed with its own adult as well as with every other
      * member, the way the harness frames a baby: its cohort is seeded with the whole adult one. So
      * the subject's own id names a member already measured only where the render draws the adult;
-     * where it draws the baby, that member is the adult and is measured like any other. Only the baby
-     * zombified piglin is framed differently by it in 26.1 - its adult's raised arms are the family's
-     * widest reach - and a singleton baby is framed alone, as the harness frames one.
+     * where it draws the baby, that member is the adult and is measured like any other, over the
+     * adult's own strip. Only the baby zombified piglin is framed differently by it in 26.1 - its
+     * adult's raised arms are the family's widest reach - and a singleton baby is framed alone, as the
+     * harness frames one.
      *
      * @param textures the render's texture context, which every member's texture is read from
-     * @param entityId the namespaced id the members and the subject's own definition resolve from
+     * @param bounds the subject's own bounds across every frame of its schedule
+     * @param entityId the namespaced id the members resolve from
      * @param babyForm whether the render draws the subject's baby form
-     * @param definition the definition being measured, posed at {@code tick}
-     * @param posed the per-render memo each member is posed through
+     * @param resolved the age / carried-resolved definition being measured, whose members are read
+     * @param base the indexed definition, whose variant coats are measured, or {@code null} where the
+     *     context holds none
+     * @param animation the caller's animation options, which resolve each coat's and member's own strip
+     *     into the ticks it is measured at
+     * @param posed the per-render memo each coat and member is posed through
      * @param transform the exact render orientation the silhouette is measured through
-     * @param modelScale the per-entity render scale the subject's bounds are taken at
-     * @param texture the subject's texture at {@code tick}
-     * @param tick the tick being measured
-     * @return the union of the subject's silhouette and every member's
+     * @return the union of the subject's bounds and every coat's and member's silhouette
      */
-    private @NotNull Box computeGroupUnionScreenBounds(
+    private @NotNull Box cohortBounds(
         @NotNull RendererContext textures,
+        @NotNull Box bounds,
         @NotNull String entityId,
         boolean babyForm,
-        @NotNull Entity definition,
+        @NotNull Entity resolved,
+        @Nullable Entity base,
+        @NotNull AnimationOptions animation,
         @NotNull PosePlayer.PosedFrames posed,
-        @NotNull Matrix4f transform,
-        float modelScale,
-        @NotNull PixelBuffer texture,
-        int tick
+        @NotNull Matrix4f transform
     ) {
-        Entity base = this.context.findEntity(entityId).orElse(null);
-        Box bounds = computeUnionScreenBounds(textures, definition, transform, modelScale, texture, tick,
-            boundsBlockOverlays(definition, base));
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
         // separate group-member rows, so union each coat's silhouette here. A no-op while variant is
         // id-encoded (each coat is a member row measured below) or the model has no variant axis.
-        bounds = unionVariantSilhouettes(textures, bounds, base, posed, transform, tick);
-        ConcurrentList<String> members = definition.members();
+        bounds = unionVariantSilhouettes(textures, bounds, base, animation, posed, transform);
+        ConcurrentList<String> members = resolved.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId) && !babyForm) continue;
@@ -1437,15 +1394,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(textures, memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            // Posed through the shared memo at the tick being measured, like the coats above and for
-            // the same reason: a canvas is a union, so every silhouette in it is measured in the
-            // pose the render draws. Measuring a member posed is only right where the harness unions
-            // the same one, and it answers that from EntityRoster.FAMILY_OVERRIDES, which this list
-            // is held to.
-            Box memberBounds = computeUnionScreenBounds(textures, posed.at(memberDef, tick), transform,
-                memberScale, memberTexture.get(), tick, fixedBlockOverlays(memberDef.blockOverlays()));
-            bounds = bounds.union(memberBounds);
-            bounds = unionVariantSilhouettes(textures, bounds, memberDef, posed, transform, tick);
+            List<Entity.BlockOverlayLayer> blockOverlays = fixedBlockOverlays(memberDef.blockOverlays());
+            // Posed through the shared memo over its own strip, like the coats above and for the same
+            // reason: a canvas is a union, so every silhouette in it is measured in the poses its own
+            // render draws. Measuring a member posed is only right where the harness unions the same
+            // one, and it answers that from EntityRoster.FAMILY_OVERRIDES, which this list is held to.
+            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(this.context.strips(), memberDef)).timeline();
+            for (int frame = 0; frame < own.frames(); frame++) {
+                int tick = own.tickAt(frame);
+                bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(memberDef, tick), transform,
+                    memberScale, memberTexture.get(), tick, blockOverlays));
+            }
+            bounds = unionVariantSilhouettes(textures, bounds, memberDef, animation, posed, transform);
         }
         return bounds;
     }
@@ -1453,8 +1413,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Unions the screen-space silhouettes of a definition's option-encoded variant coats
      * ({@link Entity.Axes#variant()}) into {@code bounds}, each measured at its
-     * own coat texture + render scale (mirroring the group-member walk). A no-op when the definition is
-     * absent or carries no variant coats (id-encoded / non-variant models).
+     * own coat texture + render scale across every frame of its own strip (mirroring the group-member
+     * walk). A no-op when the definition is absent or carries no variant coats (id-encoded /
+     * non-variant models).
      * <p>
      * Every coat measures its block overlays as the DEFAULT coat draws them - see
      * {@link #boundsBlockOverlays} - so a family whose coats differ only in which block they carry
@@ -1462,17 +1423,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Box unionVariantSilhouettes(
         @NotNull RendererContext textures, @NotNull Box bounds, @Nullable Entity definition,
-        @NotNull PosePlayer.PosedFrames posed, @NotNull Matrix4f transform, int tick) {
+        @NotNull AnimationOptions animation, @NotNull PosePlayer.PosedFrames posed, @NotNull Matrix4f transform) {
 
         if (definition == null) return bounds;
         for (Entity coat : definition.axes().variant().options().values()) {
             if (coat.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(textures, coat);
             if (coatTexture.isEmpty()) continue;
-            // Posed through the shared memo at the tick being measured - a canvas is a union, so
-            // every silhouette in it is measured in the pose the render draws.
-            bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(coat, tick), transform,
-                coat.rendererScale(), coatTexture.get(), tick, fixedBlockOverlays(boundsBlockOverlays(coat, definition))));
+            List<Entity.BlockOverlayLayer> blockOverlays = fixedBlockOverlays(boundsBlockOverlays(coat, definition));
+            // Posed through the shared memo over its own strip - a canvas is a union, so every
+            // silhouette in it is measured in the poses its own render draws.
+            Timeline.TickTimeline own = animation.resolved(posed.memberStrip(this.context.strips(), coat)).timeline();
+            for (int frame = 0; frame < own.frames(); frame++) {
+                int tick = own.tickAt(frame);
+                bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(coat, tick), transform,
+                    coat.rendererScale(), coatTexture.get(), tick, blockOverlays));
+            }
         }
         return bounds;
     }

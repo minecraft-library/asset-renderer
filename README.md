@@ -200,10 +200,10 @@ new ImageFactory().toFile(glinted, ImageFormat.GIF, new File("diamond_sword.gif"
 
 ### EntityRenderer
 
-Renders any of the entities whose bone trees were walked out of vanilla's own model classes, posed by a named style. `AppearanceOptions` selects the per-entity axes - age, behavioural state, dye tints, tropical-fish pattern, equipment - and the `style` axis is what makes the render move: `stride` plays one whole walk cycle.
+Renders any of the entities whose bone trees were walked out of vanilla's own model classes, posed by a named style. `AppearanceOptions` selects the per-entity axes - age, behavioural state, dye tints, tropical-fish pattern, equipment - and the `style` axis is what makes the render move: `stride` walks it at its own wander pace, as one seamless loop.
 
 <div align="center">
-<img src="docs/images/entity-creeper-stride.gif" height="320" alt="Creeper walking through one stride cycle">
+<img src="docs/images/entity-creeper-stride.gif" height="320" alt="Creeper walking at its wander pace">
 </div>
 
 ```java
@@ -217,7 +217,7 @@ EntityOptions options = EntityOptions.builder()
     .output(OutputOptions.builder().canvasSize(512).supersample(4).build())
     .build();
 
-ImageData walking = renderer.render(options).image();   // one stride -> AnimatedImageData
+ImageData walking = renderer.render(options).image();   // a walk loop -> AnimatedImageData
 ```
 
 ### PlayerRenderer

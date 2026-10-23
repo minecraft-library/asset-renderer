@@ -43,8 +43,9 @@ public final class BlockModelsFlow {
             GeometryManifest manifest = new GeometryManifest(run.cache());
             BlockEntityRegistryWalk.run(run, subjects, manifest, root);
             TableWriter.write(run, root, "block_models.json");
-            GeometryFlow.write(run, GeometryFlow.parse(run, manifest),
-                OutputRoot.resolve("block_geometry.json"));
+            // A block-entity mesh keeps its factory's declaration order: the bake order was measured
+            // over entity and worn-shell renders, and no block-entity render has been measured under it.
+            GeometryFlow.write(run, GeometryFlow.parse(run, manifest), OutputRoot.resolve("block_geometry.json"));
             StrictGate.apply(run);
         }
     }

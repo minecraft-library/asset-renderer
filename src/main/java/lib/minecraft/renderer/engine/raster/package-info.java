@@ -7,8 +7,8 @@
  * {@link dev.simplified.image.PixelBuffer PixelBuffer} through the
  * {@link lib.minecraft.renderer.engine.camera.Camera Camera} and
  * {@link lib.minecraft.renderer.engine.camera.Placement Placement} it is built with: barycentric
- * coverage with a {@code 1/256} fixed-point edge test, an {@code OpenGL}-style top-left fill rule, a
- * {@code 1/256} sub-pixel corner snap, a tiled parallel raster path, depth buffering, a
+ * coverage with a {@code 1/256} fixed-point edge test, the GPU's top-left fill rule taken in GL's
+ * Y-up frame, a {@code 1/256} sub-pixel corner snap, a tiled parallel raster path, depth buffering, a
  * painter's-algorithm coplanar tie-break, and a back-to-front sort for translucent triangles and
  * {@code sortOnUpload} passes. Two-sided geometry opts out of culling via {@code cullBackFaces=false},
  * a pass vanilla registers with its depth write disabled lets nested layers accumulate against the
@@ -17,11 +17,11 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.raster.RasterMath RasterMath} - 2D coverage math:
  *       barycentric coordinates, the {@code 1/256} fixed-point sub-pixel grid, and the
- *       {@code EdgeCoefficients} that drive the Pineda incremental edge functions / top-left fill
- *       rule the inner loop walks per pixel.</li>
+ *       {@code EdgeCoefficients} that drive the Pineda incremental edge functions and the fill rule
+ *       the inner loop walks per pixel.</li>
  *   <li>{@link lib.minecraft.renderer.engine.raster.DepthMath DepthMath} - depth math: the window-depth
  *       grid vanilla resolves a fragment against, the {@code GL_LEQUAL} test taken over it, and the
- *       unsnapped-plane re-read that keeps the coverage snap from moving depth.</li>
+ *       per-triangle depth plane, solved through the same snapped corners coverage reads.</li>
  * </ul>
  * <p>
  * The per-pixel coverage mask a render records (marking glinted geometry so the foil compositor

@@ -5,34 +5,25 @@ import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import net.minecraft.world.entity.AnimationState;
 
 /**
- * What each figure vanilla's own tick would have filled holds at the tick a render is posed at.
+ * The one-hot selections vanilla's own tick would have made for a subject nothing ticks, and the
+ * network id every harness-built subject renders at.
  *
- * <p>An entity the harness builds is never added to a world, so nothing ticks it and every figure a
- * {@code tick} or an {@code aiStep} fills rests at zero. Ticking it is not the answer: those paths
- * draw from {@code RandomSource}, so a ticked reference would not reproduce, and pinning the draw
- * would oblige the asset side to reproduce mob AI to answer the same number. What the draws decide
- * is a rate, an interval or a target and never a shape, so moving a figure across its own range is a
- * superset of every outcome a draw has rather than an approximation of one.
+ * <p>An entity the harness builds is never added to a world, so nothing ticks it and every state a
+ * {@code tick} or an {@code aiStep} would have selected rests where its constructor left it. Ticking
+ * it is not the answer: those paths draw from {@code RandomSource}, so a ticked reference would not
+ * reproduce, and pinning the draw would oblige the asset side to reproduce mob AI to answer the same
+ * number. The fields such a tick fills with a value rather than a selection are clocks, whose value at
+ * every frame the asset side's roster carries and the mixins write through {@link AnimationClock}.
  *
- * <p><b>The asset side answers these from a roster of its own and the two are asserted equal</b>,
- * the same way {@code START_TICK}, {@code FRAME_COUNT} and {@code TICKS_PER_FRAME} are - a value that
- * moved on one side only would render happily and report as a renderer defect.
+ * <p><b>The asset side answers these from a roster of its own and the two are asserted equal by a
+ * test over this source and the shipped catalog</b> - a value that moved on one side only would render
+ * happily and report as a renderer defect.
  *
- * <p>The excursion runs from what a figure RESTS at rather than from its numeric minimum, so tick
- * zero answers exactly what an unmoved figure answers. That, and the {@code ANIMATED} gate below,
- * are what keep every frozen reference where it was.
+ * <p>Every selection answers through {@code PoseState.posed()}, which is what keeps every frozen
+ * reference where it was.
  */
 @UtilityClass
 public final class IdleFigures {
-
-    /**
-     * The ticks one whole excursion spans. MUST match {@code StyleCatalog.periodTicks}.
-     *
-     * <p>One strip, so a strip shows one excursion, the last frame does not repeat the first, and an
-     * animated render loops.
-     */
-    public static final int PERIOD_TICKS =
-        EntityAnimationSweep.FRAME_COUNT * EntityAnimationSweep.TICKS_PER_FRAME;
 
     /**
      * The network id every harness-built subject renders at, which MUST match the asset side's
@@ -47,59 +38,9 @@ public final class IdleFigures {
      * {@code sin(ageInTicks * 0.01 * (entityId % 10))}, so the id picks a frequency and nothing else.
      * Zero is the one frequency in ten at which the bob is a constant, which is a subject held still
      * rather than one animated; nine is the highest, shows the most of the cycle inside one strip,
-     * and every lower frequency is a fraction of the same curve - the same argument
-     * {@link AnimationClock#WALK_AMPLITUDE} rests on.
+     * and every lower frequency is a fraction of the same curve.
      */
     public static final int PINNED_ENTITY_ID = 9;
-
-    /** How a scalar figure travels between the value it rests at and the one it reaches. */
-    public enum Shape {
-
-        /** Out and back, so a strip begins and ends at rest. */
-        SWEEP,
-
-        /** A phase, wrapping at its period. */
-        CYCLE
-    }
-
-    /**
-     * The scalar roster, whose constants are the swept and cycling {@code StyleDriver}s of the
-     * asset side's shipped style catalog, excursion for excursion.
-     *
-     * <p>Written as one declaration per figure rather than as literals at each call site so the two
-     * copies can be compared as text - the arithmetic is shared by both sides answering the same
-     * numbers, and nothing but a test makes that true.
-     */
-    public enum Continuous {
-
-        TENTACLE_ANGLE("tentacleAngle", 0f, 0.7853982f, Shape.SWEEP),
-
-        FLAP_TIME("flapTime", 0f, 1f, Shape.CYCLE),
-
-        PEEK_AMOUNT("peekAmount", 0f, 1f, Shape.SWEEP),
-
-        MOVING_FACTOR("movingFactor", 0f, 1f, Shape.SWEEP);
-
-        private final String field;
-
-        private final float rest;
-
-        private final float extent;
-
-        private final Shape shape;
-
-        Continuous(String field, float rest, float extent, Shape shape) {
-            this.field = field;
-            this.rest = rest;
-            this.extent = extent;
-            this.shape = shape;
-        }
-
-        /** The render-state field vanilla fills. */
-        public String field() {
-            return this.field;
-        }
-    }
 
     /** One selector, over which a caller chooses exactly one member. */
     public enum Group {
@@ -147,14 +88,18 @@ public final class IdleFigures {
          * The member a render selects where a caller names none.
          *
          * <p>MUST match the member the asset side's shipped {@code idle} and {@code stride} rows
-         * each drive. Two groups answer differently under a stride, both being subjects whose
-         * locomotion is a state-gated clip rather than a walk-gated one - a rabbit hops and a
-         * breeze slides, and neither carries a walk-gated clip at all.
+         * each drive. Four groups answer differently under a stride, each being a subject whose
+         * locomotion is a state-gated clip or swim rather than a walk-gated one - a rabbit hops, a
+         * breeze slides, a dolphin swims and a baby axolotl swims. The dolphin rests still, as a
+         * dolphin nothing moves is drawn, and the baby axolotl floats, playing its underwater idle.
+         *
+         * @param walking whether the render drives a stride
+         * @return the member selected
          */
         public State selected(boolean walking) {
             return switch (this) {
                 case AXOLOTL -> State.IN_WATER;
-                case DOLPHIN -> State.MOVING;
+                case DOLPHIN -> walking ? State.MOVING : State.STILL;
                 case BAT -> State.FLYING;
                 case IDLE_CLIP -> State.IDLING;
                 case RABBIT -> walking ? State.HOPPING : State.TILTING;
@@ -164,7 +109,7 @@ public final class IdleFigures {
                 case BREEZE_POSE -> walking ? State.SLIDING : State.GROUNDED;
                 case CHEST_INTERACTION -> State.NOT_INTERACTING;
                 case FROG_ACTION -> State.FROG_RESTING;
-                case AXOLOTL_CLIP -> State.BABY_AXOLOTL_STILL;
+                case AXOLOTL_CLIP -> walking ? State.BABY_SWIMMING : State.BABY_IDLING_UNDERWATER;
                 case ACTION_CLIP -> State.NOT_ACTING;
             };
         }
@@ -317,19 +262,9 @@ public final class IdleFigures {
     }
 
     /**
-     * What one scalar figure holds at the armed tick.
-     *
-     * @param figure the figure being driven
-     * @return its value at that tick, and its resting value on a run that does not animate
-     */
-    public static float at(Continuous figure) {
-        return at(figure.rest, figure.extent, figure.shape);
-    }
-
-    /**
      * The member one selector holds at the gait this render is at.
      *
-     * <p>The one way a mixin should reach a default, because the gait is not optional: two groups
+     * <p>The one way a mixin should reach a default, because the gait is not optional: four groups
      * answer a different member under a stride, and a call site that resolved the group without it
      * would leave a rabbit tilting its head while its legs swing.
      *
@@ -343,8 +278,8 @@ public final class IdleFigures {
     /**
      * What one field of a one-hot holds, given the member an idle render selects.
      *
-     * <p>Unlike a scalar this needs no clock: an idle subject is already in the state it is in, and
-     * a ramp between two of them is the crossfade this deliberately does not render.
+     * <p>Unlike a clock this needs no per-frame value: an idle subject is already in the state it is
+     * in, and a ramp between two of them is the crossfade this deliberately does not render.
      *
      * @param selected the member selected
      * @param factor the field being answered
@@ -390,23 +325,5 @@ public final class IdleFigures {
     public static void play(State selected, State factor, AnimationState state) {
         if (selects(selected, factor)) state.start(EntityAnimationSweep.START_TICK);
         else state.stop();
-    }
-
-    /**
-     * A figure's value at the armed tick, and its resting value on a run that does not animate.
-     *
-     * <p>The {@code ANIMATED} gate is what makes this inert on the seven frozen sub-trees: they hold
-     * the resting value already, so a run that is not the animated one writes back what it read.
-     *
-     * @param rest what the figure rests at
-     * @param extent the far end of its excursion
-     * @param shape how it travels between them
-     * @return its value at the armed tick
-     */
-    public static float at(float rest, float extent, Shape shape) {
-        if (!PoseState.posed()) return rest;
-        float phase = Math.floorMod(AnimationClock.tick, PERIOD_TICKS) / (float) PERIOD_TICKS;
-        float travel = shape == Shape.CYCLE ? phase : 1f - Math.abs(2f * phase - 1f);
-        return rest + (extent - rest) * travel;
     }
 }

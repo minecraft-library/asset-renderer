@@ -106,10 +106,9 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
   card's grid (`Rasterizer.snapToCoverageGrid`, at `SUBPIXEL_PRECISION`, `256` unless a probe overrides
   it with `-Dasset.snap.grid`) settles them as the card does; any other grid moves the corners by a
   different amount and can settle a whole staircase the other way.
-- **The texture coordinate interpolates from the snapped corners**, as coverage does, because the
-  interior texel edges follow them. Depth alone is read from the unsnapped positions - the depth
-  contract in `RENDERER-RULES.md` - so the snap moves which samples are covered and which texel they
-  read, never the depth they compare.
+- **The texture coordinate interpolates from the snapped corners**, as coverage and depth do, because
+  the interior texel edges follow them. Depth's half is the depth contract in `RENDERER-RULES.md`; the
+  snap moves which samples are covered, which texel they read and the depth they compare as one.
 - The snap rounds half up in image space, `Math.round(v * 256)`. A corner java computes exactly on a
   `1/512` midpoint is not a midpoint in vanilla's own vertex arithmetic, so no tie rule on java's
   value reaches the card's choice there (see below).
@@ -129,8 +128,12 @@ vanilla's order is one in `RENDERER-RULES.md`.
   not in vanilla's float order, so a corner lands a few float steps from vanilla's. That matters only
   where it sits within a few hundredths of a `1/256` step of the midpoint between two: there the card
   snaps vanilla's corner one way and java's can go the other, moving one corner by one step, which
-  changes coverage only at pixel centres that close to an edge and the texel only at boundary pixels.
-  3.85% of randomly drawn visible triangles carry such a corner, and the one probed boundary the
+  changes coverage only at pixel centres that close to an edge and the texel only at boundary pixels,
+  but tilts the depth plane across the whole triangle and can decide a coplanar contest the other way
+  from the card. It decides two stored rows that way: `creeper~charged=true` loses the energy swirl's
+  doubling over its hind legs on 803 pixels, one `right_hind_leg` corner sitting within a hundredth of
+  a step of a midpoint, and `zombie_villager~armor=iron` gives part of a shell leg's `south` face to
+  the other leg from the one vanilla shows, two `right_leg` corners sitting exactly on one. 3.85% of randomly drawn visible triangles carry such a corner, and the one probed boundary the
   card's model misses is a sniffer beak corner of this kind. No tie rule on java's value reaches it,
   and computing the corners in vanilla's order reaches about seven in ten: the rest turn on the card's
   own rounding of vanilla's corner.
@@ -201,7 +204,7 @@ generators'.
   staircase of texel edges the other way from vanilla wherever its rounding and the hardware's part.
   No snap at all is the same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the
   right way. So is interpolating the texture coordinate from the unsnapped corners while coverage
-  stays snapped, the way depth is read: it moves the same 302 and 32.
+  stays snapped: it moves the same 302 and 32.
 - Do not change the snap's tie rule - round half to even moves 13 rows better and 14 worse, and half up
   in the GL frame 15 and 22, because the card's choice on a java midpoint is decided by vanilla's own
   vertex arithmetic rather than by a rule.

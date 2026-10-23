@@ -75,6 +75,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * key of the class heading its mesh only where the two pose alike - one descending from the other,
  * nothing between them but constructors handing the root up - which is what keeps a baby the adult's
  * class draws on a row folded at the baby's own age.
+ *
+ * <p>And a mob can age down with no baby layer at all: the wandering trader's {@code isBaby} and
+ * {@code setBaby} are an ageable mob's, its renderer bakes one model, and vanilla draws its baby on
+ * the adult's mesh. Such a subject answers a baby option naming the adult mesh; a mob whose
+ * {@code isBaby} answers false outright, and one whose {@code setBaby} is the bare return a mob
+ * declares, never age down and answer none.
  */
 @DisplayName("a baby's toggles leave off a gate its renderer pins")
 class EntityBabyPinTest {
@@ -474,6 +480,127 @@ class EntityBabyPinTest {
     }
 
     // ------------------------------------------------------------------------------------
+    // a baby with no mesh of its own
+    // ------------------------------------------------------------------------------------
+
+    /** The ageable mob the fixture entity descends from, as {@code AgeableMob} sits under the trader. */
+    private static final @NotNull String AGEABLE = "fx/AgeableMob";
+
+    /** The adult mesh key the fixture family resolves. */
+    private static final @NotNull String ADULT_MESH = "FxModel#createBodyLayer";
+
+    /** The adult texture the fixture family resolves. */
+    private static final @NotNull String ADULT_TEXTURE = "minecraft:textures/entity/fx/fx.png";
+
+    @Test
+    @DisplayName("a mob that ages down with no baby layer answers a baby drawing the adult's mesh and texture")
+    void anAgingMobWithNoBabyLayerDrawsTheAdultMesh() throws IOException {
+        open(living(0.5f), mob(), ageable(), fixtureClass(ENTITY, AGEABLE));
+        Diagnostics diagnostics = diagnostics();
+
+        JsonTree age = ageResolver(diagnostics).resolve(ADULT_MESH, ADULT_TEXTURE, false, null);
+        JsonTree baby = age.findPath("options", "baby").orElseThrow(() -> new AssertionError("no baby option in " + age));
+        assertEquals(Optional.of(ADULT_MESH), baby.findString("geometry"), "the baby draws the adult's mesh");
+        assertEquals(Optional.of(ADULT_TEXTURE), baby.findString("texture"), "and the adult's texture");
+        assertEquals(Optional.of(0.5f), baby.findFloat(PoseFlow.AGE_SCALE), "at the age its entity's getAgeScale answers a baby");
+        assertTrue(diagnostics.entries().stream().map(Diagnostics.Entry::message)
+                .anyMatch("age axis: Entity ages down with no baby mesh - the baby option draws the adult mesh"::equals),
+            "the option is said once");
+    }
+
+    @Test
+    @DisplayName("a mob whose isBaby answers false outright answers no baby")
+    void aConstantlyAdultMobAnswersNoBaby() throws IOException {
+        ClassNode adultOnly = fixtureClass(ENTITY, AGEABLE);
+        MethodNode isBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.IS_BABY, "()Z", null, null);
+        isBaby.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        isBaby.instructions.add(new InsnNode(Opcodes.IRETURN));
+        adultOnly.methods.add(isBaby);
+        open(living(0.5f), mob(), ageable(), adultOnly);
+
+        assertTrue(ageResolver().resolve(ADULT_MESH, ADULT_TEXTURE, false, null).findPath("options", "baby").isEmpty(),
+            "the parrot's and the frog's isBaby never answer true, so vanilla draws no baby of them");
+    }
+
+    @Test
+    @DisplayName("a mob that keeps the bare setBaby a mob declares answers no baby")
+    void aMobThatCannotAgeDownAnswersNoBaby() throws IOException {
+        ClassNode plainMob = fixtureClass(ENTITY, SourceClasses.Types.MOB);
+        plainMob.methods.add(agedIsBaby());
+        open(living(0.5f), mob(), plainMob);
+
+        assertTrue(ageResolver().resolve(ADULT_MESH, ADULT_TEXTURE, false, null).findPath("options", "baby").isEmpty(),
+            "setBaby is what ages a subject down, and a mob's own does nothing");
+    }
+
+    @Test
+    @DisplayName("a living entity that is no mob answers no baby, whatever its isBaby and setBaby say")
+    void aLivingEntityThatIsNoMobAnswersNoBaby() throws IOException {
+        ClassNode stand = fixtureClass(ENTITY, "fx/LivingEntity");
+        stand.methods.add(agedIsBaby());
+        stand.methods.add(agingSetBaby());
+        open(living(0.5f), stand);
+
+        assertTrue(ageResolver().resolve(ADULT_MESH, ADULT_TEXTURE, false, null).findPath("options", "baby").isEmpty(),
+            "the armour stand's age is its size, and the size axis answers it");
+    }
+
+    /** {@code Mob}: under {@code fx/LivingEntity}, its {@code setBaby} the bare return vanilla's is. */
+    private static @NotNull ClassNode mob() {
+        ClassNode node = fixtureClass(SourceClasses.Types.MOB, "fx/LivingEntity");
+        MethodNode setBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.SET_BABY, "(Z)V", null, null);
+        setBaby.instructions.add(new InsnNode(Opcodes.RETURN));
+        node.methods.add(setBaby);
+        return node;
+    }
+
+    /** {@code AgeableMob}: an age that goes below zero for a baby, and a {@code setBaby} that sets one. */
+    private static @NotNull ClassNode ageable() {
+        ClassNode node = fixtureClass(AGEABLE, SourceClasses.Types.MOB);
+        node.methods.add(agedIsBaby());
+        node.methods.add(agingSetBaby());
+        return node;
+    }
+
+    /** {@code return getAge() < 0}, in the shape {@code javac} gives {@code AgeableMob.isBaby}. */
+    private static @NotNull MethodNode agedIsBaby() {
+        MethodNode isBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.IS_BABY, "()Z", null, null);
+        LabelNode adult = new LabelNode();
+        LabelNode exit = new LabelNode();
+        InsnList code = isBaby.instructions;
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, "getAge", "()I", false));
+        code.add(new JumpInsnNode(Opcodes.IFGE, adult));
+        code.add(new InsnNode(Opcodes.ICONST_1));
+        code.add(new JumpInsnNode(Opcodes.GOTO, exit));
+        code.add(adult);
+        code.add(new InsnNode(Opcodes.ICONST_0));
+        code.add(exit);
+        code.add(new InsnNode(Opcodes.IRETURN));
+        return isBaby;
+    }
+
+    /** {@code setAge(baby ? getBabyStartAge() : 0)}, in the shape {@code javac} gives {@code AgeableMob.setBaby}. */
+    private static @NotNull MethodNode agingSetBaby() {
+        MethodNode setBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.SET_BABY, "(Z)V", null, null);
+        LabelNode adult = new LabelNode();
+        LabelNode store = new LabelNode();
+        InsnList code = setBaby.instructions;
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ILOAD, 1));
+        code.add(new JumpInsnNode(Opcodes.IFEQ, adult));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, "getBabyStartAge", "()I", false));
+        code.add(new JumpInsnNode(Opcodes.GOTO, store));
+        code.add(adult);
+        code.add(new InsnNode(Opcodes.ICONST_0));
+        code.add(store);
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, "setAge", "(I)V", false));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return setBaby;
+    }
+
+    // ------------------------------------------------------------------------------------
     // the class a baby is posed through
     // ------------------------------------------------------------------------------------
 
@@ -699,7 +826,11 @@ class EntityBabyPinTest {
     }
 
     private @NotNull EntityAgeAxisResolver ageResolver() {
-        EntityContext context = context(diagnostics());
+        return ageResolver(diagnostics());
+    }
+
+    private @NotNull EntityAgeAxisResolver ageResolver(@NotNull Diagnostics diagnostics) {
+        EntityContext context = context(diagnostics);
         return new EntityAgeAxisResolver(context, new EntityGeometryRefResolver(context));
     }
 

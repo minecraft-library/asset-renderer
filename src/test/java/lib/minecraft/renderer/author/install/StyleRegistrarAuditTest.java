@@ -21,6 +21,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
@@ -39,8 +40,10 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.ridingHat;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.catalog;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.styleRow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -68,6 +71,12 @@ class StyleRegistrarAuditTest {
 
     /** The row whose size forms each carry a mesh and a pose of their own. */
     private static final @NotNull String PUFFERFISH = "minecraft:pufferfish";
+
+    /** The row whose selected carried block swaps a pose of its own onto its body. */
+    private static final @NotNull String ENDERMAN = "minecraft:enderman";
+
+    /** A clock a hand-built stride drives beside the walk pair and elapsed age. */
+    private static final @NotNull String CLOCK = "carryClock";
 
     /** The id of each hand-built row whose one size form shares the row's pose instance. */
     private static final @NotNull String TEST = "minecraft:test";
@@ -101,6 +110,85 @@ class StyleRegistrarAuditTest {
         assertEquals(List.of(), described(PoseAuditor.validate(peer, row(shipped, BREEZE))),
             "so the audit reports nothing the wind's mesh lacks");
         assertAgrees(shipped, BREEZE, peer);
+    }
+
+    @Test
+    @DisplayName("a write the carried block's wearer pose refuses is refused by the install and the audit alike, under the carried form")
+    void aCarrierRefusesTheInstallAndTheAuditAlike() {
+        // The body posed by nothing, its passes with it, so the carrier's legs are the one base
+        // reading the walk the kept stride drives.
+        Entity enderman = row(shipped(), ENDERMAN);
+        Entity unposed = enderman.mutate()
+            .pose(EntityPose.NONE)
+            .overlays(enderman.overlays().stream()
+                .map(pass -> pass.withPose(EntityPose.NONE))
+                .collect(Concurrent.toUnmodifiableList()))
+            .build();
+        ConcurrentMap<String, Entity> definitions = definitions(unposed);
+        BuiltStyle plant = Poses.custom("plant").keepStride().bone("right_leg", leg -> leg.pitch(10)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        StyleException installed = assertThrows(StyleException.class, () -> registrar.add(ENDERMAN, plant),
+            "the carrier compiles against the stride its install keeps");
+        assertTrue(installed.getMessage().contains("bone 'right_leg'")
+                && installed.getMessage().contains("driven field 'walkAnimation"),
+            "the refusal names the leg and the walk its carrier base reads: " + installed.getMessage());
+        assertEquals(List.of("styles/" + ENDERMAN + "/plant/form/carried/compile"), registrar.diagnostics().entries()
+                .stream()
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+                .map(Diagnostics.Entry::path)
+                .toList(),
+            "the carried form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(plant, unposed),
+            "an audit predicts the refusal the install makes");
+        assertEquals(installed.getMessage(), audited.getMessage());
+        assertAgrees(definitions, ENDERMAN, plant);
+    }
+
+    @Test
+    @DisplayName("a write over a clock the row's stride drives beside the walk, read by the carried block's wearer pose, is refused by the install and the audit alike")
+    void aCarrierRefusesOverAStrideClockTheInstallAndTheAuditAlike() {
+        // The walk pair and elapsed age are driven whatever stride a site compiles against, so only a
+        // clock of the row's own stride tells the carrier's stride from none.
+        Entity enderman = row(shipped(), ENDERMAN);
+        EntityPose reading = CompilerFixtures.boneWrite("right_arm", PoseChannel.X_ROT, CompilerFixtures.input(CLOCK));
+        Entity carrier = enderman.axes().carried().orElseThrow();
+        Entity.Axes axes = enderman.axes();
+        Entity clocked = enderman.mutate()
+            .pose(EntityPose.NONE)
+            .overlays(enderman.overlays().stream()
+                .map(pass -> pass.withPose(EntityPose.NONE))
+                .collect(Concurrent.toUnmodifiableList()))
+            .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(), axes.variant(),
+                Optional.of(carrier.mutate()
+                    .pose(reading)
+                    .overlays(carrier.overlays().stream()
+                        .map(pass -> pass.pose() == carrier.pose() ? pass.withPose(reading) : pass)
+                        .collect(Concurrent.toUnmodifiableList()))
+                    .build()),
+                axes.equipment()))
+            .styles(catalog(styleRow(PoseStyle.STRIDE, Map.of(CLOCK,
+                new StyleDriver(CLOCK, StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty())))))
+            .build();
+        ConcurrentMap<String, Entity> definitions = definitions(clocked);
+        BuiltStyle reach = Poses.custom("reach").keepStride().bone("right_arm", arm -> arm.pitch(10)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        StyleException installed = assertThrows(StyleException.class, () -> registrar.add(ENDERMAN, reach),
+            "the carrier compiles against the stride its install keeps");
+        assertTrue(installed.getMessage().contains("bone 'right_arm'")
+                && installed.getMessage().contains("driven field '" + CLOCK + "'"),
+            "the refusal names the arm and the clock its carrier base reads: " + installed.getMessage());
+        assertEquals(List.of("styles/" + ENDERMAN + "/reach/form/carried/compile"), registrar.diagnostics().entries()
+                .stream()
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+                .map(Diagnostics.Entry::path)
+                .toList(),
+            "the carried form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(reach, clocked),
+            "an audit predicts the refusal the install makes");
+        assertEquals(installed.getMessage(), audited.getMessage());
+        assertAgrees(definitions, ENDERMAN, reach);
     }
 
     @Test
@@ -472,7 +560,7 @@ class StyleRegistrarAuditTest {
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(sizes), Optional.empty()),
-                Entity.Variation.none()))
+                Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .build();
     }
 
@@ -491,7 +579,8 @@ class StyleRegistrarAuditTest {
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(shapes), Optional.of("small")),
-                Entity.Variation.none(), Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Entity.Variation.none(), Optional.empty(),
+                Entity.Variation.none()))
             .build();
     }
 

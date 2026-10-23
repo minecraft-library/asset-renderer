@@ -365,7 +365,8 @@ enum TraitAxis {
      *
      * <p>Three shapes, and the difference is vanilla's: an enderman holds whatever block it picked up,
      * an iron golem holds a poppy on a timer no world tick will start here, and a snow golem wears a
-     * pumpkin it can be sheared out of.
+     * pumpkin it can be sheared out of. A posed render advances the golem's timer per frame
+     * ({@code IronGolemOfferMixin}), so the offer's sway is drawn.
      */
     CARRIED("carried") {
         @Override

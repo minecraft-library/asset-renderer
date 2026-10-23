@@ -95,29 +95,35 @@ public class DepthMath {
     }
 
     /**
-     * The plane a triangle's fragment depths are read off - the one its three <b>unsnapped</b> screen
+     * The plane a triangle's fragment depths are read off - the one its three <b>snapped</b> screen
      * positions and camera-space depths define, anchored at the first of them.
      *
      * <p>Depth is affine in screen space under every lens (there is no perspective-correct depth
-     * path - see the rasterizer's {@code depthVal}), so three vertices fix it exactly, and reading it
-     * off the unsnapped positions is what keeps the {@code 1/256} corner snap
-     * ({@link Rasterizer#snapToCoverageGrid}) from moving depth. A plane solved from the snapped
-     * vertices instead is tilted by how far each of them moved, which is a different tilt per
-     * triangle: two <em>genuinely coplanar</em> triangles - the worn-armour chestplate's torso box
-     * and its arm box overlap by two model units at identical {@code z} - stop agreeing, and one
-     * wins a contest outright that vanilla leaves to draw order.
+     * path - see the rasterizer's {@code depthVal}), so three vertices fix it exactly, and solving it
+     * from the corners the {@code 1/256} snap ({@link Rasterizer#snapToCoverageGrid}) leaves reads
+     * depth off the very triangle the coverage test reads, as graphics hardware interpolates depth over
+     * the snapped window positions. Two faces sharing an edge share its two snapped corners, so their
+     * planes meet exactly on the edge both cover up to, and at every sample both cover off it the face
+     * in front reads nearer. A plane solved from the unsnapped positions meets its neighbour on a line
+     * the snap has moved off that edge, and at a sample between the two lines the face behind, read
+     * past its own edge, comes out in front.
      *
-     * <p>Solved and carried in {@code double} for the same reason, and read straight at the sample
-     * point. Two triangles of one plane agree only as closely as the arithmetic between the solve
-     * and the depth test leaves them, and the window grid
-     * ({@link DepthMath#onVanillaDepthGrid}) resolves finer than a {@code float} chain of that
-     * length: rounding the solve into three vertex depths, re-solving those into gradients and
-     * evaluating from a vertex anchor is five roundings the two triangles take differently, and it
-     * separates by one to two quanta a pair the grid would otherwise tie. The vertices themselves
-     * are {@code float}, so what is left is the model's own rounding rather than the raster's.
+     * <p>The snap tilts each plane by how far its own corners moved. Two coplanar triangles that share
+     * their corners solve one plane and tie, leaving the contest to draw order; two with different
+     * corners - a worn chestplate's torso box and its arm box, where they overlap - are separated by
+     * their corners' snap.
      *
-     * @param anchorX the first vertex's unsnapped screen X
-     * @param anchorY the first vertex's unsnapped screen Y
+     * <p>Solved and carried in {@code double}, and read straight at the sample point, because two
+     * triangles of one plane agree only as closely as the arithmetic between the solve and the depth
+     * test leaves them, and the window grid ({@link DepthMath#onVanillaDepthGrid}) resolves finer than
+     * a {@code float} chain of that length: rounding the solve into three vertex depths, re-solving
+     * those into gradients and evaluating from a vertex anchor is five roundings the two triangles
+     * take differently, and it separates by one to two quanta a pair the grid would otherwise tie. The
+     * vertices themselves are {@code float}, so what is left is the model's own rounding rather than
+     * the raster's.
+     *
+     * @param anchorX the first vertex's snapped screen X
+     * @param anchorY the first vertex's snapped screen Y
      * @param anchorDepth the camera-space depth at the anchor
      * @param slopeX the plane's depth gradient along screen X
      * @param slopeY the plane's depth gradient along screen Y
@@ -125,29 +131,29 @@ public class DepthMath {
     public record Plane(double anchorX, double anchorY, double anchorDepth, double slopeX, double slopeY) {
 
         /**
-         * Solves the plane through three unsnapped screen positions and their camera-space depths.
+         * Solves the plane through three snapped screen positions and their camera-space depths.
          *
-         * @param r0 the first vertex's unsnapped screen position
-         * @param r1 the second vertex's unsnapped screen position
-         * @param r2 the third vertex's unsnapped screen position
+         * @param s0 the first vertex's snapped screen position
+         * @param s1 the second vertex's snapped screen position
+         * @param s2 the third vertex's snapped screen position
          * @param z0 the first vertex's camera-space depth
          * @param z1 the second vertex's camera-space depth
          * @param z2 the third vertex's camera-space depth
-         * @return the plane, flat at the first vertex's depth when the triangle has no unsnapped screen
+         * @return the plane, flat at the first vertex's depth when the triangle has no snapped screen
          *     area to tilt one over
          */
         public static @NotNull Plane of(
-            @NotNull Vector2f r0, @NotNull Vector2f r1, @NotNull Vector2f r2, float z0, float z1, float z2) {
-            double dx1 = (double) r1.x() - r0.x();
-            double dy1 = (double) r1.y() - r0.y();
-            double dx2 = (double) r2.x() - r0.x();
-            double dy2 = (double) r2.y() - r0.y();
+            @NotNull Vector2f s0, @NotNull Vector2f s1, @NotNull Vector2f s2, float z0, float z1, float z2) {
+            double dx1 = (double) s1.x() - s0.x();
+            double dy1 = (double) s1.y() - s0.y();
+            double dx2 = (double) s2.x() - s0.x();
+            double dy2 = (double) s2.y() - s0.y();
             double denominator = dx1 * dy2 - dx2 * dy1;
-            if (denominator == 0d) return new Plane(r0.x(), r0.y(), z0, 0d, 0d);
+            if (denominator == 0d) return new Plane(s0.x(), s0.y(), z0, 0d, 0d);
 
             double dz1 = (double) z1 - z0;
             double dz2 = (double) z2 - z0;
-            return new Plane(r0.x(), r0.y(), z0,
+            return new Plane(s0.x(), s0.y(), z0,
                 (dz1 * dy2 - dz2 * dy1) / denominator,
                 (dx1 * dz2 - dx2 * dz1) / denominator);
         }

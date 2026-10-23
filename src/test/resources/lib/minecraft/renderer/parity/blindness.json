@@ -563,6 +563,9 @@
         "src/main/java/lib/minecraft/renderer/bake/mesh/ShieldKit.java",
         "src/main/java/lib/minecraft/renderer/bake/pose/ClipPlayer.java",
         "src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java",
+        "src/main/java/lib/minecraft/renderer/bake/pose/PoseStrips.java",
+        "src/main/java/lib/minecraft/renderer/bake/pose/StripSampler.java",
+        "src/main/java/lib/minecraft/renderer/bake/pose/StyleResolution.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/BannerKit.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/GlintKit.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java",
@@ -857,7 +860,7 @@
       "id": "B29",
       "mode": "select",
       "probe": "re-render with the change stashed: a reference that moves was stale, and one that does not was not reached",
-      "reason": "The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it. The animated sub-tree is reached the same way and by a second boot of the client: both setupAnim freezes are read once per JVM, so renderVanillaAllReferences runs the harness twice and a change here moves what both runs write.",
+      "reason": "The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it. The posed sub-trees are written in the same boot, after the seven frozen ones - HarnessMode.resolve orders BIND before IDLE before WALK - so a change here moves what that one run writes.",
       "sees": [
         "sweep.entity",
         "sweep.block",
@@ -1226,7 +1229,7 @@
       "id": "B42",
       "mode": "select",
       "probe": "run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical",
-      "reason": "Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest, ShippedTableCapacityTest and BoneRestRadianTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.",
+      "reason": "Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest, ShippedTableCapacityTest, BoneRestRadianTest and EntityPaceJarTest - which holds the pace reads at every side the model table offers - do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.",
       "sees": [],
       "source": "declares no store artifact, so its reason names the gate that answers instead",
       "trigger_paths": [
@@ -1418,7 +1421,7 @@
       "id": "B51",
       "mode": "demote",
       "probe": "widen the panel and re-render the whole tree: menus/ moves and the other six sub-trees hash identically, so every sweep but the menu one is measured against ground truth nobody touched",
-      "reason": "MenuSweep is the one sweep that submits no geometry: it drives the client's own GUI pipeline into an offscreen target and writes menus/. MenuFrameRenderer is reached from it and from nothing else. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.",
+      "reason": "MenuSweep is the one sweep that submits no geometry: it drives the client's own GUI pipeline into an offscreen target and writes menus/. MenuFrameRenderer is reached from it and from nothing else. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.",
       "sees": [
         "sweep.menu",
         "manifest.references"
@@ -1447,7 +1450,7 @@
       "id": "B52",
       "mode": "demote",
       "probe": "perturb the icon predicate and re-render: blocks/ moves and items/ does not, because ItemSweep enumerates the complement of what BlockSweep draws",
-      "reason": "BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer and lists its block-state cases off the item-definition walk, and the icon geometry, that walk, the GUI transform and the first-variant random source are reached from those and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.",
+      "reason": "BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer and lists its block-state cases off the item-definition walk, and the icon geometry, that walk, the GUI transform and the first-variant random source are reached from those and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.",
       "sees": [
         "sweep.block",
         "manifest.references"
@@ -1481,7 +1484,7 @@
       "id": "B53",
       "mode": "demote",
       "probe": "drop a subject from the enumeration and re-render: items/ loses a file and glint/ keeps all of its, because GlintSweep enumerates its own foil roster",
-      "reason": "ItemSweep renders every non-BlockItem through the vanilla GUI inventory-icon path into items/. It shares ItemFrameRenderer with the glint sweep, which is why that renderer carries a wider claim of its own; the sweep itself is read by nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "ItemSweep renders every non-BlockItem through the vanilla GUI inventory-icon path into items/. It shares ItemFrameRenderer with the glint sweep, which is why that renderer carries a wider claim of its own; the sweep itself is read by nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.item",
         "manifest.references"
@@ -1508,7 +1511,7 @@
       "id": "B54",
       "mode": "demote",
       "probe": "perturb the icon draw and re-render: items/ and glint/ both move, and blocks/, entities/, players/, armor/ and menus/ hash identically",
-      "reason": "ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and reaches the other five through nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and reaches the other five through nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.item",
         "sweep.glint",
@@ -1535,7 +1538,7 @@
       "id": "B55",
       "mode": "demote",
       "probe": "add a variant to the enumeration and re-render: entities/ gains a file and armor/ keeps its seven, because ArmorSweep names its subjects itself",
-      "reason": "EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one. The animated sweep draws its roster, its subject names and its canvas arithmetic from this class, so a change to any of the three moves idle/ as well - the closure widened by one sub-tree rather than broken, this file still reaching none a sweep that does not read it writes.",
+      "reason": "EntitySweep is the enumeration and the family-fit pre-pass for entities/; the frame renderer it drives is shared with the armour and glint sweeps and carries its own wider claim. Nothing else constructs EntitySweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The armour sweep names its own fixed roster of armoured mobs rather than reading this one. The animated sweep draws its roster, its subject names and its canvas arithmetic from this class, so a change to any of the three moves idle/ as well - the closure widened by one sub-tree rather than broken, this file still reaching none a sweep that does not read it writes.",
       "sees": [
         "sweep.entity",
         "manifest.references",
@@ -1560,7 +1563,7 @@
       "id": "B56",
       "mode": "demote",
       "probe": "perturb the bounds walk and re-render: entities/, armor/ and glint/ move together and blocks/, items/, menus/ and players/ hash identically",
-      "reason": "EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. AnimatedEntityFrameRenderer delegates its draw here whole rather than repeating it, so idle/ comes off this renderer too.",
+      "reason": "EntityFrameRenderer is constructed by EntitySweep, ArmorSweep, GlintSweep and the pitch-roll probe, and EntityBoundsWalker is reached from it. So it writes entities/, armor/ and the worn half of glint/, and manifest.player-raw rides armor/ because one of that artifact's two members is the armour sweep's own parity output. It reaches blocks/, items/, menus/ and players/ through nothing: the player has a frame renderer of its own. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. AnimatedEntityFrameRenderer delegates its draw here whole rather than repeating it, so idle/ and walk/ come off this renderer too.",
       "sees": [
         "sweep.entity",
         "sweep.armor",
@@ -1593,7 +1596,7 @@
       "id": "B57",
       "mode": "demote",
       "probe": "drop a subject from the roster and re-render: armor/ loses a file and entities/ keeps every one of its, because the entity sweep enumerates the registry rather than this roster",
-      "reason": "ArmorSweep renders a fixed roster of armoured mobs, adult and baby, and draws what the entity sweep does not: that sweep puts armour on no baby and dyes no humanoid leather, so vanilla's baby armour mesh and dyed humanoid leather are measured here alone, beside adult controls. It reads the appearance applier and the entity frame renderer, both of which carry wider claims of their own, and nothing reads it. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "ArmorSweep renders a fixed roster of armoured mobs, adult and baby, and draws what the entity sweep does not: that sweep puts armour on no baby and dyes no humanoid leather, so vanilla's baby armour mesh and dyed humanoid leather are measured here alone, beside adult controls. It reads the appearance applier and the entity frame renderer, both of which carry wider claims of their own, and nothing reads it. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.armor",
         "manifest.player-raw",
@@ -1622,7 +1625,7 @@
       "id": "B58",
       "mode": "demote",
       "probe": "change the frame count and re-render: glint/ changes population and items/ keeps its count, even though the two draw overlapping subjects through one renderer",
-      "reason": "GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it - the one reference byte written outside SweepRunner, and it lands in this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it, which it writes itself, outside SweepRunner, into this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.glint",
         "manifest.references"
@@ -1649,7 +1652,7 @@
       "id": "B59",
       "mode": "demote",
       "probe": "perturb the player pose and re-render: players/ moves and entities/ holds, even though both draw a humanoid",
-      "reason": "PlayerSweep drives PlayerFrameRenderer, which is reached from it and from nothing else - the player is the one subject with a frame renderer no other sweep shares. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "PlayerSweep drives PlayerFrameRenderer, which is reached from it and from nothing else - the player is the one subject with a frame renderer no other sweep shares. manifest.player-raw rides it because one of that artifact's two members is this sweep's parity output. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.player",
         "manifest.player-raw",
@@ -1704,21 +1707,23 @@
         "sweep.menu",
         "sweep.player"
       ],
-      "claim": "The animated sweep poses every subject and writes idle/ alone",
+      "claim": "The posed sweep renders every subject at its own schedule and writes idle/ and walk/ alone",
       "claim_key": "harness-animation-sweep",
       "id": "B61",
       "mode": "demote",
-      "probe": "change the frame count and re-render the whole tree: idle/ changes population and the seven frozen sub-trees hash identically, because what writes them is a different boot of the client",
-      "reason": "EntityAnimationSweep enumerates one subject per entity and renders each at every tick of its schedule; AnimatedEntityFrameRenderer arms that tick and unions the bounds across the schedule, delegating the draw itself to the shared entity frame renderer, which carries its own wider claim. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory. Here it is tighter still: HarnessMode puts this sweep alone in its run, because the seven frozen sub-trees are ground truth for the two setupAnim freezes this mode turns off, so the boot that writes them never loads this class at all.",
+      "probe": "change one subject's frames in the roster and re-render the whole tree: idle/ and walk/ change and the seven frozen sub-trees hash identically, because the frozen sweeps run first in that boot and read no roster",
+      "reason": "EntityAnimationSweep enumerates each entity's default subject, its baby and the posed trait subjects the roster lists, and renders each at every frame of the schedule the roster names for it; AnimatedEntityFrameRenderer arms each frame and unions the bounds across the strip, delegating the draw itself to the shared entity frame renderer, which carries its own wider claim. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and this sweep's own - resolve under that same directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory. Here it is tighter still: renderVanillaAllReferences runs every sweep in one boot, the frozen ones first, so nothing this sweep draws precedes them; the roster it loads at boot is parsed, never drawn; and its own writes - the frames, the schedule sidecar, and the clearing of frames a shorter strip leaves - all land under outputRoot / sweep.outputDir().",
       "sees": [
         "sweep.entity-animation",
         "sweep.entity-walk",
         "manifest.references"
       ],
-      "source": "declared from the mode and from the write site: HarnessMode.resolve answers ANIMATION for this sweep and no other, and SweepRunner resolves every path as outputRoot / sweep.outputDir(), so a sub-tree written under the opposite mixin configuration is unreachable from here by construction rather than by measurement",
+      "source": "declared from the mode order and from the three write sites: HarnessMode.resolve orders a run's modes by gait, BIND before IDLE before WALK, so every frozen sub-tree a run writes is written before this sweep draws; SweepRunner resolves every frame's path as outputRoot / sweep.outputDir(), and this sweep's schedule sidecar and its clearing of stale frames resolve under that same directory, so a frozen sub-tree is unreachable from here by construction rather than by measurement",
       "trigger_paths": [
         "harness/src/client/java/lib/minecraft/refharness/frame/AnimatedEntityFrameRenderer.java",
-        "harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java"
+        "harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java",
+        "harness/src/client/java/lib/minecraft/refharness/sweep/ScheduleRoster.java",
+        "harness/src/client/java/lib/minecraft/refharness/sweep/SubjectSchedule.java"
       ]
     },
     {
@@ -1792,6 +1797,28 @@
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPredicate.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtRule.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtValues.java"
+      ]
+    },
+    {
+      "authored_paths": [
+        "src/main/resources/lib/minecraft/renderer/entity_models.json",
+        "src/main/resources/lib/minecraft/renderer/entity_poses.json",
+        "src/visual/java/lib/minecraft/renderer/sweep/EntityScheduleRoster.java"
+      ],
+      "blind": [],
+      "claim": "The posed references are rendered at the schedule the asset side writes, so what decides that schedule reaches them",
+      "id": "B65",
+      "mode": "select",
+      "probe": "change one stride row's walkAnimationSpeed extent in entity_models.json and run entityScheduleRoster: that entity's walk entry is the one roster entry to move; the harness renders walk/ from that entry and records it in walk/schedule.json, which manifest.references digests",
+      "reason": "The harness renders idle/ and walk/ at the frames, step, walk speed, walk-clock rate and clock values the roster names, and renders the trait subjects the roster lists. The roster is written by renderer code from the shipped drives in entity_models.json and the poses in entity_poses.json, so an edit to either table or to the writer re-renders those two sub-trees, and the other seven are written by frozen sweeps that read no roster. The two tables and the writer already plan the two animation sweeps through B35 and B32; what this adds is the references those sweeps are measured against. The renderer code an entry resolves through is the reference graph's to answer rather than this list's: manifest.references is rooted at StyleResolution, the resolution the writer and every render share, so an edit to that type, or to a type it reaches that a derived rule covers, plans the references per file.",
+      "sees": [
+        "manifest.references"
+      ],
+      "source": "measured at the roster, by raising the adult armadillo stride row's walkAnimationSpeed extent in entity_models.json from 0.17268725 to 0.3453745 and running entityScheduleRoster: 1 of 270 roster entries moved, the armadillo's adult walk entry, in its walk_speed alone - its frames, step and walk_rate held, as did both of the armadillo's baby entries - and with the table restored a third run, in a fresh JVM, wrote a roster byte-identical to the first. The half from the roster to the reference tree - which paths under idle/ and walk/ move, and that every path outside them holds - is the capture manifest.references is promoted from, recorded in that promotion's reason",
+      "trigger_paths": [
+        "src/main/resources/lib/minecraft/renderer/entity_models.json",
+        "src/main/resources/lib/minecraft/renderer/entity_poses.json",
+        "src/visual/java/lib/minecraft/renderer/sweep/EntityScheduleRoster.java"
       ]
     }
   ]

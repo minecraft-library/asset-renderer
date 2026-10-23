@@ -55,9 +55,9 @@ class PoseCookbookHumanoidTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     /**
      * The one-entry inventory every moving style infers.
@@ -93,7 +93,7 @@ class PoseCookbookHumanoidTest {
             assertHold(this.compiled, "style$wave$right_arm$z_rot", rad(10));
             assertHold(this.compiled, "style$wave$head$y_rot", rad(15));
             assertHold(this.compiled, "style$wave", 1f);
-            assertEquals(StyleDriver.Wave.RAMP,
+            assertEquals(StyleDriver.Wave.Plain.RAMP,
                 this.compiled.style().drivers().get("style$wave$clock").wave());
             assertEquals(5, this.compiled.style().drivers().size(),
                 "nothing else is driven - the zero pitch on the head never became a field");
@@ -205,9 +205,9 @@ class PoseCookbookHumanoidTest {
         }
 
         @Test
-        @DisplayName("at every strip tick the left arm is the right under x, -y, -z")
-        void mirrorLawHoldsAtEveryStripTick() {
-            for (int tick : STRIP_TICKS) {
+        @DisplayName("at every sample tick the left arm is the right under x, -y, -z")
+        void mirrorLawHoldsAtEverySampleTick() {
+            for (int tick : SAMPLE_TICKS) {
                 EulerRotation right = turned(this.compiled, this.mesh, tick, "right_arm");
                 EulerRotation left = turned(this.compiled, this.mesh, tick, "left_arm");
                 assertEquals(right.pitch(), left.pitch(), 0f, "tick " + tick + " pitch holds");
@@ -330,9 +330,9 @@ class PoseCookbookHumanoidTest {
         void hoverLowersToLiftAndBobOnOneSeat() {
             StyleDriver lift = this.compiled.style().drivers().get("style$levitate$$container$y");
             StyleDriver bob = this.compiled.style().drivers().get("style$levitate$$container$y_bob");
-            assertEquals(StyleDriver.Wave.HOLD, lift.wave());
+            assertEquals(StyleDriver.Wave.Plain.HOLD, lift.wave());
             assertEquals(-8f, lift.extent(), "y-down, so a lift is negative under the surface");
-            assertEquals(StyleDriver.Wave.SWEEP, bob.wave());
+            assertEquals(StyleDriver.Wave.Plain.SWEEP, bob.wave());
             assertEquals(-2f, bob.extent());
 
             PoseExpr.Op vertical = assertInstanceOf(PoseExpr.Op.class,
@@ -435,9 +435,9 @@ class PoseCookbookHumanoidTest {
         @Test
         @DisplayName("the stride trio copies onto the row and the deltas convert with no rebase")
         void strideTrioCopiesAndDeltasNeverRebase() {
-            assertEquals(StyleDriver.Wave.RAMP, this.compiled.style().drivers().get("ageInTicks").wave());
-            assertEquals(StyleDriver.Wave.HOLD, this.compiled.style().drivers().get("walkAnimationSpeed").wave());
-            assertEquals(StyleDriver.Wave.RAMP, this.compiled.style().drivers().get("walkAnimationPos").wave());
+            assertEquals(StyleDriver.Wave.Plain.RAMP, this.compiled.style().drivers().get("ageInTicks").wave());
+            assertEquals(StyleDriver.Wave.Plain.HOLD, this.compiled.style().drivers().get("walkAnimationSpeed").wave());
+            assertEquals(StyleDriver.Wave.Plain.RAMP, this.compiled.style().drivers().get("walkAnimationPos").wave());
             assertHold(this.compiled, "style$jog$body$x_rot", rad(12));
             assertHold(this.compiled, "style$jog$head$x_rot", rad(-12));
             assertHold(this.compiled, "style$jog$right_arm$x_rot", rad(-20));
@@ -706,7 +706,7 @@ class PoseCookbookHumanoidTest {
 
         StyleDriver driver = compiled.style().drivers().get(field);
         assertNotNull(driver, "driver '" + field + "' rides the row");
-        assertEquals(StyleDriver.Wave.HOLD, driver.wave(), field);
+        assertEquals(StyleDriver.Wave.Plain.HOLD, driver.wave(), field);
         assertEquals(extent, driver.extent(), field + " extent");
     }
 

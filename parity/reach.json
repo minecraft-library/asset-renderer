@@ -33,6 +33,9 @@
     "manifest.portal": [
       "lib/minecraft/renderer/driver/PortalRenderDriver"
     ],
+    "manifest.references": [
+      "lib/minecraft/renderer/bake/pose/StyleResolution"
+    ],
     "manifest.tooling-tables": [
       "lib/minecraft/renderer/tooling/EntityModelsFlow",
       "lib/minecraft/renderer/tooling/BlockModelsFlow",
@@ -193,6 +196,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/EntityRendererFacingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/EntityRendererOpacityTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -371,6 +378,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PoseStripsCorpusTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/Renderer": {
       "artifacts": [
         "manifest.fluid",
@@ -466,6 +477,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -488,6 +500,10 @@
         "sweep.item",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/asset/OverlayLayerCopyTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/asset/equipment/EquipmentModel": {
@@ -514,6 +530,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -569,6 +586,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -598,6 +616,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -842,6 +861,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -855,6 +875,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -867,11 +888,27 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/PaceCeiling": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/PoseClip": {
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -885,6 +922,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -898,6 +937,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -915,6 +956,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -1635,6 +1678,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/armor/ShellIndexTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/armor/WornBox": {
       "artifacts": [
         "manifest.player-raw",
@@ -1901,6 +1948,7 @@
     "lib/minecraft/renderer/bake/pose/ClipPlayer": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -1928,6 +1976,7 @@
     "lib/minecraft/renderer/bake/pose/PosePlayer": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -1945,6 +1994,54 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/bake/pose/PoseStatesBlindnessTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/PoseStrips": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/PoseStripsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StripSampler": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StripSamplerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StyleResolution": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/pose/StyleResolutionTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2092,6 +2189,7 @@
     "lib/minecraft/renderer/call/request/AppearanceOptions": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -2933,6 +3031,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/EntityStyleGrammarLoadTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/EntityTextureScrollJoinTest": {
       "artifacts": [],
       "source": "derived"
@@ -3092,6 +3194,22 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/RuleLookupGlintTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/StripMemo": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.references",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/StripMemoTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4191,6 +4309,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
@@ -4296,6 +4415,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
@@ -4348,6 +4468,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
@@ -4374,6 +4495,52 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/frame/StripFit": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.portal",
+        "manifest.references",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/StripFitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/StripTrack": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.portal",
+        "manifest.references",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/frame/Timeline": {
       "artifacts": [
         "digest.colormap-lut",
@@ -4383,6 +4550,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
@@ -4498,6 +4666,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4845,6 +5014,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4879,6 +5049,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4909,6 +5080,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4939,6 +5111,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4969,6 +5142,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -4999,6 +5173,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -5097,6 +5272,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -5110,6 +5287,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5121,7 +5299,10 @@
     },
     "lib/minecraft/renderer/engine/pose/PoseEvaluator": {
       "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -5135,6 +5316,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5153,6 +5335,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5171,6 +5354,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5185,6 +5369,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5199,6 +5384,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5213,6 +5399,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -5230,6 +5418,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5248,6 +5437,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
@@ -5332,6 +5522,10 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/raster/RasterizerDepthPlaneTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/raster/RasterizerDepthReuseTest": {
@@ -5470,6 +5664,8 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
@@ -5497,6 +5693,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
+        "manifest.references",
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
@@ -5832,6 +6029,13 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/EntityScheduleRoster": {
+      "artifacts": [
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/GlintParitySweep": {
       "artifacts": [
         "sweep.glint"
@@ -5951,6 +6155,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/animation/AgePace": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/animation/AnimationValue": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -5964,6 +6174,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/ClipBindingResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/EntityPace": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6070,6 +6286,18 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/StyleFlow": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/StyleRoster": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/WalkPace": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6279,6 +6507,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityCeilingResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityContext": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6315,6 +6549,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityMovementSpeedResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityNamingPolicies": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6328,6 +6568,18 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityOverlayResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPacePolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPaceResolver": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6423,7 +6675,25 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityWanderResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/NoopRegistration": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/OperandWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/PaceChain": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6508,6 +6778,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/geometry/MeshDeclarationSite": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/PartTree": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6622,12 +6898,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/policy/NavigationPolicy": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/tooling/policy/StyleRoster": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -6820,6 +7090,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.block",
@@ -6954,6 +7225,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -6967,6 +7240,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -6980,6 +7254,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -6993,6 +7269,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7006,6 +7283,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7017,6 +7296,7 @@
     "lib/minecraft/renderer/vanilla/appearance/HorseMarking": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7028,6 +7308,7 @@
     "lib/minecraft/renderer/vanilla/appearance/IronGolemCrackiness": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7041,6 +7322,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7054,6 +7336,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7067,6 +7350,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7082,6 +7366,7 @@
     "lib/minecraft/renderer/vanilla/appearance/TropicalFishPattern": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7097,6 +7382,7 @@
     "lib/minecraft/renderer/vanilla/appearance/villager/VillagerLevel": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7108,6 +7394,7 @@
     "lib/minecraft/renderer/vanilla/appearance/villager/VillagerProfession": {
       "artifacts": [
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7125,6 +7412,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.references",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -7139,6 +7427,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.visual",
         "pin.player-crc",
         "sweep.armor",
@@ -7175,6 +7464,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.visual",
         "pin.player-crc",
         "sweep.armor",
@@ -7195,6 +7485,7 @@
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.visual",
         "pin.player-crc",
         "sweep.armor",
@@ -7278,6 +7569,7 @@
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.references",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",

@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -351,6 +352,12 @@ final class BlindnessMapTest {
 
     /** One constant inside a subject list. */
     private static final Pattern SUBJECT_CONSTANT = Pattern.compile("Subject\\.(\\w+)");
+
+    /** One declaration's argument list, which the toolkit holds to a single line. */
+    private static final Pattern DECLARATION_ARGUMENTS = Pattern.compile("@Parity\\s*\\(([^)\\n]*)\\)");
+
+    /** A member naming the claim a declaration is about, by its slug or by the type it joins. */
+    private static final Pattern NAMES_A_CLAIM = Pattern.compile("\\b(?:claim|as)\\s*=");
 
     /**
      * The stored artifacts whose names identify each renderer that has one.
@@ -1573,11 +1580,20 @@ final class BlindnessMapTest {
      * A joining declaration writes no subject, so the union over a claim's carriers is what its
      * anchor wrote.
      *
+     * <p>A demote rule's carriers are read without their reach declarations. A declaration naming no
+     * claim and joining none is the type's own reach - the renderers the type itself reaches, which is
+     * what a change to it can move. A select claim contributes what its carriers move, the question a
+     * reach answers, so under every mode but demote the reach is read as naming the claim's subject.
+     * What sets a demote claim apart is what it calls blind - what its carriers cannot move - which is
+     * a different question, so its carriers' own reach is no statement about it. A subject written
+     * inside a declaration of a claim is read under every mode.
+     *
      * @param rule the rule
      * @return the constants its carriers name, empty where none does
      */
     private static Set<String> subjectsOf(JsonObject rule) {
         Set<String> out = new TreeSet<>();
+        boolean demotes = rule.get("mode").getAsString().equals("demote");
         Set<String> authored = strings(rule.getAsJsonArray("authored_paths"));
         for (JsonElement glob : rule.getAsJsonArray("trigger_paths")) {
             // The derived half alone. An authored entry is a glob in the map's own grammar and names
@@ -1585,13 +1601,30 @@ final class BlindnessMapTest {
             if (authored.contains(glob.getAsString())) continue;
             Path carrier = Path.of(carrierOf(glob.getAsString()));
             if (!Files.isRegularFile(carrier)) continue;
-            Matcher declared = DECLARED_SUBJECT.matcher(text(carrier));
+            String source = text(carrier);
+            List<MatchResult> unread = demotes ? reachesIn(source) : List.of();
+            Matcher declared = DECLARED_SUBJECT.matcher(source);
             while (declared.find()) {
+                int at = declared.start();
+                if (unread.stream().anyMatch(reach -> at >= reach.start(1) && at < reach.end(1))) continue;
                 Matcher constant = SUBJECT_CONSTANT.matcher(declared.group(1));
                 while (constant.find()) out.add(constant.group(1));
             }
         }
         return out;
+    }
+
+    /**
+     * The reach declarations one source writes - each argument list naming no claim and joining none.
+     *
+     * @param source the source text
+     * @return each reach declaration, in source order
+     */
+    private static List<MatchResult> reachesIn(String source) {
+        return DECLARATION_ARGUMENTS.matcher(source)
+            .results()
+            .filter(declaration -> !NAMES_A_CLAIM.matcher(declaration.group(1)).find())
+            .toList();
     }
 
     /**

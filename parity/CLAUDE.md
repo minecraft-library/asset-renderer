@@ -128,13 +128,16 @@ name. A `file` naming a path nothing has written yet fails `ParityIndexTest`'s c
 so the two spellings of "declared but not yet baselined" are not interchangeable.
 
 **Coining a store artifact is an edit to `reach.py` as well.** Every artifact the index's
-`artifacts` map holds - the one map a plan names - is either rooted in `ROOTS` at the class that
-writes it or listed in `UNROOTED` with why no class in this tree does, and `paritySelfTest` refuses
-one that is in neither. A pointer, source or external row has no store file and no producer, so it
-owes neither. A derived rule plans off the graph alone, and the graph answers an artifact only
-through its root, so an artifact with none is left out of every derived plan and the plan does not
-say so. A row one class writes under a property roots at that class like any other:
-`sweep.entity-walk` roots where `sweep.entity-animation` does.
+`artifacts` map holds - the one map a plan names - is either rooted in `ROOTS` or listed in
+`UNROOTED` with why no class in this tree can root it, and `paritySelfTest` refuses one that is in
+neither. A root is the class that writes the artifact, or, where a build beside this one writes it,
+the type here that decides what is written: `manifest.references` roots at `StyleResolution`, the
+resolution the schedule roster is written through, while the harness's sources, the two entity tables
+and the roster writer reach it through the authored rules B29 and B65. A pointer, source or external
+row has no store file and no producer, so it owes neither. A derived rule plans off the graph alone,
+and the graph answers an artifact only through its root, so an artifact with none is left out of
+every derived plan and the plan does not say so. A row one class writes under a property roots at
+that class like any other: `sweep.entity-walk` roots where `sweep.entity-animation` does.
 
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.

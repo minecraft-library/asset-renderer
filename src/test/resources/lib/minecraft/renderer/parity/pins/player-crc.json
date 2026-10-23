@@ -6,9 +6,9 @@
   "kind": "pin-set",
   "provenance": {
     "artifact": "pin.player-crc",
-    "asset_content_digest": "2142a1ff02d34d7faaf35f631a39440d15c1008dc7540af2fa2dc065f2215aac",
+    "asset_content_digest": "014f16cd342ccef8b4b5d628309f06e8a97f27c0ee657795de516e0658077e9f",
     "asset_dirty": true,
-    "asset_sha": "5d10f5ebc59ea213b59f20f8969251150a173977",
+    "asset_sha": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
     "counts": {
       "values": 3
     },
@@ -17,24 +17,24 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "A coordinate exactly on a texel boundary reads the texel below it, as the GPU's interpolation never lands such a value above the boundary: 99 sweep rows better and 8 worse, the eight being boundaries the GPU keeps exactly on the boundary; the image manifests and the armoured player pin move with the same texel choices",
+    "reason": "The depth plane is solved from the corners coverage and texture coordinates read after the 1/256 snap, where it read the unsnapped corners, so a sample between the snapped and unsnapped edge of two faces no longer reads both planes extrapolated - the GPU interpolates depth over the snapped window positions. Measured against vanilla, the moved rows' summed mean delta falls 7.9051 to 3.1258 on the still sweep (75 better, 3 worse), 0.9401 to 0.8345 idle and 2.1624 to 1.6190 walking with no idle or walk row worse, and 14.1761 to 13.9362 on the armour sweep; the largest gains are the baby drowned still 0.9674 to 0.0193, the giant in iron 0.6855 to 0.0055, the baby husk walk 0.0923 to 0.0047 and the sheep walk 0.0869 to 0.0201. Two rows grow, each traced to a corner sitting on a 1/512 snap midpoint, which now tilts the depth plane as it already moved coverage: the charged creeper still 1.1823 to 1.7686 (its swirl's doubling, while its wrong pixels fall 1327 to 835) and the zombie villager in iron 0.0002 to 0.1112. The two leather glint diagnostics rise by under 0.01. pin.player-crc's armoured iso body moves 0xF82EAD8A to 0x1AC298B3, and the armour sweep's raw renders, the player sheets and the zombie's projection sheets move with the same depth reads; the block, item, menu, fluid and portal artifacts hold.",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
+      "blocks": 1096,
       "entities": 406,
       "glint": 330,
-      "idle": 1056,
+      "idle": 2547,
       "items": 479,
       "menus": 10,
       "players": 2,
-      "walk": 1056
+      "walk": 4896
     },
-    "timestamp": "2026-10-03T03:45:45Z",
+    "timestamp": "2026-10-23T13:31:06Z",
     "tool_version": "1.0.0"
   },
   "values": {
     "armored_full_vanilla_iso": {
-      "crc32": "0xF82EAD8A",
+      "crc32": "0x1AC298B3",
       "subject": "Type.FULL + ArmorMaterial.IRON helmet/chestplate/leggings/boots, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
       "type": "crc32"
     },

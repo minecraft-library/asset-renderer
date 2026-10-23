@@ -49,22 +49,28 @@ public class EntityMesh {
     private @NotNull TextureSize textureSize = TextureSize.DEFAULT;
 
     /**
-     * The top-level bones keyed by bone name. Backed by {@link ConcurrentLinkedMap} so iteration
-     * preserves JSON author order: render priority assigned per bone during triangle assembly
-     * determines which face wins at tied depth (e.g. chest body SOUTH vs lid SOUTH are coplanar
-     * at z=15, and the JSON orders bottom/lid/lock so body paints first and its shadow-row
-     * pixels survive the lid's overwrite at the overlap seam).
+     * The bones keyed by bone name, in the order the shipped table holds them. Backed by
+     * {@link ConcurrentLinkedMap} so iteration preserves that order, which is the draw order and so
+     * the priority of a tie at equal depth: the face drawn last wins it. An entity table holds each
+     * mesh in vanilla's bake order - a part before the parts below it, each part's children in the
+     * order its {@code PartDefinition.children} hash map iterates them. A block-entity table holds its
+     * factory's declaration order (e.g. chest body SOUTH vs lid SOUTH are coplanar at z=15, and the
+     * table orders bottom/lid/lock so body paints first and its shadow-row pixels survive the lid's
+     * overwrite at the overlap seam).
      */
     private @NotNull ConcurrentLinkedMap<String, Bone> bones = Concurrent.newLinkedMap();
 
     /**
      * Whether vanilla renders this entity through a back-face-culling render type
      * ({@code RenderTypes.entityCutoutCull}) rather than the no-cull default ({@code entityCutout}).
-     * The tooling detects it from the model class constructor's render-type function. When set, the
-     * geometry kit culls back faces on every cube - including zero-thickness plane cubes, whose two
+     * The tooling detects it from the model class constructor's render-type function. The geometry kit
+     * takes every cube's back-face cull from this flag alone and reads no texel to decide it.
+     * <p>
+     * When set, every cube culls its back faces - including zero-thickness plane cubes, whose two
      * coincident sides would otherwise both draw and let the depth tie-break pick the away side (the
      * bat ear's brown outer winning over its pink inner under vanilla-matching LEQUAL). With culling
-     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla.
+     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla. When
+     * unset, every cube draws both sides, as the no-cull render types do.
      */
     private boolean cull = false;
 

@@ -259,6 +259,35 @@ class EntityMeshOverlaysTest {
     }
 
     @Test
+    @DisplayName("a retained subset replays the surgery on the part tree, so the parts it keeps draw where vanilla's copies leave them")
+    void retainReplaysTheSurgeryOnThePartTree() {
+        // The warden's levels: the bone holds the body and both legs, the body its ribcages, head and
+        // arms. Vanilla's subset replaces the bone and the body, so both levels iterate as copies.
+        JsonTree bones = JsonTree.object();
+        PartTree parts = new PartTree();
+        String[][] tree = {{"bone", null}, {"body", "bone"}, {"right_ribcage", "body"}, {"left_ribcage", "body"},
+            {"head", "body"}, {"right_arm", "body"}, {"left_arm", "body"}, {"right_leg", "bone"}, {"left_leg", "bone"}};
+        for (String[] part : tree) {
+            bones.put(part[0], bone(part[1]));
+            parts.addOrReplace(part[1], part[0]);
+        }
+        JsonTree glow = JsonTree.object().put("bones", bones);
+        parts.writeTo(glow);
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Glow#layer", glow);
+        assertEquals(List.of("bone", "left_leg", "right_leg", "body", "head", "right_arm", "left_arm", "left_ribcage",
+            "right_ribcage"), PartTree.of(glow).order(), "put alone, each level iterates in sixteen slots");
+
+        JsonTree pass = JsonTree.object().put("geometry", "Glow#layer")
+            .putStrings("retain_bones", "head", "left_arm", "right_arm", "left_leg", "right_leg");
+        EntityMeshOverlays.apply(diagnostics, models(pass), geometries, new GeometryManifest());
+
+        assertEquals(List.of("bone", "left_leg", "body", "head", "right_arm", "right_ribcage", "left_arm", "left_ribcage",
+            "right_leg"), PartTree.of(geometries.get("Glow#layer")).order(),
+            "the copied bone level takes four slots and the copied body level eight, as vanilla's do");
+    }
+
+    @Test
     @DisplayName("a mesh the body also draws is derived under a key, and the body keeps the bare one")
     void aSharedMeshMintsRatherThanDerivingInPlace() {
         Map<String, JsonTree> geometries = geometries();

@@ -326,6 +326,7 @@ public class AppearanceOptions {
                 case SHEARED -> this.sheared;
                 case CHARGED -> this.charged;
                 case COLLARED -> this.collarTint().isPresent();
+                case CARRIED -> this.carriedBlock().getState() == Possible.State.PRESENT;
             };
         };
     }
@@ -376,20 +377,6 @@ public class AppearanceOptions {
     }
 
     /**
-     * Whether this appearance admits the pass a style gate token names - the token is the spelling
-     * the gated pass's {@code when} key uses, so the two filters read one vocabulary. An unknown
-     * token admits nothing.
-     *
-     * @param gateToken the gate token a style source entry carries
-     * @return whether this appearance keeps the gated pass
-     */
-    public boolean admits(@NotNull String gateToken) {
-        for (Flag flag : Flag.values())
-            if (flag.name().equalsIgnoreCase(gateToken)) return this.selects(flag);
-        return false;
-    }
-
-    /**
      * The texture ref an overlay pass on a {@link TextureAxis texture axis} draws for this appearance,
      * or empty when the selection draws nothing so the pass is skipped. What each axis draws is
      * written on its constant; the {@link TextureAxis#TYPE} robe directory is read off the pass' own
@@ -436,6 +423,21 @@ public class AppearanceOptions {
     }
 
     /**
+     * This appearance with a style's entailed bone toggles unioned into its own - a style that inflates
+     * a bone draws it without the caller naming the toggle beside the style.
+     *
+     * @param style the style row whose entailed toggles join the selection
+     * @return the appearance selecting both toggle sets, or this appearance itself where the style
+     *     entails none
+     */
+    public @NotNull AppearanceOptions styled(@NotNull PoseStyle style) {
+        if (style.toggles().isEmpty()) return this;
+        Set<String> union = new LinkedHashSet<>(this.toggles);
+        union.addAll(style.toggles());
+        return this.mutate().toggles(union).build();
+    }
+
+    /**
      * The selected material for an equipment {@code slot} - absent where the slot is not equipped,
      * empty where it is equipped with the layer's default material (leather armor, the saddle), which
      * a blank value selects, and present with the material named.
@@ -470,9 +472,11 @@ public class AppearanceOptions {
      * (4) block overlays resolve against the carried selection; (5) the shape axis swaps to the
      * tropical-fish large body; (6) the size axis swaps to the selected size's mesh and its pose (armor
      * stand, pufferfish, salmon); (7) the size axis multiplies the render scale (slime / magma_cube),
-     * and where no size form swapped a pose of its own in, the first selected equipment slot whose
-     * layer names a pose for its wearer swaps that pose in for the body's, re-pointing any pass
-     * sharing the body's pose (the harnessed happy ghast's smaller body); (8)
+     * and where neither a shape form swapped its passes in nor a size form a pose of its own, the
+     * {@link Entity.Axes#carried() carried form} while a block is selected, and otherwise the
+     * {@link Entity.Axes#equipment() equipment form} of the first filled slot in that axis's order,
+     * swaps its pose and its passes in for the body's (the enderman's raised arms, the iron golem's
+     * offered flower, the harnessed happy ghast's smaller body); (8)
      * selected bone toggles flip their bones' visibility once, on the mesh the baby, shape and size swaps
      * leave selected (donkey / mule / llama chest reveal, the goat's horns and the bee's sting hide on a
      * baby as on an adult, the armor stand's arms and plate at either size), each filled slot whose
@@ -482,7 +486,8 @@ public class AppearanceOptions {
      * A non-baby, non-carried appearance returns an equivalent definition unchanged.
      *
      * <p>The style catalog narrows to the in-force view - a row whose age refuses this appearance
-     * drops, and a gated source entry survives iff this appearance {@link #admits admits} its gate.
+     * drops, and a gated source entry survives iff this appearance {@link #selects selects} the flag
+     * its gate names.
      *
      * @param entity the definition to fold
      * @return the age / carried / sheared / shape / size / tint-resolved definition
@@ -496,7 +501,7 @@ public class AppearanceOptions {
             .flatMap(coat -> entity.axes().variant().select(coat))
             .orElse(entity);
         Entity.Builder builder = definition.mutate();
-        builder.styles(definition.styles().inForce(this.isBaby(), this::admits));
+        builder.styles(definition.styles().inForce(this.isBaby(), this::selects));
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
@@ -533,22 +538,21 @@ public class AppearanceOptions {
                 .blockOverlays(form.blockOverlays());
             equipment = form.layers().equipment();
         } else {
-            ConcurrentList<Entity.OverlayLayer> passes = this.gatedOverlays(definition.overlays());
-            builder.overlays(passes);
+            builder.overlays(this.gatedOverlays(definition.overlays()));
             builder.blockOverlays(this.resolveBlockOverlays(definition));
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
             // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
             // onto the large geometry, all of it ONE already-built form rather than three members
-            // lifted onto this builder. The pattern axis still picks the concrete overlay texture via
-            // texture_by. A small / default pattern leaves the small body untouched.
+            // lifted onto this builder. Its passes go through the gate filter as the row's do. The
+            // pattern axis still picks the concrete overlay texture via texture_by. A small / default
+            // pattern leaves the small body untouched.
             Optional<Entity> large = this.getPattern()
                 .filter(pattern -> pattern.shape() == TropicalFishPattern.Shape.LARGE)
                 .flatMap(pattern -> definition.axes().shape().select(Entity.SHAPE_LARGE));
             if (large.isPresent()) {
                 Entity form = large.get();
                 selected = form.model();
-                passes = form.overlays();
-                builder.overlays(passes).axes(form.axes());
+                builder.overlays(this.gatedOverlays(form.overlays())).axes(form.axes());
             }
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
@@ -572,20 +576,16 @@ public class AppearanceOptions {
                 builder.rendererScale(form.rendererScale());
             }
             equipment = definition.layers().equipment();
-            // A filled slot whose layer names a pose for its wearer swaps that pose in for the body's
-            // - the harnessed happy ghast's smaller body - while the pose in force is still the
-            // row's own. Vanilla's body asks only whether the stack is empty, so a selected slot
-            // swaps whether or not its material names an asset the layer can draw. A pass sharing
-            // the body's pose follows it onto the swapped one.
-            if (bodyPose == definition.pose()) {
-                Optional<EntityPose> wearer = equipment.stream()
-                    .filter(overlay -> !this.equipmentMaterial(overlay.slot()).isAbsent())
-                    .flatMap(overlay -> overlay.wearerPose().stream())
-                    .findFirst();
-                if (wearer.isPresent()) {
-                    builder.pose(wearer.get());
-                    builder.overlays(repointed(passes, bodyPose, wearer.get()));
-                }
+            // The carried form while a block is selected - the enderman's raised arms, the iron
+            // golem's offered flower - and otherwise a filled slot's equipment form - the harnessed
+            // happy ghast's smaller body - swaps its pose and passes in while the body in force is
+            // still the row's own in both: no shape form has swapped its passes in and no size form
+            // a pose of its own. The form is read off the row's axes, so over a large body it would
+            // draw the small row's passes. Its mesh is the row's, so the mesh the size swap selected
+            // stays.
+            if (large.isEmpty() && bodyPose == definition.pose()) {
+                this.wearerForm(definition).ifPresent(form -> builder.pose(form.pose())
+                    .overlays(this.gatedOverlays(form.overlays())));
             }
         }
         // A filled slot whose layer names a toggle for its wearer selects it - the warm zombie
@@ -613,6 +613,29 @@ public class AppearanceOptions {
     }
 
     /**
+     * The form this appearance re-poses the wearer as - the {@link Entity.Axes#carried() carried
+     * form} while a block is selected, the caller's own selection answering first, and otherwise the
+     * {@link Entity.Axes#equipment() equipment form} of the first filled slot in that axis's order.
+     * Vanilla's body asks only whether the stack is empty, so a filled slot answers whether or not
+     * its material names an asset the layer can draw.
+     *
+     * @param definition the definition whose axes carry the forms
+     * @return the form the wearer is drawn as, or empty where neither selection re-poses it
+     */
+    private @NotNull Optional<Entity> wearerForm(@NotNull Entity definition) {
+        Entity.Axes axes = definition.axes();
+        if (this.selects(Flag.CARRIED) && axes.carried().isPresent())
+            return axes.carried();
+        return axes.equipment()
+            .options()
+            .entrySet()
+            .stream()
+            .filter(slot -> !this.equipmentMaterial(slot.getKey()).isAbsent())
+            .map(Map.Entry::getValue)
+            .findFirst();
+    }
+
+    /**
      * The toggle selection with every toggle a filled slot names for its wearer added, or the given
      * selection itself when no filled slot names one.
      *
@@ -633,31 +656,12 @@ public class AppearanceOptions {
     }
 
     /**
-     * The passes with every one sharing the body's pose re-pointed at the pose swapped in for it,
-     * or the given list itself when none shares it.
-     *
-     * @param passes the overlay passes in force
-     * @param body the body pose being replaced
-     * @param swapped the pose replacing it
-     * @return the passes following the swapped pose
-     */
-    private static @NotNull ConcurrentList<Entity.OverlayLayer> repointed(
-        @NotNull ConcurrentList<Entity.OverlayLayer> passes, @NotNull EntityPose body, @NotNull EntityPose swapped) {
-
-        if (passes.stream().noneMatch(pass -> pass.pose() == body)) return passes;
-        return passes.stream()
-            .map(pass -> pass.pose() != body ? pass : new Entity.OverlayLayer(pass.model(), pass.textureRef(),
-                pass.pass(), pass.tintArgb(), pass.skipBounds(), pass.tintBy(), pass.textureBy(), pass.gate(),
-                pass.noHatModel(), swapped, pass.textureScroll()))
-            .collect(Concurrent.toUnmodifiableList());
-    }
-
-    /**
      * Drops the overlays this appearance does not activate - the sheep wool once sheared, the creeper
      * swirl unless charged, the collar while none is worn - both the rendered geometry and its
      * canvas-bounds contribution. The list is only rebuilt when a resolve-stage gate is present, so
-     * a list carrying none is returned as-is. Applied to the adult and the baby list alike, so a
-     * gated pass that gains a baby form is gated on a baby too rather than drawing unconditionally.
+     * a list carrying none is returned as-is. Applied to every list the resolve puts in - the row's,
+     * the baby form's, the large shape form's and the wearer form's - so a gated pass is gated in
+     * whichever form draws it rather than drawing unconditionally.
      *
      * @param overlays the overlay list to gate
      * @return the surviving overlays, or the given list itself when nothing drops

@@ -54,9 +54,9 @@ import java.util.stream.IntStream;
  * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the GPU's {@code 1/256} sub-pixel
  * grid ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
  * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
- * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
- * (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails}, vanilla
- * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
+ * functions with a {@code 1/256} fixed-point sample and the GPU's top-left fill rule, taken in GL's
+ * Y-up frame (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails},
+ * vanilla {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
  * ({@link Shading}), and composited through the triangle's {@link BlendMode}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
@@ -155,7 +155,8 @@ public class Rasterizer {
      * hardware snaps a vertex's window position to before it sets up coverage and attribute
      * interpolation. The D3D11 functional spec requires exactly eight fractional bits there, and it is
      * the grid {@link RasterMath}'s fixed-point edge test reads, so that test's own quantization of a
-     * snapped corner is the identity and coverage, barycentrics and the texel fetch all see one corner.
+     * snapped corner is the identity and coverage, barycentrics, the texel fetch and depth all see one
+     * corner.
      *
      * <p>It is a hardware value rather than a tuned one, and the grid is what settles a texel edge that
      * runs through pixel centres, so no other grid - finer, or none - settles them as the GPU does.
@@ -914,7 +915,7 @@ public class Rasterizer {
         PixelMask glintMask = buffer.mask().orElse(null);
         // Every trace call in the pixel loop below sits behind this flag as well as DebugChannel's own
         // rectangle check. A trace call the loop takes rarely - the skip-fill inside a span, where the
-        // only rejection is a tie the top-left rule refuses - stays a real call the compiler neither
+        // only rejection is a tie the fill rule refuses - stays a real call the compiler neither
         // inlines nor turns into a trap, and a call anywhere in the loop slows every sample it visits:
         // the player bust at 256 px draws in 0.81 ms/op on one core with one there and 0.61 ms/op
         // without. Behind the flag the compiler folds each trace away whatever the profile says.
@@ -945,12 +946,12 @@ public class Rasterizer {
             SurfaceTraits tr = t.source.traits();
             PassDeclaration pass = tr.pass();
             BlendMode blendMode = pass.blend();
-            // Depth comes off the triangle's own plane, read at the sample point, the way graphics
-            // hardware interpolates one - not blended per pixel from barycentric weights. Blending the
-            // three vertex depths reaches the same affine function, each of them being the plane's own
-            // value at its snapped position, but through four more roundings than reading the plane
-            // does; a pair of coplanar triangles takes those differently and separates by a quantum the
-            // grid would otherwise tie. Hoisted here for the deref, not for a decision.
+            // Depth comes off the triangle's own plane, the one through its snapped corners, read at the
+            // sample point, the way graphics hardware interpolates one - not blended per pixel from
+            // barycentric weights. Blending the three vertex depths reaches the same affine function,
+            // each of them being the plane's own value at its snapped corner, but through four more
+            // roundings than reading the plane does; a pair the grid would otherwise tie takes those
+            // differently and separates by a quantum. Hoisted here for the deref, not for a decision.
             DepthMath.Plane plane = t.plane;
             float alphaScale = pass.alpha();
 
@@ -976,7 +977,7 @@ public class Rasterizer {
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
-            // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
+            // pixel coverage test drops to 3 add + sign check + at-most-3 fill-rule checks; no
             // re-quantization of the sample point. Bit-identical to per-pixel recompute -
             // integer addition is exact.
             //
@@ -985,7 +986,7 @@ public class Rasterizer {
             // box's first column and its stepX, every column outside it being a sample the inside
             // test rejects. The row's edge values are reseeded at the span's first column with the
             // same integer steps the walk would have taken to reach it, and the inside test runs
-            // unchanged within the span, top-left ties included. The per-pixel trace walks the whole
+            // unchanged within the span, fill-rule ties included. The per-pixel trace walks the whole
             // row so it still logs every rejected sample, and so does a box whose edge values could
             // leave a long. A degenerate triangle covers nothing, so outside the trace it is not
             // walked at all.
@@ -1037,7 +1038,7 @@ public class Rasterizer {
                     // the piston micro went 0.212 to 0.224 ms/op (+5.7%, 10 runs over 2 forks, error bars
                     // 0.008 and 0.009). The divisions overlap the long edge tests in the pipeline where a
                     // branch does not, so the work this looks like it wastes is cheaper than the branch
-                    // that would skip it. Inside a span the test rejects only top-left ties, so the order
+                    // that would skip it. Inside a span the test rejects only fill-rule ties, so the order
                     // makes no difference there.
                     RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate
@@ -1117,11 +1118,10 @@ public class Rasterizer {
                     int afterShade = Shading.apply(rawTexel, t.source.tintArgb(),
                         pass.emissive() ? Shading.UNLIT : shading);
                     // Per-overlay opacity multiplier: scale the fragment's alpha before compositing.
-                    // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only an
-                    // overlay declaring an explicit alpha node (the warden pulsating-spots glow at
-                    // 0.25) reduces it. A fractional layer opacity has no home in the overlay tint's
-                    // alpha byte - the MULTIPLY tint blend keeps the texel's alpha - so it rides this
-                    // dedicated path.
+                    // Default 1.0 (no-op) for every body / cutout / texture-alpha surface; only a pass
+                    // whose declared or frame-evaluated opacity is below one reduces it. A fractional
+                    // layer opacity has no home in the overlay tint's alpha byte - the MULTIPLY tint
+                    // blend keeps the texel's alpha - so it rides this dedicated path.
                     int afterAlpha = alphaScale == 1f
                         ? afterShade
                         : ColorMath.withAlpha(afterShade, Math.round(ColorMath.alpha(afterShade) * alphaScale));
@@ -1242,9 +1242,9 @@ public class Rasterizer {
      * edge across its interior - and {@link RasterMath#texelOf(float)} reads it as the texel below,
      * which is where the GPU's interpolation almost always lands such a value.
      *
-     * <p>Depth does not read the snapped corners - {@code DepthMath.Plane} is solved from the unsnapped
-     * positions - so the snap moves which samples are covered and which texel they read, never the
-     * depth they compare.
+     * <p>Depth reads the snapped corners too - {@code DepthMath.Plane} is solved from them - so the snap
+     * moves which samples are covered, which texel they read and the depth they compare as one, and two
+     * faces sharing an edge meet in depth on the edge both cover up to.
      *
      * @param v the projected screen-space corner
      * @return the corner on the sub-pixel grid, or {@code v} itself when the snap is disabled
@@ -1308,13 +1308,15 @@ public class Rasterizer {
                     triangle.uv2().x(), triangle.uv2().y() });
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        // Depth comes off the plane the UNSNAPPED positions define, so the coverage snap moves coverage
-        // without moving depth, and every lens reads it the same way - depth is affine in screen space
-        // under all of them. Per-vertex inverse clip-w is what the perspective-correct UV path
-        // re-weights by; a parallel lens leaves it a flat 1 and keeps the screen-linear no-divide path.
+        // Depth comes off the plane the SNAPPED corners define - the triangle coverage tests - so two
+        // faces sharing an edge meet in depth on the edge both cover up to, as graphics hardware
+        // interpolates depth over the snapped window positions, and every lens reads it the same way -
+        // depth is affine in screen space under all of them. Per-vertex inverse clip-w is what the
+        // perspective-correct UV path re-weights by; a parallel lens leaves it a flat 1 and keeps the
+        // screen-linear no-divide path.
         return new Projected(triangle, p0, p1, p2, s0, s1, s2,
             RasterMath.EdgeCoefficients.of(s0, s1, s2),
-            DepthMath.Plane.of(r0, r1, r2, p0.z(), p1.z(), p2.z()),
+            DepthMath.Plane.of(s0, s1, s2, p0.z(), p1.z(), p2.z()),
             perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
             perspective.kind() == Lens.Kind.PERSPECTIVE);
     }
@@ -1431,8 +1433,8 @@ public class Rasterizer {
      * @param s1 the second vertex projected and coverage-snapped to screen space
      * @param s2 the third vertex projected and coverage-snapped to screen space
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
-     * @param plane the depth plane every fragment's depth is read off; {@code p0/p1/p2.z()} stay the
-     *     true camera-space depths the translucent sort keys off
+     * @param plane the depth plane through the snapped corners every fragment's depth is read off;
+     *     {@code p0/p1/p2.z()} stay the true camera-space depths the translucent sort keys off
      * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
      * @param iw1 the second vertex's inverse clip-{@code w}
      * @param iw2 the third vertex's inverse clip-{@code w}

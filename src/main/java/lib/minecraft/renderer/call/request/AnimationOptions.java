@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.call.request;
 
+import dev.simplified.annotations.BuildFlag;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,21 +19,25 @@ import java.util.Optional;
 public class AnimationOptions {
 
     /**
-     * Animation seed tick - frame 0 samples at this tick.
+     * Animation seed tick - frame 0 samples at this tick. A derived strip is fitted from tick zero,
+     * so a start elsewhere replays that length from here.
      */
     private final int startTick = 0;
 
     /**
-     * Number of output frames. Empty means the subject decides - one frame for a still subject,
-     * the shipped strip for a moving one; an explicit {@code 1} means one frame OF the animation,
-     * sampled at the start tick.
+     * Number of output frames. Empty means the subject decides - one frame for a still subject, the
+     * strip derived for its row for a moving one; an explicit {@code 1} means one frame OF the
+     * animation, sampled at the start tick.
      */
     private final @NotNull Optional<Integer> frameCount = Optional.empty();
 
     /**
-     * Vanilla ticks advanced between successive output frames. Empty means the subject decides -
-     * the subject's shipped cadence.
+     * Vanilla ticks advanced between successive output frames. Empty means the subject decides - the
+     * step its derived strip takes. Named without a frame count, the count fills to cover the derived
+     * loop. A frame steps at least one tick, so a named step below one is refused when the options are
+     * built.
      */
+    @BuildFlag(min = 1)
     private final @NotNull Optional<Integer> ticksPerFrame = Optional.empty();
 
     /**
@@ -94,18 +100,22 @@ public class AnimationOptions {
     }
 
     /**
-     * These options with every unnamed strip knob filled - the entity path's one defaulting site.
-     * A named knob always wins.
+     * These options with every unnamed strip knob filled from a derived strip - the entity path's one
+     * defaulting site. A named knob always wins. Named alone, a frame count keeps the strip's own step,
+     * and a step fills as many frames as cover the strip's whole loop - one for a still strip - however
+     * many that is.
      *
-     * @param fallbackFrames what fills an unnamed frame count
-     * @param fallbackTicks what fills an unnamed tick step
+     * @param strip the strip derived for the row the render draws
      * @return these options with both strip knobs concrete
      */
-    public @NotNull AnimationOptions resolved(int fallbackFrames, int fallbackTicks) {
+    public @NotNull AnimationOptions resolved(@NotNull StripFit strip) {
         if (isFrameCountNamed() && isTicksPerFrameNamed()) return this;
+        int step = this.ticksPerFrame.orElse(strip.ticksPerFrame());
+        int frames = this.frameCount.orElseGet(() -> !isTicksPerFrameNamed() ? strip.frames()
+            : strip.isStill() ? 1 : Math.ceilDiv(strip.loopTicks(), step));
         return mutate()
-            .frameCount(this.frameCount.orElse(fallbackFrames))
-            .ticksPerFrame(this.ticksPerFrame.orElse(fallbackTicks))
+            .frameCount(frames)
+            .ticksPerFrame(step)
             .build();
     }
 

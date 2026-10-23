@@ -76,6 +76,13 @@ import java.util.stream.Collectors;
  * {@code invokestatic} delegation (inlining the callee's body with save/restore of call-frame
  * locals), and javac procedural for-loop unrolling (tentacle / spike / segment loops) with a
  * miniature arithmetic evaluator for the loop-body expressions.
+ *
+ * <p>Every call that decides the order vanilla's baked model draws the parts in is replayed on a
+ * {@link PartTree} as the walk meets it - each {@code addOrReplaceChild}, the {@code clearChild} and
+ * {@code retainPartsAndChildren} surgeries, each whole-mesh scaling where it is applied, and the
+ * registration's own scaling and aged-down transform after the factory returns. The parse product
+ * carries the tree as {@link PartTree#MEMBER}, over every part the factory builds, so the bones can be
+ * written in that order once every later pass has run.
  */
 @UtilityClass
 public final class GeometryParser {
@@ -94,13 +101,13 @@ public final class GeometryParser {
      * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
      *
      * <p>The renderer names the same number {@code EntityMesh.FEET_ANCHOR} and expands it the same
-     * way in {@code EntityMesh.flattenedShift}, so that a shell seated on a scaled wearer lands
-     * where this pass put the wearer's own bone pivots. Both sit in one build, this subproject
-     * taking the renderer's project on {@code implementation}, yet each declares the number itself
-     * and nothing compares the two, so each side pins its own value and an edit to either moves a
-     * test rather than a render. This side is pinned by {@code GeometryParserTest}'s ghast, whose
-     * in-factory scale of 4.5 reaches this expansion and is value-matched against the shipped entry
-     * with floats exact; the renderer's side is pinned by
+     * way in {@code EntityMesh.flattenedShift}, so that what it seats on a scaled wearer itself - an
+     * elytra - lands where this pass put the wearer's own bone pivots and its armour shell's. Both
+     * sit in one build, this subproject taking the renderer's project on {@code implementation}, yet
+     * each declares the number itself and nothing compares the two, so each side pins its own value
+     * and an edit to either moves a test rather than a render. This side is pinned by
+     * {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches this expansion and is
+     * value-matched against the shipped entry with floats exact; the renderer's side is pinned by
      * {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
      */
     private static final float FEET_ANCHOR = 24.016f;
@@ -108,8 +115,9 @@ public final class GeometryParser {
 
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
-     * product - {@code textureWidth}, {@code textureHeight}, {@code bones} - as a
-     * {@link JsonTree}, or {@code null} when the parse produced no bone with cubes.
+     * product - {@code textureWidth}, {@code textureHeight}, {@code bones} and the
+     * {@link PartTree#MEMBER part tree} - as a {@link JsonTree}, or {@code null} when the parse
+     * produced no bone with cubes.
      * Schema assembly (the {@code source} twin, {@code texture_size} pairing, overrides,
      * {@code y_axis}, {@code cull}) is {@code GeometryFlow}'s job; missing classes /
      * methods (typically a MC version bump rename) and parse failures are ERRORs on
@@ -119,7 +127,7 @@ public final class GeometryParser {
      * @param request the parse to perform
      * @param diagnostics the flow's diagnostics scope
      * @return the parse product ({@code textureWidth}, {@code textureHeight},
-     *     {@code bones}), or {@code null} when nothing was emitted
+     *     {@code bones}, the part tree), or {@code null} when nothing was emitted
      */
     public static @Nullable JsonTree parse(@NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
         ClassNode classNode = cache.load(request.factoryClass());
@@ -152,15 +160,16 @@ public final class GeometryParser {
      * hooks ({@code paramIntValues} / {@code paramFloatValues} / {@code grow} /
      * {@code appliedMeshTransformerScale} / {@code refParam}), runs {@link #walkInstructions},
      * then applies the post-walk passes ({@link #applyRetainedNamesFilter},
-     * {@link #applyClearedBonesFilter}, {@link #applyMeshTransformerScaling}) before
-     * serialising the accumulated bones.
+     * {@link #applyClearedBonesFilter}, {@link #applyMeshTransformerScaling}) and replays the
+     * registration on the part tree ({@link #replayRegistration}) before serialising the
+     * accumulated bones and the tree.
      *
      * @param instructions the layer-creation method's bytecode
      * @param cache the session's jar cache, for resolving inlined statics and static-array {@code <clinit>}s
      * @param request the request whose substitution hooks and diagnostics tag seed the parse
      * @param diagnostics diagnostic sink for underflow / overflow / unhandled-dispatch warnings
-     * @return the model JSON ({@code textureWidth}, {@code textureHeight}, {@code bones}), or
-     *     {@code null} when no bone with cubes was emitted
+     * @return the model JSON ({@code textureWidth}, {@code textureHeight}, {@code bones}, the part
+     *     tree), or {@code null} when no bone with cubes was emitted
      */
     private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ClassNodeCache cache, @NotNull GeometryRequest request, @NotNull Diagnostics diagnostics) {
         WalkState state = new WalkState();
@@ -229,6 +238,7 @@ public final class GeometryParser {
         // the origin is one the feet anchor and the baby offset both move, and dropping its pivot
         // any earlier leaves them nothing to read and the bone standing where it was authored.
         omitDefaultedBoneMembers(state);
+        replayRegistration(state, request);
 
         if (state.bones.isEmpty()) return null;
 
@@ -236,7 +246,47 @@ public final class GeometryParser {
         model.addProperty("textureWidth", state.texWidth);
         model.addProperty("textureHeight", state.texHeight);
         model.add("bones", state.bones);
+        model.add(PartTree.MEMBER, state.parts.toJson().toGson());
         return model;
+    }
+
+    /**
+     * Replays on the part tree what happens to the factory's mesh after the factory returns, in the
+     * order vanilla does it: a scaling the walk captured but never saw applied, then the registration's
+     * own whole-mesh scaling, then its aged-down transform. Each scaling rebuilds the root with a copy
+     * of its children, and the aged-down transform rebuilds the root and copies each top-level part's
+     * children.
+     *
+     * @param state the parse state whose part tree is replayed in place
+     * @param request the request whose registration wraps the factory
+     */
+    private static void replayRegistration(@NotNull WalkState state, @NotNull GeometryRequest request) {
+        while (state.pendingScalings > 0) {
+            state.parts.transformRoot();
+            state.pendingScalings--;
+        }
+        if (request.appliedMeshTransformerScale() != 1f) state.parts.transformRoot();
+        if (state.babyTransform != null) state.parts.babyTransform();
+    }
+
+    /**
+     * Whether a {@code retainPartsAndChildren} call runs on the mesh root, read off the instructions
+     * pushing its receiver and its set: {@code MeshDefinition.getRoot}, the set's string literals, then
+     * {@code Set.of}.
+     *
+     * @param retain the {@code retainPartsAndChildren} call
+     * @return whether its receiver is the mesh root
+     */
+    private static boolean onTheMeshRoot(@NotNull MethodInsnNode retain) {
+        if (!(AsmWalker.previousReal(retain) instanceof MethodInsnNode setOf) || !setOf.owner.equals(SourceClasses.Types.JAVA_SET))
+            return false;
+        int names = parseArgTypes(setOf.desc).length;
+        List<AbstractInsnNode> pushed = AsmWalker.before(setOf).real().limit(names + 1).toList();
+        return pushed.size() == names + 1
+            && pushed.subList(0, names).stream().allMatch(push -> AsmWalker.stringLiteral(push) != null)
+            && pushed.getLast() instanceof MethodInsnNode root
+            && root.owner.equals(SourceClasses.Types.MESH_DEFINITION)
+            && root.name.equals(SourceClasses.Methods.GET_ROOT);
     }
 
     /**
@@ -1243,6 +1293,7 @@ public final class GeometryParser {
                     Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, cache);
                     if (f != null) {
                         state.meshTransformerScale *= f;
+                        state.pendingScalings++;
                     } else {
                         MethodNode modifyMesh = findStaticModifyMeshTarget(fieldInsn.owner, fieldInsn.name, cache);
                         if (modifyMesh != null) inlineStaticMethodBody(modifyMesh, null, state, cache);
@@ -1384,6 +1435,36 @@ public final class GeometryParser {
         }
         if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
             flushPendingBone(state);
+            // The form taking a built part puts a part that may already hold children, which the
+            // part tree's replay of the builder form does not model.
+            if (methodInsn.desc.startsWith("(Ljava/lang/String;" + SourceClasses.Descs.ref(SourceClasses.Types.PART_DEFINITION)))
+                state.parts.refuse("addOrReplaceChild puts a built part, whose children the part tree does not hold");
+            return;
+        }
+        // Surgeries on a part the walk does not replay: the part tree cannot say what they leave, so
+        // the order it would write is refused rather than guessed.
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
+            && (methodInsn.name.equals(SourceClasses.Methods.RETAIN_EXACT_PARTS)
+                || methodInsn.name.equals(SourceClasses.Methods.CLEAR_RECURSIVELY)
+                || methodInsn.name.equals(SourceClasses.Methods.TRANSFORMED))) {
+            state.parts.refuse("PartDefinition.%s in a factory body is not replayed", methodInsn.name);
+            return;
+        }
+        // MeshDefinition.transformed rebuilds the root with a copy of its children - the step every
+        // whole-mesh scaling goes through, and one a factory can take directly.
+        if (methodInsn.owner.equals(SourceClasses.Types.MESH_DEFINITION) && methodInsn.name.equals(SourceClasses.Methods.TRANSFORMED)) {
+            state.parts.transformRoot();
+            return;
+        }
+        // A transformer applied to the mesh: a scaling the walk captured copies the root here, where
+        // vanilla's apply runs it, rather than where the transformer was built.
+        if ((methodInsn.owner.equals(SourceClasses.Types.LAYER_DEFINITION) || methodInsn.owner.equals(SourceClasses.Types.MESH_DEFINITION))
+            && methodInsn.name.equals(SourceClasses.Methods.APPLY)
+            && methodInsn.desc.startsWith("(" + MESH_TRANSFORMER_DESC + ")")) {
+            if (state.pendingScalings > 0) {
+                state.parts.transformRoot();
+                state.pendingScalings--;
+            }
             return;
         }
         // PartDefinition.getChild(String name) returns the named child PartDefinition.
@@ -1424,6 +1505,12 @@ public final class GeometryParser {
         if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("retainPartsAndChildren")
             && state.mode == Mode.EVALUATING) {
+            if (state.pendingRetainSet == null)
+                state.parts.refuse("retainPartsAndChildren keeps a set the walk did not read");
+            else if (!onTheMeshRoot(methodInsn))
+                state.parts.refuse("retainPartsAndChildren runs on a part other than the mesh root");
+            else
+                state.parts.retainPartsAndChildren(state.pendingRetainSet);
             if (state.pendingRetainSet != null) {
                 state.retainedNames = state.pendingRetainSet;
                 state.pendingRetainSet = null;
@@ -1442,11 +1529,14 @@ public final class GeometryParser {
         // Gated on {@code EVALUATING} so legacy block-entity walkers (which
         // never see clearChild) keep their byte-stable output.
         if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
-            && methodInsn.name.equals("clearChild")
+            && methodInsn.name.equals(SourceClasses.Methods.CLEAR_CHILD)
             && state.mode == Mode.EVALUATING) {
             if (state.frame.pendingPartName != null) {
                 state.clearedBones.add(state.frame.pendingPartName);
+                state.parts.clearChild(state.frame.pendingPartName);
                 state.frame.pendingPartName = null;
+            } else {
+                state.parts.refuse("clearChild clears a part the walk did not name");
             }
             return;
         }
@@ -1460,7 +1550,7 @@ public final class GeometryParser {
         // overload would need an anewarray walker; not used by any vanilla entity factory
         // observed so far so the implementation is deferred. Gated on
         // {@code EVALUATING}.
-        if (methodInsn.owner.equals("java/util/Set")
+        if (methodInsn.owner.equals(SourceClasses.Types.JAVA_SET)
             && methodInsn.name.equals("of")
             && opcode == Opcodes.INVOKESTATIC
             && state.mode == Mode.EVALUATING) {
@@ -1542,6 +1632,8 @@ public final class GeometryParser {
             && methodInsn.desc.equals("(F)" + MESH_TRANSFORMER_DESC)
             && !state.numStack.isEmpty()) {
             float f = state.numStack.popTyped(Number.class).floatValue();
+            // Whatever factor the walk reads, vanilla's scaling copies the root where it is applied.
+            state.pendingScalings++;
             // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
             // {@link GeometryRequest}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
             // float parameter that this site references via {@code fload_0}. Donkey / mule hit
@@ -2311,6 +2403,9 @@ public final class GeometryParser {
             // can chase the ancestor chain. Root-level bones map to a null parent.
             state.boneParents.put(name, resolvedParent);
             state.frame.lastFlushedBone = name;
+            state.parts.addOrReplace(resolvedParent, name);
+        } else {
+            state.parts.refuse("addOrReplaceChild puts a part the walk did not name");
         }
         state.frame.returnedBone = name;
         state.frame.pendingPartName = null;
@@ -2685,6 +2780,20 @@ public final class GeometryParser {
          * for every mesh vanilla registers untransformed.
          */
         @Nullable BabyMeshTransform babyTransform;
+
+        /**
+         * Every {@code addOrReplaceChild} and surgery the walk meets, replayed on vanilla's own map
+         * semantics so the bones can be written in the order vanilla's baked model draws them.
+         * Holds every part the factory builds, including the ones a post-walk filter drops.
+         */
+        final @NotNull PartTree parts = new PartTree();
+
+        /**
+         * Whole-mesh scalings the walk has captured and not yet seen applied. Each copies the part
+         * tree's root at the {@code apply} that runs it, and one never seen applied copies it after the
+         * walk, as its factor is folded in after the walk either way.
+         */
+        int pendingScalings;
 
         /**
          * The 3-component inflate captured from the most recent {@code new CubeDeformation}

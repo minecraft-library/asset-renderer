@@ -2,14 +2,19 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.ImageFrame;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.bake.pose.StyleResolution;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.frame.StripFit;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
@@ -18,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -37,8 +43,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * so each is asserted on its own.
  *
  * <p>An unnamed frame count means the subject decides - one frame for a style nothing moves, the
- * shipped strip for a moving one - and an explicit count is the caller's whichever way it points, so
- * a named {@code 1} is one frame OF the animation rather than a still request.
+ * strip derived for its row for a moving one - and an explicit count is the caller's whichever way it
+ * points, so a named {@code 1} is one frame OF the animation rather than a still request. A knob named
+ * alone keeps the whole loop: a count keeps the row's own step, and a step fills as many frames as
+ * cover the derived loop.
+ *
+ * <p>A group's canvas is a union of every member's silhouette, each measured over the strip its own
+ * render draws, so the canvas is the same whichever member is drawn.
  *
  * <p>Frames are compared rather than counted. A count says a container holds eight images and says
  * nothing about whether they differ, and a strip of eight identical frames is exactly what a style
@@ -57,12 +68,14 @@ class EntityRendererAnimatedTest {
     /** Writes nothing the tick drives, so no style and no strip would move it. */
     private static final @NotNull String STILL = "minecraft:armor_stand";
 
+    /** Beats its wings faster than two coarse frames at rest, so its idle row derives the fine step. */
+    private static final @NotNull String FLAPPING = "minecraft:bee";
+
     /**
      * Every shipped row carrying an empty source inventory, each against the row it composes over.
      *
      * <p>The frog's {@code jump} names no base at all, so {@code bind} is what it stands apart
-     * from. The axolotl's two name {@code idle}, which for the baby resolves to the universal
-     * standing row, its own shipped idle applying to the adult alone.
+     * from. The axolotl's two name {@code idle}, each age's own.
      */
     private static final @NotNull List<Held> HELD_ROWS = List.of(
         new Held("minecraft:bat", "rest", PoseStyle.IDLE, Optional.empty()),
@@ -101,13 +114,16 @@ class EntityRendererAnimatedTest {
 
     }
 
+    private static RendererContext context;
+
     private static EntityRenderer renderer;
 
     @BeforeAll
     static void bootstrap() {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        renderer = new EntityRenderer(ClientAssetsExtension.context());
+        context = ClientAssetsExtension.context();
+        renderer = new EntityRenderer(context);
     }
 
     @Test
@@ -115,9 +131,8 @@ class EntityRendererAnimatedTest {
     void aStridingSubjectMoves() {
         List<String> frames = framesOf(animated(STRIDING).build());
         assertTrue(frames.size() > 1, "a subject asked to move is expected to render a strip");
-        // Every frame distinct rather than merely some: the style sweeps one whole excursion and the
-        // strip divides it evenly, so two equal frames would mean the sampling landed on a period
-        // that divides the strip rather than on the excursion it was cut to cover.
+        // Every frame distinct rather than merely some: the strip is one loop of the walk, so two
+        // equal frames would mean the style never moved.
         assertEquals(frames.size(), new LinkedHashSet<>(frames).size(),
             "every frame of a walking creeper is expected to differ");
     }
@@ -143,13 +158,77 @@ class EntityRendererAnimatedTest {
     }
 
     @Test
-    @DisplayName("a moving style with no named count plays the shipped strip")
-    void aMovingStylePlaysTheShippedStrip() {
-        List<String> frames = framesOf(base(STRIDING).style(PoseStyle.STRIDE).build());
-        assertEquals(StyleCatalog.STRIP_FRAMES, frames.size(),
-            "a striding creeper with nothing named is expected to render the shipped strip");
+    @DisplayName("a moving style with nothing named plays the strip derived for its row")
+    void aMovingStylePlaysItsDerivedStrip() {
+        StripFit strip = derived(STRIDING, PoseStyle.STRIDE);
+        ImageData data = renderer.render(base(STRIDING).style(PoseStyle.STRIDE).build()).image();
+        List<String> frames = framesOf(data);
+        assertTrue(strip.frames() > 1, "a striding creeper's row derives a moving strip");
+        assertEquals(strip.frames(), frames.size(),
+            "a striding creeper with nothing named is expected to render the strip its row derives");
         assertEquals(frames.size(), new LinkedHashSet<>(frames).size(),
             "and every frame of it is expected to differ");
+        for (ImageFrame frame : data.getFrames()) {
+            assertEquals(strip.ticksPerFrame() * Timeline.MILLIS_PER_TICK, frame.delayMs(),
+                "each frame is held for the strip's own step");
+        }
+    }
+
+    @Test
+    @DisplayName("a row whose strip takes the fine step plays a tick a frame with nothing named")
+    void aFineStripPlaysATickAFrame() {
+        StripFit strip = derived(FLAPPING, PoseStyle.IDLE);
+        assertEquals(1, strip.ticksPerFrame(), "a bee's idle row derives the fine step, a tick a frame");
+        ImageData data = renderer.render(base(FLAPPING).style(PoseStyle.IDLE).build()).image();
+        assertEquals(strip.frames(), data.getFrames().size(),
+            "a bee at rest with nothing named is expected to render the strip its row derives");
+        for (ImageFrame frame : data.getFrames()) {
+            assertEquals(Timeline.MILLIS_PER_TICK, frame.delayMs(),
+                "each frame is held for the fine strip's one tick rather than the coarse step");
+        }
+    }
+
+    @Test
+    @DisplayName("a step named alone fills as many frames as cover the derived loop")
+    void aNamedStepAloneCoversTheWholeLoop() {
+        StripFit strip = derived(STRIDING, PoseStyle.STRIDE);
+        ImageData data = renderer.render(base(STRIDING)
+            .style(PoseStyle.STRIDE)
+            .animation(AnimationOptions.builder().ticksPerFrame(1).build())
+            .build()).image();
+        assertEquals(Math.ceilDiv(strip.loopTicks(), 1), data.getFrames().size(),
+            "a one-tick step is expected to draw every tick of the derived loop");
+        for (ImageFrame frame : data.getFrames())
+            assertEquals(Timeline.MILLIS_PER_TICK, frame.delayMs(), "each frame held for the named tick");
+    }
+
+    @Test
+    @DisplayName("a count named alone keeps the row's own step")
+    void aNamedCountAloneKeepsTheRowsStep() {
+        StripFit strip = derived(STRIDING, PoseStyle.STRIDE);
+        ImageData data = renderer.render(base(STRIDING)
+            .style(PoseStyle.STRIDE)
+            .animation(AnimationOptions.builder().frameCount(4).build())
+            .build()).image();
+        assertEquals(4, data.getFrames().size(), "the named count is the caller's");
+        for (ImageFrame frame : data.getFrames()) {
+            assertEquals(strip.ticksPerFrame() * Timeline.MILLIS_PER_TICK, frame.delayMs(),
+                "and each frame is held for the derived strip's step");
+        }
+    }
+
+    @Test
+    @DisplayName("a group's canvas is the same whichever member is drawn")
+    void aGroupCanvasDoesNotDependOnWhichMemberIsDrawn() {
+        // Each member and each coat is measured over its own strip rather than at the drawn
+        // subject's ticks, so the union is one set of silhouettes whichever member leads it. The
+        // villager and the wandering trader amble at paces of their own, so their strides part - and
+        // each baby is framed with the whole adult cohort, which the baby trader's six frames at a
+        // tick a frame would catch short of its full swing.
+        assertOneCanvas(PoseStyle.STRIDE, Age.ADULT, "minecraft:camel", "minecraft:camel_husk");
+        assertOneCanvas(PoseStyle.IDLE, Age.ADULT, "minecraft:piglin", "minecraft:piglin_brute", "minecraft:zombified_piglin");
+        assertOneCanvas(PoseStyle.STRIDE, Age.ADULT, "minecraft:villager", "minecraft:wandering_trader");
+        assertOneCanvas(PoseStyle.STRIDE, Age.BABY, "minecraft:villager", "minecraft:wandering_trader");
     }
 
     @Test
@@ -192,9 +271,38 @@ class EntityRendererAnimatedTest {
 
     // ------------------------------------------------------------------------------------
 
+    /** The strip a render of one entity's style naming no knob draws, as the render resolves it. */
+    private static @NotNull StripFit derived(@NotNull String id, @NotNull String style) {
+        return StyleResolution.of(context.strips(), context.findEntity(id), id, style, AppearanceOptions.defaults()).strip();
+    }
+
+    /** Renders one style of each member at one age under the group scope and holds every canvas to the first's. */
+    private static void assertOneCanvas(@NotNull String style, @NotNull Age age, @NotNull String @NotNull ... members) {
+        List<String> sizes = new ArrayList<>(members.length);
+        for (String member : members) {
+            PixelBuffer first = renderer.render(EntityOptions.builder()
+                    .entityId(member)
+                    .style(style)
+                    .appearance(AppearanceOptions.builder().age(age).build())
+                    .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
+                    .pixelsPerBlock(32)
+                    .build())
+                .image().getFrames().getFirst().pixels();
+            sizes.add(first.width() + "x" + first.height());
+        }
+        assertEquals(1, new LinkedHashSet<>(sizes).size(),
+            "every member of one group is expected to share one canvas under '" + style + "' at " + age + ": "
+                + List.of(members) + " drew " + sizes);
+    }
+
     /** One signature per rendered frame, in order, so two frames are comparable by value. */
     private static @NotNull List<String> framesOf(@NotNull EntityOptions options) {
-        return renderer.render(options).image().getFrames().stream()
+        return framesOf(renderer.render(options).image());
+    }
+
+    /** One signature per frame of a rendered image, in order. */
+    private static @NotNull List<String> framesOf(@NotNull ImageData image) {
+        return image.getFrames().stream()
             .map(frame -> {
                 StringBuilder out = new StringBuilder();
                 var pixels = frame.pixels().toBufferedImage();

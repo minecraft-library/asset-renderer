@@ -159,7 +159,7 @@ class EntityOverlayTextureTest {
 
         Entity.OverlayLayer pass = new Entity.OverlayLayer(crack.model(), textureRef, crack.pass(), tint,
             crack.skipBounds(), crack.tintBy(), textureBy, crack.gate(), crack.noHatModel(), crack.pose(),
-            crack.textureScroll());
+            crack.textureScroll(), crack.opacity());
         return golem.mutate().overlays(Concurrent.newUnmodifiableList(pass)).build();
     }
 

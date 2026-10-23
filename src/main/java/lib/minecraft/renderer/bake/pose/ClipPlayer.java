@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.bake.pose;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
@@ -12,10 +14,12 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.function.ToDoubleFunction;
 
 /**
@@ -104,6 +108,15 @@ public final class ClipPlayer {
     }
 
     /**
+     * What one play site answers at one instant - the clip clock it reads and what it displaces.
+     *
+     * @param millis the clip clock at that instant, in the whole milliseconds vanilla truncates to,
+     *     empty where the site does not play
+     * @param displacement what the site displaces, nothing where it does not play
+     */
+    record SitePlay(@NotNull OptionalLong millis, @NotNull Displacement displacement) {}
+
+    /**
      * What every clip this pose plays displaces at one instant.
      *
      * <p>Accumulated across clips rather than resolved per clip, because two sites can drive one
@@ -138,6 +151,38 @@ public final class ClipPlayer {
             accumulate(bones, container, site.clip(), drive, model);
         }
         return new Displacement(bones, container);
+    }
+
+    /**
+     * What each clip this pose plays displaces at one instant, site by site and in site order - a
+     * site that does not play at that instant answers no clock and no displacement.
+     * {@link #deltas} is what these add up to.
+     *
+     * @param pose the model's pose, read for the clips it plays
+     * @param model the mesh being posed, which is what says a bone exists to displace
+     * @param frame what each render-state figure reads as
+     * @return one answer per play site, in the order the pose declares them
+     */
+    static @NotNull ConcurrentList<SitePlay> siteDeltas(
+        @NotNull EntityPose pose, @NotNull EntityMesh model,
+        @NotNull ToDoubleFunction<String> frame) {
+
+        List<SitePlay> sites = new ArrayList<>(pose.clips().size());
+        for (EntityPose.Clip site : pose.clips()) {
+            Drive drive = driveOf(site, model, frame);
+            if (drive == null) {
+                sites.add(new SitePlay(OptionalLong.empty(), Displacement.NONE));
+                continue;
+            }
+            // A pair of maps per site, insertion-ordered as the whole form's are, so the sites added
+            // back in site order meet every bone in the order the whole form does.
+            Map<String, Map<PoseChannel, Float>> bones = new LinkedHashMap<>();
+            Map<PoseChannel, Float> container = new EnumMap<>(PoseChannel.class);
+            accumulate(bones, container, site.clip(), drive, model);
+            Displacement displacement = new Displacement(bones, container);
+            sites.add(new SitePlay(OptionalLong.of(drive.millis()), displacement));
+        }
+        return Concurrent.newUnmodifiableList(sites);
     }
 
     // ------------------------------------------------------------------------------------

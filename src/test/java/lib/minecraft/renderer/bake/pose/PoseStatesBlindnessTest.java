@@ -31,9 +31,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class PoseStatesBlindnessTest {
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     @Test
     @DisplayName("every shipped mesh poses identically with its silhouettes stripped, under every style")
@@ -52,7 +52,7 @@ class PoseStatesBlindnessTest {
                 EntityPose stripped = new EntityPose(shipped.container(), shipped.bones(),
                     shipped.clips(), shipped.refusal());
                 for (PoseStyle style : styles)
-                    for (int tick : STRIP_TICKS) {
+                    for (int tick : SAMPLE_TICKS) {
                         assertEquals(
                             outcome(shipped, mesh.getKey(), style, catalog.periodTicks(), tick),
                             outcome(stripped, mesh.getKey(), style, catalog.periodTicks(), tick),

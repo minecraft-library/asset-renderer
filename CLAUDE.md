@@ -198,8 +198,13 @@ byte-stable ground truth the nine sweeps diff against, one sub-tree each under
 - **The two posed sub-trees are one sweep at two gaits**, `-Drefharness.walking=true` selecting the
   second, and the asset side is one driver at `asset.parity.gait=walk`. Each names its own gait -
   `idle/` and `walk/` on the harness side, `idle` and `walk` on the property - so the two sides map a
-  sub-tree by one spelling. Neither doubles: what a gait changes is two render-state fields, not a
-  work list.
+  sub-tree by one spelling. Neither doubles the subjects: what a gait changes is the walk each
+  subject is armed at and so the strip it takes.
+- **The posed sub-trees are rendered at the roster `entityScheduleRoster` writes** beside the tree,
+  which every posed reference run writes first: each subject's frames, step, walk and clock values,
+  resolved through the code the asset side's own render runs. The harness refuses a subject the
+  roster does not name, and each sub-tree records what it rendered in its `schedule.json`, which the
+  two animation sweeps hold to their own resolution.
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
 - A reference that moves on a re-render with your change stashed was stale, not moved.

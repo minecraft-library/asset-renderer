@@ -70,7 +70,7 @@ class StyleRegistrarClockTest {
         for (String leg : List.of("right_front_leg", "left_front_leg")) {
             StyleDriver driver = installed.drivers().get("style$paddle$" + leg + "$x_rot");
             assertNotNull(driver, "'" + leg + "' carries the wave's own field");
-            assertEquals(StyleDriver.Wave.SWEEP, driver.wave(), "'" + leg + "' sweeps there and back");
+            assertEquals(StyleDriver.Wave.Plain.SWEEP, driver.wave(), "'" + leg + "' sweeps there and back");
         }
     }
 

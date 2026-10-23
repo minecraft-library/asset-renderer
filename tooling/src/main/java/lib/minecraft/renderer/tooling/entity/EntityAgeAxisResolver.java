@@ -72,6 +72,12 @@ import java.util.Set;
  * and the age it renders at, and the size axis files them on the option drawing it; this axis
  * resolves no baby for it.
  *
+ * <p>And a subject can age down with no baby mesh at all: the wandering trader is a mob whose
+ * {@code isBaby} and {@code setBaby} are an ageable mob's, its renderer bakes one model, and vanilla
+ * draws its baby on the adult's mesh at the adult's texture, the two differing by the walk clock
+ * alone. Whether a subject ages down is read off its entity, and the baby option that earns names the
+ * adult's mesh.
+ *
  * <p>Baby texture chain: variant families carry per-option {@code baby_texture} instead (node emits
  * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
  * {@code <adult>_baby} sibling existence-probed as a declared fallback.
@@ -88,6 +94,9 @@ public final class EntityAgeAxisResolver {
 
     /** The descriptor of {@code isBaby} and of a boolean accessor it forwards to. */
     private static final @NotNull String FLAG_DESC = "()Z";
+
+    /** The descriptor of {@code setBaby}. */
+    private static final @NotNull String SET_BABY_DESC = "(Z)V";
 
     /** The descriptor of a {@code ModelLayers} field a renderer bakes a model from. */
     private static final @NotNull String LAYER_REF = SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION);
@@ -116,7 +125,8 @@ public final class EntityAgeAxisResolver {
     /**
      * The mandatory age node: {@code options.adult} carries the family baseline - the base
      * {@code geometry} and, for non-variant families, the adult {@code texture} - and
-     * {@code options.baby} is added only when a dedicated baby mesh resolves. Every family
+     * {@code options.baby} is added where a dedicated baby mesh resolves, or where the subject ages
+     * down with no baby mesh of its own and vanilla draws its baby on the adult's. Every family
      * emits an age axis; the {@code options} key-order IS the domain (no {@code values} list).
      *
      * @param baseGeometry the family's resolved primary geometry key (the adult mesh), or
@@ -144,6 +154,7 @@ public final class EntityAgeAxisResolver {
         JsonTree options = node.child("options");
         options.put("adult", adult);
         JsonTree baby = resolveBaby(baseGeometry, adultTexture, variantFamily);
+        if (baby == null && agesDown()) baby = adultMeshBaby(baseGeometry, adultTexture, variantFamily);
         if (baby != null) {
             if (setupYShift != null && setupYShift[1] != 0f) baby.put("y_shift", setupYShift[1]);
             options.put("baby", baby);
@@ -219,6 +230,81 @@ public final class EntityAgeAxisResolver {
         else this.diagnostics.info("age axis: %s answers no readable getAgeScale - baby option carries no %s",
             this.subject.entityClass(), PoseFlow.AGE_SCALE);
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
+        return baby;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // a baby with no mesh of its own
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Whether the subject is one vanilla ages down - a mob whose {@code isBaby} can answer true and
+     * whose {@code setBaby} does something.
+     *
+     * <p>Three facts, each read off the nearest declaration up the entity's chain: the entity is a
+     * {@code Mob}; its {@code isBaby} is not the constant-false {@code ICONST_0; IRETURN} the frog,
+     * the parrot and a few others answer; and its {@code setBaby} is not the bare {@code RETURN}
+     * {@code Mob} declares. Setting such a subject a baby takes, and it then answers one - which is
+     * how vanilla draws a wandering trader's baby though its renderer bakes one model.
+     *
+     * @return whether the subject ages down
+     */
+    private boolean agesDown() {
+        String entityClass = this.subject.entityClass();
+        if (!ClassKit.extendsClass(this.cache, entityClass, SourceClasses.Types.MOB)) return false;
+        MethodNode isBaby = ClassKit.findMethodInHierarchy(this.cache, entityClass, SourceClasses.Methods.IS_BABY, FLAG_DESC);
+        MethodNode setBaby = ClassKit.findMethodInHierarchy(this.cache, entityClass, SourceClasses.Methods.SET_BABY, SET_BABY_DESC);
+        return isBaby != null && setBaby != null
+            && !isBody(isBaby, Opcodes.ICONST_0, Opcodes.IRETURN)
+            && !isBody(setBaby, Opcodes.RETURN);
+    }
+
+    /** Whether a method's whole body is exactly these instructions, pseudo-nodes aside. */
+    private static boolean isBody(@NotNull MethodNode method, int @NotNull ... opcodes) {
+        List<AbstractInsnNode> body = AsmWalker.over(method).real().toList();
+        if (body.size() != opcodes.length) return false;
+        for (int index = 0; index < opcodes.length; index++)
+            if (body.get(index).getOpcode() != opcodes[index]) return false;
+        return true;
+    }
+
+    /**
+     * The baby option of a subject that ages down with no baby mesh of its own: the adult's mesh and,
+     * for a non-variant family, the adult's texture, drawn at the baby's age - what vanilla draws,
+     * its baby differing from its adult by the walk clock alone.
+     *
+     * <p>It carries the toggles the adult's posing class gates over the adult mesh, less a gate the
+     * renderer pins on a baby, as a baby mesh's option does, and the age the subject's
+     * {@code getAgeScale} answers a baby, for the pose flow to fold at.
+     *
+     * @param baseGeometry the family's resolved primary geometry key, the mesh the baby draws
+     * @param adultTexture the family's resolved adult texture
+     * @param variantFamily whether textures live per-option rather than on this node
+     * @return the baby option, or {@code null} where the family resolved no adult mesh
+     */
+    private @Nullable JsonTree adultMeshBaby(
+        @Nullable String baseGeometry, @Nullable String adultTexture, boolean variantFamily
+    ) {
+        if (baseGeometry == null) return null;
+        JsonTree baby = JsonTree.object().put("geometry", baseGeometry);
+        if (!variantFamily) baby.putIf("texture", adultTexture);
+        // The class the renderer hands the adult's model is the one whose gates a selection moves,
+        // as the adult's own bones are read.
+        String posedBy = EntityPoseClass.of(this.cache, this.subject.rendererClass());
+        LayerDefinitionIndex.Entry entry = this.geometryRef.resolvedEntry();
+        String poser = posedBy != null ? posedBy : entry != null ? entry.factoryClass() : null;
+        if (poser != null) {
+            JsonTree gated = this.bones.resolve(poser, this.geometryRef.registeredRequest(), pinnedOnBaby());
+            if (gated != null) gated.findObject("toggles").ifPresent(toggles -> baby.put("toggles", toggles));
+        }
+        Optional<Float> ageScale = ageScaleOnBaby();
+        if (ageScale.isPresent()) baby.put(PoseFlow.AGE_SCALE, ageScale.get().floatValue());
+        else {
+            this.diagnostics.info("age axis: %s answers no readable getAgeScale - baby option carries no %s",
+                this.subject.entityClass(), PoseFlow.AGE_SCALE);
+        }
+        this.diagnostics.info("age axis: %s ages down with no baby mesh - the baby option draws the adult mesh",
+            ClassKit.simpleName(this.subject.entityClass()));
         return baby;
     }
 

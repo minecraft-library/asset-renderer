@@ -130,7 +130,7 @@ public final class EntityRegistryDiscovery {
      * field name to the concrete entity class's internal name. Wildcard / generic-variable
      * signatures drop out - those don't correspond to any one spawn-registered entity.
      */
-    private static @NotNull Map<String, String> collectEntityTypeFieldClasses(@NotNull ClassNode entityType) {
+    static @NotNull Map<String, String> collectEntityTypeFieldClasses(@NotNull ClassNode entityType) {
         return entityType.fields
             .stream()
             .filter(field -> SourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc) && field.signature != null)

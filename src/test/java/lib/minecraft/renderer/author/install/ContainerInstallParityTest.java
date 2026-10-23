@@ -57,9 +57,9 @@ class ContainerInstallParityTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     @Test
     @DisplayName("every pre-install bone matches by bits under each shipped style, parent aside")
@@ -73,7 +73,7 @@ class ContainerInstallParityTest {
             "hat", Map.of(PoseChannel.Y_ROT, shippedHead),
             "body", Map.of(PoseChannel.Y_ROT, constant(-0.0d))), List.of());
         PoseStyle wob = RegistrarFixtures.styleRow("wob", Map.of("ageInTicks",
-            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty())));
+            new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty())));
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, shipped, catalog(wob))));
         registrar.add("minecraft:test",
@@ -83,7 +83,7 @@ class ContainerInstallParityTest {
         EntityOptions options = EntityOptions.of("minecraft:test");
         for (String styleId : List.of("wob", PoseStyle.IDLE, PoseStyle.STRIDE)) {
             PoseStyle row = woven.styles().resolve(styleId, options.getAppearance()::applies, options.getEntityId());
-            for (int tick : STRIP_TICKS) {
+            for (int tick : SAMPLE_TICKS) {
                 EntityMesh before = PosePlayer.posed(shipped, mesh, row, PERIOD, tick);
                 EntityMesh after = PosePlayer.posed(woven.pose(), mesh, row, PERIOD, tick);
                 assertRosterGrewByTheSeat(before, after, styleId, tick);

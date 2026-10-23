@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Gait;
@@ -27,7 +28,9 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +59,7 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.row;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.walker;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -92,7 +96,7 @@ class PoseCompilerTest {
         float rest = mesh.getBones().get("right_arm").getRotation().rollRadians();
         StyleDriver driver = compiled.style().drivers().get("style$t_pose$right_arm$z_rot");
         assertNotNull(driver, "one channel splice takes one style-namespaced field");
-        assertEquals(StyleDriver.Wave.HOLD, driver.wave(), "a held stance is a held extent");
+        assertEquals(StyleDriver.Wave.Plain.HOLD, driver.wave(), "a held stance is a held extent");
         assertEquals(extentOf(90, rest), driver.extent(), "the extent is the rebased delta, narrowed once");
 
         float landed = posed(compiled, mesh, 0).getBones().get("right_arm").getRotation().roll();
@@ -396,7 +400,7 @@ class PoseCompilerTest {
             Poses.humanoid("jog").keepStride().arm(Side.RIGHT, arm -> arm.pitchBy(-20)).build(),
             row(mesh, shipped));
 
-        assertEquals(StyleDriver.Wave.RAMP, compiled.style().drivers().get("walkAnimationPos").wave(),
+        assertEquals(StyleDriver.Wave.Plain.RAMP, compiled.style().drivers().get("walkAnimationPos").wave(),
             "the stride trio copies onto the row");
         assertEquals((float) Math.toRadians(-20), compiled.style().drivers().get("style$jog$right_arm$x_rot").extent(),
             "an additive delta converts once and never rebases");
@@ -409,6 +413,49 @@ class PoseCompilerTest {
     }
 
     @Test
+    @DisplayName("a kept stride copies the target's whole stride at the compiled age - its walk pair, its clocks, and the literal for a field it lacks")
+    void aKeptStrideCopiesTheWholeStrideMap() {
+        // A guardian-shaped walk: the swing and clock at a pace under one, the tail wagging on a clock of
+        // its own and the spikes held at a level - and no elapsed age, which the literal fills in.
+        StyleDriver swing = new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, 0.35f, Optional.empty());
+        StyleDriver clock = new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1.05f, Optional.empty());
+        StyleDriver tail = new StyleDriver("tailAnimation", StyleDriver.Wave.Plain.RAMP, 0f, 0.5f, Optional.empty());
+        StyleDriver spikes = new StyleDriver("spikesAnimation", StyleDriver.Wave.Plain.HOLD, 0f, 0f, Optional.empty());
+        StyleDriver babyClock = new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 3.15f, Optional.empty());
+        Entity target = striding(row(humanoid(), EntityPose.NONE),
+            stride(Optional.of(Age.ADULT), swing, clock, tail, spikes),
+            stride(Optional.of(Age.BABY), swing, babyClock));
+
+        Map<String, StyleDriver> adult = PoseCompiler.compile(
+            Poses.custom("cruise").keepStride().build(), target).style().drivers();
+        assertEquals(swing, adult.get("walkAnimationSpeed"), "the swing the target's stride holds");
+        assertEquals(clock, adult.get("walkAnimationPos"), "the walk clock at the rate it ramps");
+        assertEquals(tail, adult.get("tailAnimation"), "a clock the stride drives beside the walk");
+        assertEquals(spikes, adult.get("spikesAnimation"), "and a level it holds another clock at");
+        assertEquals(new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()),
+            adult.get("ageInTicks"), "elapsed age, which this stride lacks, keeps the literal");
+
+        Map<String, StyleDriver> baby = PoseCompiler.compile(
+            Poses.custom("cruise").keepStride().age(Age.BABY).build(), target).style().drivers();
+        assertEquals(babyClock, baby.get("walkAnimationPos"), "a baby style walks at the baby's stride");
+        assertFalse(baby.containsKey("tailAnimation"), "and carries no clock only the adult's stride drives");
+    }
+
+    @Test
+    @DisplayName("a kept stride refuses an absolute write over a base reading a clock the copy drives, as over a leg")
+    void aKeptStrideRefusesAnAbsoluteWriteOverACopiedClock() {
+        Entity target = striding(row(humanoid(), boneWrite("right_arm", PoseChannel.Y_ROT, input("tailAnimation"))),
+            stride(Optional.empty(), new StyleDriver("tailAnimation", StyleDriver.Wave.Plain.RAMP, 0f, 0.5f, Optional.empty())));
+
+        StyleException refusal = assertThrows(StyleException.class, () -> PoseCompiler.compile(
+            Poses.humanoid("brace").keepStride().arm(Side.RIGHT, arm -> arm.yaw(20)).build(), target));
+        assertTrue(refusal.getMessage().contains("driven field 'tailAnimation'"), refusal.getMessage());
+        assertDoesNotThrow(() -> PoseCompiler.compile(
+                Poses.humanoid("brace").arm(Side.RIGHT, arm -> arm.yaw(20)).build(), target),
+            "without the stride nothing drives the clock, so the write rebases against its rest");
+    }
+
+    @Test
     @DisplayName("a sway lowers to one swept driver whose bounds are the authored deltas")
     void swayLowersToOneSweptDriver() {
         EntityMesh mesh = humanoid();
@@ -418,7 +465,7 @@ class PoseCompilerTest {
 
         StyleDriver driver = compiled.style().drivers().get("style$wag$right_arm$z_rot");
         assertNotNull(driver);
-        assertEquals(StyleDriver.Wave.SWEEP, driver.wave());
+        assertEquals(StyleDriver.Wave.Plain.SWEEP, driver.wave());
         assertEquals((float) Math.toRadians(-8), driver.rest(), "the sweep rests at the first bound");
         assertEquals((float) Math.toRadians(8), driver.extent(), "and peaks at the second");
 
@@ -444,7 +491,7 @@ class PoseCompilerTest {
 
         StyleDriver driver = compiled.style().drivers().get("style$twirl$head$y_rot");
         assertNotNull(driver);
-        assertEquals(StyleDriver.Wave.CYCLE, driver.wave());
+        assertEquals(StyleDriver.Wave.Plain.CYCLE, driver.wave());
         assertEquals(0f, driver.rest());
         assertEquals((float) Math.toRadians(360), driver.extent());
         assertEquals((float) Math.toRadians(360) * 0.25f, driver.at(6, PERIOD),
@@ -461,7 +508,7 @@ class PoseCompilerTest {
 
         StyleDriver driver = compiled.style().drivers().get("style$tilt$head$y_rot");
         assertNotNull(driver, "one field holds one driver");
-        assertEquals(StyleDriver.Wave.SWEEP, driver.wave());
+        assertEquals(StyleDriver.Wave.Plain.SWEEP, driver.wave());
         double delta = Math.toRadians(30);
         assertEquals((float) (Math.toRadians(-5) + delta), driver.rest(),
             "the stance delta shifts both bounds");
@@ -487,7 +534,7 @@ class PoseCompilerTest {
         PoseExpr.Input clock = assertInstanceOf(PoseExpr.Input.class, site.arguments().getFirst());
         assertEquals("style$wave$clock", clock.field(), "a fresh clock, never a shipped idle term");
         assertEquals(1f, compiled.style().drivers().get("style$wave").extent(), "the gate holds at one");
-        assertEquals(StyleDriver.Wave.RAMP, compiled.style().drivers().get("style$wave$clock").wave());
+        assertEquals(StyleDriver.Wave.Plain.RAMP, compiled.style().drivers().get("style$wave$clock").wave());
 
         PoseClip clip = site.clip();
         assertEquals(0.6f, clip.lengthSeconds());
@@ -579,9 +626,9 @@ class PoseCompilerTest {
 
         StyleDriver lift = compiled.style().drivers().get("style$levitate$$container$y");
         StyleDriver bob = compiled.style().drivers().get("style$levitate$$container$y_bob");
-        assertEquals(StyleDriver.Wave.HOLD, lift.wave());
+        assertEquals(StyleDriver.Wave.Plain.HOLD, lift.wave());
         assertEquals(-8f, lift.extent(), "y-down, so lift is negative and the surface hides the sign");
-        assertEquals(StyleDriver.Wave.SWEEP, bob.wave());
+        assertEquals(StyleDriver.Wave.Plain.SWEEP, bob.wave());
         assertEquals(-2f, bob.extent());
 
         PoseExpr vertical = compiled.pose().container().getFirst().get(PoseChannel.Y);
@@ -991,18 +1038,33 @@ class PoseCompilerTest {
     }
 
     @Test
-    @DisplayName("a clip outrunning the strip window records the truncation warning")
+    @DisplayName("a clip outrunning what a derived strip covers records the truncation warning")
     void longClipRecordsTheTruncationWarning() {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
             Poses.humanoid("stretch")
-                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(2.4)))
+                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(10.5)))
                 .build(),
             row(humanoid(), EntityPose.NONE));
 
         assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
                 entry.severity() == Diagnostics.Severity.WARN
                     && entry.message().contains("truncat")),
-            "frames beyond the window render truncated, and the compile says so");
+            "a 210-tick clip runs past the 198 ticks a derived strip covers, and the compile says so");
+    }
+
+    @Test
+    @DisplayName("a clip inside what a derived strip covers warns nothing")
+    void aClipInsideTheStripCoverWarnsNothing() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("stretch")
+                .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(2.4)))
+                .build(),
+            row(humanoid(), EntityPose.NONE));
+
+        assertFalse(compiled.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.WARN
+                    && entry.message().contains("truncat")),
+            "a 48-tick clip is shown whole by a render naming no frame count");
     }
 
     @Test
@@ -1059,6 +1121,28 @@ class PoseCompilerTest {
         return new PoseStyle(id, Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
+    }
+
+    /**
+     * A stride row driving the given drivers, in order, applying to one age or to both.
+     */
+    private static @NotNull PoseStyle stride(@NotNull Optional<Age> age, StyleDriver @NotNull ... drivers) {
+        LinkedHashMap<String, StyleDriver> driven = new LinkedHashMap<>();
+        for (StyleDriver driver : drivers)
+            driven.put(driver.field(), driver);
+        return new PoseStyle(PoseStyle.STRIDE,
+            Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty())),
+            Concurrent.adoptLinkedMap(driven).toUnmodifiable(), Concurrent.newUnmodifiableList(), age,
+            Optional.empty());
+    }
+
+    /**
+     * The same row carrying a catalog of the given stride rows alone, at the fixture period.
+     */
+    private static @NotNull Entity striding(@NotNull Entity row, PoseStyle @NotNull ... strides) {
+        return row.mutate()
+            .styles(new StyleCatalog(PERIOD, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(strides)))
+            .build();
     }
 
     /**

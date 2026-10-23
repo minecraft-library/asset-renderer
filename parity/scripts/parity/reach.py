@@ -73,12 +73,18 @@ STORED = "reach.json"
 #: artifacts the store keeps no file for, each with an empty producer list in ``ParityArtifacts``,
 #: so none of them has a writer to root at.
 #:
-#: Three artifacts the ``artifacts`` map holds have no root either, because no type in this tree
+#: One artifact is rooted at its input rather than at its writer. ``manifest.references`` hashes the
+#: harness's reference tree, which a separate Gradle build writes and this build reaches only by
+#: shelling into its wrapper, so no type in this tree writes it. Its asset-side input is rooted
+#: instead, at ``StyleResolution``, the resolution its schedule writer and every render share: the
+#: posed sub-trees are rendered at the schedule that resolution decides, so a type it reaches answers
+#: the tree per file. The harness half is selected by an authored rule over the harness's own
+#: sources (B29), and the two entity tables and the schedule writer by another (B65) - the tables
+#: being resources and the writer a caller of the root rather than a type it reaches.
+#:
+#: Two artifacts the ``artifacts`` map holds have no root at all, because no type in this tree
 #: writes them, and ``UNROOTED`` below records each with that reason:
 #:
-#: - ``manifest.references`` hashes the harness's reference tree, which a separate Gradle build
-#:   writes and this build reaches only by shelling into its wrapper. The blindness map's authored
-#:   rules select it instead.
 #: - ``report.oracle-index`` is the store's ``index.json``, which ``parityPromote`` rewrites on
 #:   every promotion.
 #: - ``roster.blindness-rules`` is the store's ``blindness.json``, authored by hand with its trigger
@@ -113,6 +119,8 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "manifest.portal": ("PortalRenderDriver",),
     "manifest.dump.vanilla": ("PipelineParityDump",),
     "manifest.dump.packs": ("PipelineParityDump",),
+    # --- the reference tree, at its asset-side input, since the harness's own build writes it
+    "manifest.references": ("StyleResolution",),
     # --- the eight visual drivers whose cache/visual sub-tree no other artifact covers
     "manifest.visual": ("BlockRenderDriver", "EntityProjectionsDriver", "EntityRenderDriver",
                         "ItemDayCycleDriver", "ItemRenderDriver", "LoreTooltipDriver",
@@ -142,8 +150,6 @@ ROOTS: dict[str, tuple[str, ...]] = {
 #: exactly one of them, and neither names an artifact it does not hold, so a coined artifact whose
 #: index row lands without a root fails there rather than planning as though nothing reached it.
 UNROOTED: dict[str, str] = {
-    "manifest.references": "the harness's reference tree, which a separate Gradle build writes "
-                           "and this build reaches only by shelling into its wrapper",
     "report.oracle-index": "the store's index.json, which parityPromote rewrites and no type in "
                            "this tree writes",
     "roster.blindness-rules": "the store's blindness.json, authored by hand with its trigger "

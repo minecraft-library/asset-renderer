@@ -1128,14 +1128,13 @@ tasks {
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
         listOf("idle"),
         "Runs the harness in ANIMATION mode: references/idle/ only - every entity posed at each tick " +
-        "of one schedule, with vanilla's own setupAnim running. The two freezes are off for the whole boot, " +
-        "which is why no other sweep shares it. Then run entityAnimationParityVanilla.")
+        "of its own schedule, with vanilla's own setupAnim running; the roster is written first. " +
+        "Then run entityAnimationParityVanilla.")
 
     registerHarnessRun("renderVanillaWalkReferences", "refharnessWalking", "WALK", true,
         listOf("walk"),
-        "Runs the harness in WALK mode: references/walk/ only - the ANIMATION run's own subjects and " +
-        "schedule with a stride driven under them, so the two figures a gait is carried on hold the " +
-        "amplitude vanilla clamps them to rather than the zero a subject nothing has moved holds. " +
+        "Runs the harness in WALK mode: references/walk/ only - the same subjects, each at its walk " +
+        "schedule, the stride armed at the walk speed and walk-clock rate the roster names. " +
         "Then run entityWalkParityVanilla.")
 
     // ONE boot for the whole tree, posed sub-trees included. The freezes were never a property of the
@@ -1195,6 +1194,18 @@ tasks {
         listOf("-PrefharnessPacks=$packIconPacks", "-PrefharnessPackDir=$packIconDir"))
 
     named("renderVanillaPackIcons") { dependsOn("packIconRoster") }
+
+    // The schedule every posed reference run renders at, written by the asset side's own resolution
+    // before each of the three runs that read it, so no posed run boots the client over a stale roster.
+    // It declares no outputs and is never up to date, as packIconRoster is not.
+    register<JavaExec>("entityScheduleRoster") {
+        description = "Writes the entity schedule roster beside the reference tree: for every entity, age and gait, and for each posed trait subject, the frames, frame step, walk speed, walk-clock rate and each clock's value per frame that a render naming no frame count takes. Every posed reference run depends on it."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.sweep.EntityScheduleRoster")
+        classpath = sourceSets["visual"].runtimeClasspath
+    }
+    listOf("renderVanillaAnimationReferences", "renderVanillaWalkReferences", "renderVanillaAllReferences")
+        .forEach { named(it) { dependsOn("entityScheduleRoster") } }
 
     // All eight tooling flows write through one constant into src/main/resources/lib/minecraft/renderer/
     // and therefore dirty tracked files on every run. That is the signal, not a problem, so nothing

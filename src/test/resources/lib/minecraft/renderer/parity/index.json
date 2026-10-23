@@ -19,8 +19,8 @@
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
       "last_duration_ms": 9418,
-      "promoted_at": "0eef484e054e668e974374c2d542e9e0e7871bd2",
-      "sha256": "b9a6e307d685fdad7481ec678b91ebd2f56b8a37de04361c89863caee631dc6c"
+      "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
+      "sha256": "cede19df8c6818f317df42d54c620ddf87e9829e519579b5e3c8e0d3bf9be34e"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 5348,
-      "promoted_at": "4dd64c65c997227384bf1792ec8ee4877e35a241",
-      "sha256": "e22de1ae535262cda3937671f3864e37503d9307670a1608138e739159c5f4f1"
+      "last_duration_ms": 6150,
+      "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
+      "sha256": "febde71dc0e72663f9753cffe49808bed56d90f3dffabe6ea63614489cc322b0"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 5649,
-      "promoted_at": "bcb59e6e27d67c0dde05512d6a440c5db5841ac1",
-      "sha256": "11af7cc1c244934132334f0d97b591871abaa04c06fdc2f79e63b85f0b2baada"
+      "last_duration_ms": 6150,
+      "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
+      "sha256": "912e07079c3ed82e8de99b3cd9a2d9b1b73652edbbe0bae8540c45808d7d67c4"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -58,9 +58,9 @@
       "entries": 18,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "last_duration_ms": 28454,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "98f05c184f55267459017365b2b95529fabb6468187d9ac4e1ce8de406fa8b8f"
+      "last_duration_ms": 8238,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "d43d5b7b33e89e1fde95998d3005beb46e6df1548fc8ab51c3db3f52dc6444c2"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 11283,
-      "promoted_at": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
-      "sha256": "719ad1ea9bf9cb898af64d19958f516050e9dc741b21db87e92e04e15062e21b"
+      "last_duration_ms": 7555,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "b9fab8a44303b3e2f3ad3bc3d67f5f2868f061ad0ddb8d7e1eeaf77380514b36"
     },
     "manifest.portal": {
       "baselined": true,
@@ -85,12 +85,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 4443,
+      "entries": 9776,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 73473,
-      "promoted_at": "37110d0067fac464f82e1c74a8035fa93d06fc23",
-      "sha256": "a73554c7d333fcb5ec95bf139ba8a0d5a0640f30e1afb3e967e03f7d0e741a48"
+      "last_duration_ms": 128936,
+      "promoted_at": "6e5de7f5099416cbd2ab266205407e699e117927",
+      "sha256": "0a4da5d5e818749864bb1488533c3f6a08eed2ac9cec7a085e340a1f39bb28b6"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -98,9 +98,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 11793,
-      "promoted_at": "0eef484e054e668e974374c2d542e9e0e7871bd2",
-      "sha256": "e742bb4d12c4c2b4bbee199c66896bf7c97e9da10b8157357a5731aff9b90288"
+      "last_duration_ms": 17263,
+      "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
+      "sha256": "146904fec1e2c014767c75e1800668eddf0baf69cfa1f8e8d9477be62f9f5cd7"
     },
     "manifest.visual": {
       "baselined": true,
@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 32956,
-      "promoted_at": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
-      "sha256": "c53b730dcfdeb0d6105b5b6c371f95c93ba54c7df1ef4ff3d93eec1d67155137"
+      "last_duration_ms": 34114,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "c1a0d01d9fcf3b4f45baa1e82552c91c3b6f4e17ea7de0c80aed4989b348ad56"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -159,8 +159,8 @@
       "file": "pins/player-crc.json",
       "kind": "pin-set",
       "last_duration_ms": 19235,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "5af1d7b10f38e621ffd51b608c258cbfea305fe5cd918cba688dabd275312156"
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "44b087f432f0df2ab61686f7ecf058ff1d1a87b8fa5024e7f7fb7efb6da52200"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -200,10 +200,10 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 15169,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "925216560b6ab5cb991ed9b7ea9181edcc4fc9dfab7b157e90815ee100481c60",
-      "sum": "17.9822"
+      "last_duration_ms": 4800,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "f4bfd6e7b0b0770795f9587ff0f7b9ad3c05379edb24eb449e593f6e02980ba4",
+      "sum": "17.7355"
     },
     "sweep.block": {
       "baselined": true,
@@ -222,32 +222,32 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 12217,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "313e4e1f88e4ff66c4efafb4760c856e2a60655e55828f78fa2b63943bf20484",
-      "sum": "16.1137"
+      "last_duration_ms": 12666,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "55dcc0d963cf25d268048ef3a70ae63c4b6b94dbedcf74ad408ac20cdc0a050e",
+      "sum": "10.9966"
     },
     "sweep.entity-animation": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 132,
+      "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 14149,
-      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
-      "sha256": "36762b36d9a01c17d18740efcafb6b32dbe54fb7f33a608cb6199e9792576bbb",
-      "sum": "2.0039"
+      "last_duration_ms": 25702,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "b2cc2e85a49b69113946ec1f7c095b2adb47dbf32a2585c377823105f864ae13",
+      "sum": "1.8479"
     },
     "sweep.entity-walk": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 132,
+      "entries": 134,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 16959,
-      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
-      "sha256": "5df74f88765371fcae64b852ec55f69f5ca5893c983c04f71e20bc35f22c8bda",
-      "sum": "3.9952"
+      "last_duration_ms": 44406,
+      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+      "sha256": "977d05d68cad9379e93797c9fe092bc8dedfc7353c4afce83cc1a3c9b7d29449",
+      "sum": "1.8886"
     },
     "sweep.glint": {
       "baselined": true,
@@ -255,10 +255,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 22310,
-      "promoted_at": "181f4ab9b8180f98fafc72869bb9232a390fb1cc",
-      "sha256": "5f01e8f156568235b7d71c2f54d9c2cc09acd4d18a4f264fde8bc0432fdb84fb",
-      "sum": "527.7254"
+      "last_duration_ms": 19196,
+      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+      "sha256": "49dc594c583779cf67bd1f7312ab19b9e693118a4920dc47ae41cd5d47a4a062",
+      "sum": "527.7353"
     },
     "sweep.item": {
       "baselined": true,

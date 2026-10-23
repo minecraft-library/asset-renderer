@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -40,8 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * container, a custom container style's channels and the shipped displacement land on ONE seat,
  * and the folded values decompose exactly into the shipped-alone and custom-alone contributions.
  * The shipped displacement must PLAY for the measurement to mean anything - the camel arm rides
- * the copied stride trio and the breeze arm drives its one-hot gate by hand, a measurement rig
- * off the authoring surface.
+ * the camel's own stride, which the kept stride copies, and the breeze arm drives its one-hot gate by
+ * hand, a measurement rig off the authoring surface.
  */
 @DisplayName("the fold seat composes shipped displacement and custom container channels additively")
 class FoldSeatAbTest {
@@ -52,9 +53,9 @@ class FoldSeatAbTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     @Test
     @DisplayName("on the camel the walk roll and the hover ride one seat, each contribution exact")
@@ -67,11 +68,13 @@ class FoldSeatAbTest {
         Entity woven = registrar.definitions().get("minecraft:camel");
         Entity shipped = EntityModelLoader.load().get("minecraft:camel");
         PoseStyle installed = woven.styles().byId("levitate").orElseThrow();
-        PoseStyle strideOnly = styleRow("stride_rig", strideTrio());
+        // The kept stride is the camel's own - its walk pair at the camel's pace and the idle clip that
+        // plays beneath it - so the shipped displacement alone is what the camel's stride row plays.
+        PoseStyle strideOnly = shipped.styles().resolve(PoseStyle.STRIDE, AppearanceOptions.defaults()::applies, "minecraft:camel");
         PoseStyle hoverOnly = styleRow("hover_rig", hoverFields(installed, "levitate"));
 
         boolean rolled = false;
-        for (int tick : STRIP_TICKS) {
+        for (int tick : SAMPLE_TICKS) {
             EntityMesh.Bone folded = seat(PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, tick));
             EntityMesh.Bone walkAlone = seat(PosePlayer.posed(shipped.pose(), shipped.model(), strideOnly, PERIOD, tick));
             EntityMesh.Bone hoverAlone = seat(PosePlayer.posed(woven.pose(), woven.model(), hoverOnly, PERIOD, tick));
@@ -84,7 +87,7 @@ class FoldSeatAbTest {
                 "tick " + tick + ": an undriven walk trio caps the shipped amplitude at zero");
             rolled |= walkAlone.getRotation().roll() != 0f;
         }
-        assertTrue(rolled, "the copied stride trio makes the shipped displacement play");
+        assertTrue(rolled, "the copied stride makes the shipped displacement play");
     }
 
     @Test
@@ -99,7 +102,7 @@ class FoldSeatAbTest {
         StyleDriver bob = installed.drivers().get("style$levitate_rest$$container$y_bob");
         assertNotNull(bob);
 
-        for (int tick : STRIP_TICKS) {
+        for (int tick : SAMPLE_TICKS) {
             EntityMesh.Bone folded = seat(PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, tick));
             assertEquals(0f, folded.getRotation().roll(),
                 "tick " + tick + ": nothing drives the walk, so nothing rolls");
@@ -123,8 +126,8 @@ class FoldSeatAbTest {
         // drivers by hand: the gate held at one and elapsed age ramping, off the authoring
         // surface on purpose.
         Map<String, StyleDriver> shove = new LinkedHashMap<>();
-        shove.put("shoot", new StyleDriver("shoot", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-        shove.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        shove.put("shoot", new StyleDriver("shoot", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+        shove.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         Map<String, StyleDriver> augmented = new LinkedHashMap<>(hoverFields(installed, "hover_shove"));
         augmented.putAll(shove);
         PoseStyle foldedRig = styleRow("shove_rig", augmented);
@@ -171,7 +174,7 @@ class FoldSeatAbTest {
         Entity woven = registrar.definitions().get("minecraft:test");
 
         assertEquals(1, woven.pose().container().size(), "no step appends below a shipped seat");
-        for (int tick : STRIP_TICKS)
+        for (int tick : SAMPLE_TICKS)
             assertSameBones(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
                 PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),
@@ -218,9 +221,9 @@ class FoldSeatAbTest {
      */
     private static @NotNull Map<String, StyleDriver> strideTrio() {
         Map<String, StyleDriver> drivers = new LinkedHashMap<>();
-        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-        drivers.put("walkAnimationSpeed", new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-        drivers.put("walkAnimationPos", new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationSpeed", new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationPos", new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         return drivers;
     }
 

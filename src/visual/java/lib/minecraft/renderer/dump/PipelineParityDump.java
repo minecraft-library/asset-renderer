@@ -12,6 +12,7 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
@@ -25,6 +26,9 @@ import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseClip;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.rule.BlockMatch;
 import lib.minecraft.renderer.asset.rule.CitOutput;
 import lib.minecraft.renderer.asset.rule.CitRule;
@@ -69,6 +73,7 @@ import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -102,27 +107,30 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
- * Canonical semantic dump of a fully-loaded pipeline + renderer context - the enforcement oracle for
- * the pipeline-cleanup phase gates.
+ * Canonical semantic dump of a fully-loaded pipeline + renderer context - the render input a
+ * load-side change has to leave byte-identical.
  * <p>
- * The series is dozens of load-side refactors. Proving each one moved no pixel by re-rendering the
- * whole roster costs minutes per phase; proving the RENDER INPUTS are byte-identical costs seconds,
- * and implies the same thing whenever the phase's diff leaves the render path alone. This class
- * writes those inputs.
+ * Proving a load-side change moved no pixel by re-rendering the whole roster costs minutes; proving
+ * the RENDER INPUTS are byte-identical costs seconds, and implies the same thing whenever the change
+ * leaves the render path alone. This class writes those inputs, and a byte-identical dump means
+ * byte-identical render input: an entity is written as every member its render reads - its meshes,
+ * its passes with their whole declaration, its pose with each clip's table, its forms, its equipment,
+ * its worn shell and its style catalog - so no entity value a render reads can move without moving a
+ * byte.
  * <p>
  * <b>Altitude.</b> The dump is taken at renderer-context level, not {@code ClientAcquisition.Result} level.
  * Five loaders ({@code BlockModelLoader}, {@code BlockIndexBuilder}, {@code ItemIndexBuilder},
  * {@code EntityModelLoader}, {@code PalettedPermutationLoader}) run inside
- * {@link RendererContext#load} and their outputs exist nowhere else - and they are precisely
- * the loaders this series rewrites. A Result-level dump would green-light breaking every one of them.
+ * {@link RendererContext#load} and their outputs exist nowhere else - and they are precisely the
+ * loaders a load-side change rewrites. A Result-level dump would pass a change that broke any of them.
  * <p>
  * <b>Vocabulary is frozen and deliberately NOT Java field names.</b> Keys here are schema constants.
  * When a DTO field is renamed, one accessor call in this file changes and zero output bytes move,
- * which is what lets the gate stay green across the planned renames instead of crying wolf on them.
+ * which is what keeps the gate green across a rename instead of crying wolf on it.
  * <p>
  * <b>Never dumped:</b> decoded pixel buffers and the context's lazy texture cache (mutating,
- * probe-order-dependent), the atlas (non-deterministic by design), {@code packRoot} (machine-relative
- * and scheduled for removal), and file timestamps.
+ * probe-order-dependent), the atlas (non-deterministic by design), {@code packRoot}
+ * (machine-relative), file timestamps, and a pose's state silhouettes, which nothing at render reads.
  * <p>
  * Usage: {@code PipelineParityDump <label>} - writes {@code cache/parity-dump/<label>/{vanilla,packs}/}.
  */
@@ -1401,6 +1409,9 @@ public final class PipelineParityDump {
      * The index is 90 rows keyed by plain family id. No option axis is id-encoded, so no
      * {@code <id>_<option>} pseudo-id exists and no row is a rollup of another; the axes below resolve
      * at render instead.
+     * <p>
+     * Every form is written by this same writer, so a form carries its style catalog as the row does: a
+     * render reads the catalog off the row, or off the variant coat a selection folds to.
      *
      * @param entity the entity to emit
      * @return the entity object
@@ -1415,6 +1426,7 @@ public final class PipelineParityDump {
         root.add("block_overlays", CanonicalJson.ordered(entity.blockOverlays(), PipelineParityDump::blockOverlay));
         root.add("layers", layers(entity.layers()));
         root.add("axes", axes(entity.axes()));
+        root.add("styles", styles(entity.styles()));
         CanonicalJson.put(root, "texture_ref", entity.textureRef(), JsonPrimitive::new);
         // Canvas-group membership: emitted only for genuine groups (size > 1) so singleton entities
         // stay byte-identical; the members set has no meaningful order, so sort for a canonical array.
@@ -1423,15 +1435,33 @@ public final class PipelineParityDump {
         // wide margin, and what this section needs of it is whether it moved. Emitted only where
         // there is one, on the same terms as members, so the entities that pose nothing stay
         // byte-identical - which is most of the roster and all of the block-shaped subjects.
-        if (!entity.pose().container().isEmpty() || !entity.pose().bones().isEmpty()
-            || !entity.pose().clips().isEmpty() || entity.pose().refusal().isPresent())
-            root.addProperty("pose", CanonicalJson.digest(pose(entity.pose())));
+        putPose(root, "pose", entity.pose());
         return root;
+    }
+
+    /**
+     * Adds a pose under {@code key} as the digest of its canonical form, and only where the pose holds
+     * a container step, a bone, a clip or a refusal. A digest is how this section names a value shared
+     * by reference across many owners, and a pose is one: a pass drawn over the body carries the body's
+     * pose, and a form that re-poses the wearer hands its own to every such pass.
+     *
+     * @param object the object to add to
+     * @param key the key to add under
+     * @param pose the pose to emit
+     */
+    private static void putPose(@NotNull JsonObject object, @NotNull String key, @NotNull EntityPose pose) {
+        if (!pose.container().isEmpty() || !pose.bones().isEmpty()
+            || !pose.clips().isEmpty() || pose.refusal().isPresent())
+            object.addProperty(key, CanonicalJson.digest(pose(pose)));
     }
 
     /**
      * Returns one entity's pose. A refusal is emitted as the reason rather than as an absence, so a
      * model whose pose could not be read is not indistinguishable from one that poses nothing.
+     * <p>
+     * Each clip is written as its play site - the coordinate, the drive, the render-state field a
+     * selection reads, the arguments - beside the table that site plays, in play order. The state
+     * silhouettes a pose carries are not written: nothing at render reads them.
      *
      * @param pose the pose to emit
      * @return the pose object
@@ -1447,8 +1477,38 @@ public final class PipelineParityDump {
             JsonObject node = new JsonObject();
             node.addProperty("clip", clip.coordinate());
             node.addProperty("gate", clip.drive().token());
+            CanonicalJson.put(node, "field", clip.field(), JsonPrimitive::new);
             node.add("args", CanonicalJson.ordered(clip.arguments(), PipelineParityDump::poseExpr));
+            node.add("table", clipTable(clip.clip()));
             return node;
+        }));
+        return root;
+    }
+
+    /**
+     * Returns one clip table - how long a run lasts, whether it loops, and each channel's keyframes in
+     * authored order, spelled as the shipped table spells them. The channels stay in declared order and
+     * each keyframe's displacement is written as its three components.
+     *
+     * @param clip the table to emit
+     * @return the clip-table object
+     */
+    private static @NotNull JsonObject clipTable(@NotNull PoseClip clip) {
+        JsonObject root = new JsonObject();
+        root.add("length", CanonicalJson.number(clip.lengthSeconds()));
+        root.addProperty("looping", clip.looping());
+        root.add("channels", CanonicalJson.ordered(clip.channels(), channel -> {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("bone", channel.bone());
+            entry.addProperty("target", channel.target().token());
+            entry.add("keyframes", CanonicalJson.ordered(channel.keyframes(), keyframe -> {
+                JsonObject frame = new JsonObject();
+                frame.add("time", CanonicalJson.number(keyframe.timeSeconds()));
+                frame.add("value", triple(keyframe.x(), keyframe.y(), keyframe.z()));
+                frame.addProperty("curve", keyframe.interpolation().token());
+                return frame;
+            }));
+            return entry;
         }));
         return root;
     }
@@ -1456,9 +1516,10 @@ public final class PipelineParityDump {
     /**
      * Returns one pose expression, as the text of its own GRAPH.
      *
-     * <p>Written as text rather than as structure because this section only ever digests it: what a
-     * reader of the dump wants to know is whether the arithmetic moved, and the shipped table is
-     * where the arithmetic itself is legible.
+     * <p>Written as text rather than as structure, because what a reader of the dump wants to know is
+     * whether the arithmetic moved, and the shipped table is where the arithmetic itself is legible.
+     * Inside a pose the text is digested with the rest of it; a pass's opacity, which is one
+     * expression on its own, is written as the text itself.
      *
      * <p><b>A graph and not a tree, which is the difference between a line of text and no line at
      * all.</b> The table names a sub-expression once and uses it from everywhere that reaches it, and
@@ -1547,38 +1608,141 @@ public final class PipelineParityDump {
     }
 
     /**
+     * Returns an entity's style catalog - the period a row declaring no window of its own frames at,
+     * the fastest steady walk vanilla gives the subject at each age, and every row in catalog order.
+     * <p>
+     * Written as loaded, which is what a render narrows: it keeps the rows its subject's age admits and
+     * the source entries its appearance's flags admit, so the narrowed view is a function of these
+     * bytes. The rows stay an array because the first applying row of an id is the one that resolves;
+     * the ceilings are keyed by age, and a row's drivers by the field a pose reads each under.
+     *
+     * @param catalog the catalog to emit
+     * @return the catalog object
+     */
+    static @NotNull JsonObject styles(@NotNull StyleCatalog catalog) {
+        JsonObject root = new JsonObject();
+        root.addProperty("period_ticks", catalog.periodTicks());
+        root.add("ceilings", CanonicalJson.map(catalog.ceilings(), Enum::name, ceiling -> {
+            JsonObject entry = new JsonObject();
+            entry.add("speed", CanonicalJson.number(ceiling.speed()));
+            entry.add("rate", CanonicalJson.number(ceiling.rate()));
+            return entry;
+        }));
+        root.add("rows", CanonicalJson.ordered(catalog.styles(), PipelineParityDump::style));
+        return root;
+    }
+
+    /**
+     * Returns one style row. Its sources and toggles stay in declared order; a source is written as its
+     * clock's token and, where one admits it, the name of the flag gating it.
+     *
+     * @param style the row to emit
+     * @return the row object
+     */
+    private static @NotNull JsonObject style(@NotNull PoseStyle style) {
+        JsonObject root = new JsonObject();
+        root.addProperty("id", style.id());
+        root.add("sources", CanonicalJson.ordered(style.sources(), source -> {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("source", source.source().token());
+            CanonicalJson.put(entry, "gate", source.gate(), gate -> new JsonPrimitive(gate.name()));
+            return entry;
+        }));
+        root.add("drivers", CanonicalJson.map(style.drivers(), PipelineParityDump::driver));
+        root.add("toggles", CanonicalJson.ordered(style.toggles(), JsonPrimitive::new));
+        CanonicalJson.put(root, "age", style.age(), age -> new JsonPrimitive(age.name()));
+        CanonicalJson.put(root, "period_ticks", style.periodTicks(), JsonPrimitive::new);
+        return root;
+    }
+
+    /**
+     * Returns one driver - the field it answers, its wave by the wave's own token beside whatever that
+     * wave reads, the rest and extent it travels between, and the exclusion group where it carries one.
+     * The switch is exhaustive over the sealed wave, so a new wave is a compile error here rather than a
+     * driver written without the members it travels by.
+     *
+     * @param driver the driver to emit
+     * @return the driver object
+     */
+    private static @NotNull JsonObject driver(@NotNull StyleDriver driver) {
+        JsonObject root = new JsonObject();
+        root.addProperty("field", driver.field());
+        root.addProperty("wave", driver.wave().token());
+        switch (driver.wave()) {
+            case StyleDriver.Wave.Plain ignored -> { }
+            case StyleDriver.Wave.Stroke stroke -> root.add("rate", CanonicalJson.number(stroke.rate()));
+            case StyleDriver.Wave.Trapezoid trapezoid -> {
+                root.addProperty("rise", trapezoid.rise());
+                root.addProperty("dwell", trapezoid.dwell());
+                root.addProperty("fall", trapezoid.fall());
+                root.addProperty("gap", trapezoid.gap());
+            }
+        }
+        root.add("rest", CanonicalJson.number(driver.rest()));
+        root.add("extent", CanonicalJson.number(driver.extent()));
+        CanonicalJson.put(root, "group", driver.group(), JsonPrimitive::new);
+        return root;
+    }
+
+    /**
      * Returns an entity's orthogonal option axes.
      * <p>
-     * {@code variants} is a {@code Map.copyOf}, whose iteration order is randomized per JVM run from a
-     * nanosecond-seeded salt - it is the one genuinely nondeterministic collection in this section, and
-     * sorting it is what keeps the gate from flapping between two runs of the same commit. It is also
-     * recursive in type but terminates at depth one: every variant row is built with empty axes.
+     * Every map written as an object is key-sorted by the writer, so no map's own iteration order
+     * reaches the bytes. The equipment forms are the exception and are written as an array of slots
+     * in the axis's order, because slot order decides what is drawn: the first filled slot in it
+     * names the form a render draws the wearer as.
+     * <p>
+     * The section is recursive in type, every form being a definition, and the recursion ends: a coat
+     * carries no variant axis of its own, and the size, shape, carried and equipment forms are leaves.
+     * The one form a leaf can keep is the baby, which a size or shape form inherits from the row it is
+     * derived from, and the baby is written as what a render reads off it rather than as a definition,
+     * so it opens no further level.
      *
      * @param axes the axes to emit
      * @return the axes object
      */
-    private static @NotNull JsonObject axes(@NotNull Entity.Axes axes) {
+    static @NotNull JsonObject axes(@NotNull Entity.Axes axes) {
         JsonObject root = new JsonObject();
         root.add("state_textures", CanonicalJson.map(axes.state().options(), JsonPrimitive::new));
         CanonicalJson.put(root, "state_default", axes.state().declared(), JsonPrimitive::new);
-        // One map where there were two, because a size form carries whichever of the two vanilla
+        // One map of whole sub-definitions, because a size form carries whichever of the two vanilla
         // mechanisms its subject uses - its own mesh, or the base at a multiplied scale - and the
-        // sub-definition already holds both members. The declared size is a form like any other.
+        // sub-definition holds both members. The declared size is a form like any other.
         root.add("sizes", CanonicalJson.map(axes.size().options(), Enum::name, PipelineParityDump::entity));
         CanonicalJson.put(root, "size_default", axes.size().declared(), size -> new JsonPrimitive(size.name()));
         root.add("variants", CanonicalJson.map(axes.variant().options(), PipelineParityDump::entity));
         CanonicalJson.put(root, "variant_default", axes.variant().declared(), JsonPrimitive::new);
         CanonicalJson.put(root, "baby_model", axes.baby().map(Entity::model), PipelineParityDump::entityModel);
-        // One map where there was a bespoke record, on the same terms as the sizes above: a shape form
-        // is a whole sub-definition, so it is emitted as one rather than as the three members the
-        // render used to lift off it.
+        // What a baby render reads off the form beside its mesh: the pose of the baby mesh's own model
+        // class, the passes materialised on that mesh, and the block overlays and equipment the form
+        // carries in place of the row's. Each is emitted only where the form holds one, so a baby that
+        // poses nothing and declares no pass writes its mesh alone.
+        axes.baby().ifPresent(baby -> {
+            putPose(root, "baby_pose", baby.pose());
+            if (!baby.overlays().isEmpty())
+                root.add("baby_overlays", CanonicalJson.ordered(baby.overlays(), PipelineParityDump::overlay));
+            if (!baby.blockOverlays().isEmpty())
+                root.add("baby_block_overlays", CanonicalJson.ordered(baby.blockOverlays(), PipelineParityDump::blockOverlay));
+            if (!baby.layers().equipment().isEmpty())
+                root.add("baby_equipment", CanonicalJson.ordered(baby.layers().equipment(), PipelineParityDump::equipment));
+        });
+        // One map on the same terms as the sizes above: a shape form is a whole sub-definition, so it
+        // is emitted as one.
         root.add("shapes", CanonicalJson.map(axes.shape().options(), PipelineParityDump::entity));
         CanonicalJson.put(root, "shape_default", axes.shape().declared(), JsonPrimitive::new);
+        // The forms a held block and a filled slot re-pose the wearer as, each a whole sub-definition on
+        // the terms a size or shape form is. The equipment forms go out as an array in the axis's order,
+        // the first filled slot in it being the form drawn; the axis declares no option, the bare row
+        // filling no slot, so no default is written beside it.
+        CanonicalJson.put(root, "carried", axes.carried(), PipelineParityDump::entity);
+        if (!axes.equipment().options().isEmpty())
+            root.add("equipment", CanonicalJson.orderedMap(axes.equipment().options(), "slot", PipelineParityDump::entity));
         return root;
     }
 
     /**
-     * Returns an entity's conditional decoration layers.
+     * Returns an entity's conditional decoration layers - whether the wearer is armoured, the shell it
+     * is dressed in where it is, whether it builds the wings layer, and its equipment layers.
      *
      * @param layers the layers to emit
      * @return the layers object
@@ -1586,21 +1750,65 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject layers(@NotNull Entity.Layers layers) {
         JsonObject root = new JsonObject();
         root.addProperty("humanoid_armor", layers.humanoidArmor().isPresent());
+        CanonicalJson.put(root, "armor_shell", layers.humanoidArmor(), PipelineParityDump::shell);
         root.addProperty("wings", layers.wings());
-        root.add("equipment", CanonicalJson.ordered(layers.equipment(), equipment -> {
+        root.add("equipment", CanonicalJson.ordered(layers.equipment(), PipelineParityDump::equipment));
+        return root;
+    }
+
+    /**
+     * Returns one worn shell - its ungrown mesh, the growth the leggings layer applies and the growth
+     * the other three slots apply, the form that says which parts each slot covers, which layer it
+     * draws through and whether it is trimmed, and the second shell with the selection that reaches
+     * it, where the wearer has one. The second shell is written by this same writer, so it is written
+     * whole.
+     *
+     * @param shell the shell to emit
+     * @return the shell object
+     */
+    static @NotNull JsonObject shell(@NotNull Shell shell) {
+        JsonObject root = new JsonObject();
+        root.add("mesh", entityModel(shell.mesh()));
+        root.add("inner_grow", vector(shell.innerGrow()));
+        root.add("outer_grow", vector(shell.outerGrow()));
+        root.addProperty("form", shell.form().name());
+        CanonicalJson.put(root, "alternate", shell.alternate(), alternate -> {
             JsonObject entry = new JsonObject();
-            entry.addProperty("slot", equipment.slot());
-            entry.add("model", entityModel(equipment.model()));
-            entry.addProperty("layer_type", equipment.layerType().getId());
-            entry.add("material_assets", CanonicalJson.map(equipment.materialAssets(),
-                assetId -> new JsonPrimitive(assetId.id())));
+            entry.add("when", gate(alternate.when()));
+            entry.add("shell", shell(alternate.shell()));
             return entry;
-        }));
+        });
+        return root;
+    }
+
+    /**
+     * Returns one equipment layer. The equipment list is ORDERED - it is draw order.
+     *
+     * @param equipment the equipment layer to emit
+     * @return the equipment object
+     */
+    private static @NotNull JsonObject equipment(@NotNull Entity.EquipmentOverlay equipment) {
+        JsonObject root = new JsonObject();
+        root.addProperty("slot", equipment.slot());
+        root.add("model", entityModel(equipment.model()));
+        root.addProperty("layer_type", equipment.layerType().getId());
+        root.add("material_assets", CanonicalJson.map(equipment.materialAssets(),
+            assetId -> new JsonPrimitive(assetId.id())));
+        // The pose of the model class the layer is handed, on the terms a body's pose is written, and
+        // the bone toggle its filled slot hands the wearer's mesh, each emitted only where the layer
+        // carries one.
+        putPose(root, "pose", equipment.pose());
+        CanonicalJson.put(root, "wearer_toggle", equipment.wearerToggle(), JsonPrimitive::new);
         return root;
     }
 
     /**
      * Returns one texture overlay. The overlay list is ORDERED - it is paint order.
+     * <p>
+     * The pass is written as every member of its declaration, since the rasterizer reads each one off
+     * every triangle the pass emits: whether it is drawn full-bright, how it composites and at what
+     * opacity, whether a winning fragment writes depth, whether its quads are sorted back to front, and
+     * whether a fetch past the sheet's edge wraps.
      *
      * @param overlay the overlay to emit
      * @return the overlay object
@@ -1613,10 +1821,20 @@ public final class PipelineParityDump {
         root.addProperty("skip_bounds", overlay.skipBounds());
         root.addProperty("blend", overlay.pass().blend().name());
         root.add("alpha", CanonicalJson.number(overlay.pass().alpha()));
+        root.addProperty("depth_write", overlay.pass().writesDepth());
+        root.addProperty("sorted", overlay.pass().sorted());
+        root.addProperty("wraps_texture", overlay.pass().wrapsTexture());
         CanonicalJson.put(root, "texture_ref", overlay.textureRef(), JsonPrimitive::new);
         CanonicalJson.put(root, "tint_by", overlay.tintBy().map(TintAxis::token), JsonPrimitive::new);
         CanonicalJson.put(root, "texture_by", overlay.textureBy().map(TextureAxis::token), JsonPrimitive::new);
         CanonicalJson.put(root, "gate", overlay.gate(), PipelineParityDump::gate);
+        // The alternate mesh a suppressed pass draws, the pass's own pose, the fraction of the sheet its
+        // render type scrolls the texture by each tick, and the opacity expression it draws at, each
+        // emitted only where the pass carries one, so a pass carrying none of them writes none of them.
+        CanonicalJson.put(root, "no_hat_model", overlay.noHatModel(), PipelineParityDump::entityModel);
+        putPose(root, "pose", overlay.pose());
+        CanonicalJson.put(root, "texture_scroll", overlay.textureScroll(), PipelineParityDump::vector);
+        CanonicalJson.put(root, "opacity", overlay.opacity(), PipelineParityDump::poseExpr);
         return root;
     }
 

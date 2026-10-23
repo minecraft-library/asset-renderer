@@ -61,10 +61,10 @@ class EntityOptionsTest {
             Concurrent.newUnmodifiableList(
                 new PoseStyle.StyleSource(StyleClock.SELECT, Optional.empty())),
             Concurrent.newUnmodifiableMap(Map.of("rollUpAnimationState",
-                new StyleDriver("rollUpAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                new StyleDriver("rollUpAnimationState", StyleDriver.Wave.Plain.HOLD, 0f, 1f,
                     Optional.of("action")))),
             Concurrent.newUnmodifiableList(), Optional.of(Age.BABY), Optional.empty());
-        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rollUp));
+        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(rollUp));
         EntityOptions adult = EntityOptions.of("minecraft:test");
         EntityOptions baby = EntityOptions.builder()
             .entityId("minecraft:test")

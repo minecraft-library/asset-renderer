@@ -1,26 +1,34 @@
 package lib.minecraft.renderer.author.install;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.CustomPose;
 import lib.minecraft.renderer.author.Gait;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.author.audit.PoseAuditor;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.StyleException;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
@@ -37,9 +45,14 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.row;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.walker;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
+import static lib.minecraft.renderer.fixture.RegistrarFixtures.overlay;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,6 +63,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("the compiler refuses authored content the runtime cannot honour")
 class PoseCompilerRefusalTest {
+
+    /** The row whose stride copies a clock its adult and baby tentacles both read. */
+    private static final @NotNull String SQUID = "minecraft:squid";
+
+    /** The row whose adult and baby strides each drive a field the other does not. */
+    private static final @NotNull String AXOLOTL = "minecraft:axolotl";
+
+    /** A field the axolotl's adult stride drives and its baby stride does not. */
+    private static final @NotNull String ADULT_ONLY = "inWaterFactor";
+
+    /** A field the axolotl's baby stride drives and its adult stride does not. */
+    private static final @NotNull String BABY_ONLY = "swimAnimation";
+
+    /** The row whose baby form draws its adult's pose and mesh, its two strides driving the same fields. */
+    private static final @NotNull String TRADER = "minecraft:wandering_trader";
 
     @Test
     @DisplayName("loop() and once() mixed across limbs refuse - a clip loops or holds as one")
@@ -118,6 +146,166 @@ class PoseCompilerRefusalTest {
         assertTrue(refusal.getMessage().contains("walkAnimationSpeed"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("no additive scale spelling exists"),
             refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a kept stride's absolute write over a copied clock refuses on the body, recorded under the body's compile")
+    void aKeptStrideRefusesOverACopiedClockOnTheBody() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(squid()));
+        StyleException refusal = assertThrows(StyleException.class,
+            () -> registrar.add(SQUID, grip().keepStride().build()));
+
+        assertTrue(refusal.getMessage().contains("driven field 'tentacleAngle'"), refusal.getMessage());
+        assertEquals(List.of("styles/" + SQUID + "/grip/compile"), errorPaths(registrar),
+            "the squid's own tentacles read the clock its stride copies, so the body is the arm that refuses");
+    }
+
+    @Test
+    @DisplayName("a kept stride's absolute write over a copied clock refuses on the baby form as it does on the body")
+    void aKeptStrideRefusesOverACopiedClockOnTheBabyForm() {
+        // The body posed by nothing, so the baby's tentacles are the one base reading the clock.
+        Entity unposed = squid().mutate().pose(EntityPose.NONE).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(unposed));
+        StyleException baby = assertThrows(StyleException.class,
+            () -> registrar.add(SQUID, grip().keepStride().build()),
+            "the baby form compiles against the stride its install keeps");
+        StyleException body = assertThrows(StyleException.class,
+            () -> StyleRegistrar.of(definitions(squid())).add(SQUID, grip().keepStride().build()));
+
+        assertEquals(body.getMessage(), baby.getMessage(), "one install refuses one write alike on every arm");
+        assertEquals(List.of("styles/" + SQUID + "/grip/form/age:baby/compile"), errorPaths(registrar),
+            "and the baby form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class,
+            () -> PoseAuditor.validate(grip().keepStride().build(), unposed),
+            "an audit predicts the refusal the install makes");
+        assertEquals(baby.getMessage(), audited.getMessage());
+    }
+
+    @Test
+    @DisplayName("an absolute write over a field the install's stride does not drive installs on the baby form")
+    void anAbsoluteWriteOverAnUndrivenFieldInstallsOnTheBabyForm() {
+        Entity unposed = squid().mutate().pose(EntityPose.NONE).build();
+        assertInstallsOnTheBaby(unposed, grip().build(),
+            "keeping no stride, nothing drives the clock, so the write rebases against its rest");
+        assertInstallsOnTheBaby(squid(), grip().build(), "on the body as on the baby");
+
+        Entity unclocked = squid().mutate().styles(StyleCatalog.BIND_ONLY).build();
+        assertInstallsOnTheBaby(unclocked, grip().keepStride().build(),
+            "a stride copying no clock the tentacles read leaves the write free at either age");
+        assertInstallsOnTheBaby(squid(), Poses.custom("lean")
+                .allAges()
+                .keepStride()
+                .bone("body", body -> body.pitch(30))
+                .build(),
+            "as a kept stride leaves free a write over a base reading no field at all");
+    }
+
+    @Test
+    @DisplayName("a pair install's baby form refuses an absolute write over a field the baby's stride alone drives")
+    void aPairsBabyRefusesOverAFieldOnlyItsOwnStrideDrives() {
+        Entity row = axolotl(EntityPose.NONE, pitched(BABY_ONLY));
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        StyleException baby = assertThrows(StyleException.class, () -> registrar.add(AXOLOTL, swim()),
+            "the baby row walks at the baby's stride, so the baby form compiles against it");
+
+        assertTrue(baby.getMessage().contains("driven field '" + BABY_ONLY + "'"), baby.getMessage());
+        assertEquals(List.of("styles/" + AXOLOTL + "/swim/form/age:baby/compile"), errorPaths(registrar),
+            "and the baby form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(swim(), row),
+            "an audit predicts the refusal the install makes");
+        assertEquals(baby.getMessage(), audited.getMessage());
+    }
+
+    @Test
+    @DisplayName("a pair install's baby form takes an absolute write over a field the adult's stride alone drives")
+    void aPairsBabyTakesAWriteOverAFieldOnlyTheAdultsStrideDrives() {
+        Entity row = axolotl(EntityPose.NONE, pitched(ADULT_ONLY));
+        assertInstallsOnTheBaby(AXOLOTL, row, swim(),
+            "the baby row walks at the baby's stride, which leaves the field undriven");
+        assertDoesNotThrow(() -> PoseAuditor.validate(swim(), row), "and an audit predicts the install");
+    }
+
+    @Test
+    @DisplayName("a pair install's adult body refuses against the adult's stride alone")
+    void aPairsAdultRefusesAgainstItsOwnStride() {
+        Entity driven = axolotl(pitched(ADULT_ONLY), EntityPose.NONE);
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(driven));
+        StyleException adult = assertThrows(StyleException.class, () -> registrar.add(AXOLOTL, swim()),
+            "the adult row walks at the adult's stride, so the body compiles against it");
+
+        assertTrue(adult.getMessage().contains("driven field '" + ADULT_ONLY + "'"), adult.getMessage());
+        assertEquals(List.of("styles/" + AXOLOTL + "/swim/compile"), errorPaths(registrar),
+            "and the body is the arm that refuses");
+        assertEquals(adult.getMessage(), assertThrows(StyleException.class,
+            () -> PoseAuditor.validate(swim(), driven)).getMessage(), "an audit predicts the refusal");
+
+        Entity undriven = axolotl(pitched(BABY_ONLY), EntityPose.NONE);
+        assertDoesNotThrow(() -> StyleRegistrar.of(definitions(undriven)).add(AXOLOTL, swim()),
+            "a field the baby's stride alone drives is free on the adult body");
+        assertDoesNotThrow(() -> PoseAuditor.validate(swim(), undriven), "and an audit predicts the install");
+    }
+
+    @Test
+    @DisplayName("a pair install's baby form drawing its adult's pose and mesh refuses against the baby's own stride")
+    void aPairsBabyDrawingItsAdultsBodyRefusesAgainstItsOwnStride() {
+        // One pose instance over one mesh at both ages, so the baby's body matches the adult body's
+        // weave, which the adult's stride checked and the baby's did not.
+        EntityPose shared = pitched(BABY_ONLY);
+        Entity row = axolotl(shared, EntityModelLoader.load().get(AXOLOTL).model(), shared);
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        StyleException baby = assertThrows(StyleException.class, () -> registrar.add(AXOLOTL, swim()),
+            "the baby row walks at the baby's stride, so the baby form compiles against it");
+
+        assertTrue(baby.getMessage().contains("driven field '" + BABY_ONLY + "'"), baby.getMessage());
+        assertEquals(List.of("styles/" + AXOLOTL + "/swim/form/age:baby/compile"), errorPaths(registrar),
+            "and the baby form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(swim(), row),
+            "an audit predicts the refusal the install makes");
+        assertEquals(baby.getMessage(), audited.getMessage());
+    }
+
+    @Test
+    @DisplayName("a pair install's baby form drawing its adult's pass refuses that pass against the baby's own stride")
+    void aPairsBabyDrawingItsAdultsPassRefusesAgainstItsOwnStride() {
+        // One pass instance at both ages, so the baby's pass matches the adult pass's weave, which the
+        // adult's stride checked and the baby's did not.
+        Entity shipped = EntityModelLoader.load().get(AXOLOTL);
+        Entity.OverlayLayer pass = overlay(shipped.model(), pitched(BABY_ONLY));
+        Entity row = axolotl(EntityPose.NONE, shipped.axes().baby().orElseThrow().model(), EntityPose.NONE, pass);
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        StyleException baby = assertThrows(StyleException.class, () -> registrar.add(AXOLOTL, swim()),
+            "the baby row walks at the baby's stride, so the baby form's pass compiles against it");
+
+        assertTrue(baby.getMessage().contains("driven field '" + BABY_ONLY + "'"), baby.getMessage());
+        assertEquals(List.of("styles/" + AXOLOTL + "/swim/form/age:baby/compile"), errorPaths(registrar),
+            "and the baby form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(swim(), row),
+            "an audit predicts the refusal the install makes");
+        assertEquals(baby.getMessage(), audited.getMessage());
+    }
+
+    @Test
+    @DisplayName("a pair install whose two strides drive the same fields hands the baby form its adult body's weave")
+    void aPairDrivingOneFieldSetHandsTheBabyItsAdultsWeave() {
+        Entity trader = EntityModelLoader.load().get(TRADER);
+        BuiltStyle lean = Poses.custom("lean").allAges().keepStride().bone("body", body -> body.pitch(30)).build();
+        Entity shippedBaby = trader.axes().baby().orElseThrow();
+        Map<String, StyleDriver> adultStride = trader.styles().strideAt(Age.ADULT).drivers();
+        Map<String, StyleDriver> babyStride = trader.styles().strideAt(Age.BABY).drivers();
+        assertEquals(2, PoseCompiler.installedRows(lean, trader, Concurrent.newUnmodifiableMap(), Optional.empty()).size(),
+            "the install appends an adult and baby pair");
+        assertEquals(adultStride.keySet(), babyStride.keySet(), "whose two strides drive the same fields");
+        assertNotEquals(adultStride, babyStride, "at extents of their own, which no weave reads");
+        assertSame(trader.pose(), shippedBaby.pose(), "the baby draws the adult's pose instance");
+        assertSame(trader.model(), shippedBaby.model(), "over the adult's mesh");
+
+        Entity installed = StyleRegistrar.of(definitions(trader)).add(TRADER, lean).definitions().get(TRADER);
+        assertSame(installed.pose(), installed.axes().baby().orElseThrow().pose(),
+            "the baby form takes the adult body's weave");
+        assertTrue(installed.styles().styles().stream()
+                .flatMap(style -> style.drivers().keySet().stream())
+                .noneMatch(field -> field.contains("$age:baby")),
+            "and spells no field of its own");
     }
 
     @Test
@@ -377,13 +565,24 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a period the eight-frame strip does not tile refuses")
-    void untileablePeriodRefuses() {
+    @DisplayName("a period under one tick refuses - it rounds to no whole tick")
+    void aPeriodUnderOneTickRefuses() {
         StyleException refusal = refusalOf(Poses.humanoid("breathe")
             .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
-            .period(1.0)
+            .period(0.02)
             .build());
-        assertTrue(refusal.getMessage().contains("does not tile"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("rounds to no whole tick"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a twenty-tick period installs - a period need not divide into any frame count")
+    void aTwentyTickPeriodInstalls() {
+        PoseCompiler.Compiled compiled = assertDoesNotThrow(() -> PoseCompiler.compile(Poses.humanoid("breathe")
+                .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
+                .period(1.0)
+                .build(), row(humanoid(), EntityPose.NONE)),
+            "a one-second period frames the sway over twenty ticks");
+        assertEquals(Optional.of(20), compiled.style().periodTicks(), "and lands as twenty ticks");
     }
 
     @Test
@@ -969,6 +1168,109 @@ class PoseCompilerRefusalTest {
     }
 
     // ------------------------------------------------------------------------------------
+
+    /**
+     * The shipped squid, whose adult and baby tentacles both read the clock its stride copies.
+     */
+    private static @NotNull Entity squid() {
+        return EntityModelLoader.load().get(SQUID);
+    }
+
+    /**
+     * An every-age absolute turn on a squid tentacle, whose shipped base reads the squid's tentacle
+     * clock at either age.
+     */
+    private static CustomPose.@NotNull Builder grip() {
+        return Poses.custom("grip").allAges().bone("tentacle0", tentacle -> tentacle.pitch(30));
+    }
+
+    /**
+     * Installs a style strictly on the given squid row, alone in its definitions, and asserts the
+     * install lands with the baby form among the arms it compiled.
+     */
+    private static void assertInstallsOnTheBaby(@NotNull Entity squid, @NotNull BuiltStyle style,
+                                                @NotNull String message) {
+        assertInstallsOnTheBaby(SQUID, squid, style, message);
+    }
+
+    /**
+     * Installs a style strictly on the given row, alone in its definitions, and asserts the install
+     * lands with the baby form among the arms it compiled.
+     */
+    private static void assertInstallsOnTheBaby(@NotNull String entityId, @NotNull Entity row,
+                                                @NotNull BuiltStyle style, @NotNull String message) {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(row));
+        assertDoesNotThrow(() -> registrar.add(entityId, style), message);
+        String baby = "styles/" + entityId + "/" + style.styleId() + "/form/age:baby/compile";
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry -> entry.path().equals(baby)),
+            () -> message + " - and the baby form is an arm the install compiled");
+    }
+
+    /**
+     * The shipped axolotl's catalog and meshes under hand-built poses, carrying its baby as its one
+     * form over the shipped baby mesh and no pass at either age.
+     *
+     * @param adult the adult body's pose
+     * @param baby the baby form's pose
+     * @return the row
+     */
+    private static @NotNull Entity axolotl(@NotNull EntityPose adult, @NotNull EntityPose baby) {
+        return axolotl(adult, EntityModelLoader.load().get(AXOLOTL).axes().baby().orElseThrow().model(), baby);
+    }
+
+    /**
+     * The shipped axolotl's catalog and adult mesh under hand-built poses, carrying its baby as its
+     * one form over the given mesh, and every given pass on the adult body and the baby form alike -
+     * so an every-age style keeping the stride installs as an adult and baby pair whose two strides
+     * drive fields apart, {@code inWaterFactor} the adult's alone and {@code swimAnimation} the
+     * baby's alone.
+     *
+     * @param adult the adult body's pose
+     * @param babyMesh the baby form's mesh
+     * @param baby the baby form's pose
+     * @param passes the passes the adult body and the baby form both carry, by instance
+     * @return the row
+     */
+    private static @NotNull Entity axolotl(@NotNull EntityPose adult, @NotNull EntityMesh babyMesh,
+                                           @NotNull EntityPose baby, Entity.OverlayLayer @NotNull ... passes) {
+        Entity shipped = EntityModelLoader.load().get(AXOLOTL);
+        Map<String, StyleDriver> adultStride = shipped.styles().strideAt(Age.ADULT).drivers();
+        Map<String, StyleDriver> babyStride = shipped.styles().strideAt(Age.BABY).drivers();
+        assertTrue(adultStride.containsKey(ADULT_ONLY) && !babyStride.containsKey(ADULT_ONLY),
+            "the adult's stride alone drives " + ADULT_ONLY);
+        assertTrue(babyStride.containsKey(BABY_ONLY) && !adultStride.containsKey(BABY_ONLY),
+            "the baby's stride alone drives " + BABY_ONLY);
+
+        Entity form = entity(AXOLOTL, babyMesh, baby, shipped.styles(), passes);
+        return entity(AXOLOTL, shipped.model(), adult, shipped.styles(), passes).mutate()
+            .axes(new Entity.Axes(Optional.of(form), Entity.Variation.none(), Entity.Variation.none(),
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
+            .build();
+    }
+
+    /**
+     * A pose turning the axolotl's body by one field alone.
+     */
+    private static @NotNull EntityPose pitched(@NotNull String field) {
+        return boneWrite("body", PoseChannel.X_ROT, input(field));
+    }
+
+    /**
+     * An every-age absolute pitch of the axolotl's body, keeping the stride.
+     */
+    private static @NotNull BuiltStyle swim() {
+        return Poses.custom("swim").allAges().keepStride().bone("body", body -> body.pitch(30)).build();
+    }
+
+    /**
+     * The paths every refusal a registrar's installs recorded lands at, in record order.
+     */
+    private static @NotNull List<String> errorPaths(@NotNull StyleRegistrar registrar) {
+        return registrar.diagnostics().entries().stream()
+            .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+            .map(Diagnostics.Entry::path)
+            .toList();
+    }
 
     /**
      * One cycle running every leg with the one across the body from it, half a cycle apart.

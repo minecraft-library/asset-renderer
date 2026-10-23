@@ -55,9 +55,9 @@ class PoseCookbookCreatureTest {
     private static final int PERIOD = 24;
 
     /**
-     * The eight strip ticks an animated schedule samples.
+     * Eight sample ticks across one figure period - the law holds at every tick.
      */
-    private static final int[] STRIP_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
+    private static final int[] SAMPLE_TICKS = {0, 3, 6, 9, 12, 15, 18, 21};
 
     /**
      * The one-entry inventory every moving style infers.
@@ -101,14 +101,14 @@ class PoseCookbookCreatureTest {
             for (String field : List.of("style$beg$body$x_rot", "style$beg$head$x_rot",
                 "style$beg$left_hind_leg$x_rot", "style$beg$right_hind_leg$x_rot",
                 "style$beg$left_front_leg$x_rot", "style$beg$right_front_leg$x_rot"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                     "'" + field + "' holds its stance");
             for (String field : List.of("style$beg$body$y", "style$beg$body$z",
                 "style$beg$left_front_leg$y", "style$beg$right_front_leg$y"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                     "'" + field + "' holds its settle");
             StyleDriver wag = installed.drivers().get("style$beg$tail$y_rot");
-            assertEquals(StyleDriver.Wave.SWEEP, wag.wave());
+            assertEquals(StyleDriver.Wave.Plain.SWEEP, wag.wave());
             assertEquals(rad(-25), wag.rest(), "the wag starts at its near bound");
             assertEquals(rad(25), wag.extent(), "and peaks at the far one mid-period");
 
@@ -118,7 +118,7 @@ class PoseCookbookCreatureTest {
             for (String seated : List.of("tail", "right_hind_leg", "left_hind_leg")) {
                 for (String token : List.of("y", "z")) {
                     String field = "style$beg$" + seated + "$" + token;
-                    assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get(field).wave(),
+                    assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get(field).wave(),
                         "'" + field + "' carries the seat");
                 }
                 assertNull(installed.drivers().get("style$beg$" + seated + "$x"),
@@ -131,7 +131,7 @@ class PoseCookbookCreatureTest {
             // The mane is placed by hand in every state vanilla poses and rides nothing, so its
             // two channels are the chain's own held writes rather than a seat's carry.
             for (String token : List.of("x_rot", "y"))
-                assertEquals(StyleDriver.Wave.HOLD, installed.drivers().get("style$beg$upper_body$" + token).wave(),
+                assertEquals(StyleDriver.Wave.Plain.HOLD, installed.drivers().get("style$beg$upper_body$" + token).wave(),
                     "'style$beg$upper_body$" + token + "' holds the mane where the chain names it");
             assertNull(installed.drivers().get("style$beg$upper_body$z"),
                 "a settle straight down spells no field along the axis it does not move");
@@ -425,7 +425,7 @@ class PoseCookbookCreatureTest {
         @Test
         @DisplayName("at every strip tick the wings hold exact antiphase")
         void wingsMoveInAntiphase() {
-            for (int tick : STRIP_TICKS) {
+            for (int tick : SAMPLE_TICKS) {
                 EntityMesh posed = posed(this.allay, this.installed, tick);
                 assertEquals(-posed.getBones().get("right_wing").getRotation().yaw(),
                     posed.getBones().get("left_wing").getRotation().yaw(), 0f,

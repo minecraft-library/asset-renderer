@@ -76,7 +76,7 @@ import java.util.stream.Stream;
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by the colormap and
  * block-tint tables; the decoded-pixel cache lives on the {@link PackStack}, so this holds only
- * immutable indexes.
+ * immutable indexes and the {@link StripMemo} the strips fitted over its entities are held in.
  */
 @RequiredArgsConstructor
 @Parity(ignored = true)
@@ -116,6 +116,9 @@ public final class IndexedRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block.BlockEntity> blockEntities;
     private final @NotNull TextureSynthesizer synthesizer;
     private final @NotNull ConcurrentMap<ResourceId, EquipmentModel> equipmentModels;
+
+    /** The memo every strip fitted over the entity index is held in, for this context's whole life. */
+    private final @NotNull StripMemo strips = new StripMemo();
 
     /**
      * Builds the production context from the client assets - the single loader assembly
@@ -303,6 +306,12 @@ public final class IndexedRendererContext implements RendererContext {
 
         Entity entity = this.entityIndex.get(id);
         return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull StripMemo strips() {
+        return this.strips;
     }
 
     /**

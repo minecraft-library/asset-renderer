@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
@@ -42,7 +41,8 @@ import java.util.function.BiFunction;
  * runtime change at all.
  *
  * <p>An install compiles the style against the target row's own mesh and shipped pose, appends
- * one flat catalog row after the shipped rows, and weaves every pose row the runtime evaluates:
+ * one flat catalog row after the shipped rows - an adult row and a baby row of one id where the
+ * style keeps the stride across both ages - and weaves every pose row the runtime evaluates:
  * an overlay pass sharing the body's pose instance is re-pointed at the spliced instance and
  * follows for free, while a pass carrying a distinct pose row takes its own compile against its
  * own mesh, the splices that depend on its mesh reading per-layer fields under a coined
@@ -50,9 +50,10 @@ import java.util.function.BiFunction;
  * index names it. Worn humanoid armor evaluates no pose row at all, so an armored subject's shells
  * hold the rest silhouette under any custom style. An equipment mesh plays its own shipped row
  * under the style's frame, and the style's splices do not reach it; what the weave does reach is
- * the pose an equipment slot swaps onto its wearer - the harnessed happy ghast's smaller body - woven
- * under the coined {@code $equip:<slot>} coordinate, so the style keeps playing on a wearer whose
- * filled slot swaps its body's pose.
+ * the form a filled equipment slot re-poses its wearer as - the harnessed happy ghast's smaller
+ * body - woven as a form of its own, so the style keeps playing on a wearer whose filled slot swaps
+ * its body's pose. The form a selected carried block re-poses its wearer as - the enderman's raised
+ * arms, the iron golem's offered flower - is woven the same way.
  *
  * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age
@@ -71,9 +72,9 @@ import java.util.function.BiFunction;
  * mesh and render scale to that pose, so its mesh is guarded rather than compiled against: a scale
  * a shipped clip already writes on it, or a raw read it does not declare, refuses, and a written
  * bone it does not declare is recorded.
- * Every form carries the one catalog the install rebuilds. Which sites there are and what guards
- * each is {@link FormWalker}'s walk, which an audit reads too; what a compile runs over and the
- * strict-or-tolerant fork are the install's.
+ * Every form carries the one catalog the install rebuilds. Which sites there are, what guards each
+ * and how each compiles is {@link FormWalker}'s walk, which an audit reads too; the pool every
+ * compile runs over and the strict-or-tolerant fork are the install's.
  *
  * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven form's
  * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead
@@ -298,7 +299,8 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Runs the whole install sequence for one row: the id guards, the walk over the row and every
      * form an appearance swaps in for it, and the rebuilt row, whose every form carries the one
-     * catalog the appended row rebuilds.
+     * catalog the appended row rebuilds - a style that keeps the stride and spans both ages appending
+     * an adult row and a baby row of one id, each walking at its own age's stride.
      */
     private @NotNull StyleRegistrar install(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict) {
         Diagnostics scope = this.root.child(entityId).child(style.styleId());
@@ -313,15 +315,14 @@ public final class StyleRegistrar implements AutoCloseable {
             throw refuse(install, "Entity '%s' already carries style '%s' at that age - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
-        Weave weave = new Weave(entityId, style, strict,
-            this.pools.computeIfAbsent(entityId, id -> new GraphInterner()), row.styles().periodTicks());
-        Entity rebuilt = FormWalker.walk(entityId, style, row, this.given.get(entityId), scope, weave);
+        Weave weave = new Weave(entityId, style.styleId(), strict);
+        Entity rebuilt = FormWalker.walk(entityId, style, row, this.given.get(entityId), scope,
+            this.pools.computeIfAbsent(entityId, id -> new GraphInterner()), weave);
 
         List<PoseStyle> rows = new ArrayList<>(row.styles().styles());
-        rows.add(new PoseStyle(style.styleId(), style.sources(),
-            Concurrent.newUnmodifiableMap(weave.drivers), style.toggles(), style.age(),
+        rows.addAll(PoseCompiler.installedRows(style, row, Concurrent.newUnmodifiableMap(weave.drivers),
             weave.declaredPeriod));
-        StyleCatalog catalog = new StyleCatalog(row.styles().periodTicks(),
+        StyleCatalog catalog = new StyleCatalog(row.styles().periodTicks(), row.styles().ceilings(),
             Concurrent.newUnmodifiableList(rows));
 
         this.working.put(entityId, cataloged(rebuilt, catalog));
@@ -341,7 +342,8 @@ public final class StyleRegistrar implements AutoCloseable {
         Entity.Variation<String, String> state = new Entity.Variation<>(
             Concurrent.newUnmodifiableMap(Map.of(Entity.BASE_STATE, PlayerRig.SKIN_REF)),
             Optional.of(Entity.BASE_STATE));
-        return new Entity.Axes(axes.baby(), axes.shape(), state, axes.size(), axes.variant());
+        return new Entity.Axes(axes.baby(), axes.shape(), state, axes.size(), axes.variant(), axes.carried(),
+            axes.equipment());
     }
 
     /**
@@ -355,7 +357,9 @@ public final class StyleRegistrar implements AutoCloseable {
             .axes(new Entity.Axes(axes.baby().map(baby -> cataloged(baby, catalog)),
                 mapped(axes.shape(), (key, option) -> cataloged(option, catalog)), axes.state(),
                 mapped(axes.size(), (key, option) -> cataloged(option, catalog)),
-                mapped(axes.variant(), (key, option) -> cataloged(option, catalog))))
+                mapped(axes.variant(), (key, option) -> cataloged(option, catalog)),
+                axes.carried().map(carried -> cataloged(carried, catalog)),
+                mapped(axes.equipment(), (key, option) -> cataloged(option, catalog))))
             .build();
     }
 
@@ -415,9 +419,10 @@ public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * The working state one install carries across every site the walk compiles, and what the
-     * install does at each - the style and its strictness, the entity's pool, the catalog period,
-     * and the drivers the appended row collects: each compile runs over the pool, its drivers join
-     * the appended row first-wins, and an address it reached nothing with refuses when strict.
+     * install does with each compile - the style's id and its strictness, and the drivers and the
+     * declared period the appended row collects: each compile's drivers join the appended row
+     * first-wins, a body's compile answers the period the script declares, and an address a compile
+     * reached nothing with refuses when strict.
      */
     private static final class Weave implements FormWalker.Visitor {
 
@@ -427,24 +432,14 @@ public final class StyleRegistrar implements AutoCloseable {
         private final @NotNull String entityId;
 
         /**
-         * The built style being installed.
+         * The id of the built style being installed, as a refusal names it.
          */
-        private final @NotNull BuiltStyle style;
+        private final @NotNull String styleId;
 
         /**
          * Whether an address a woven mesh answers with nothing refuses rather than drops.
          */
         private final boolean strict;
-
-        /**
-         * The entity's interner pool, which every compile of the install shares.
-         */
-        private final @NotNull GraphInterner pool;
-
-        /**
-         * The row's catalog period, framing every compile's default strip window.
-         */
-        private final int periodTicks;
 
         /**
          * The appended row's drivers - the row's compile first, every later compile joining
@@ -458,30 +453,21 @@ public final class StyleRegistrar implements AutoCloseable {
          */
         private @NotNull Optional<Integer> declaredPeriod = Optional.empty();
 
-        private Weave(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
-                      @NotNull GraphInterner pool, int periodTicks) {
+        private Weave(@NotNull String entityId, @NotNull String styleId, boolean strict) {
             this.entityId = entityId;
-            this.style = style;
+            this.styleId = styleId;
             this.strict = strict;
-            this.pool = pool;
-            this.periodTicks = periodTicks;
         }
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull PoseCompiler.Compiled compile(@NotNull FormWalker.Site site,
-                                                      @NotNull Optional<EntityPose.Clip> playSite) {
-            PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
-                ? PoseCompiler.compile(this.style, site.form(), site.evidence(), site.scope(), this.pool)
-                : PoseCompiler.compileLayer(this.style, site.pose(), site.evidence(), site.mesh(),
-                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks);
+        public void compiled(@NotNull FormWalker.Site site, @NotNull PoseCompiler.Compiled compiled) {
             // A later compile's drivers join first-wins, so the body compile's copy of a shared field
             // stands and a field only a pass's splices read - a bone the body's mesh dropped - still
             // lands its driver.
             compiled.style().drivers().forEach(this.drivers::putIfAbsent);
             if (site.pass().isEmpty())
                 this.declaredPeriod = compiled.style().periodTicks();
-            return compiled;
         }
 
         /** {@inheritDoc} */
@@ -492,11 +478,11 @@ public final class StyleRegistrar implements AutoCloseable {
             if (site.pass().isEmpty())
                 throw refuse(site.scope().child("install"),
                     "Style '%s' addresses [%s] that %s answers with nothing - its mesh declares [%s]",
-                    this.style.styleId(), PoseCompiler.Unreached.describeAll(drops),
+                    this.styleId, PoseCompiler.Unreached.describeAll(drops),
                     subject(this.entityId, site.coordinate()), declares);
             throw refuse(site.scope().child("install"),
                 "Style '%s' weaves layer '%s' of entity '%s', which answers [%s] with nothing - its mesh declares [%s]",
-                this.style.styleId(), site.coordinate(), this.entityId, PoseCompiler.Unreached.describeAll(drops),
+                this.styleId, site.coordinate(), this.entityId, PoseCompiler.Unreached.describeAll(drops),
                 declares);
         }
 

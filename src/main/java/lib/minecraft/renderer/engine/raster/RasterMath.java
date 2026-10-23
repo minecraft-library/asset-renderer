@@ -7,8 +7,9 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Static helpers for the 2D triangle rasterization math shared by the drawing helpers and the
  * engine layer - sub-pixel sample quantization, barycentric coordinates, the Pineda edge
- * functions / top-left fill rule the rasterizer walks per pixel, and the texel an interpolated
- * coordinate reads. (Camera-to-screen projection lives on the {@code engine.camera.Lens} record.)
+ * functions and fill rule the rasterizer walks per pixel - the GPU's top-left rule, taken in GL's
+ * Y-up frame ({@link #isTopOrLeftEdge}) - and the texel an interpolated coordinate reads.
+ * (Camera-to-screen projection lives on the {@code engine.camera.Lens} record.)
  */
 @UtilityClass
 public class RasterMath {
@@ -102,7 +103,7 @@ public class RasterMath {
      * linear function in {@code (sx, sy)}; factoring out the vertex-dependent constants and
      * holding them once per triangle drops the per-pixel coverage test from ~40 long-ops
      * (re-quantize 4 points + 3 cross products + denom + sign flip) to ~16 ops (3 mul-adds +
-     * sign check + at-most-3 top-left checks).
+     * sign check + at-most-3 fill-rule checks).
      * <p>
      * Coefficients are pre-sign-normalized: if the triangle's signed area is negative the
      * factory negates all A/B/C and denom so the {@code >= 0} inside test works regardless
@@ -244,7 +245,8 @@ public class RasterMath {
      * @param ec the triangle's precomputed edge coefficients
      * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})
      * @param py the sample point's y coordinate (typically pixel-center {@code py + 0.5f})
-     * @return {@code true} if the sample is owned by this triangle under the top-left rule
+     * @return {@code true} if the sample is owned by this triangle under the fill rule
+     *     {@link #isTopOrLeftEdge} states
      */
     public static boolean isInsideTriangle(@NotNull EdgeCoefficients ec, float px, float py) {
         if (ec.denom == 0L) return false;
@@ -286,7 +288,8 @@ public class RasterMath {
      * @param v2 the triangle's third screen-space vertex
      * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})
      * @param py the sample point's y coordinate (typically pixel-center {@code py + 0.5f})
-     * @return {@code true} if the sample is owned by this triangle under the top-left rule
+     * @return {@code true} if the sample is owned by this triangle under the fill rule
+     *     {@link #isTopOrLeftEdge} states
      */
     public static boolean isInsideTriangle(
         @NotNull Vector2f v0,
@@ -435,14 +438,20 @@ public class RasterMath {
     }
 
     /**
-     * Returns {@code true} if the directed edge from {@code (sx, sy)} to {@code (ex, ey)}
-     * is a top or left edge in CW Y-down screen space - the OpenGL fill-rule classification
-     * for which adjacent triangle "owns" a shared-edge pixel. Operates on the sub-pixel
-     * fixed-point endpoints so the classification is deterministic regardless of upstream
+     * Returns {@code true} if the directed edge from {@code (sx, sy)} to {@code (ex, ey)} owns the
+     * samples lying exactly on it - a top or left edge under the GPU's top-left fill rule, which
+     * decides which of two adjacent triangles takes a sample on the edge they share. Operates on the
+     * sub-pixel fixed-point endpoints so the classification is deterministic regardless of upstream
      * float drift.
+     * <p>
+     * <b>The GPU applies the rule in GL's window frame, where Y runs up.</b> Image space runs Y down,
+     * so the same rule reads bottom-left here: a sample exactly on a horizontal edge two faces share
+     * belongs to the face above it in image space, and a sample exactly on any other shared edge to
+     * the face on its right, flipping Y leaving left and right where they are.
      * <ul>
-     * <li>Top edge: horizontal ({@code sy == ey}) going right ({@code ex > sx})</li>
-     * <li>Left edge: non-horizontal going up ({@code ey < sy})</li>
+     * <li>Top edge in GL's frame: horizontal ({@code sy == ey}) going left ({@code ex < sx}), the
+     * interior above it in image space</li>
+     * <li>Left edge: non-horizontal going up ({@code ey < sy}), the interior to its right</li>
      * </ul>
      *
      * <p><b>The two arms follow from the winding rather than being free to choose.</b> Callers hand
@@ -450,13 +459,15 @@ public class RasterMath {
      * evaluate it, which is the winding where {@code e >= 0} marks the interior - clockwise on
      * screen with Y running down. Under that winding {@code e_ij >= 0} puts the interior to the left
      * of a downward edge, so a downward edge is the triangle's <em>right</em> one and the
-     * <em>upward</em> edge is its left; the horizontal arm follows the same derivation and lands on
-     * left-to-right for top. The mirrored reading is equally self-consistent - it still hands every
-     * shared edge to exactly one side - but it is the bottom-right rule, and it hands that edge to
-     * the opposite side from the GPU.
+     * <em>upward</em> edge is its left. The same derivation puts the interior below an edge going
+     * right and above an edge going left, so the edge going left is the triangle's bottom edge in
+     * image space, which is its top edge in GL's frame. Reading either arm the other way round is
+     * equally self-consistent - it still hands every shared edge to exactly one side - but it hands
+     * that edge to the opposite side from the GPU; the horizontal arm read that way is the top-left
+     * rule taken in image space.
      */
     private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
-        if (sy == ey) return ex > sx;
+        if (sy == ey) return ex < sx;
         return ey < sy;
     }
 

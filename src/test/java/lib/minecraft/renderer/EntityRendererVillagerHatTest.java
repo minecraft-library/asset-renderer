@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
@@ -211,7 +212,7 @@ class EntityRendererVillagerHatTest {
      * @return the overlay the ref resolution reads
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
-        return new OverlayLayer(new EntityMesh(), Optional.of(textureRef), PassDeclaration.DEFAULT,
+        return RegistrarFixtures.pass(new EntityMesh(), Optional.of(textureRef), PassDeclaration.DEFAULT,
             0xFFFFFFFF, true, Optional.empty(), TextureAxis.findByToken(textureBy),
             Optional.empty(), Optional.empty(), EntityPose.NONE);
     }

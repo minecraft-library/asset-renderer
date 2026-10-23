@@ -11,17 +11,20 @@ import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -42,9 +45,10 @@ import java.util.TreeMap;
  * subject. An accessor laid out any other way - a switch, a field read, a constant chosen before
  * the branches - answers nothing, which is what the field read as before this existed.
  *
- * <p>Only a field the renderer fills from a plain accessor is answered. What a render state
- * computes for itself is a function of figures rather than of the entity, and belongs to whoever
- * supplies those.
+ * <p>Only a field the renderer fills from a plain accessor, or from a static helper it hands the
+ * entity alone, is answered - the parrot's {@code pose} is the helper's shape, and rests
+ * {@code STANDING} by it. What a render state computes for itself is a function of figures rather
+ * than of the entity, and belongs to whoever supplies those.
  *
  * <p>A flag is answered the same way wherever the receiver it is asked of can be named, which is
  * not always the entity: a dragon's is the phase instance its manager is holding, and
@@ -58,6 +62,9 @@ public final class EntityRestStateResolver {
 
     /** The descriptor of the no-argument flag question every {@code rest} flag is filled from. */
     private static final @NotNull String FLAG = "()Z";
+
+    /** The local slot {@code extractRenderState} receives the entity in, the first after the renderer itself. */
+    private static final int ENTITY_SLOT = 1;
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -210,21 +217,29 @@ public final class EntityRestStateResolver {
     }
 
     /**
-     * One {@code state.<field> = entity.<accessor>()} assignment of an enum-typed field.
+     * One {@code state.<field> = entity.<accessor>()} assignment of an enum-typed field, or its
+     * static-helper form {@code state.<field> = Owner.<accessor>(entity)}.
      *
      * @param field the render-state field name
      * @param accessor the accessor's method name
+     * @param descriptor the accessor's descriptor
      * @param enumType the enum's JVM internal name, which the constant has to be one of
+     * @param helper the static helper's owner, empty for an accessor on the entity
      */
     private record Assignment(
         @NotNull String field,
         @NotNull String accessor,
-        @NotNull String enumType
+        @NotNull String descriptor,
+        @NotNull String enumType,
+        @NotNull Optional<String> helper
     ) {}
 
     /**
      * Collects every {@code PUTFIELD <state>.<field>:L<Enum>;} in one method whose value came
-     * straight off a no-argument accessor returning that same enum. First assignment wins - a
+     * straight off a no-argument accessor returning that same enum, or off a static helper handed
+     * the entity alone - {@code INVOKESTATIC <Owner>.<m>(L<T>;)L<Enum>;} with its one argument pushed
+     * by {@code ALOAD 1}, the parameter the entity arrives in. A helper taking anything beside the
+     * entity is a question of more than the subject and is not collected. First assignment wins - a
      * renderer chain that fills a field twice fills it in the subclass, which the leaf-first walk
      * reaches first.
      *
@@ -240,15 +255,28 @@ public final class EntityRestStateResolver {
             .ofType(FieldInsnNode.class)
             .where(put -> put.getOpcode() == Opcodes.PUTFIELD && put.desc.startsWith("L"))
             .forEach(put -> {
-                AbstractInsnNode source = AsmWalker.previousReal(put);
-                if (source == null
-                    || source.getOpcode() != Opcodes.INVOKEVIRTUAL
-                    || !(source instanceof MethodInsnNode call)
-                    || !call.desc.equals("()" + put.desc)) return;
+                if (!(AsmWalker.previousReal(put) instanceof MethodInsnNode call)) return;
                 String enumType = ClassKit.internalNameOfRef(put.desc);
                 if (enumType == null) return;
-                out.putIfAbsent(put.name, new Assignment(put.name, call.name, enumType));
+                if (call.getOpcode() == Opcodes.INVOKEVIRTUAL && call.desc.equals("()" + put.desc))
+                    out.putIfAbsent(put.name, new Assignment(put.name, call.name, call.desc, enumType, Optional.empty()));
+                else if (call.getOpcode() == Opcodes.INVOKESTATIC && handsTheEntityAlone(call, put.desc))
+                    out.putIfAbsent(put.name, new Assignment(put.name, call.name, call.desc, enumType, Optional.of(call.owner)));
             });
+    }
+
+    /**
+     * Whether a static call takes one reference, pushed straight off the entity parameter, and answers
+     * the field's own type.
+     */
+    private static boolean handsTheEntityAlone(@NotNull MethodInsnNode call, @NotNull String fieldDesc) {
+        Type[] parameters = ClassKit.argTypes(call.desc);
+        return parameters.length == 1
+            && parameters[0].getSort() == Type.OBJECT
+            && call.desc.endsWith(")" + fieldDesc)
+            && AsmWalker.previousReal(call) instanceof VarInsnNode load
+            && load.getOpcode() == Opcodes.ALOAD
+            && load.var == ENTITY_SLOT;
     }
 
     /**
@@ -263,14 +291,15 @@ public final class EntityRestStateResolver {
      * names. A renderer shared by several entities calls the accessor on the type they have in
      * common, so reading the owner off the instruction answers that class's implementation for all
      * of them - which gives a pillager the arms every other illager crosses, {@code NEUTRAL} being
-     * exactly what its own override exists to say.
+     * exactly what its own override exists to say. A static helper is the one read on the owner the
+     * call names, because a static does not dispatch: {@code ParrotModel.getPose} falls through to
+     * {@code STANDING}, what a parrot neither partying, sitting nor flying answers.
      *
      * @param assignment the field's accessor and the enum it must answer with
      * @return the constant's own name, or {@code null} when the accessor is not that shape
      */
     private @Nullable String fallThroughConstant(@NotNull Assignment assignment) {
-        MethodNode accessor = ClassKit.findMethodInHierarchy(this.cache, this.subject.entityClass(),
-            assignment.accessor(), "()L" + assignment.enumType() + ";");
+        MethodNode accessor = accessorOf(assignment);
         if (accessor == null) return null;
 
         String[] last = {null};
@@ -287,6 +316,22 @@ public final class EntityRestStateResolver {
                     last[0] = null;
             });
         return last[0];
+    }
+
+    /**
+     * The method an assignment fills its field from - the accessor up the subject's own entity
+     * class, or the static helper on the owner the call names.
+     *
+     * @param assignment the field's accessor
+     * @return the method, or {@code null} where no class declares it
+     */
+    private @Nullable MethodNode accessorOf(@NotNull Assignment assignment) {
+        if (assignment.helper().isEmpty()) {
+            return ClassKit.findMethodInHierarchy(this.cache, this.subject.entityClass(), assignment.accessor(),
+                assignment.descriptor());
+        }
+        ClassNode owner = this.cache.load(assignment.helper().get());
+        return owner == null ? null : ClassKit.findMethod(owner, assignment.accessor(), assignment.descriptor());
     }
 
 }

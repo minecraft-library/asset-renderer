@@ -5,7 +5,10 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PaceCeiling;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.CustomPose;
 import lib.minecraft.renderer.author.Poses;
@@ -17,20 +20,29 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -138,7 +150,7 @@ class PoseAuditorTest {
         // tail and the hips, so neither placement reads as a fault.
         PoseAudit seated = PoseAuditor.validate(sitting(false), wolf);
         assertTrue(seated.findings().stream().noneMatch(finding ->
-                finding.boneA().equals("body") && (finding.boneB().equals("upper_body") || finding.boneB().equals("real_tail"))),
+                names(finding, "body", "upper_body") || names(finding, "body", "real_tail")),
             "the mane and the tail read inside what vanilla draws:\n" + seated.report());
     }
 
@@ -148,7 +160,9 @@ class PoseAuditorTest {
         PoseAudit audit = PoseAuditor.validate(BEG, withoutSilhouettes(row("minecraft:wolf")));
 
         assertFalse(audit.clean(), "with no seat to derive, the beg leaves the shipped envelope");
-        assertEquals(List.of("OVERLAP body <-> upper_body", "SPLIT body <-> real_tail"), pairs(audit),
+        // The audit spells a pair in the mesh's bone order, which is vanilla's bake order: the wolf's
+        // mane and tail iterate ahead of its body.
+        assertEquals(List.of("OVERLAP upper_body <-> body", "SPLIT real_tail <-> body"), pairs(audit),
             audit.report());
         PoseAudit.Finding tail = finding(audit, PoseAudit.Kind.SPLIT, "body", "real_tail");
         assertTrue(tail.posedMin() > tail.knownMax(),
@@ -255,6 +269,184 @@ class PoseAuditorTest {
             "drifted limbs and the lift stay within the stride envelope");
     }
 
+    @Test
+    @DisplayName("a stride at its age's ceiling takes the ceiling's swing and clock and keeps everything else - an age the catalog records no ceiling at, and an idle, answer themselves")
+    void atCeilingRaisesOnlyTheWalkPair() {
+        PaceCeiling ceiling = new PaceCeiling(0.79f, 2.38f);
+        LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>();
+        drivers.put("walkAnimationSpeed",
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0.05f, 0.35f, Optional.empty()));
+        drivers.put("walkAnimationPos",
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1.05f, Optional.of("gait")));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("tailAnimation", new StyleDriver("tailAnimation", StyleDriver.Wave.Plain.RAMP, 0f, 0.5f, Optional.empty()));
+        PoseStyle stride = new PoseStyle(PoseStyle.STRIDE,
+            Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.STRIDE, Optional.empty())),
+            Concurrent.adoptLinkedMap(drivers).toUnmodifiable(), Concurrent.newUnmodifiableList("saddle"),
+            Optional.of(Age.BABY), Optional.of(48));
+        StyleCatalog catalog = new StyleCatalog(StyleCatalog.FIGURE_PERIOD_TICKS,
+            Concurrent.newUnmodifiableMap(Map.of(Age.BABY, ceiling)), Concurrent.newUnmodifiableList(stride));
+
+        PoseStyle raised = PoseAuditor.atCeiling(stride, catalog, Age.BABY);
+
+        assertEquals(new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0.05f, 0.79f, Optional.empty()),
+            raised.drivers().get("walkAnimationSpeed"), "the swing holds at the ceiling's speed, its wave and rest kept");
+        assertEquals(new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 2.38f, Optional.of("gait")),
+            raised.drivers().get("walkAnimationPos"), "the walk clock ramps at the ceiling's rate, its group kept");
+        assertSame(stride.drivers().get("ageInTicks"), raised.drivers().get("ageInTicks"), "elapsed age is kept");
+        assertSame(stride.drivers().get("tailAnimation"), raised.drivers().get("tailAnimation"),
+            "and so is every clock beside the walk pair");
+        assertEquals(List.copyOf(stride.drivers().keySet()), List.copyOf(raised.drivers().keySet()),
+            "in the row's own order");
+        assertSame(stride.sources(), raised.sources(), "the sources are kept");
+        assertSame(stride.toggles(), raised.toggles(), "the toggles are kept");
+        assertEquals(stride.age(), raised.age(), "the age is kept");
+        assertEquals(stride.periodTicks(), raised.periodTicks(), "and so is the period");
+        assertSame(stride, PoseAuditor.atCeiling(stride, catalog, Age.ADULT),
+            "an age the catalog records no ceiling at answers the row itself");
+
+        // A stride its catalog records no ceiling for is audited at the walk it drives - the universal
+        // row's full swing held at one and its clock ramped by it.
+        PoseStyle walking = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, row -> true, "minecraft:test");
+        assertTrue(StyleCatalog.BIND_ONLY.ceilingAt(Age.ADULT).isEmpty(), "the styleless catalog records no ceiling");
+        assertEquals(1f, walking.drivers().get("walkAnimationSpeed").extent(), "it swings at one");
+        assertEquals(1f, walking.drivers().get("walkAnimationPos").extent(), "and its clock ramps at one");
+        assertSame(walking, PoseAuditor.atCeiling(walking, StyleCatalog.BIND_ONLY, Age.ADULT),
+            "a row its catalog records no ceiling for answers itself");
+        PoseStyle standing = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, row -> true, "minecraft:test");
+        assertSame(standing, PoseAuditor.atCeiling(standing, StyleCatalog.BIND_ONLY, Age.ADULT),
+            "and so does an idle row");
+    }
+
+    @Test
+    @DisplayName("the envelope reads the stride at its ceiling, not at the walk it drives - an ambling horse audits as one at full stride")
+    void theEnvelopeReadsTheCeilingNotTheWander() {
+        Entity horse = row("minecraft:horse");
+        assertTrue(horse.styles().byId(PoseStyle.STRIDE).isPresent(), "the horse ships a stride");
+        assertTrue(horse.styles().ceilingAt(Age.ADULT).isPresent(), "and its catalog records the horse's fastest walk");
+        assertNotEquals(PoseAuditor.validate(REAR, horse).report(),
+            PoseAuditor.validate(REAR, withStride(horse, shipped -> walking(shipped, 0.25f, 0.25f),
+                Concurrent.newUnmodifiableMap())).report(),
+            "the horse's leg swing sets a range the rear's report prints, or the case is vacuous");
+
+        Entity ambling = withStride(horse, shipped -> walking(shipped, 0.25f, 0.25f), horse.styles().ceilings());
+
+        assertEquals(PoseAuditor.validate(REAR, horse).report(), PoseAuditor.validate(REAR, ambling).report(),
+            "the shipped stride and one ambling under the same ceiling enter the envelope at the horse's fastest walk");
+    }
+
+    @Test
+    @DisplayName("a baby audit of a row carrying no baby form reads the adult's ceiling - the row draws its adult at every age")
+    void aBabylessRowAuditsTheBabyAtTheAdultsCeiling() {
+        Entity skeleton = row("minecraft:skeleton");
+        assertTrue(skeleton.axes().baby().isEmpty(), "the skeleton carries no baby form");
+        assertTrue(skeleton.styles().ceilingAt(Age.ADULT).isPresent(), "and its catalog records the adult's fastest walk");
+        // The emptied-ceiling report below stands in for an audit reading the baby's own ceiling only
+        // while the catalog records none for the baby it never draws.
+        assertTrue(skeleton.styles().ceilingAt(Age.BABY).isEmpty(), "and none for a baby it never draws");
+        // A right leg driven three units up into the body, which the stride's leg swing tips the leg's
+        // top into by an amount its pace sets.
+        Function<Age, BuiltStyle> raised = age -> Poses.custom("raised").age(age)
+            .bone("right_leg", leg -> leg.offset(0, -3, 0)).build();
+        BuiltStyle adult = raised.apply(Age.ADULT);
+        BuiltStyle baby = raised.apply(Age.BABY);
+        assertNotEquals(PoseAuditor.validate(adult, skeleton).report(),
+            PoseAuditor.validate(adult, withStride(skeleton, UnaryOperator.identity(), Concurrent.newUnmodifiableMap()))
+                .report(),
+            "the skeleton's ceiling sets a range the report prints, or the case is vacuous");
+
+        assertEquals(PoseAuditor.validate(adult, skeleton).report(), PoseAuditor.validate(baby, skeleton).report(),
+            "a baby audit draws the adult's mesh at the adult's fastest walk");
+    }
+
+    @Test
+    @DisplayName("an audit reads the stride of its own age at that stride's own ceiling - a baby's is not its adult's")
+    void aBabyAuditReadsTheBabyStride() {
+        // A foal following its parent: its fastest walk swings less than its adult's, and its clock is
+        // not three times the adult's.
+        PoseStyle standing = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, row -> true, "minecraft:test");
+        PoseStyle adult = walking(universalStride(Age.ADULT), 0.172687f, 0.172687f);
+        PoseStyle baby = walking(universalStride(Age.BABY), 0.172687f, 0.518062f);
+        StyleCatalog catalog = new StyleCatalog(StyleCatalog.FIGURE_PERIOD_TICKS,
+            Concurrent.newUnmodifiableMap(Map.of(Age.ADULT, new PaceCeiling(0.507489f, 0.507489f),
+                Age.BABY, new PaceCeiling(0.352423f, 1.05727f))),
+            Concurrent.newUnmodifiableList(standing, adult, baby));
+
+        List<PoseStyle> babyKnown = PoseAuditor.knownStyles(catalog, Age.BABY, Age.BABY);
+        assertEquals(List.of(PoseStyle.BIND, PoseStyle.IDLE, PoseStyle.STRIDE),
+            babyKnown.stream().map(PoseStyle::id).toList(), "bind, the ageless idle, and one stride");
+        PoseStyle babyStride = babyKnown.getLast();
+        assertEquals(Optional.of(Age.BABY), babyStride.age(), "the baby's stride answers a baby audit");
+        assertEquals(0.352423f, babyStride.drivers().get("walkAnimationSpeed").extent(),
+            "swinging at the baby's own fastest pace");
+        assertEquals(1.05727f, babyStride.drivers().get("walkAnimationPos").extent(),
+            "with its clock at the baby's own fastest rate");
+
+        PoseStyle adultStride = PoseAuditor.knownStyles(catalog, Age.ADULT, Age.ADULT).getLast();
+        assertEquals(Optional.of(Age.ADULT), adultStride.age(), "and the adult's stride answers an adult audit");
+        assertEquals(0.507489f, adultStride.drivers().get("walkAnimationSpeed").extent(),
+            "at the adult's own ceiling");
+    }
+
+    @Test
+    @DisplayName("an audit at an age no shipped row is scoped to reads the rows a render at that age draws")
+    void anAuditAtTheOtherAgeReadsTheRowsARenderDraws() {
+        // The axolotl's shape: its idle and stride are both scoped to the adult, so a baby renders the
+        // universal rows, and those are what a baby audit measures against.
+        PoseStyle universal = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, row -> true, "minecraft:test");
+        PoseStyle adultIdle = new PoseStyle(PoseStyle.IDLE, universal.sources(), universal.drivers(),
+            universal.toggles(), Optional.of(Age.ADULT), Optional.empty());
+        StyleCatalog catalog = new StyleCatalog(StyleCatalog.FIGURE_PERIOD_TICKS, Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(adultIdle, universalStride(Age.ADULT)));
+        Predicate<PoseStyle> baby = row -> row.age().map(Age.BABY::equals).orElse(true);
+
+        List<PoseStyle> babyKnown = PoseAuditor.knownStyles(catalog, Age.BABY, Age.BABY);
+        assertEquals(List.of(PoseStyle.BIND, PoseStyle.IDLE, PoseStyle.STRIDE),
+            babyKnown.stream().map(PoseStyle::id).toList(), "bind, then the idle and stride a baby draws");
+        assertSame(catalog.resolve(PoseStyle.IDLE, baby, "minecraft:test"), babyKnown.get(1),
+            "the universal idle a baby render resolves to");
+        assertSame(catalog.resolve(PoseStyle.STRIDE, baby, "minecraft:test"), babyKnown.get(2),
+            "and the universal stride, which carries no ceiling to raise");
+
+        List<PoseStyle> adultKnown = PoseAuditor.knownStyles(catalog, Age.ADULT, Age.ADULT);
+        assertSame(adultIdle, adultKnown.get(1), "while an adult audit reads the adult's own idle");
+    }
+
+    @Test
+    @DisplayName("a kept stride spanning both ages audits each row at its own age's stride, adult then baby - scoped to the adult it audits once, as ever")
+    void aPairAuditsEachAgeAtItsOwnStride() {
+        Entity piglin = ageSplitStride(row("minecraft:piglin"), 0.35f, 1.05f);
+        assertTrue(piglin.axes().baby().isPresent(), "the shipped piglin carries a baby form");
+
+        PoseAudit pair = PoseAuditor.validate(keptBuried(Optional.empty()), piglin);
+        PoseAudit adult = PoseAuditor.validate(keptBuried(Optional.of(Age.ADULT)), piglin);
+        PoseAudit baby = PoseAuditor.validate(keptBuried(Optional.of(Age.BABY)), piglin);
+        assertFalse(adult.findings().isEmpty(), "an arm three units into the torso reads, or the case is vacuous");
+        assertNotEquals(adult.findings(), baby.findings(),
+            "the two ages' strides set apart what each reads, or the case cannot tell them apart");
+
+        List<PoseAudit.Finding> expected = new ArrayList<>();
+        adult.findings().forEach(finding -> expected.add(aged(finding, Age.ADULT)));
+        baby.findings().forEach(finding -> expected.add(aged(finding, Age.BABY)));
+        assertEquals(expected, List.copyOf(pair.findings()),
+            "each row reads as its own age's style does, the adult's first:\n" + pair.report());
+        assertTrue(pair.report().contains(" (adult): ") && pair.report().contains(" (baby): "),
+            "and each finding names its age after the pair:\n" + pair.report());
+
+        assertTrue(adult.findings().stream().allMatch(finding -> finding.age().isEmpty()),
+            "a style installing as one row reports no age");
+        assertFalse(adult.report().contains("(adult)"), "so its report reads as it always has:\n" + adult.report());
+    }
+
+    @Test
+    @DisplayName("an audit reads the age its style is compiled at, the adult where it spans both")
+    void theAuditedAgeIsTheStylesOwn() {
+        assertEquals(Age.BABY, Poses.custom("probe").age(Age.BABY).build().compiledAge());
+        assertEquals(Age.ADULT, Poses.custom("probe").age(Age.ADULT).build().compiledAge());
+        assertEquals(Age.ADULT, Poses.custom("probe").build().compiledAge(),
+            "a style spanning both ages is audited at the adult");
+    }
+
     /**
      * The sitting branch of the wolf's own {@code setupAnim}, spelled as a custom style at
      * vanilla's constants: the body four down, two forward and pitched to forty-five; the mane
@@ -313,15 +505,96 @@ class PoseAuditorTest {
     }
 
     /**
-     * The one finding of a kind on a pair, failing with the whole report when absent.
+     * The same row with each of its shipped stride rows rebuilt and its catalog recording the given
+     * ceilings, every other row kept.
+     */
+    private static @NotNull Entity withStride(@NotNull Entity row, @NotNull UnaryOperator<PoseStyle> rebuild,
+                                              @NotNull ConcurrentMap<Age, PaceCeiling> ceilings) {
+        StyleCatalog catalog = row.styles();
+        return row.mutate()
+            .styles(new StyleCatalog(catalog.periodTicks(), ceilings, catalog.styles().stream()
+                .map(style -> style.id().equals(PoseStyle.STRIDE) ? rebuild.apply(style) : style)
+                .collect(Concurrent.toUnmodifiableList())))
+            .build();
+    }
+
+    /**
+     * A stride row swinging at one speed with its walk clock at one rate a tick, every other component
+     * kept.
+     */
+    private static @NotNull PoseStyle walking(@NotNull PoseStyle stride, float speed, float rate) {
+
+        Map<String, StyleDriver> drivers = new LinkedHashMap<>(stride.drivers());
+        drivers.put("walkAnimationSpeed",
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, speed, Optional.empty()));
+        drivers.put("walkAnimationPos",
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, rate, Optional.empty()));
+        return new PoseStyle(stride.id(), stride.sources(), Concurrent.newUnmodifiableMap(drivers),
+            stride.toggles(), stride.age(), stride.periodTicks());
+    }
+
+    /**
+     * The same row with its shipped stride split by age - the adult swinging at one speed with its
+     * walk clock ramped by it, the baby at the same swing with its clock at another rate - its catalog
+     * recording no ceiling, every other row kept.
+     */
+    private static @NotNull Entity ageSplitStride(@NotNull Entity row, float speed, float babyRate) {
+        StyleCatalog catalog = row.styles();
+        return row.mutate()
+            .styles(new StyleCatalog(catalog.periodTicks(), Concurrent.newUnmodifiableMap(), catalog.styles().stream()
+                .flatMap(style -> style.id().equals(PoseStyle.STRIDE)
+                    ? Stream.of(walking(scoped(style, Age.ADULT), speed, speed),
+                        walking(scoped(style, Age.BABY), speed, babyRate))
+                    : Stream.of(style))
+                .collect(Concurrent.toUnmodifiableList())))
+            .build();
+    }
+
+    /**
+     * The same row applying to one age alone, every other component kept.
+     */
+    private static @NotNull PoseStyle scoped(@NotNull PoseStyle style, @NotNull Age age) {
+        return new PoseStyle(style.id(), style.sources(), style.drivers(), style.toggles(), Optional.of(age),
+            style.periodTicks());
+    }
+
+    /**
+     * A right arm driven three units into the torso under the target's kept stride, scoped to one age
+     * or, where none is given, spanning both.
+     */
+    private static @NotNull BuiltStyle keptBuried(@NotNull Optional<Age> age) {
+        CustomPose.Builder buried = Poses.custom("buried").keepStride().bone("right_arm", arm -> arm.offset(3, 0, 0));
+        return age.map(buried::age).orElseGet(buried::allAges).build();
+    }
+
+    /**
+     * The same finding measured for the installed row of one age.
+     */
+    private static @NotNull PoseAudit.Finding aged(@NotNull PoseAudit.Finding finding, @NotNull Age age) {
+        return new PoseAudit.Finding(finding.kind(), finding.boneA(), finding.boneB(), finding.bindClearance(),
+            finding.knownMin(), finding.knownMax(), finding.posedMin(), finding.posedMax(), finding.worstTick(),
+            finding.aStanced(), finding.bStanced(), finding.sharedParent(), Optional.of(age));
+    }
+
+    /**
+     * The universal walking row, applying to one age alone.
+     */
+    private static @NotNull PoseStyle universalStride(@NotNull Age age) {
+        PoseStyle universal = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, row -> true, "minecraft:test");
+        return new PoseStyle(universal.id(), universal.sources(), universal.drivers(), universal.toggles(),
+            Optional.of(age), universal.periodTicks());
+    }
+
+    /**
+     * The one finding of a kind on a pair, failing with the whole report when absent. A pair is
+     * matched either way round, the audit spelling it in the mesh's bone order.
      */
     private static @NotNull PoseAudit.Finding finding(
         @NotNull PoseAudit audit, @NotNull PoseAudit.Kind kind,
         @NotNull String boneA, @NotNull String boneB) {
 
         return audit.findings().stream()
-            .filter(candidate -> candidate.kind() == kind
-                && candidate.boneA().equals(boneA) && candidate.boneB().equals(boneB))
+            .filter(candidate -> candidate.kind() == kind && names(candidate, boneA, boneB))
             .findFirst()
             .orElseThrow(() -> new AssertionError(
                 "no " + kind + " finding on " + boneA + " <-> " + boneB + " in:\n" + audit.report()));

@@ -85,8 +85,9 @@ public final class Keyframes {
     }
 
     /**
-     * Sets the timeline length; unset defaults to the strip window, and a length that divides
-     * the window tiles the rendered strip seamlessly.
+     * Sets the timeline length; unset defaults to the style's figure period. A render naming no
+     * frame count plays a timeline whole wherever its length fits the derived strip's cover, and
+     * loops it.
      *
      * @param seconds the timeline length in seconds
      * @return this timeline

@@ -133,8 +133,8 @@ public final class HarnessConfig {
 
     /**
      * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
-     * entity posed at every tick of one shared schedule, under {@code idle/}, at the gait a
-     * subject standing still is in.
+     * subject posed at every frame of the idle schedule the roster names for it, under
+     * {@code idle/}, at the gait a subject standing still is in.
      *
      * <p>What turns the freezes off is {@link #POSED} rather than this, because
      * {@link #WALKING} needs them off too. Pair with {@code -PrefharnessAnimated=true} on
@@ -145,7 +145,8 @@ public final class HarnessConfig {
     /**
      * When {@code true}, the harness runs <em>only</em> the animated entity sweep with a stride
      * under it, writing to {@code walk/} rather than to {@code idle/} - every subject posed at
-     * every tick of the same schedule, walking as hard as vanilla ever clamps a subject to walk.
+     * every frame of the walk schedule the roster names for it, walking at that schedule's walk speed
+     * and walk-clock rate.
      *
      * <p><b>It implies {@link #ANIMATED} and is not the same run.</b> A stride reaches a model only
      * through {@code setupAnim}, so the freezes have to be off for this too; what it adds is that

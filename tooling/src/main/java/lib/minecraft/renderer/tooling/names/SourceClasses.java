@@ -101,6 +101,9 @@ public final class SourceClasses {
         /** {@code java.lang.Float} - the box a lambda taking a float is handed one through. */
         public static final @NotNull String JAVA_FLOAT = "java/lang/Float";
 
+        /** {@code java.util.Set} - the {@code Set.of} a mesh factory names the parts a surgery keeps through. */
+        public static final @NotNull String JAVA_SET = "java/util/Set";
+
         /** The keyframe-animation package root - the clip tables and the machinery that plays them. */
         public static final @NotNull String CLIENT_ANIMATION_ROOT = MINECRAFT_ROOT + "client/animation/";
 
@@ -148,6 +151,9 @@ public final class SourceClasses {
 
         /** {@code LivingEntity} - the mob-discovery {@code extendsClass} predicate target. */
         public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
+
+        /** {@code Mob} - the base every subject that can age down descends from, its own {@code setBaby} a bare return. */
+        public static final @NotNull String MOB = "net/minecraft/world/entity/Mob";
 
         /**
          * The base every fish extends, and the one entity family a reference render puts in water.
@@ -405,6 +411,69 @@ public final class SourceClasses {
         /** {@code DataComponents} - the component registry holding {@code ENCHANTMENT_GLINT_OVERRIDE} the glint walk reads. */
         public static final @NotNull String DATA_COMPONENTS = "net/minecraft/core/component/DataComponents";
 
+        /** The attribute package root - the supplier, its builder, the declarations and the modifiers. */
+        private static final @NotNull String ATTRIBUTES_ROOT = MINECRAFT_ROOT + "world/entity/ai/attributes/";
+
+        /** {@code DefaultAttributes} - the registry whose {@code <clinit>} pairs each type with its supplier. */
+        public static final @NotNull String DEFAULT_ATTRIBUTES = ATTRIBUTES_ROOT + "DefaultAttributes";
+
+        /** {@code Attributes} - the declarations, each built with the default an add with no value takes. */
+        public static final @NotNull String ATTRIBUTES = ATTRIBUTES_ROOT + "Attributes";
+
+        /** {@code AttributeSupplier$Builder} - the chain every supplier is written as, and what a creator returns. */
+        public static final @NotNull String ATTRIBUTE_SUPPLIER_BUILDER = ATTRIBUTES_ROOT + "AttributeSupplier$Builder";
+
+        /** {@code AttributeInstance} - one attribute of a living entity, the receiver a modifier is added to. */
+        public static final @NotNull String ATTRIBUTE_INSTANCE = ATTRIBUTES_ROOT + "AttributeInstance";
+
+        /** {@code AttributeModifier} - an amount and an operation a behaviour or an age adds to an attribute. */
+        public static final @NotNull String ATTRIBUTE_MODIFIER = ATTRIBUTES_ROOT + "AttributeModifier";
+
+        /** {@code AttributeModifier$Operation} - how a modifier's amount combines with the attribute's base. */
+        public static final @NotNull String ATTRIBUTE_MODIFIER_OPERATION = ATTRIBUTE_MODIFIER + "$Operation";
+
+        /** {@code RangedAttribute} - the declaration an attribute's default is constructed into. */
+        public static final @NotNull String RANGED_ATTRIBUTE = ATTRIBUTES_ROOT + "RangedAttribute";
+
+        /** {@code MoveControl} - the control whose tick turns a speed setting into a walk. */
+        public static final @NotNull String MOVE_CONTROL = MINECRAFT_ROOT + "world/entity/ai/control/MoveControl";
+
+        /** {@code SmoothSwimmingMoveControl} - the control a swimmer installs, scaling its speed in and out of water. */
+        public static final @NotNull String SMOOTH_SWIMMING_MOVE_CONTROL = MINECRAFT_ROOT + "world/entity/ai/control/SmoothSwimmingMoveControl";
+
+        /** {@code Goal} - the base every goal a subject registers extends. */
+        public static final @NotNull String GOAL = MINECRAFT_ROOT + "world/entity/ai/goal/Goal";
+
+        /** {@code RandomStrollGoal} - the base of the idle stroll family a goal mob wanders by. */
+        public static final @NotNull String RANDOM_STROLL_GOAL = MINECRAFT_ROOT + "world/entity/ai/goal/RandomStrollGoal";
+
+        /** {@code PathNavigation} - the navigation a goal hands its speed to. */
+        public static final @NotNull String PATH_NAVIGATION = MINECRAFT_ROOT + "world/entity/ai/navigation/PathNavigation";
+
+        /** The brain behaviour package root - the strolls, the panic, the chase, the retreat and the ram. */
+        private static final @NotNull String BEHAVIOR_ROOT = MINECRAFT_ROOT + "world/entity/ai/behavior/";
+
+        /** {@code RandomStroll} - the brain stroll factories a brain mob wanders by. */
+        public static final @NotNull String RANDOM_STROLL = BEHAVIOR_ROOT + "RandomStroll";
+
+        /** {@code VillageBoundRandomStroll} - the brain stroll a villager wanders by. */
+        public static final @NotNull String VILLAGE_BOUND_RANDOM_STROLL = BEHAVIOR_ROOT + "VillageBoundRandomStroll";
+
+        /** {@code AnimalPanic} - the brain panic, constructed with the speed it flees at. */
+        public static final @NotNull String ANIMAL_PANIC = BEHAVIOR_ROOT + "AnimalPanic";
+
+        /** {@code SetWalkTargetFromAttackTargetIfTargetOutOfReach} - the brain chase, created with its speed. */
+        public static final @NotNull String SET_WALK_TARGET_FROM_ATTACK_TARGET = BEHAVIOR_ROOT + "SetWalkTargetFromAttackTargetIfTargetOutOfReach";
+
+        /** {@code SetWalkTargetAwayFrom} - the brain retreat, created with its speed. */
+        public static final @NotNull String SET_WALK_TARGET_AWAY_FROM = BEHAVIOR_ROOT + "SetWalkTargetAwayFrom";
+
+        /** {@code RamTarget} - the brain ram, constructed with the speed it charges its target at. */
+        public static final @NotNull String RAM_TARGET = BEHAVIOR_ROOT + "RamTarget";
+
+        /** {@code WalkAnimationState} - the walk clock a distance per tick is fed into. */
+        public static final @NotNull String WALK_ANIMATION_STATE = MINECRAFT_ROOT + "world/entity/WalkAnimationState";
+
     }
 
     /** Member-name pattern grammar: createRoots, addBox, texOffs, scaling, ... */
@@ -422,13 +491,21 @@ public final class SourceClasses {
         /** {@code LayerDefinitions.createRoots} - the ModelLayers-to-LayerDefinition map builder. */
         public static final @NotNull String CREATE_ROOTS = "createRoots";
 
-        /** {@code LayerDefinition.create(MeshDefinition, W, H)} - the mesh-wrapping factory. */
+        /**
+         * The method name {@code create}, shared by the readers of three owners:
+         * {@code LayerDefinition.create(MeshDefinition, W, H)}, the mesh-wrapping factory, and the two brain
+         * factories taking a speed - {@code VillageBoundRandomStroll.create(F)} and
+         * {@code SetWalkTargetFromAttackTargetIfTargetOutOfReach.create(F)}. Each site pairs it with the owner
+         * it means.
+         */
         public static final @NotNull String CREATE = "create";
 
         /**
-         * The method name {@code apply}, shared by two readers: {@code LayerDefinition.apply(MeshTransformer)},
-         * the out-of-body scale chain, and {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a
-         * clip only while its state runs. Each site pairs it with the owner it means.
+         * The method name {@code apply}, shared by three readers: {@code LayerDefinition.apply(MeshTransformer)},
+         * the out-of-body scale chain; that call and {@code MeshDefinition.apply(MeshTransformer)} in the
+         * geometry walk, where a captured scaling copies the mesh root; and
+         * {@code KeyframeAnimation.apply(AnimationState, F)}, which plays a clip only while its state runs.
+         * Each site pairs it with the owner it means.
          */
         public static final @NotNull String APPLY = "apply";
 
@@ -599,6 +676,19 @@ public final class SourceClasses {
         /** {@code PartDefinition.clearChild} - the cube-clearing child replace a head-stripped mesh opens with. */
         public static final @NotNull String CLEAR_CHILD = "clearChild";
 
+        /** {@code PartDefinition.clearRecursively} - the subtree clear a head-stripped mesh follows its {@link #CLEAR_CHILD} with. */
+        public static final @NotNull String CLEAR_RECURSIVELY = "clearRecursively";
+
+        /**
+         * The method name {@code transformed}, shared by two owners: {@code MeshDefinition.transformed},
+         * the root rebuild every whole-mesh scaling goes through, and {@code PartDefinition.transformed},
+         * which rewrites a part's pose. Each site pairs it with the owner it means.
+         */
+        public static final @NotNull String TRANSFORMED = "transformed";
+
+        /** {@code MeshDefinition.getRoot} - the mesh's root part, the receiver a mesh-wide surgery is made on. */
+        public static final @NotNull String GET_ROOT = "getRoot";
+
         /** {@code ColorLerper$Type.getColor(DyeColor)} - the dyed-overlay tint accessor. */
         public static final @NotNull String GET_COLOR = "getColor";
 
@@ -620,7 +710,12 @@ public final class SourceClasses {
         /** {@code ModelPart.translateAndRotate(PoseStack)} - the bone bind-pose pre-application. */
         public static final @NotNull String TRANSLATE_AND_ROTATE = "translateAndRotate";
 
-        /** {@code BlockModelResolver.update(...)} - the literal-block bind in {@code extractRenderState}. */
+        /**
+         * The method name {@code update}, shared by two readers: {@code BlockModelResolver.update(...)}, the
+         * literal-block bind in {@code extractRenderState}, and {@code WalkAnimationState.update(FFF)}, which
+         * feeds the walk clock its target, its ease and its position scale. Each site pairs it with the owner
+         * it means.
+         */
         public static final @NotNull String UPDATE = "update";
 
         /** {@code BlockColors.createDefault} - the tint-registration method the tint walk scans. */
@@ -662,6 +757,54 @@ public final class SourceClasses {
         /** {@code BlockState.getValue(Property)} - the property read the stem eval binds to the property min. */
         public static final @NotNull String GET_VALUE = "getValue";
 
+        /** {@code Mob.registerGoals()} - where a goal mob registers the goals it moves by. */
+        public static final @NotNull String REGISTER_GOALS = "registerGoals";
+
+        /** {@code LivingEntity.updateWalkAnimation(F)} - where a distance per tick becomes the walk clock's target. */
+        public static final @NotNull String UPDATE_WALK_ANIMATION = "updateWalkAnimation";
+
+        /** {@code LivingEntity.setBaby(Z)} - where an entity ageing down adds its movement modifier. */
+        public static final @NotNull String SET_BABY = "setBaby";
+
+        /** {@code Mob.randomizeAttributes(RandomSource)} - where a spawn rolls an attribute's base. */
+        public static final @NotNull String RANDOMIZE_ATTRIBUTES = "randomizeAttributes";
+
+        /** {@code AttributeInstance.addTransientModifier(AttributeModifier)} - a modifier added to one attribute. */
+        public static final @NotNull String ADD_TRANSIENT_MODIFIER = "addTransientModifier";
+
+        /** {@code AttributeSupplier$Builder.add(Holder[, D])} - one attribute a supplier chain declares. */
+        public static final @NotNull String BUILDER_ADD = "add";
+
+        /** {@code MoveControl.tick()} - the step a deferring control reaches the base control through. */
+        public static final @NotNull String TICK = "tick";
+
+        /** {@code Math.min(FF)} - the cap a walk feed clamps its target with. */
+        public static final @NotNull String MIN = "min";
+
+        /** {@code RandomStroll.stroll(F...)} - the brain stroll on foot. */
+        public static final @NotNull String STROLL = "stroll";
+
+        /** {@code RandomStroll.fly(F)} - the brain stroll in the air. */
+        public static final @NotNull String FLY = "fly";
+
+        /** {@code RandomStroll.swim(F)} - the brain stroll in water. */
+        public static final @NotNull String SWIM = "swim";
+
+        /** {@code PathNavigation.moveTo(..., D)} - a path walked at a speed setting, the speed its last argument. */
+        public static final @NotNull String MOVE_TO = "moveTo";
+
+        /** {@code PathNavigation.setSpeedModifier(D)} - the speed setting of a path already walked. */
+        public static final @NotNull String SET_SPEED_MODIFIER = "setSpeedModifier";
+
+        /** {@code MoveControl.setWantedPosition(DDDD)} - a position walked toward at a speed setting, the speed last. */
+        public static final @NotNull String SET_WANTED_POSITION = "setWantedPosition";
+
+        /** {@code SetWalkTargetAwayFrom.entity(MemoryModuleType, F, I, Z)} - the retreat from an entity. */
+        public static final @NotNull String ENTITY = "entity";
+
+        /** {@code SetWalkTargetAwayFrom.pos(MemoryModuleType, F, I, Z)} - the retreat from a position. */
+        public static final @NotNull String POS = "pos";
+
     }
 
     /** Vanilla field-name pattern grammar: the render-state members the walks anchor on. */
@@ -691,6 +834,30 @@ public final class SourceClasses {
 
         /** Prefix of the aged-down member of that pair. */
         public static final @NotNull String BABY_ARMOR_PARTS_PREFIX = "BABY";
+
+        /** {@code Mob.moveControl} - the control the constructor chain installs. */
+        public static final @NotNull String MOVE_CONTROL = "moveControl";
+
+        /** {@code Attributes.MOVEMENT_SPEED} - the speed a walk's setting multiplies. */
+        public static final @NotNull String MOVEMENT_SPEED = "MOVEMENT_SPEED";
+
+        /** {@code Attributes.FLYING_SPEED} - the speed a flight's setting multiplies. */
+        public static final @NotNull String FLYING_SPEED = "FLYING_SPEED";
+
+        /** {@code SmoothSwimmingMoveControl.inWaterSpeedModifier} - the share of its speed a smooth swimmer swims at. */
+        public static final @NotNull String IN_WATER_SPEED_MODIFIER = "inWaterSpeedModifier";
+
+        /** {@code SmoothSwimmingMoveControl.outsideWaterSpeedModifier} - the share of its speed a smooth swimmer walks at. */
+        public static final @NotNull String OUTSIDE_WATER_SPEED_MODIFIER = "outsideWaterSpeedModifier";
+
+        /** {@code AttributeModifier$Operation.ADD_VALUE} - a modifier's amount added to the attribute's base. */
+        public static final @NotNull String ADD_VALUE = "ADD_VALUE";
+
+        /** {@code AttributeModifier$Operation.ADD_MULTIPLIED_BASE} - the amount's share of the base added to it. */
+        public static final @NotNull String ADD_MULTIPLIED_BASE = "ADD_MULTIPLIED_BASE";
+
+        /** {@code AttributeModifier$Operation.ADD_MULTIPLIED_TOTAL} - the attribute's total scaled by one plus the amount. */
+        public static final @NotNull String ADD_MULTIPLIED_TOTAL = "ADD_MULTIPLIED_TOTAL";
 
     }
 

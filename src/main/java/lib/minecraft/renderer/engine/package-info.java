@@ -35,9 +35,9 @@
  * {@link lib.minecraft.renderer.engine.math math}, beneath the vocabulary it serves.
  *
  * <p><b>Vanilla parity.</b> The triangle rasterizer applies hardware-style conventions at the
- * per-pixel level - {@code 1/256} fixed-point edge functions, top-left fill, and every corner snapped
- * to the same {@code 1/256} sub-pixel grid the GPU snaps a vertex to before coverage and
- * interpolation. The snap is documented on
+ * per-pixel level - {@code 1/256} fixed-point edge functions, the GPU's top-left fill rule taken in
+ * GL's Y-up frame, and every corner snapped to the same {@code 1/256} sub-pixel grid the GPU snaps a
+ * vertex to before coverage and interpolation. The snap is documented on
  * {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer}, along with how the fetch reads a
  * texel boundary the snapped corners put on a pixel centre.
  *

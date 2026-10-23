@@ -19,7 +19,6 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
-import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -78,13 +77,6 @@ public class EntityGeometryKit {
      * Lower bound on extent before scaling - guards against zero-cube models producing infinity.
      */
     private static final float MIN_MODEL_EXTENT = 0.001f;
-
-    /**
-     * The three faces the iso camera presents. The three it hides are exactly these turned to their
-     * {@link Face#opposite opposites}, so the hidden triple is derived at its one use rather than
-     * declared beside this one - two sets naming one fact.
-     */
-    private static final Face @NotNull [] ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
 
     /**
      * All six faces in declaration order, the order every face walk here takes and the index each
@@ -161,9 +153,9 @@ public class EntityGeometryKit {
      * the same texture width and height; a mesh the table does not hold is built in full and its
      * geometry entered.
      *
-     * <p>Whatever reads this build's texture is this build's own either way: each cube's cull and
-     * translucency flags, the surface traits, the tint and the texture itself. Every build emits its
-     * own triangles, in the bone, cube and face order a full build walks.
+     * <p>Whatever reads this build's texture is this build's own either way: each cube's translucency
+     * flag, the surface traits, the tint and the texture itself. Every build emits its own triangles, in
+     * the bone, cube and face order a full build walks.
      *
      * <p>The table must answer a mesh by reference and never by equality, as an {@link IdentityHashMap}
      * does, because two meshes equal in every field equality reads can still differ in a bone's pose
@@ -306,16 +298,18 @@ public class EntityGeometryKit {
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
                 Matrix4f perCubeChainFluent = BoneKit.composeCubeTransform(cube, bone, kitFitBoneChain);
 
-                // The cull test, the translucency test and the emit stage all read this cube's faces
-                // through one holder, so each face's UV corners resolve once per build.
+                // The translucency test and the emit stage both read this cube's faces through one
+                // holder, so each face's UV corners resolve once per build.
                 BoneKit.CubeUv cubeUv = new BoneKit.CubeUv(cube, texW, texH);
 
-                // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
-                // GL back-face cull does - including zero-thickness planes, whose two coincident sides
-                // would otherwise both draw and let the LEQUAL depth tie-break pick the away side (the
-                // bat ear's brown outer winning over its pink inner). Culling keeps only the camera-
-                // facing side via the rasterizer's winding test, matching vanilla.
-                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cubeUv, size, texture);
+                // Every cube culls exactly when its mesh does: vanilla's render type binds GL back-face
+                // culling for the whole model and reads no texel to decide it. A culling mesh
+                // (entityCutoutCull - bat, baby_turtle) culls every face, zero-thickness planes included,
+                // whose two coincident sides would otherwise both draw and let the LEQUAL depth tie-break
+                // pick the away side (the bat ear's brown outer winning over its pink inner); the
+                // rasterizer's winding test keeps only the camera-facing side. Every other mesh draws
+                // both sides of every cube, as the no-cull entityCutout default does.
+                boolean cubeCullBackFaces = model.isCull();
                 // True iff this cube is no-cull AND its visible-face UVs include any
                 // 0<alpha<255 texels - signal for the rasterizer's back-to-front sort (slime
                 // outer shell, glass-like shells). Alpha-cutout no-cull cubes (warden tendrils,
@@ -324,9 +318,9 @@ public class EntityGeometryKit {
                 // depth-fail farther fragments correctly without reordering.
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cubeUv, size, texture);
-                // One traits value for every face of this cube, and for no other build: both flags read
-                // this call's texture, which another pass, or another tick of an animated texture, paints
-                // differently.
+                // One traits value for every face of this cube, and for no other build: the translucency
+                // flag reads this call's texture, which another pass, or another tick of an animated
+                // texture, paints differently.
                 SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
                 int cubeSlot = slot;
                 slot += FACES_PER_CUBE;
@@ -379,9 +373,9 @@ public class EntityGeometryKit {
 
     /**
      * Emits one pass's triangles over the geometry an earlier build of the same mesh held, walking the
-     * bones, cubes and faces in the order that build walked them. Each cube's cull and translucency
-     * flags are read off this pass's texture, and a face takes the held polygon UVs only where this
-     * pass resolves them against the width and height they were resolved at.
+     * bones, cubes and faces in the order that build walked them. Each cube culls as the mesh declares
+     * and reads its translucency flag off this pass's texture, and a face takes the held polygon UVs
+     * only where this pass resolves them against the width and height they were resolved at.
      *
      * @param model the mesh the held geometry was built from
      * @param texture the texture this pass samples
@@ -413,10 +407,11 @@ public class EntityGeometryKit {
             if (!bone.isVisible()) continue;
             for (EntityMesh.Cube cube : bone.getCubes()) {
                 Vector3f size = cube.getSize();
-                // This pass's own texture decides the cube's flags, read through a holder of this pass's
-                // own, which also answers a face whose held UVs were resolved at another size.
+                // The cull is the mesh's; this pass's own texture decides the cube's translucency, read
+                // through a holder of this pass's own, which also answers a face whose held UVs were
+                // resolved at another size.
                 BoneKit.CubeUv cubeUv = new BoneKit.CubeUv(cube, texW, texH);
-                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cubeUv, size, texture);
+                boolean cubeCullBackFaces = model.isCull();
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cubeUv, size, texture);
                 SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
@@ -1190,66 +1185,6 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Threshold of alpha-cutout texels on a cube's visible faces above which back-face culling is
-     * disabled - the cube's texture is then treated as {@code entityCutoutNoCull} (vanilla's
-     * render type for skeletons / skeleton_horse / mob armor / leashed bees etc.) rather than
-     * the more common {@code entityCutout}. {@code 0.20} = 20%: well above the small-edge
-     * transparency typical of solid-skinned entities (zombie face cubes have a couple of eye
-     * pixels at alpha=0, far below 20%), well below the large alpha-cutout patterns that vanilla
-     * deliberately renders no-cull ({@code horse_skeleton.png} is 75% transparent, with the
-     * body's side-face UV region similarly perforated for the ribcage silhouette).
-     */
-    private static final float NO_CULL_TRANSPARENCY_THRESHOLD = 0.20f;
-
-    /**
-     * Back-face culling heuristic. Disables culling for plane cubes (any size component equal
-     * to zero - e.g. tadpole tail, top fins, warden tendrils) since vanilla treats these as
-     * double-sided geometry. Also disables culling for cubes whose visible-face UV regions
-     * contain {@link #NO_CULL_TRANSPARENCY_THRESHOLD significant alpha-cutout or partial-alpha
-     * texels} so vanilla's see-through behaviour is mirrored for both render-type families:
-     * <ul>
-     * <li>{@code entityCutoutNoCull} (alpha=0 holes): skeleton-horse ribcage through transparent
-     *     body cube, wither-skeleton armour through bone outlines</li>
-     * <li>{@code entityTranslucent} (partial-alpha shells): slime outer cube alpha-stacks
-     *     back+front faces at silhouette pixels, matching vanilla's {@code withCull(false)}
-     *     pipeline setting</li>
-     * </ul>
-     * Solid cubes fall through to the content-based tail of this method: cull when any
-     * iso-visible face ({@code UP}/{@code NORTH}/{@code EAST}) has content, otherwise cull only
-     * when the hidden faces are also empty (so a fully-empty cube culls harmlessly).
-     *
-     * @param cubeUv the UV corners of the cube whose culling flag to decide, at the model texture size
-     * @param size the cube's size vector
-     * @param texture the entity texture used for alpha sampling
-     * @return {@code true} to back-face cull this cube; {@code false} to render both sides
-     */
-    private static boolean shouldCullBackFaces(
-        @NotNull BoneKit.CubeUv cubeUv,
-        @NotNull Vector3f size,
-        @NotNull PixelBuffer texture
-    ) {
-        if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
-        // entityCutoutNoCull / entityTranslucent detection: cubes with significant non-opaque
-        // texels on any face need their back faces to render too - either to peek through
-        // alpha=0 cutouts (cutout family) or to alpha-stack at silhouette pixels (translucent
-        // family). All six faces are sampled because a cube's cutout can sit on a face hidden
-        // from the iso camera: the skeleton-horse baby legs carry their bone-strut cutout on the
-        // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
-        // sampling only the visible triple would cull them and open two see-through holes where
-        // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (Face face : FACES)
-            if (uvNonOpaqueExceeds(cubeUv.face(face), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
-                return false;
-        for (Face face : ISO_VISIBLE)
-            if (uvHasContent(cubeUv.face(face), texture))
-                return true;
-        for (Face face : ISO_VISIBLE)
-            if (uvHasContent(cubeUv.face(face.opposite()), texture))
-                return false;
-        return true;
-    }
-
-    /**
      * Returns {@code true} when any of the cube's visible-face UVs include a partial-alpha
      * texel ({@code 0 < alpha < 255}). Distinguishes truly translucent shells (slime,
      * glass-like) from alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays)
@@ -1271,72 +1206,6 @@ public class EntityGeometryKit {
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(cubeUv.face(face), texture))
                 return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} when the proportion of non-opaque texels in the supplied face UV
-     * region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and counts
-     * {@code alpha<255} pixels; returns {@code false} when the UV region is empty (zero area).
-     * Used by {@link #shouldCullBackFaces} to detect both cutout ({@code alpha==0} holes,
-     * matching vanilla's {@code entityCutoutNoCull}) and translucent ({@code 0<alpha<255}
-     * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
-     * requires the back faces to render to mirror vanilla's see-through compositing.
-     *
-     * @param uv the face's four UV corners
-     * @param texture the entity texture to sample
-     * @param threshold the non-opaque fraction above which the method returns {@code true}
-     * @return {@code true} when the non-opaque texel fraction exceeds {@code threshold};
-     *     {@code false} for an empty (zero-area) UV region
-     */
-    private static boolean uvNonOpaqueExceeds(
-        @NotNull Vector2f @NotNull [] uv,
-        @NotNull PixelBuffer texture,
-        float threshold
-    ) {
-        int W = texture.width();
-        int H = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
-        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
-        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
-        int total = (x1 - x0) * (y1 - y0);
-        if (total <= 0) return false;
-        int nonOpaque = 0;
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (ColorMath.alpha(texture.getPixel(x, y)) < 255) nonOpaque++;
-            }
-        }
-        return (float) nonOpaque / total > threshold;
-    }
-
-    /**
-     * Returns {@code true} when any texel inside the face's UV bounding box is non-transparent
-     * ({@code alpha > 0}). Backs the content-based culling heuristic in
-     * {@link #shouldCullBackFaces} (a face draws nothing when its whole UV region is transparent).
-     *
-     * @param uv the face's four UV corners
-     * @param texture the entity texture to sample
-     * @return {@code true} if any covered texel is at least partially opaque
-     */
-    private static boolean uvHasContent(
-        @NotNull Vector2f @NotNull [] uv,
-        @NotNull PixelBuffer texture
-    ) {
-        int W = texture.width();
-        int H = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
-        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
-        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (ColorMath.alpha(texture.getPixel(x, y)) > 0) return true;
-            }
         }
         return false;
     }

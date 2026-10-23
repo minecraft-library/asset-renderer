@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author.compile;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -21,6 +22,7 @@ import lib.minecraft.renderer.author.mesh.LimbRoster;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -35,6 +37,7 @@ import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -97,11 +100,6 @@ import java.util.stream.Collectors;
 public final class PoseCompiler {
 
     /**
-     * The catalog period a compile without a target catalog frames its strip window from.
-     */
-    private static final int DEFAULT_PERIOD_TICKS = 24;
-
-    /**
      * The prefix every synthetic driver field carries, spelled by no vanilla render-state field.
      */
     private static final String FIELD_PREFIX = "style$";
@@ -146,6 +144,14 @@ public final class PoseCompiler {
      * the order {@link Side} declares them.
      */
     private static final int LEADING_SIDE = 1;
+
+    /**
+     * The walk a kept stride falls back to for each field its target's stride does not drive - the
+     * universal stride's, which ramps elapsed age at slope one, holds the swing at one and ramps the
+     * walk clock by it.
+     */
+    private static final @NotNull ConcurrentMap<String, StyleDriver> UNIVERSAL_TRIO =
+        StyleCatalog.BIND_ONLY.strideAt(Age.ADULT).drivers();
 
     // ------------------------------------------------------------------------------------
     // public surface
@@ -277,11 +283,13 @@ public final class PoseCompiler {
     }
 
     /**
-     * Compiles a built style against one target row over a caller-held interner pool - the arm
-     * an installer reuses so splices stack and subtrees unify across every style added to one
-     * row. The evidence pose is the row's pose as it shipped: an installer whose row has been
-     * woven by earlier installs hands the pristine one here, so what the joint rule reads as
-     * "the pose turns this bone" is vanilla's articulation and never an author's splice.
+     * Compiles a built style against one target row over a caller-held interner pool - the arm the
+     * walk compiles a row's body through, over the pool an installer reuses so splices stack and
+     * subtrees unify across every style added to one row. The evidence pose is the row's pose as it
+     * shipped: a walk over a row earlier installs have woven hands the pristine one here, so what
+     * the joint rule reads as "the pose turns this bone" is vanilla's articulation and never an
+     * author's splice. A style keeping the stride carries the row's own stride at the age the style
+     * is compiled at, the adult where it spans both.
      *
      * @param style the built style to lower
      * @param row the target row whose mesh and shipped pose the lowering runs against
@@ -291,12 +299,13 @@ public final class PoseCompiler {
      * @return the compiled style
      * @throws StyleException if any lowering rule refuses the authored content
      */
-    public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
+    static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
                                      @NotNull EntityPose evidence, @NotNull Diagnostics scope,
                                      @NotNull GraphInterner pool) {
         double window = row.styles().periodTicks() / (double) Timeline.TICKS_PER_SECOND;
         return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
-            Optional.empty(), window).lower();
+            Optional.empty(), window, strideOf(style, row))
+            .lower();
     }
 
     /**
@@ -306,7 +315,8 @@ public final class PoseCompiler {
      * this compile's splices read - per-layer spellings for a rebased turn, a seat carry, a scale
      * and a position delta, the shared spelling for a turn's delta - so the result stands alone,
      * and an installer merging rows first-wins keeps the body compile's copy of a shared field.
-     * With no catalog in reach the strip window frames at the default catalog period.
+     * With no catalog in reach the compile frames at the default figure period, and a style keeping
+     * the stride refuses an absolute write only over a field the universal walk drives.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -320,15 +330,19 @@ public final class PoseCompiler {
                                                  @NotNull EntityMesh mesh, @NotNull String layer,
                                                  @NotNull Diagnostics scope) {
         return compileLayer(style, pose, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
-            DEFAULT_PERIOD_TICKS);
+            StyleCatalog.FIGURE_PERIOD_TICKS, Map.of());
     }
 
     /**
      * Compiles a built style against one distinct layer row over a caller-held interner pool
      * and, when given, the body compile's play site - so the layer's woven row carries the very
-     * clip and site instances the body's does. The target catalog's period frames the default
-     * strip window exactly as the body compile's does, and the evidence pose is the layer's as
-     * it shipped, for the reason the body compile takes one.
+     * clip and site instances the body's does. The target catalog's period is the figure period
+     * the compile frames at, exactly as the body compile's is, and the evidence pose is the layer's
+     * as it shipped, for the reason the body compile takes one. The stride is the one the install
+     * keeps at the age the layer or form is drawn at - the body compile's, but for the baby of an
+     * install appending an adult row and a baby row, which walks at the baby's - so a style keeping
+     * the stride refuses an absolute write over a field that stride drives, exactly as on the body;
+     * the layer's row copies none of it, the body's carrying it already.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
@@ -340,18 +354,112 @@ public final class PoseCompiler {
      * @param playSite the body compile's play site to carry by instance - empty where the site is a
      *     body rather than a pass, where the body a pass is drawn over keys no timeline, or where the
      *     caller holds no body compile; each builds an identical site of this compile's own
-     * @param periodTicks the target catalog's period in ticks - the strip window where the
+     * @param periodTicks the target catalog's period in ticks - the figure period where the
      *     script declares none
+     * @param stride the stride the install the layer belongs to keeps at the age the layer is drawn
+     *     at - {@link #strideOf(BuiltStyle, Entity, Age)} of the style on the target row at that age
      * @return the compiled layer arm
      * @throws StyleException if any lowering rule refuses the authored content
      */
-    public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
+    static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                           @NotNull EntityPose evidence, @NotNull EntityMesh mesh,
                                           @NotNull String layer, @NotNull Diagnostics scope,
                                           @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
-                                          int periodTicks) {
+                                          int periodTicks, @NotNull Map<String, StyleDriver> stride) {
         double window = periodTicks / (double) Timeline.TICKS_PER_SECOND;
-        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window).lower();
+        return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window, stride)
+            .lower();
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the kept stride
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The stride one install of a style on a target row keeps at the row's own body - the row's own
+     * stride at the age the style is compiled at, the adult where it spans both. The body compile
+     * reads this stride, and so does every layer and form compile drawn at that age.
+     *
+     * @param style the built style being installed
+     * @param row the target row whose catalog holds the stride
+     * @return the stride's composed drivers
+     */
+    private static @NotNull ConcurrentMap<String, StyleDriver> strideOf(@NotNull BuiltStyle style,
+                                                                        @NotNull Entity row) {
+        return strideOf(style, row, style.compiledAge());
+    }
+
+    /**
+     * The stride one install of a style on a target row keeps at a site drawn at one age - that
+     * age's own stride where the install appends an adult row and a baby row, each walking at its own
+     * age's stride, and the install's one stride, at the age the style is compiled at, where it
+     * appends one row.
+     *
+     * @param style the built style being installed
+     * @param row the target row whose catalog holds the stride
+     * @param age the age the site is drawn at
+     * @return the stride's composed drivers
+     */
+    static @NotNull ConcurrentMap<String, StyleDriver> strideOf(@NotNull BuiltStyle style,
+                                                                @NotNull Entity row, @NotNull Age age) {
+        Age walked = installsAsPair(style, row) ? age : style.compiledAge();
+        return row.styles().strideAt(walked).drivers();
+    }
+
+    /**
+     * The rows one install of a style on a target row appends, given the drivers and the period the
+     * install wove - one row at the style's own age, or, where the style keeps the stride and spans
+     * both ages on a row carrying a baby form, an adult row and a baby row of one id, the baby's
+     * walking at the baby's own stride.
+     *
+     * @param style the built style being installed
+     * @param row the row it installs on
+     * @param drivers the drivers the install wove, carrying the stride of the age the style is
+     *     compiled at
+     * @param periodTicks the period the script declares, in whole ticks, empty where it rides the
+     *     catalog's
+     * @return the appended rows, the adult's first where there are two
+     */
+    public static @NotNull ConcurrentList<PoseStyle> installedRows(@NotNull BuiltStyle style, @NotNull Entity row,
+                                                                   @NotNull ConcurrentMap<String, StyleDriver> drivers,
+                                                                   @NotNull Optional<Integer> periodTicks) {
+        if (!installsAsPair(style, row)) {
+            return Concurrent.newUnmodifiableList(new PoseStyle(style.styleId(), style.sources(), drivers,
+                style.toggles(), style.age(), periodTicks));
+        }
+        PoseStyle adult = new PoseStyle(style.styleId(), style.sources(), drivers, style.toggles(),
+            Optional.of(Age.ADULT), periodTicks);
+        return Concurrent.newUnmodifiableList(adult, adult.restrided(row.styles(), Age.BABY));
+    }
+
+    /**
+     * Whether an install appends a style as an adult row and a baby row of one id, so each age walks
+     * at its own stride - the style keeps the stride and spans both ages, and the row carries a baby
+     * form. Every other install appends one row.
+     *
+     * @param style the built style being installed
+     * @param row the row it installs on
+     * @return whether the install appends an adult and baby pair
+     */
+    private static boolean installsAsPair(@NotNull BuiltStyle style, @NotNull Entity row) {
+        return style.script().keepStride() && style.age().isEmpty() && row.axes().baby().isPresent();
+    }
+
+    /**
+     * Whether an install of a style on a target row refuses over one set of fields at every age - it
+     * appends one row, or it appends an adult and baby pair whose two strides drive the same fields,
+     * at whatever extents each walks them. A weave depends on which fields its stride drives alone - a
+     * compile refuses an absolute write over a base reading one and copies no driver's value into a
+     * pose - so a weave one such install compiles at one age has passed the check a compile at the
+     * other would run.
+     *
+     * @param style the built style being installed
+     * @param row the row it installs on
+     * @return whether both ages refuse over one set of fields
+     */
+    static boolean refusesAlikeAtEveryAge(@NotNull BuiltStyle style, @NotNull Entity row) {
+        return !installsAsPair(style, row)
+            || strideOf(style, row, Age.ADULT).keySet().equals(strideOf(style, row, Age.BABY).keySet());
     }
 
     // ------------------------------------------------------------------------------------
@@ -453,6 +561,12 @@ public final class PoseCompiler {
         private final @NotNull Optional<EntityPose.Clip> sharedSite;
         private final double windowSeconds;
         private final float flattened;
+
+        /**
+         * The install's stride at the age this compile's site is drawn at - what a style keeping the
+         * stride refuses an absolute write over, and what the body compile copies onto its row.
+         */
+        private final @NotNull Map<String, StyleDriver> stride;
         private final @NotNull Set<String> drivenFields;
 
         /**
@@ -509,7 +623,8 @@ public final class PoseCompiler {
         private Lowering(@NotNull BuiltStyle style, @NotNull EntityPose shipped, @NotNull EntityPose evidence,
                          @NotNull EntityMesh mesh, @NotNull Optional<String> layer,
                          @NotNull Diagnostics scope, @NotNull GraphInterner pool,
-                         @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow) {
+                         @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow,
+                         @NotNull Map<String, StyleDriver> stride) {
             this.style = style;
             this.script = style.script();
             this.shipped = shipped;
@@ -523,9 +638,18 @@ public final class PoseCompiler {
             this.sharedSite = sharedSite;
             this.windowSeconds = this.script.periodSeconds().orElse(defaultWindow);
             this.flattened = mesh.getFlattenedScale();
-            this.drivenFields = this.script.keepStride()
-                ? Set.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos")
-                : Set.of();
+            this.stride = stride;
+            this.drivenFields = this.script.keepStride() ? keptFields(stride) : Set.of();
+        }
+
+        /**
+         * The fields a kept stride drives - the universal trio's, then every field of the target's
+         * stride.
+         */
+        private static @NotNull Set<String> keptFields(@NotNull Map<String, StyleDriver> stride) {
+            Set<String> driven = new LinkedHashSet<>(UNIVERSAL_TRIO.keySet());
+            driven.addAll(stride.keySet());
+            return driven;
         }
 
         /**
@@ -593,16 +717,16 @@ public final class PoseCompiler {
         }
 
         /**
-         * Copies the universal stride trio onto the built row, so the shipped walk math runs live.
+         * Copies the target's stride at the built row's age onto it - its walk pair, elapsed age,
+         * every clock and every selection it holds - so the vanilla walk runs live under the authored
+         * stances. A field the target's stride does not drive takes the universal trio's driver. A
+         * layer or form compile copies none of it, its drivers joining the body's row, which carries
+         * the stride already.
          */
         private void strideDrivers() {
             if (this.layer.isPresent()) return;
-            this.drivers.put("ageInTicks",
-                new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
-            this.drivers.put("walkAnimationSpeed",
-                new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-            this.drivers.put("walkAnimationPos",
-                new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+            UNIVERSAL_TRIO.forEach(this.drivers::put);
+            this.stride.forEach(this.drivers::put);
         }
 
         /**
@@ -1212,7 +1336,7 @@ public final class PoseCompiler {
             double delta = factor - rest;
             if (delta == 0d) return;
             String field = this.boneField(bone, SCALE_SEGMENT, true);
-            this.driver(field, new StyleDriver(field, StyleDriver.Wave.HOLD, 0f, (float) delta, Optional.empty()));
+            this.driver(field, new StyleDriver(field, StyleDriver.Wave.Plain.HOLD, 0f, (float) delta, Optional.empty()));
             PoseExpr input = this.pool.intern(new PoseExpr.Input(field));
             out.put(PoseChannel.X_SCALE, this.pool.intern(dadd(baseX, input)));
             out.put(PoseChannel.Y_SCALE, this.pool.intern(dadd(baseY, input)));
@@ -1290,13 +1414,13 @@ public final class PoseCompiler {
             PoseExpr bob = null;
             if (hover.liftPixels() != 0d) {
                 String field = this.containerField(PoseChannel.Y.token());
-                this.driver(field, new StyleDriver(field, StyleDriver.Wave.HOLD,
+                this.driver(field, new StyleDriver(field, StyleDriver.Wave.Plain.HOLD,
                     0f, (float) -hover.liftPixels(), Optional.empty()));
                 lift = this.pool.intern(new PoseExpr.Input(field));
             }
             if (hover.bobPixels() != 0d) {
                 String field = this.containerField(PoseChannel.Y.token()) + BOB_SUFFIX;
-                this.driver(field, new StyleDriver(field, StyleDriver.Wave.SWEEP,
+                this.driver(field, new StyleDriver(field, StyleDriver.Wave.Plain.SWEEP,
                     0f, (float) -hover.bobPixels(), Optional.empty()));
                 bob = this.pool.intern(new PoseExpr.Input(field));
             }
@@ -1383,14 +1507,16 @@ public final class PoseCompiler {
                         channels.add(new PoseClip.Channel("hat", channel.target(), channel.keyframes()));
             this.clipChannelCount = channels.size();
 
-            if (length > this.windowSeconds)
-                this.events.warn("strip truncation: the clip runs '%s' seconds against a '%s' second strip window - frames beyond the window render truncated",
-                    length, this.windowSeconds);
+            double coverSeconds = StripFit.MAX_TICKS / (double) Timeline.TICKS_PER_SECOND;
+            if (length > coverSeconds) {
+                this.events.warn("strip truncation: the clip runs '%s' seconds, past the '%s' seconds a derived strip covers - a render naming no frame count shows part of it",
+                    length, coverSeconds);
+            }
 
             String gate = FIELD_PREFIX + this.style.styleId();
             String clock = gate + "$clock";
-            this.driver(gate, new StyleDriver(gate, StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-            this.driver(clock, new StyleDriver(clock, StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+            this.driver(gate, new StyleDriver(gate, StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+            this.driver(clock, new StyleDriver(clock, StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
             PoseClip clip = new PoseClip((float) length, looping, Concurrent.newUnmodifiableList(channels));
             return Optional.of(this.sharedSite.orElseGet(() -> new EntityPose.Clip(
                 "style:" + this.style.styleId(), ClipDrive.SELECT, Optional.of(gate),
@@ -1616,7 +1742,7 @@ public final class PoseCompiler {
                                         @NotNull String bone, @NotNull PoseChannel channel,
                                         @NotNull PoseExpr raw) {
             String gate = FIELD_PREFIX + this.style.styleId();
-            this.driver(gate, new StyleDriver(gate, StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
+            this.driver(gate, new StyleDriver(gate, StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
             Map<PoseChannel, PoseExpr> woven = bones.get(bone);
             PoseExpr held = woven == null ? null : woven.get(channel);
             PosePredicate selected = this.pool.intern(new PosePredicate(PosePredicate.Comparison.NE,
@@ -1841,17 +1967,17 @@ public final class PoseCompiler {
         private void emitDriver(@NotNull String field, @NotNull ChannelPlan plan, double delta) {
             StyleDriver driver;
             if (plan.sway != null)
-                driver = new StyleDriver(field, StyleDriver.Wave.SWEEP,
+                driver = new StyleDriver(field, StyleDriver.Wave.Plain.SWEEP,
                     (float) (Math.toRadians(plan.sway.fromDegrees()) + delta),
                     (float) (Math.toRadians(plan.sway.toDegrees()) + delta),
                     Optional.empty());
             else if (plan.spin != null)
-                driver = new StyleDriver(field, StyleDriver.Wave.CYCLE,
+                driver = new StyleDriver(field, StyleDriver.Wave.Plain.CYCLE,
                     (float) delta,
                     (float) (delta + Math.toRadians(plan.spin.perPeriodDegrees())),
                     Optional.empty());
             else
-                driver = new StyleDriver(field, StyleDriver.Wave.HOLD, 0f, (float) delta, Optional.empty());
+                driver = new StyleDriver(field, StyleDriver.Wave.Plain.HOLD, 0f, (float) delta, Optional.empty());
             this.driver(field, driver);
         }
 
@@ -1935,7 +2061,8 @@ public final class PoseCompiler {
     private static final class Rules {
 
         /**
-         * Refuses a declared period the strip cannot frame or a still style cannot read.
+         * Refuses a declared period that is not positive, rounds to no whole tick, or rides a style
+         * that holds still.
          */
         static void period(@NotNull BuiltStyle style, @NotNull Diagnostics events) {
             if (style.script().periodSeconds().isEmpty()) return;
@@ -1943,10 +2070,10 @@ public final class PoseCompiler {
             if (seconds <= 0d)
                 throw refuse(events, "Style '%s' declares a period of '%s' seconds, which is not positive",
                     style.styleId(), seconds);
-            long ticks = Math.round(seconds * Timeline.TICKS_PER_SECOND);
-            if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
-                throw refuse(events, "Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
-                    style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
+            if (Math.round(seconds * Timeline.TICKS_PER_SECOND) <= 0) {
+                throw refuse(events, "Style '%s' declares a period of '%s' seconds, which rounds to no whole tick",
+                    style.styleId(), seconds);
+            }
             if (style.sources().isEmpty())
                 throw refuse(events, "Style '%s' declares a period but holds still - only a moving style reads one",
                     style.styleId());
@@ -2298,7 +2425,7 @@ public final class PoseCompiler {
          * @return the window in seconds
          */
         private static double closureWindow(@NotNull PoseScript script) {
-            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / Timeline.TICKS_PER_SECOND);
+            return script.periodSeconds().orElse((double) StyleCatalog.FIGURE_PERIOD_TICKS / Timeline.TICKS_PER_SECOND);
         }
 
         /**

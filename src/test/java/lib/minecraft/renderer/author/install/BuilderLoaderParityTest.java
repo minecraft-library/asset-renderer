@@ -136,11 +136,11 @@ class BuilderLoaderParityTest {
      */
     private static @NotNull PoseStyle handRow() {
         Map<String, StyleDriver> drivers = new LinkedHashMap<>();
-        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 0.01f, Optional.empty()));
-        drivers.put("style$wave$head$y_rot", new StyleDriver("style$wave$head$y_rot", StyleDriver.Wave.HOLD, 0f, 0.2f, Optional.empty()));
-        drivers.put("style$wave$right_arm$x_rot", new StyleDriver("style$wave$right_arm$x_rot", StyleDriver.Wave.HOLD, 0f, -0.5f, Optional.empty()));
-        drivers.put("style$wave", new StyleDriver("style$wave", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
-        drivers.put("style$wave$clock", new StyleDriver("style$wave$clock", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        drivers.put("ageInTicks", new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 0.01f, Optional.empty()));
+        drivers.put("style$wave$head$y_rot", new StyleDriver("style$wave$head$y_rot", StyleDriver.Wave.Plain.HOLD, 0f, 0.2f, Optional.empty()));
+        drivers.put("style$wave$right_arm$x_rot", new StyleDriver("style$wave$right_arm$x_rot", StyleDriver.Wave.Plain.HOLD, 0f, -0.5f, Optional.empty()));
+        drivers.put("style$wave", new StyleDriver("style$wave", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
+        drivers.put("style$wave$clock", new StyleDriver("style$wave$clock", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         return new PoseStyle("wave",
             Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
             Concurrent.newUnmodifiableMap(drivers),

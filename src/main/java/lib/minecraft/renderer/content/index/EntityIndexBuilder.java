@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.index;
 
+import com.google.gson.JsonElement;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
@@ -35,10 +37,13 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawRender;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawStyleRow;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawTextureScroll;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.engine.pose.PoseEvaluator;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
@@ -56,6 +61,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -65,7 +71,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -102,6 +110,12 @@ import java.util.stream.Stream;
 public final class EntityIndexBuilder {
 
     private static final int WHITE = 0xFFFFFFFF;
+
+    /**
+     * The {@code carried} axis option naming the pose a selected carried block re-poses its wearer as,
+     * whatever block is selected.
+     */
+    private static final @NotNull String CARRIED_OPTION = "block";
 
     /**
      * Assembles the entity index from the raw model tree and the geometry table.
@@ -165,6 +179,7 @@ public final class EntityIndexBuilder {
         int baseTint = render == null || render.tint() == null ? WHITE : ColorTypeAdapter.parse(render.tint()).getRGB();
 
         List<RawOverlay> familyOverlays = nullToEmpty(family.overlays());
+        List<Optional<PoseExpr>> familyOpacities = opacities(familyOverlays, familyId);
         ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
             ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
 
@@ -177,11 +192,11 @@ public final class EntityIndexBuilder {
             : poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord));
         Possible<EntityMesh> babyModel = babyCoord == null ? Possible.empty()
             : Possible.ofNullable(geometries.get(babyCoord)).or(Possible::absent);
-        ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
-            babyPose, babyCoord, babyModel, familyId);
+        ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, familyOpacities, geometries,
+            poses, babyPose, babyCoord, babyModel, familyId);
 
         FamilyContext ctx = new FamilyContext(family, familyId, geometries, poses,
-            familyOverlays, baseTint, rendererScale,
+            familyOverlays, familyOpacities, baseTint, rendererScale,
             babyModel, babyPose, babyOverlays,
             equipment, humanoidArmor, stateDefaultOf(family),
             styleCatalogOf(family, familyId, periodTicks));
@@ -220,7 +235,8 @@ public final class EntityIndexBuilder {
         Entity.Axes axes = base.axes();
         return base.mutate()
             .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(),
-                new Entity.Variation<>(coats, Optional.ofNullable(variant.defaultOption()))))
+                new Entity.Variation<>(coats, Optional.ofNullable(variant.defaultOption())), axes.carried(),
+                axes.equipment()))
             .build();
     }
 
@@ -261,8 +277,8 @@ public final class EntityIndexBuilder {
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
         ConcurrentList<OverlayLayer> overlays = form.coordinate()
-            .map(coordinate -> loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
-                pose, coordinate, model, ctx.familyId()))
+            .map(coordinate -> loadOverlays(ctx.familyOverlays(), ctx.familyOpacities(), ctx.geometries(),
+                ctx.poses(), pose, coordinate, model, ctx.familyId()))
             .orElseGet(() -> meshlessPasses(ctx));
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
@@ -276,7 +292,7 @@ public final class EntityIndexBuilder {
             .rendererScale(ctx.rendererScale())
             .pose(pose)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
-                Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor().toOptional(), ctx.family().wings() != null));
         // Set only where the family ships one - the Entity compact constructor answers a never-set
         // catalog with BIND_ONLY.
@@ -286,16 +302,19 @@ public final class EntityIndexBuilder {
         // Built WITHOUT any form first, because every form is a sub-definition derived from this row,
         // so the row it derives from has to exist before it does. The baby form comes first and the
         // row carries it into the rest: a shape or size form is its own baked mesh over the same
-        // overlays, or this row at a multiplied scale, and a baby of either is this row's baby. A
-        // form carries none of the three derived axes of its own: it is a leaf.
+        // overlays, or this row at a multiplied scale, and a baby of either is this row's baby. The
+        // carried and equipment forms derive from the row ahead of its baby, because a baby holds no
+        // block and wears no equipment. A form carries none of the derived axes of its own: it is a
+        // leaf.
         Entity bare = adult.mutate()
             .axes(new Entity.Axes(babyForm(ctx, adult).toOptional(), Entity.Variation.none(), state,
-                Entity.Variation.none(), Entity.Variation.none()))
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
             .build();
         Entity.Axes axes = bare.axes();
         return bare.mutate()
             .axes(new Entity.Axes(axes.baby(), buildShapeAxis(ctx, bare), axes.state(),
-                buildSizeAxis(ctx.family(), ctx.geometries(), ctx.poses(), bare), axes.variant()))
+                buildSizeAxis(ctx.family(), ctx.geometries(), ctx.poses(), bare), axes.variant(),
+                carriedForm(ctx, adult), buildEquipmentAxis(ctx, adult)))
             .build();
     }
 
@@ -417,6 +436,7 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull List<RawOverlay> familyOverlays,
+        @NotNull List<Optional<PoseExpr>> familyOpacities,
         int baseTint,
         float rendererScale,
         @NotNull Possible<EntityMesh> babyModel,
@@ -548,9 +568,13 @@ public final class EntityIndexBuilder {
      * with the base; a distinct coordinate resolves fresh from the geometry table (a missing coordinate
      * warns and drops). A pass vanilla restricts to a subset or deforms names the mesh that is, so the
      * distinct coordinate is what says the two differ.
+     *
+     * <p>Each row's opacity arrives parsed beside it, read once per table row by {@link #opacities}, so
+     * a baby form draws the very expression its adult row does.
      */
     private static @NotNull ConcurrentList<OverlayLayer> loadOverlays(
         @NotNull List<RawOverlay> overlays,
+        @NotNull List<Optional<PoseExpr>> opacities,
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull EntityPose bodyPose,
@@ -559,7 +583,8 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         List<OverlayLayer> out = new ArrayList<>();
-        for (RawOverlay entry : overlays) {
+        for (int position = 0; position < overlays.size(); position++) {
+            RawOverlay entry = overlays.get(position);
             String coord = entry.geometry() == null ? baseCoord : entry.geometry();
             boolean sameGeometry = coord.equals(baseCoord);
             EntityMesh overlayModel;
@@ -600,7 +625,12 @@ public final class EntityIndexBuilder {
             // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
             // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
             BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend());
-            float alpha = pipeline == null || pipeline.alpha() == null ? 1f : pipeline.alpha();
+            Optional<PoseExpr> opacity = opacities.get(position);
+            // The declaration's opacity is what a frame posing nothing draws: the opacity's value with
+            // every input at rest, a constant's being itself, through the one conversion every frame's
+            // opacity takes.
+            float declared = opacity.map(expression -> atRest(expression, entityId)).orElse(1f);
+            float alpha = PassDeclaration.drawnAlpha(declared);
             // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
             // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
             // (what DepthStencilState.DEFAULT declares) and draws in emission order.
@@ -618,9 +648,69 @@ public final class EntityIndexBuilder {
             PassDeclaration pass =
                 new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, scroll.isPresent());
             out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
-                textureBy, gate, noHatModel, overlayPose, scroll));
+                textureBy, gate, noHatModel, overlayPose, scroll, opacity));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
+    }
+
+    /**
+     * Each overlay row's opacity, parsed and validated once by its place in the table, in row order -
+     * empty for a row declaring none.
+     *
+     * @param overlays the overlay rows, in table order
+     * @param entityId the entity the rows belong to, for refusals
+     * @return each row's opacity, in row order
+     * @throws ContentException if a row declares an opacity that reads a bone or a shared entry, or a
+     *     constant opacity at or under zero
+     */
+    private static @NotNull List<Optional<PoseExpr>> opacities(
+        @NotNull List<RawOverlay> overlays, @NotNull String entityId) {
+
+        List<Optional<PoseExpr>> out = new ArrayList<>(overlays.size());
+        for (int index = 0; index < overlays.size(); index++)
+            out.add(opacity(overlays.get(index), entityId, index));
+        return out;
+    }
+
+    /**
+     * The opacity expression an overlay row declares, read as an expression over the render state
+     * alone.
+     *
+     * <p>A constant opacity is the grammar's own {@code const}, and one at or under zero is refused:
+     * the generator drops any pass that would draw nothing, so one in the table is a generator fault
+     * rather than a pass to skip.
+     *
+     * <p>A JSON {@code null} is no opacity, as an absent member is: Gson reads it into the member as a
+     * node rather than as nothing.
+     *
+     * @throws ContentException if the row declares an opacity that reads a bone or a shared entry, or
+     *     a constant opacity at or under zero
+     */
+    private static @NotNull Optional<PoseExpr> opacity(@NotNull RawOverlay entry, @NotNull String entityId, int index) {
+        JsonElement node = entry.opacity() == null || entry.opacity().isJsonNull() ? null : entry.opacity();
+        if (node == null) return Optional.empty();
+        PoseExpr opacity = EntityPosesTable.standaloneExpression(entityId + " overlay " + index, node);
+        OptionalDouble constant = opacity.constantValue();
+        if (constant.isPresent() && constant.getAsDouble() <= 0d) {
+            throw new ContentException("Entity '%s' overlay '%s' declares opacity '%s', and a shipped pass draws",
+                entityId, index, constant.getAsDouble());
+        }
+        return Optional.of(opacity);
+    }
+
+    /**
+     * An opacity expression's value with every input at rest - what a frame posing nothing reads.
+     *
+     * <p>Evaluated against no mesh: the expression was refused at its parse if it read a bone, so a
+     * channel read reaching here is a reader that let one through.
+     */
+    private static float atRest(@NotNull PoseExpr opacity, @NotNull String entityId) {
+        PoseEvaluator.BoneChannels unread = (bone, channel) -> {
+            throw new ContentException(
+                "Entity '%s' overlay opacity reads '%s' of bone '%s' at rest, and an opacity reads no bone",
+                entityId, channel.token(), bone);
+        };
+        return PoseEvaluator.values(List.of(opacity), unread, PoseEvaluator.AT_REST).getFirst();
     }
 
     /**
@@ -649,9 +739,9 @@ public final class EntityIndexBuilder {
      * baby render draws in place of the adult one. Each row carrying a {@code baby} delta is rewritten
      * into an overlay whose meshes and texture come from the delta and whose every other member
      * ({@code texture_by}, tint, pipeline, bounds skip, gate) is inherited from the row, then handed to
-     * {@link #loadOverlays} against the {@code age.baby} mesh. A row with no delta is absent from the
-     * result, so a pass vanilla itself gates off a baby (the villager profession and profession-level
-     * passes) drops out structurally.
+     * {@link #loadOverlays} against the {@code age.baby} mesh beside the row's own parsed opacity. A
+     * row with no delta is absent from the result, so a pass vanilla itself gates off a baby (the
+     * villager profession and profession-level passes) drops out structurally.
      *
      * <p>A delta naming no geometry is left naming none rather than given the row's coordinate: the row
      * names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry} false
@@ -660,6 +750,7 @@ public final class EntityIndexBuilder {
      * {@link Entity.Axes#baby() baby form} draws.
      *
      * @param overlays the family's raw overlay rows
+     * @param opacities each row's parsed opacity, in row order
      * @param geometries the geometry coordinate to bone tree table
      * @param babyCoord the family's {@code age.baby} geometry coordinate, {@code null} exactly when
      *     {@code babyModel} is empty
@@ -670,6 +761,7 @@ public final class EntityIndexBuilder {
      */
     private static @NotNull ConcurrentList<OverlayLayer> loadBabyOverlays(
         @NotNull List<RawOverlay> overlays,
+        @NotNull List<Optional<PoseExpr>> opacities,
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull Map<String, EntityPose> poses,
         @NotNull EntityPose babyPose,
@@ -678,14 +770,21 @@ public final class EntityIndexBuilder {
         @NotNull String entityId
     ) {
         if (babyModel.getState() == Possible.State.EMPTY) return Concurrent.newUnmodifiableList();
-        ConcurrentList<RawOverlay> forms = overlays.stream()
-            .filter(entry -> entry.baby() != null)
+        int[] rows = IntStream.range(0, overlays.size())
+            .filter(index -> overlays.get(index).baby() != null)
+            .toArray();
+        ConcurrentList<RawOverlay> forms = Arrays.stream(rows)
+            .mapToObj(overlays::get)
             .map(entry -> new RawOverlay(
                 entry.baby().geometry(), entry.baby().noHatGeometry(),
                 entry.baby().texture() == null ? entry.texture() : entry.baby().texture(),
                 entry.tint(), entry.tintBy(), entry.textureBy(),
-                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null))
+                entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null,
+                entry.opacity()))
             .collect(Concurrent.toUnmodifiableList());
+        List<Optional<PoseExpr>> formOpacities = Arrays.stream(rows)
+            .mapToObj(opacities::get)
+            .toList();
         if (forms.isEmpty()) return Concurrent.newUnmodifiableList();
         if (babyModel.isAbsent()) {
             System.err.printf(
@@ -693,7 +792,8 @@ public final class EntityIndexBuilder {
                 entityId, babyCoord);
             return Concurrent.newUnmodifiableList();
         }
-        return loadOverlays(forms, geometries, poses, babyPose, babyCoord, babyModel.get(), entityId);
+        return loadOverlays(forms, formOpacities, geometries, poses, babyPose, babyCoord,
+            babyModel.get(), entityId);
     }
 
     /**
@@ -757,6 +857,8 @@ public final class EntityIndexBuilder {
      * its {@code block} may be omitted entirely (the enderman carried block). A {@code transforms} entry
      * is a single-member object dispatched on the member's own name, the shape a pose expression takes.
      *
+     * @param array the family's {@code block_overlays} rows, in table order
+     * @return the resolved rows, in table order
      * @throws ContentException if a transform entry names an op the tooling does not emit
      */
     private static @NotNull ConcurrentList<BlockOverlayLayer> loadBlockOverlays(@NotNull List<RawBlockOverlay> array) {
@@ -866,11 +968,10 @@ public final class EntityIndexBuilder {
 
     /**
      * Returns the worn-armor shell the family's armor row is dressed in - the row's mesh joined against
-     * the geometry table, the two layer deformations, and the whole-mesh scale the set is registered
-     * through. Empty when the family carries no armor row, which wears none; absent when the row's
-     * shell does not resolve - its mesh or deformations are missing, or its alternate is unreadable -
-     * which warns and drops the wearer rather than dressing it in a guess. An absent {@code scaled} is
-     * the identity, which is what the eleven wearers vanilla registers unscaled omit.
+     * the geometry table and the two layer deformations. Empty when the family carries no armor row,
+     * which wears none; absent when the row's shell does not resolve - its mesh or deformations are
+     * missing, or its alternate is unreadable - which warns and drops the wearer rather than dressing it
+     * in a guess.
      *
      * <p>The mesh arrives as the shell's own - what a wearer rests without, the subset a pass of its is
      * restricted to and the deformation one surrounds it with are derived onto meshes the wearer names,
@@ -895,8 +996,8 @@ public final class EntityIndexBuilder {
             alternate = alternateShellOf(raw, geometries, entityId);
             if (alternate.isEmpty()) return Possible.absent();
         }
-        return Possible.ofOptional(shellOf(armor.geometry(), armor.grow(), armor.scaled(), ArmorForm.ADULT,
-            alternate, geometries, entityId)).or(Possible::absent);
+        return Possible.ofOptional(shellOf(armor.geometry(), armor.grow(), ArmorForm.ADULT, alternate,
+            geometries, entityId)).or(Possible::absent);
     }
 
     /**
@@ -929,8 +1030,7 @@ public final class EntityIndexBuilder {
                 entityId, raw.form());
             return Optional.empty();
         }
-        return shellOf(raw.geometry(), raw.grow(), raw.scaled(), form.get(), Optional.empty(),
-            geometries, entityId)
+        return shellOf(raw.geometry(), raw.grow(), form.get(), Optional.empty(), geometries, entityId)
             .map(shell -> new Shell.Alternate(when.get(), shell));
     }
 
@@ -959,15 +1059,14 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One shell of an armor row - its mesh joined against the geometry table, the two layer
-     * deformations, and the whole-mesh scale the set is registered through. Empty when the shell does
-     * not resolve: being armored is carrying a resolved shell, so a shell whose mesh or deformations
-     * are missing warns and drops the wearer rather than dressing it in a guess.
+     * One shell of an armor row - its mesh joined against the geometry table and the two layer
+     * deformations. Empty when the shell does not resolve: being armored is carrying a resolved shell,
+     * so a shell whose mesh or deformations are missing warns and drops the wearer rather than dressing
+     * it in a guess.
      */
     private static @NotNull Optional<Shell> shellOf(
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @NotNull ArmorForm form,
         @NotNull Optional<Shell.Alternate> alternate,
         @NotNull Map<String, EntityMesh> geometries,
@@ -986,8 +1085,7 @@ public final class EntityIndexBuilder {
                 entityId, form.name().toLowerCase(Locale.ROOT), geometry);
             return Optional.empty();
         }
-        return Optional.of(new Shell(mesh, grow.inner(), grow.outer(),
-            scaled == null ? 1f : scaled, form, alternate));
+        return Optional.of(new Shell(mesh, grow.inner(), grow.outer(), form, alternate));
     }
 
     /**
@@ -1005,10 +1103,8 @@ public final class EntityIndexBuilder {
      * <p>A row's pose is the pose of the model class its layer is handed - the row's
      * {@code bones.pose} where it names one, else its coordinate's head - so the donkey's saddle is
      * posed by {@code EquineSaddleModel} rather than by the {@code DonkeyModel} that baked it. A row's
-     * {@code wearer_pose} is joined by its exact key, which carries the answer the body was folded
-     * with rather than a class to split; a key the pose table does not carry warns and drops the row,
-     * as a missing geometry does. A row's {@code wearer_toggle} is carried as the name it is: a
-     * toggle no bone of the wearer's mesh names moves nothing, as a selected one does.
+     * {@code wearer_toggle} is carried as the name it is: a toggle no bone of the wearer's mesh names
+     * moves nothing, as a selected one does.
      */
     private static @NotNull ConcurrentList<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
@@ -1042,17 +1138,9 @@ public final class EntityIndexBuilder {
             // entry under the unselected key rather than a second member saying which key to read.
             ResourceId unselected = materialAssets.get(row.defaultMaterial());
             if (unselected != null) materialAssets.put(EquipmentOverlay.UNSELECTED, unselected);
-            Optional<EntityPose> wearerPose = Optional.ofNullable(row.wearerPose()).map(poses::get);
-            if (row.wearerPose() != null && wearerPose.isEmpty()) {
-                System.err.printf(
-                    "entity '%s' equipment row names wearer pose '%s' absent from entity_poses; row dropped%n",
-                    entityId, row.wearerPose());
-                continue;
-            }
             EntityPose pose = poseOf(poses, poseKeyOf(row.bones() == null ? null : row.bones().pose(), coord));
             out.add(new EquipmentOverlay(row.slot(), model, pose, layerType.get(),
-                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable(), Optional.ofNullable(row.wearerToggle()),
-                wearerPose));
+                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable(), Optional.ofNullable(row.wearerToggle())));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
     }
@@ -1085,8 +1173,9 @@ public final class EntityIndexBuilder {
         String coord = large.geometry();
         EntityMesh model = ctx.geometries().get(coord);
         if (model == null) return Entity.Variation.none();
-        ConcurrentList<OverlayLayer> overlays = loadOverlays(nullToEmpty(large.overlays()), ctx.geometries(), ctx.poses(),
-            poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
+        List<RawOverlay> rows = nullToEmpty(large.overlays());
+        ConcurrentList<OverlayLayer> overlays = loadOverlays(rows, opacities(rows, ctx.familyId()),
+            ctx.geometries(), ctx.poses(), poseOf(ctx.poses(), poseKeyOf(large.pose(), coord)), coord, model,
             ctx.familyId());
         Entity largeForm = bare.mutate()
             .model(model)
@@ -1116,7 +1205,8 @@ public final class EntityIndexBuilder {
                 Stream.of(Map.entry(key, ref)))
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
         return new Entity.Axes(axes.baby(), axes.shape(),
-            new Entity.Variation<>(options, Optional.of(key)), axes.size(), axes.variant());
+            new Entity.Variation<>(options, Optional.of(key)), axes.size(), axes.variant(), axes.carried(),
+            axes.equipment());
     }
 
     /**
@@ -1202,6 +1292,74 @@ public final class EntityIndexBuilder {
     }
 
     /**
+     * Resolves the family's {@code carried} axis into the form a selected carried block re-poses one
+     * row as - the enderman's raised arms, the iron golem's offered flower. Empty for a family with
+     * no carried axis, or one whose {@code block} option names no pose.
+     *
+     * @param ctx what the whole family shares
+     * @param row the row this is the carried form of, carrying no form of its own
+     * @return the carried form, or empty
+     */
+    private static @NotNull Optional<Entity> carriedForm(@NotNull FamilyContext ctx, @NotNull Entity row) {
+        RawAxis carried = ctx.family().axes().carried();
+        if (carried == null) return Optional.empty();
+        return Optional.ofNullable(carried.options().get(CARRIED_OPTION))
+            .flatMap(option -> reposedForm(option, ctx.poses(), row));
+    }
+
+    /**
+     * Resolves the family's {@code equipment} axis into the form each filled slot re-poses one row as -
+     * the harnessed happy ghast's smaller body - keyed by slot in the axis's own order. The axis
+     * declares no option, the bare row filling no slot.
+     *
+     * <p>Order is preserved rather than left to an immutable map's own, because the first filled slot
+     * in it is the one whose form a render swaps in.
+     *
+     * @param ctx what the whole family shares
+     * @param row the row these are equipment forms of, carrying no form of its own
+     * @return the form per slot, empty for a family with no equipment axis
+     */
+    private static @NotNull Entity.Variation<String, Entity> buildEquipmentAxis(
+        @NotNull FamilyContext ctx, @NotNull Entity row) {
+
+        RawAxis equipment = ctx.family().axes().equipment();
+        if (equipment == null) return Entity.Variation.none();
+        ConcurrentMap<String, Entity> forms = equipment.options()
+            .entrySet()
+            .stream()
+            .flatMap(slot -> reposedForm(slot.getValue(), ctx.poses(), row)
+                .map(form -> Map.entry(slot.getKey(), form))
+                .stream())
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+        return new Entity.Variation<>(forms, Optional.empty());
+    }
+
+    /**
+     * One row re-posed as an option names its wearer's pose - the row's own mesh at that pose, every
+     * pass that shared the row's pose sharing it, so a pass drawn over the body moves with the body.
+     * The pose is joined as a size option's is, so a key the pose table lacks answers the pose of a
+     * model that poses nothing. Empty for an option naming no pose.
+     *
+     * @param option the axis option
+     * @param poses the pose of each model class and variant, by the key an option names
+     * @param row the row being re-posed
+     * @return the re-posed form, or empty
+     */
+    private static @NotNull Optional<Entity> reposedForm(
+        @NotNull RawOption option, @NotNull Map<String, EntityPose> poses, @NotNull Entity row) {
+
+        if (option.pose() == null) return Optional.empty();
+        EntityPose pose = poseOf(poses, option.pose());
+        return Optional.of(row.mutate()
+            .pose(pose)
+            .overlays(row.overlays()
+                .stream()
+                .map(pass -> pass.pose() == row.pose() ? pass.withPose(pose) : pass)
+                .collect(Concurrent.toUnmodifiableList()))
+            .build());
+    }
+
+    /**
      * Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis.
      */
     private static @Nullable Map<String, RawOption> sizeOptions(@NotNull RawModel family) {
@@ -1252,33 +1410,40 @@ public final class EntityIndexBuilder {
      *
      * <p>Two rows may share one id where their {@code age} members split them - the axolotl ships
      * {@code play_dead} as a baby clip row beside an adult factor row. Each composes its own
-     * drives, and a {@code base} naming a shared id resolves to its first row, the row
-     * {@link StyleCatalog#byId} answers.
+     * drives, and a {@code base} naming a shared id resolves at the age of the row naming it: to the
+     * row of that id at the same age where one ships, otherwise to its ageless row, otherwise to its
+     * first row.
      *
      * @param family the raw model
      * @param familyId the entity being read, for refusals
      * @param periodTicks the file header's {@code period_ticks}, or {@code null} where it names none
      * @return the catalog in shipped row order, or {@code null} where the family ships no styles
      * @throws ContentException if a styles-carrying file names no {@code period_ticks}, a row names
-     *     no id, an unknown token is named, a base names no sibling row, or a base chain cycles
+     *     no id, an unknown token is named, a base names no sibling row, a base chain cycles, or a
+     *     ceiling is recorded for a family shipping no styles, is keyed by a token that is not an age
+     *     or by an age no stride row walks at, names no speed or rate, or falls outside its range
      */
     private static @Nullable StyleCatalog styleCatalogOf(
         @NotNull RawModel family, @NotNull String familyId, @Nullable Integer periodTicks) {
 
         List<RawStyleRow> rows = family.styles();
-        if (rows == null) return null;
+        if (rows == null) {
+            if (family.ceilings() != null)
+                throw new ContentException("Entity '%s' records ceilings but ships no styles", familyId);
+            return null;
+        }
         if (periodTicks == null)
             throw new ContentException(
                 "Entity '%s' ships styles but the file header names no period_ticks", familyId);
 
-        Map<String, RawStyleRow> byId = new LinkedHashMap<>();
+        Map<String, List<RawStyleRow>> byId = new LinkedHashMap<>();
         for (RawStyleRow row : rows) {
             if (row.id() == null)
                 throw new ContentException("Entity '%s' ships a style row naming no id", familyId);
-            byId.putIfAbsent(row.id(), row);
+            byId.computeIfAbsent(row.id(), id -> new ArrayList<>()).add(row);
         }
 
-        Map<String, ConcurrentMap<String, StyleDriver>> composed = new LinkedHashMap<>();
+        Map<RawStyleRow, ConcurrentMap<String, StyleDriver>> composed = new IdentityHashMap<>();
         List<PoseStyle> styles = new ArrayList<>(rows.size());
         for (RawStyleRow row : rows)
             styles.add(new PoseStyle(row.id(),
@@ -1287,47 +1452,48 @@ public final class EntityIndexBuilder {
                 row.toggles() == null
                     ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(row.toggles()),
                 styleAge(row, familyId), Optional.empty()));
-        return new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList(styles));
+        return new StyleCatalog(periodTicks, ceilingsOf(family, rows, familyId),
+            Concurrent.newUnmodifiableList(styles));
     }
 
     /**
      * One row's drivers composed flat against its {@code base} chain: the base's composed map is
      * copied, then each own drive is put by its field - a drive naming a {@code group} first evicts
      * any still-inherited driver carrying that group, and an own drive always wins its own field
-     * key. Composed per row, so the rows of an age-split pair each keep their own drives; memoized
-     * by id for an id's first row, which is the row a {@code base} resolves through.
+     * key. The base is the row {@link #baseRow} picks among the rows of the id it names, at this
+     * row's own age. Composed per row and memoized by row, so the rows of an age-split pair each keep
+     * their own drives, each composes once, and each is found by its own key.
      *
      * @param row the row being composed
-     * @param rows the first row of each id, which is what a base names
-     * @param composed the rows already composed, by id
+     * @param rows the rows of each id in shipped order, which is what a base names
+     * @param composed the rows already composed, keyed by row
      * @param familyId the entity being read, for refusals
      * @param resolving the ids on the current chain, for the cycle refusal
      * @return the row's whole driver map, keyed by field
-     * @throws ContentException if the base names no sibling row, or the chain cycles
+     * @throws ContentException if the base names no sibling row, a row names a token that is not an
+     *     age, or the chain cycles
      */
     private static @NotNull ConcurrentMap<String, StyleDriver> composedDrivers(
         @NotNull RawStyleRow row,
-        @NotNull Map<String, RawStyleRow> rows,
-        @NotNull Map<String, ConcurrentMap<String, StyleDriver>> composed,
+        @NotNull Map<String, List<RawStyleRow>> rows,
+        @NotNull Map<RawStyleRow, ConcurrentMap<String, StyleDriver>> composed,
         @NotNull String familyId,
         @NotNull Set<String> resolving) {
 
+        ConcurrentMap<String, StyleDriver> held = composed.get(row);
+        if (held != null) return held;
         String id = row.id();
-        boolean first = rows.get(id) == row;
-        if (first) {
-            ConcurrentMap<String, StyleDriver> held = composed.get(id);
-            if (held != null) return held;
-        }
         if (!resolving.add(id))
             throw new ContentException("Entity '%s' style '%s' composes over itself", familyId, id);
 
         Map<String, StyleDriver> inherited = Map.of();
         if (row.base() != null) {
-            RawStyleRow over = rows.get(row.base());
+            List<RawStyleRow> over = rows.get(row.base());
             if (over == null)
                 throw new ContentException("Entity '%s' style '%s' composes over '%s', which no row carries",
                     familyId, id, row.base());
-            inherited = composedDrivers(over, rows, composed, familyId, resolving);
+            inherited = composedDrivers(baseRow(over, styleAge(row, familyId), familyId),
+                rows, composed, familyId, resolving);
         }
 
         LinkedHashMap<String, StyleDriver> out = new LinkedHashMap<>(inherited);
@@ -1340,19 +1506,40 @@ public final class EntityIndexBuilder {
             out.put(driver.field(), driver);
         }
         ConcurrentMap<String, StyleDriver> built = Concurrent.adoptLinkedMap(out).toUnmodifiable();
-        if (first) composed.put(id, built);
+        composed.put(row, built);
         return built;
     }
 
     /**
+     * The row a base resolves to among the rows of the id it names - the row at the age of the row
+     * naming it where one ships, otherwise the ageless row, otherwise the first.
+     *
+     * @param over the rows of the base id, in shipped order
+     * @param age the age of the row naming the base, empty where it names none
+     * @param familyId the entity being read, for refusals
+     * @return the row the base resolves to
+     * @throws ContentException if a row of the base id names a token that is not an age
+     */
+    private static @NotNull RawStyleRow baseRow(
+        @NotNull List<RawStyleRow> over, @NotNull Optional<Age> age, @NotNull String familyId) {
+
+        return over.stream()
+            .filter(candidate -> styleAge(candidate, familyId).equals(age))
+            .findFirst()
+            .or(() -> over.stream().filter(candidate -> styleAge(candidate, familyId).isEmpty()).findFirst())
+            .orElse(over.getFirst());
+    }
+
+    /**
      * One drive mapped onto its driver - {@code rest} defaults to {@code 0f} and {@code extent} to
-     * {@code 1f} where the row spells neither.
+     * {@code 1f} where the row spells neither, and the wave is the arm its token names.
      *
      * @param raw the drive as the table spells it
      * @param familyId the entity being read, for refusals
      * @param styleId the row the drive belongs to, for refusals
      * @return the driver
-     * @throws ContentException if the drive names no field, or a token that is not a wave
+     * @throws ContentException if the drive names no field, a token that is not a wave, a member its
+     *     wave refuses, or a member its wave does not read
      */
     private static @NotNull StyleDriver styleDriver(
         @NotNull RawDrive raw, @NotNull String familyId, @NotNull String styleId) {
@@ -1360,11 +1547,12 @@ public final class EntityIndexBuilder {
         if (raw.field() == null)
             throw new ContentException("Entity '%s' style '%s' drives a field it does not name",
                 familyId, styleId);
-        StyleDriver.Wave wave = raw.wave() == null
-            ? null : enumOf(StyleDriver.Wave.class, raw.wave()).orElse(null);
-        if (wave == null)
-            throw new ContentException("Entity '%s' style '%s' drives '%s' by '%s', which is not a wave",
-                familyId, styleId, raw.field(), raw.wave());
+        StyleDriver.Wave wave = styleWave(raw, familyId, styleId);
+        Optional<String> unread = unreadTiming(raw, wave);
+        if (unread.isPresent()) {
+            throw new ContentException("Entity '%s' style '%s' drives '%s' by '%s', which reads no '%s'",
+                familyId, styleId, raw.field(), raw.wave(), unread.get());
+        }
         return new StyleDriver(raw.field(), wave,
             raw.rest() == null ? 0f : raw.rest(),
             raw.extent() == null ? 1f : raw.extent(),
@@ -1372,13 +1560,89 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The row's mechanism inventory, each token resolved onto its {@link StyleClock} and its gate
-     * carried as spelled.
+     * The wave a drive's token names, each arm built from the members it reads alone - a stroke from
+     * its {@code rate}, a trapezoid from its four spans with an absent span reading {@code 0}, and
+     * every other wave from nothing.
+     *
+     * @param raw the drive as the table spells it
+     * @param familyId the entity being read, for refusals
+     * @param styleId the row the drive belongs to, for refusals
+     * @return the wave
+     * @throws ContentException if the token names no wave, the drive strokes at no finite rate above
+     *     zero, or it shapes a trapezoid with a negative span or spanning no tick
+     */
+    private static @NotNull StyleDriver.Wave styleWave(
+        @NotNull RawDrive raw, @NotNull String familyId, @NotNull String styleId) {
+
+        String token = raw.wave();
+        if (token == null)
+            throw new ContentException("Entity '%s' style '%s' drives '%s' by '%s', which is not a wave",
+                familyId, styleId, raw.field(), null);
+        return switch (token) {
+            case StyleDriver.Wave.Stroke.TOKEN -> {
+                try {
+                    yield new StyleDriver.Wave.Stroke(raw.rate() == null ? 0f : raw.rate());
+                } catch (IllegalArgumentException refused) {
+                    throw new ContentException(refused,
+                        "Entity '%s' style '%s' strokes '%s' at '%s' a tick, and a stroke advances",
+                        familyId, styleId, raw.field(), raw.rate());
+                }
+            }
+            case StyleDriver.Wave.Trapezoid.TOKEN -> {
+                int rise = raw.rise() == null ? 0 : raw.rise();
+                int dwell = raw.dwell() == null ? 0 : raw.dwell();
+                int fall = raw.fall() == null ? 0 : raw.fall();
+                int gap = raw.gap() == null ? 0 : raw.gap();
+                try {
+                    yield new StyleDriver.Wave.Trapezoid(rise, dwell, fall, gap);
+                } catch (IllegalArgumentException refused) {
+                    throw new ContentException(refused,
+                        "Entity '%s' style '%s' shapes '%s' over '%s + %s + %s + %s' ticks, and a trapezoid spans at least one",
+                        familyId, styleId, raw.field(), rise, dwell, fall, gap);
+                }
+            }
+            default -> StyleDriver.Wave.Plain.findByToken(token)
+                .orElseThrow(() -> new ContentException(
+                    "Entity '%s' style '%s' drives '%s' by '%s', which is not a wave",
+                    familyId, styleId, raw.field(), token));
+        };
+    }
+
+    /**
+     * The first timing member a drive spells that its wave does not read - a {@code rate} off a
+     * stroke, a span off a trapezoid.
+     *
+     * @param raw the drive as the table spells it
+     * @param wave the wave its token names
+     * @return the member's name, or empty where the drive spells only what its wave reads
+     */
+    private static @NotNull Optional<String> unreadTiming(@NotNull RawDrive raw, @NotNull StyleDriver.Wave wave) {
+        List<String> reads = switch (wave) {
+            case StyleDriver.Wave.Plain ignored -> List.of();
+            case StyleDriver.Wave.Stroke ignored -> List.of("rate");
+            case StyleDriver.Wave.Trapezoid ignored -> List.of("rise", "dwell", "fall", "gap");
+        };
+        Map<String, Object> spelled = new LinkedHashMap<>();
+        spelled.put("rate", raw.rate());
+        spelled.put("rise", raw.rise());
+        spelled.put("dwell", raw.dwell());
+        spelled.put("fall", raw.fall());
+        spelled.put("gap", raw.gap());
+        return spelled.entrySet().stream()
+            .filter(member -> member.getValue() != null && !reads.contains(member.getKey()))
+            .map(Map.Entry::getKey)
+            .findFirst();
+    }
+
+    /**
+     * The row's mechanism inventory, each token resolved onto its {@link StyleClock} and its gate onto
+     * the {@link Flag} it names.
      *
      * @param row the raw style row
      * @param familyId the entity being read, for refusals
      * @return the inventory in declared order, empty for a row nothing moves
-     * @throws ContentException if an entry names a token that is not a drive
+     * @throws ContentException if an entry names a token that is not a drive, or a gate that is not a
+     *     flag
      */
     private static @NotNull ConcurrentList<PoseStyle.StyleSource> styleSources(
         @NotNull RawStyleRow row, @NotNull String familyId) {
@@ -1389,7 +1653,10 @@ public final class EntityIndexBuilder {
                     .orElseThrow(() -> new ContentException(
                         "Entity '%s' style '%s' moves by '%s', which is not a drive",
                         familyId, row.id(), source.source())),
-                Optional.ofNullable(source.gate())))
+                Optional.ofNullable(source.gate()).map(gate -> enumOf(Flag.class, gate)
+                    .orElseThrow(() -> new ContentException(
+                        "Entity '%s' style '%s' gates '%s' on '%s', which is not a flag",
+                        familyId, row.id(), source.source(), gate)))))
             .collect(Concurrent.toUnmodifiableList());
     }
 
@@ -1407,6 +1674,48 @@ public final class EntityIndexBuilder {
             .orElseThrow(() -> new ContentException(
                 "Entity '%s' style '%s' applies to '%s', which is not an age",
                 familyId, row.id(), row.age())));
+    }
+
+    /**
+     * The fastest steady walk the family records at each age, in the order the table spells them -
+     * empty where it records none.
+     *
+     * @param family the raw model
+     * @param rows the family's style rows, which a ceiling's age must have a stride among
+     * @param familyId the entity being read, for refusals
+     * @return the ceilings by age
+     * @throws ContentException if a ceiling is keyed by a token that is not an age or by an age no
+     *     stride row applies to, names no speed or no rate, or holds a pace no walk pair holds
+     */
+    private static @NotNull ConcurrentMap<Age, PaceCeiling> ceilingsOf(
+        @NotNull RawModel family, @NotNull List<RawStyleRow> rows, @NotNull String familyId) {
+
+        if (family.ceilings() == null) return Concurrent.newUnmodifiableMap();
+        LinkedHashMap<Age, PaceCeiling> out = new LinkedHashMap<>();
+        family.ceilings().forEach((token, raw) -> {
+            Age age = enumOf(Age.class, token)
+                .orElseThrow(() -> new ContentException("Entity '%s' records a ceiling at '%s', which is not an age",
+                    familyId, token));
+            boolean strides = rows.stream()
+                .filter(row -> PoseStyle.STRIDE.equals(row.id()))
+                .anyMatch(row -> styleAge(row, familyId).map(age::equals).orElse(true));
+            if (!strides) {
+                throw new ContentException("Entity '%s' records a ceiling at '%s', where no stride row walks",
+                    familyId, token);
+            }
+            if (raw == null || raw.speed() == null || raw.rate() == null) {
+                throw new ContentException("Entity '%s' ceiling at '%s' names no '%s'",
+                    familyId, token, raw == null || raw.speed() == null ? "speed" : "rate");
+            }
+            try {
+                out.put(age, new PaceCeiling(raw.speed(), raw.rate()));
+            } catch (IllegalArgumentException refused) {
+                throw new ContentException(refused,
+                    "Entity '%s' ceiling at '%s' swings '%s' and advances '%s' a tick, outside (0, 1] and above zero",
+                    familyId, token, raw.speed(), raw.rate());
+            }
+        });
+        return Concurrent.adoptLinkedMap(out).toUnmodifiable();
     }
 
     // ------------------------------------------------------------------------------------
@@ -1475,8 +1784,8 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One form and every form derived from it - the baby, coats, shapes and sizes an axis holds -
-     * each drawn mesh's pose validated once.
+     * One form and every form derived from it - the baby, coats, shapes, sizes and the carried and
+     * equipment forms an axis holds - each drawn mesh's pose validated once.
      */
     private static void validateForms(
         @NotNull String entityId, @NotNull Entity form, @NotNull Set<String> own,
@@ -1493,6 +1802,9 @@ public final class EntityIndexBuilder {
             validateForms(entityId, size, own, corpusDriven, walked);
         for (Entity coat : form.axes().variant().options().values())
             validateForms(entityId, coat, own, corpusDriven, walked);
+        form.axes().carried().ifPresent(carried -> validateForms(entityId, carried, own, corpusDriven, walked));
+        for (Entity worn : form.axes().equipment().options().values())
+            validateForms(entityId, worn, own, corpusDriven, walked);
     }
 
     /**

@@ -35,7 +35,9 @@ import java.util.function.UnaryOperator;
  * @param stances the captured selector calls, in author order - a bone stance carries its limb,
  *     a container step carries none
  * @param raws the raw expression captures, spliced verbatim at compile
- * @param keepStride whether the universal stride drivers ride the built style
+ * @param keepStride whether the built style takes the target row's own whole stride at the row's
+ *     age - its walk pair, elapsed age and every clock and selection it holds - installing once per
+ *     age on a row with a baby form where the style spans both ages
  * @param hover the container lift-and-bob idiom, when authored
  * @param periodSeconds the declared excursion period in seconds; empty rides the catalog period
  * @param cycle the numbers a walking cycle places each row's copy of its shape by, when one was
@@ -283,7 +285,7 @@ public record PoseScript(
      * every keyframe they emit.
      *
      * @param motions the captured motion fragments, in call order
-     * @param overSeconds the timeline length in seconds; empty defaults to the strip window
+     * @param overSeconds the timeline length in seconds; empty defaults to the figure period
      * @param curve how every emitted keyframe is joined to its neighbours
      * @param looping whether the timeline restarts rather than holding its last frame
      */
@@ -584,7 +586,9 @@ public record PoseScript(
         }
 
         /**
-         * Marks the script as riding the universal stride drivers.
+         * Marks the script as taking the target row's own whole stride at the row's age - its walk
+         * pair, elapsed age and every clock and selection it holds - so that on a row with a baby
+         * form a style spanning both ages installs once per age.
          *
          * @return this capture
          */

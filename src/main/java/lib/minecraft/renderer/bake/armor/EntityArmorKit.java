@@ -85,7 +85,7 @@ public class EntityArmorKit {
         // wearer's own faces are in - which is the frame the pass that lights the folded stack reads.
         return ArmorKit.buildArmor3D(
             ShellIndex.of(shell).parts(),
-            box -> intoRenderFrame(shell, frame, box),
+            box -> intoRenderFrame(frame, box),
             shell.form(), equipped, items, context)
             .stream()
             .map(EntityArmorKit::intoModelFrame)
@@ -131,7 +131,7 @@ public class EntityArmorKit {
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, walk, slot),
-                screenTransform, modelScale * shell.meshScale(), sheet.get());
+                screenTransform, modelScale, sheet.get());
             union = union == null ? slotBounds : union.union(slotBounds);
         }
         return Optional.ofNullable(union);
@@ -143,14 +143,12 @@ public class EntityArmorKit {
      *
      * <p>The bones a slot does not cover stay in the tree with their cubes dropped, which is what
      * vanilla's own per-slot prune does and what keeps a kept bone's ancestor chain resolvable - a
-     * baby's boots keep the feet parented under legs the boots themselves do not draw. The whole-mesh
-     * seat rides the root pivots pre-scale, so the caller's scale carries it.
+     * baby's boots keep the feet parented under legs the boots themselves do not draw.
      */
     private static @NotNull EntityMesh slotMesh(
         @NotNull Shell shell, @NotNull ShellIndex walk, @NotNull ArmorSlot slot) {
         EntityMesh tree = shell.mesh();
         Vector3f deformation = slot.onLayer(shell.innerGrow(), shell.outerGrow());
-        Vector3f seat = shell.meshOffset().multiply(1f / shell.meshScale());
         ConcurrentLinkedMap<String, EntityMesh.Bone> bones = tree.getBones()
             .entrySet()
             .stream()
@@ -162,8 +160,7 @@ public class EntityArmorKit {
                         .map(cube -> grownBy(cube, deformation))
                         .collect(Concurrent.toList())
                     : Concurrent.newList();
-                Vector3f pivot = bone.getParent() == null ? bone.getPivot().add(seat) : bone.getPivot();
-                return bone.withCubes(cubes).withPivot(pivot);
+                return bone.withCubes(cubes);
             }));
         return new EntityMesh(tree.getTextureSize(), bones, tree.isCull());
     }
@@ -175,17 +172,16 @@ public class EntityArmorKit {
      *
      * <p>A row collapses to one axis-aligned box because the armor meshes are plain box tables - no
      * bone carries a rotation. A bone's uniform {@code scale} <em>is</em> honoured: every shell
-     * vanilla registers untransformed leaves it at the identity, but the shell an aged-down
-     * whole-mesh transformer builds carries one per bone, and drawing that shell unscaled would put a
-     * full-size helmet on a half-size body. It multiplies each operand rather than the assembled
-     * corners, so at the identity every existing wearer's arithmetic is the same expression on the
-     * same values and cannot round differently.
+     * vanilla registers untransformed leaves it at the identity, but the shell a whole-mesh
+     * transformer builds - aged down or scaled - carries one per bone, and drawing that shell unscaled
+     * would put a full-size helmet on a half-size body. It multiplies each operand rather than the
+     * assembled corners, so at the identity every unscaled wearer's arithmetic is the same expression
+     * on the same values and cannot round differently.
      */
-    private static @NotNull Box intoRenderFrame(
-        @NotNull Shell shell, @NotNull FitFrame frame, @NotNull Box box) {
+    private static @NotNull Box intoRenderFrame(@NotNull FitFrame frame, @NotNull Box box) {
         Vector3f[] corners = intoUprightFrameBounds(new Vector3f[]{
-            toRenderFrame(shell, frame, box.minX(), box.minY(), box.minZ()),
-            toRenderFrame(shell, frame, box.maxX(), box.maxY(), box.maxZ())
+            toRenderFrame(frame, box.minX(), box.minY(), box.minZ()),
+            toRenderFrame(frame, box.maxX(), box.maxY(), box.maxZ())
         });
         return Box.of(corners[0], corners[1]);
     }
@@ -205,31 +201,18 @@ public class EntityArmorKit {
      * Maps a point from model units into the render frame, applying the same pre-scale, anchor and
      * NDC scale the entity's own geometry was built through.
      *
-     * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by belongs to the
-     * armor set rather than to the render, and {@link Shell#meshScale()} carries it.
-     * Vanilla maps the very same transformer over the shared set rather than giving those wearers a
-     * distinct mesh, so the factor is a property of what is worn and not of who wears it. The wearer's
-     * own torso bone does not answer it: that bone agrees with the set only where the body is built
-     * through the same transformer, as the three scaled wearers' are, and a baby's body pivot is not
-     * built through one.
+     * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by is already in
+     * its mesh: vanilla registers those sets through the same transformer as the body, and the shell's
+     * own geometry entry carries it as the body's does.
      */
-    private static @NotNull Vector3f toRenderFrame(
-        @NotNull Shell shell, @NotNull FitFrame frame, float x, float y, float z) {
-        // The set's own whole-mesh transform first, so the shell is sized and seated like the body it
-        // dresses, then the render frame the body's own geometry was built through.
-        Vector3f offset = shell.meshOffset();
-        float mesh = shell.meshScale();
-        float mx = mesh * x + offset.x();
-        float my = mesh * y + offset.y();
-        float mz = mesh * z + offset.z();
-
+    private static @NotNull Vector3f toRenderFrame(@NotNull FitFrame frame, float x, float y, float z) {
         Vector3f anchor = frame.anchor();
         float ndcScale = frame.ndcScale();
         float modelScale = frame.modelScale();
         return new Vector3f(
-            ndcScale * (modelScale * mx - anchor.x()),
-            ndcScale * (modelScale * my - anchor.y()),
-            ndcScale * (modelScale * mz - anchor.z()));
+            ndcScale * (modelScale * x - anchor.x()),
+            ndcScale * (modelScale * y - anchor.y()),
+            ndcScale * (modelScale * z - anchor.z()));
     }
 
     /**

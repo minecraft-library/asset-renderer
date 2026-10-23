@@ -231,7 +231,7 @@ class BoneToggleRestTest {
         Entity finned = fish.mutate()
             .axes(new Entity.Axes(axes.baby(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(shapes), axes.shape().declared()),
-                axes.state(), axes.size(), axes.variant()))
+                axes.state(), axes.size(), axes.variant(), axes.carried(), axes.equipment()))
             .build();
 
         AppearanceOptions flopper = AppearanceOptions.builder().pattern(TropicalFishPattern.FLOPPER).build();
@@ -368,7 +368,7 @@ class BoneToggleRestTest {
         EntityMesh mesh = marked(baby.model(), "body", "sheared");
         Entity marked = sheep.mutate()
             .axes(new Entity.Axes(Optional.of(baby.mutate().model(mesh).build()),
-                axes.shape(), axes.state(), axes.size(), axes.variant()))
+                axes.shape(), axes.state(), axes.size(), axes.variant(), axes.carried(), axes.equipment()))
             .build();
 
         AppearanceOptions young = AppearanceOptions.builder().age(Age.BABY).build();
@@ -397,7 +397,7 @@ class BoneToggleRestTest {
         Entity saddled = donkey.mutate()
             .axes(new Entity.Axes(
                 Optional.of(baby.mutate().layers(new Entity.Layers(worn, baby.layers().humanoidArmor(), baby.layers().wings())).build()),
-                axes.shape(), axes.state(), axes.size(), axes.variant()))
+                axes.shape(), axes.state(), axes.size(), axes.variant(), axes.carried(), axes.equipment()))
             .build();
 
         AppearanceOptions young = AppearanceOptions.builder().age(Age.BABY).build();
@@ -450,6 +450,12 @@ class BoneToggleRestTest {
         }
         assertSame(coat, warm.mutate().equipment(Map.of("saddle", "")).build().resolve(nautilus).model(),
             "a saddle fills a stack the coral model does not ask about");
+        EntityMesh saddledAndArmoured = warm.mutate().equipment(Map.of("body", "copper", "saddle", "")).build()
+            .resolve(nautilus).model();
+        for (String coral : corals)
+            assertEquals(coat.getBones().get(coral).withVisible(false), saddledAndArmoured.getBones().get(coral),
+                coral + " is hidden once on a warm nautilus with both slots filled, each filled slot adding its "
+                    + "toggle to one selection");
         EntityMesh temperate = nautilus.model();
         assertSame(temperate, AppearanceOptions.builder().equipment(Map.of("body", "copper")).build()
             .resolve(nautilus).model(), "a temperate nautilus has no corals for its armour to hide");

@@ -366,7 +366,7 @@ class MissingTextureFamilyTest {
         Entity untextured = new Entity(creeper.id(), creeper.model(), creeper.overlays(), creeper.blockOverlays(),
             creeper.baseTintArgb(), creeper.rendererScale(),
             new Entity.Axes(creeper.axes().baby(), creeper.axes().shape(), Entity.Variation.none(),
-                creeper.axes().size(), creeper.axes().variant()),
+                creeper.axes().size(), creeper.axes().variant(), creeper.axes().carried(), creeper.axes().equipment()),
             creeper.layers(), creeper.members(), creeper.styles(), creeper.pose());
         assertThat("the row names no texture", untextured.textureRef().isEmpty(), is(true));
         RendererContext context = vanilla.withEntities(Map.of("custom:untextured", untextured));

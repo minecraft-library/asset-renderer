@@ -64,21 +64,47 @@ class RestStripTest {
     }
 
     @Test
-    @DisplayName("an equipment row's item_field comes off, and its wearer_pose stays")
+    @DisplayName("an equipment row's item_field comes off, and the pose its slot's equipment option names stays")
     void theItemFieldComesOff() {
         JsonTree row = JsonTree.object();
         row.childArray("equipment").add(JsonTree.object()
             .put("slot", "body")
-            .put(PoseFlow.ITEM_FIELD, "bodyItem")
-            .put("wearer_pose", "HappyGhastModel@bodyItem.isEmpty=false"));
+            .put(PoseFlow.ITEM_FIELD, "bodyItem"));
+        row.child("axes").child(PoseFlow.EQUIPMENT_AXIS).child("options").child("body")
+            .put("pose", "HappyGhastModel@bodyItem.isEmpty=false");
         JsonTree models = JsonTree.object().put("minecraft:happy_ghast", row);
 
         RestStrip.apply(models);
 
-        JsonTree layer = models.find("minecraft:happy_ghast").orElseThrow().find("equipment").orElseThrow()
-            .elements().toList().getFirst();
-        assertFalse(layer.find(PoseFlow.ITEM_FIELD).isPresent(), "the field the fold read is generation-only");
-        assertEquals("HappyGhastModel@bodyItem.isEmpty=false", layer.findString("wearer_pose").orElseThrow(),
+        JsonTree stripped = models.find("minecraft:happy_ghast").orElseThrow();
+        JsonTree layer = stripped.find("equipment").orElseThrow().elements().toList().getFirst();
+        assertEquals(List.of("slot"), layer.keys().toList(), "the field the fold read is generation-only");
+        assertEquals("HappyGhastModel@bodyItem.isEmpty=false",
+            stripped.findPath("axes", PoseFlow.EQUIPMENT_AXIS, "options", "body").orElseThrow()
+                .findString("pose").orElseThrow(),
+            "the wearer pose is what a reader joins on and stays");
+    }
+
+    @Test
+    @DisplayName("a block row's carried_field comes off, and the pose the carried axis names stays")
+    void theCarriedFieldComesOff() {
+        JsonTree row = JsonTree.object();
+        row.childArray("block_overlays").add(JsonTree.object()
+            .put("source", "CarriedBlockLayer")
+            .put("selectable", true)
+            .put(PoseFlow.CARRIED_FIELD, "carriedBlock"));
+        row.child("axes").child(PoseFlow.CARRIED_AXIS).child("options").child("block")
+            .put("pose", "EndermanModel@carriedBlock.isEmpty=false");
+        JsonTree models = JsonTree.object().put("minecraft:enderman", row);
+
+        RestStrip.apply(models);
+
+        JsonTree stripped = models.find("minecraft:enderman").orElseThrow();
+        JsonTree block = stripped.find("block_overlays").orElseThrow().elements().toList().getFirst();
+        assertFalse(block.find(PoseFlow.CARRIED_FIELD).isPresent(), "the field the fold read is generation-only");
+        assertEquals(List.of("source", "selectable"), block.keys().toList(), "and nothing else on the row moved");
+        assertEquals(List.of("pose"),
+            stripped.findPath("axes", PoseFlow.CARRIED_AXIS, "options", "block").orElseThrow().keys().toList(),
             "the wearer pose is what a reader joins on and stays");
     }
 

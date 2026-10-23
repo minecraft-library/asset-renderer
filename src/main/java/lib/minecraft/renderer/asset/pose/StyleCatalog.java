@@ -2,9 +2,11 @@ package lib.minecraft.renderer.asset.pose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -27,34 +29,37 @@ import java.util.function.Predicate;
  *
  * <p>The catalog answers its own queries: which row a style id {@link #resolve resolves} to for the
  * subject being rendered, the row a canvas-union member is {@link #memberRow measured} under, the
- * ids it {@link #ids() lists}, the view one resolved subject holds {@link #inForce in force}, and the
- * tick step a strip samples it at. The synthesized {@code bind} row and the two universal rows are
- * fixed before any run - none is parsed and none varies by subject - so they are constants here
- * rather than rows of any one catalog. Resolution asks the subject nothing but whether a row applies
- * to it, which the caller answers with a predicate, so any options that can say that can select a
- * row.
+ * ids it {@link #ids() lists}, and the view one resolved subject holds {@link #inForce in force}. The
+ * synthesized {@code bind} row and the two universal rows are fixed before any run - none is parsed
+ * and none varies by subject - so they are constants here rather than rows of any one catalog.
+ * Resolution asks the subject nothing but whether a row applies to it, which the caller answers with
+ * a predicate, so any options that can say that can select a row.
  *
- * @param periodTicks the ticks one whole excursion spans - what a sweeping or cycling driver wraps
- *     at, and the span one strip divides
+ * @param periodTicks the figure period - what a sweeping or cycling driver wraps at where a row
+ *     declares no window of its own
+ * @param ceilings the fastest steady walk vanilla gives the subject at each age its stride walks at a
+ *     pace of its own, which a pose audit raises that age's stride to; an age absent here walks at no
+ *     pace of its own
  * @param styles the shipped rows in shipped order; never carries the synthesized {@code bind} row
  */
 public record StyleCatalog(
     int periodTicks,
+    @NotNull ConcurrentMap<Age, PaceCeiling> ceilings,
     @NotNull ConcurrentList<PoseStyle> styles
 ) {
 
     /**
-     * The frames one shipped strip samples across {@link #periodTicks}, so a strip shows one whole
-     * excursion, its last frame does not repeat its first, and an animated render loops.
+     * The figure period every catalog the shipped file declares, and every catalog it never
+     * mentions, frames at - twenty-four ticks.
      */
-    public static final int STRIP_FRAMES = 8;
+    public static final int FIGURE_PERIOD_TICKS = 24;
 
     /**
      * The catalog of an entity the shipped file never mentions - no rows, the synthesized
-     * {@code bind} row alone, at the shipped period of twenty-four ticks.
+     * {@code bind} row alone, at the {@link #FIGURE_PERIOD_TICKS figure period}.
      */
     public static final @NotNull StyleCatalog BIND_ONLY =
-        new StyleCatalog(24, Concurrent.newUnmodifiableList());
+        new StyleCatalog(FIGURE_PERIOD_TICKS, Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList());
 
     /** The synthesized still row - nothing sourced, nothing driven, nothing toggled, either age. */
     private static final @NotNull PoseStyle BIND_ROW = new PoseStyle(PoseStyle.BIND,
@@ -68,7 +73,7 @@ public record StyleCatalog(
     private static final @NotNull PoseStyle UNIVERSAL_IDLE = new PoseStyle(PoseStyle.IDLE,
         Concurrent.newUnmodifiableList(),
         Concurrent.newUnmodifiableMap(Map.of("ageInTicks",
-            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()))),
+            new StyleDriver("ageInTicks", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()))),
         Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
 
     /**
@@ -81,9 +86,9 @@ public record StyleCatalog(
     private static @NotNull PoseStyle strideOver(@NotNull PoseStyle idle) {
         LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>(idle.drivers());
         drivers.put("walkAnimationSpeed",
-            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.Plain.HOLD, 0f, 1f, Optional.empty()));
         drivers.put("walkAnimationPos",
-            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()));
         return new PoseStyle(PoseStyle.STRIDE, Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(drivers), Concurrent.newUnmodifiableList(),
             Optional.empty(), Optional.empty());
@@ -144,6 +149,30 @@ public record StyleCatalog(
         return this.styles().stream()
             .filter(style -> style.id().equals(id))
             .anyMatch(style -> style.age().isEmpty() || age.isEmpty() || style.age().equals(age));
+    }
+
+    /**
+     * The stride a render of one age draws - the shipped stride applying to that age, the universal
+     * stride where none does - whose drivers are its walk pair, elapsed age, and every clock and
+     * selection it holds.
+     *
+     * @param age the age the stride is drawn at
+     * @return the stride row
+     */
+    public @NotNull PoseStyle strideAt(@NotNull Age age) {
+        return this.byId(PoseStyle.STRIDE, style -> style.age().map(age::equals).orElse(true))
+            .orElse(UNIVERSAL_STRIDE);
+    }
+
+    /**
+     * The fastest steady walk vanilla gives the subject at one age, where its stride walks at a pace
+     * of its own there.
+     *
+     * @param age the age asked about
+     * @return the ceiling, or empty where the age walks at no pace of its own
+     */
+    public @NotNull Optional<PaceCeiling> ceilingAt(@NotNull Age age) {
+        return Optional.ofNullable(this.ceilings.get(age));
     }
 
     /**
@@ -243,28 +272,6 @@ public record StyleCatalog(
     }
 
     /**
-     * The ticks between two frames of one shipped strip - this catalog's
-     * {@link #periodTicks() period} divided across {@link #STRIP_FRAMES}.
-     *
-     * @return the per-frame tick step
-     */
-    public int stripTicksPerFrame() {
-        return this.periodTicks() / STRIP_FRAMES;
-    }
-
-    /**
-     * The ticks between two frames of one strip under one resolved row - the row's own
-     * {@link PoseStyle#periodTicks() period} where it declares one, this catalog's
-     * {@link #periodTicks() period} otherwise, divided across {@link #STRIP_FRAMES}.
-     *
-     * @param style the resolved row the strip samples
-     * @return the per-frame tick step
-     */
-    public int stripTicksPerFrame(@NotNull PoseStyle style) {
-        return style.periodTicks().orElse(this.periodTicks()) / STRIP_FRAMES;
-    }
-
-    /**
      * Narrows this catalog to the view one resolved subject holds: a row whose age refuses the
      * subject's drops out, and within each kept row a gated source entry survives iff the given
      * predicate admits its gate - an unconditional entry always does. Answers this catalog itself
@@ -272,10 +279,10 @@ public record StyleCatalog(
      * narrowed catalog answer for the subject as its appearance left it.
      *
      * @param baby whether the subject renders the baby mesh
-     * @param gateAdmitted whether the appearance kept the pass a gate token names
+     * @param gateAdmitted whether the appearance selects the flag a gate names
      * @return the narrowed catalog, or this one where nothing narrows
      */
-    public @NotNull StyleCatalog inForce(boolean baby, @NotNull Predicate<String> gateAdmitted) {
+    public @NotNull StyleCatalog inForce(boolean baby, @NotNull Predicate<Flag> gateAdmitted) {
         List<PoseStyle> kept = new ArrayList<>(this.styles().size());
         boolean narrowed = false;
         for (PoseStyle style : this.styles()) {
@@ -290,7 +297,7 @@ public record StyleCatalog(
                     style.periodTicks()));
         }
         return narrowed
-            ? new StyleCatalog(this.periodTicks(), Concurrent.newUnmodifiableList(kept))
+            ? new StyleCatalog(this.periodTicks(), this.ceilings(), Concurrent.newUnmodifiableList(kept))
             : this;
     }
 
@@ -300,7 +307,7 @@ public record StyleCatalog(
      */
     private static @NotNull ConcurrentList<PoseStyle.StyleSource> admitted(
         @NotNull ConcurrentList<PoseStyle.StyleSource> sources,
-        @NotNull Predicate<String> gateAdmitted) {
+        @NotNull Predicate<Flag> gateAdmitted) {
 
         boolean refused = sources.stream()
             .anyMatch(source -> source.gate().filter(gate -> !gateAdmitted.test(gate)).isPresent());

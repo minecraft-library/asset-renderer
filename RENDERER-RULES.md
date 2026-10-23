@@ -456,9 +456,14 @@ entry rather than the entity's.
 
 ## Depth: the contract
 
-- The `1/256` corner snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
-  is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
-  covered and not what depth they read.
+- The `1/256` corner snap (`Rasterizer.snapToCoverageGrid`) moves depth with coverage:
+  `DepthMath.Plane` is solved from the triangle's **snapped** screen positions, the ones coverage
+  reads, as GL interpolates depth over the snapped window positions. Two faces sharing an edge share
+  its snapped corners, so they meet in depth on the edge both cover up to, and the face in front holds
+  every sample both cover off it. A plane through the unsnapped positions meets its neighbour on a line
+  the snap has moved off that edge, and hands a sample between the two lines to the face behind, its
+  plane read past its own edge. What the snapped plane costs is the tie between coplanar triangles
+  with different corners: each is tilted by its own corners' snap (the coplanar bullets below).
 - `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
   `quadCamDepthKey` sort reads. Do not collapse them - the plane is read at a sample point and the
   vertex depths are read per triangle, and only the second is a sort key.
@@ -467,22 +472,45 @@ entry rather than the entity's.
   `VANILLA_DEPTH_RANGE = 1000`, where a `float` step beside `0.5` is `2^-24`.
 - Round the interpolated depth, never the three vertex depths - rounding at the vertices tilts each
   triangle's plane by its own vertices' rounding.
-- Depth comes off the triangle's own `DepthMath.Plane`, solved once in `double` and read at the sample
-  point, so the only rounding between the solve and the depth test is the one that lands the answer in
-  a `float`. Deriving it a second time - into three vertex depths, then into gradients, then from a
-  vertex anchor - is five more roundings, and two coplanar triangles take them differently enough to
-  separate by a quantum or two a pair the grid would tie.
+- Depth comes off the triangle's own `DepthMath.Plane`, solved once in `double` from its snapped
+  corners and read at the sample point, so the only rounding between the solve and the depth test is
+  the one that lands the answer in a `float`. Deriving it a second time - into three vertex depths,
+  then into gradients, then from a vertex anchor - is five more roundings, and two triangles of one
+  plane take them differently enough to separate by a quantum or two a pair the grid would tie.
 - **Every lens reads that one plane**, perspective included: depth is affine in screen space under all
-  three, and blending the three vertex depths barycentrically reaches the same affine function only
-  because each of them *is* the plane's value at its snapped position. There is no perspective-correct
-  depth path. `perspectiveCorrect` forks the texture coordinate - its interpolation and its texel
-  read - and never depth.
+  three, and blending the three vertex depths barycentrically over the snapped corners is the same
+  affine function, because each of them *is* the plane's value at its snapped position: blended with
+  the integer edge values the coverage walk holds, they draw the plane's bytes at a divide per sample
+  more. There is no perspective-correct depth path. `perspectiveCorrect` forks the texture
+  coordinate - its interpolation and its texel read - and never depth.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
-- A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion
-  order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
-  one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
-  shell reordered at `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- A coplanar pair ties only where its two triangles solve one plane - they share their corners, as an
+  overlay emitted over its base's geometry does, or their snaps happen to tilt them alike. A tie is
+  last-drawn-wins, as `GL_LEQUAL` is, so the draw order is the tied-depth priority, and an entity
+  mesh's draw order is vanilla's bake order. `PartDefinition.children` is a `java.util.HashMap`;
+  `bake` collects its entries into an `Object2ObjectArrayMap` in the order the map iterates them, and
+  `ModelPart.render` draws a part's own cubes and then its children in that order, depth first - one
+  map per parent.
+  - A level iterates its names in `put` order bucketed by the table, except where vanilla filled it
+    with a `putAll` copy: a whole-mesh scaling copies the root, a replaced part copies its old children
+    into the new one, and every retain and clear surgery replaces each part it empties. On the JDK 19
+    and later vanilla runs on, a copy of `n` names is sized `tableSizeFor(ceil(n / 0.75))` first - two
+    to eight slots for one to six names, where a level built by `put` holds sixteen - so it iterates in
+    a different order from the map it copied.
+  - The tooling replays every such call a factory makes on `java.util.HashMap`s of its own, over
+    vanilla's full key set before any part is dropped, and writes `entity_geometry.json`'s bones in the
+    resulting order. The renderer holds no hash map: `EntityMesh.getBones()` is the priority at both of
+    `EntityGeometryKit`'s bone loops, the full build and the replay alike, and at `ShellIndex.of`, so a
+    mesh is drawn in the order it is read. How the replay runs is in [tooling/CLAUDE.md].
+  - The three armour sets vanilla registers through a whole-mesh scaling - giant, husk and wither
+    skeleton - are meshes of their own in the table, written in the order the scaling's copy of the root
+    iterates: those three draw `body` between the arms and between the legs, where the unscaled sets
+    draw it last.
+  - A block-entity mesh keeps its factory's declaration order: `block_geometry.json` is written in
+    `addOrReplaceChild` order and `BlockGeometryKit.buildFromBones` draws it as given. Vanilla bakes a
+    block entity's parts the same way, but no block-entity render has been measured under the bake
+    order, so the table keeps the order its renders are measured in.
 - **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
   own, so two calls over one buffer paint the second over the first wherever it covers. A picture
   made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
@@ -493,11 +521,14 @@ entry rather than the entity's.
   come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
   no armour row moving, which is the probe missing them rather than a result.
-- The grid quantum is coarser than two solutions of one plane differ by, so a coplanar contest falls to
-  draw order. That is a property of the arithmetic and not a given: the worn shell's torso and arm
-  south faces read 2 ULP apart against a quantum near `2e-7`, and a longer `float` chain between the
-  solve and the test puts the same pair 12 ULP apart, which is one to three quanta and decides them
-  outright. Measure the gap against the quantum before believing a contest ties.
+- The grid quantum is coarser than two solutions of one plane differ by, so a contest between
+  triangles that share their corners falls to draw order. That is a property of the arithmetic and not
+  a given: a longer `float` chain between the solve and the test can put two solutions of one plane
+  12 ULP apart, which is one to three quanta and decides them outright. Two coplanar triangles with
+  different corners do not solve one plane: each is tilted by its own corners' snap, up to `1/512` px
+  per corner times the face's depth gradient, which is several quanta - six between the coplanar
+  `north` faces of two of a villager's `arms` cubes at one pixel - so the snap decides their contest,
+  as the GPU's snap decides it. Measure the gap against the quantum before believing a contest ties.
 - On an additive pass a coplanar tie is a doubling rather than a tie-break: both fragments accumulate,
   as vanilla's do.
 - `emissive`, `writesDepth` and `sorted` are three independent declarations carried as one
@@ -505,10 +536,14 @@ entry rather than the entity's.
   needs the write and the sort together.
 - The sort is by quad centroid, so a later quad still loses over the part of its area behind an
   earlier one, and `quadCamDepthKey` identifies the shared diagonal in camera space, never on screen.
-- The fill rule is classified on the sign-normalized edge direction: `EdgeCoefficients.of` negates the
-  coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
-  edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
-  opposite face from the GPU.
+- The fill rule is the GPU's top-left rule, and the GPU applies it in GL's window frame, where y runs
+  up. Image space runs y down, so here it reads bottom-left: a sample exactly on a horizontal edge two
+  faces share belongs to the face above it, and one exactly on any other shared edge to the face on
+  its right. It is classified on the sign-normalized edge direction: `EdgeCoefficients.of` negates the
+  coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and the
+  horizontal edge that owns its samples goes left. Reading either arm the other way round still hands
+  a shared sample to exactly one face, but to the opposite face from the GPU - the horizontal arm read
+  that way is the top-left rule taken in image space.
 - How a covered sample's texture coordinate becomes a texel - the boundary rule, the face and sheet
   bounds, the scrolled pass, and what the snapped corners decide for it - is [TEXEL-RULES.md], beside
   what the reference GPU does to the coordinate and what the renderer does not reproduce of it.
@@ -531,10 +566,12 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 
 - Being armoured is carrying a resolved shell: one `Optional<Shell>` with no classification flag, so
   a failed mesh walk fails loudly rather than falling back.
-- The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
-  the row, and `ShellIndex.of` sums a cube's deformation with the row's when the walk is resolved, in
-  the parser's operand order. `Shell.meshOffset()` derives the feet anchor as
-  `24.016f * (1f - meshScale)`.
+- The mesh is registered ungrown; both layer deformations ride the row, and `ShellIndex.of` sums a
+  cube's deformation with the row's when the walk is resolved, in the parser's operand order. A set
+  vanilla registers through a whole-mesh scaling - giant, husk, wither skeleton - names a mesh of its
+  own, `HumanoidModel#createBaseArmorMesh@scaled=<f>`, whose bones carry the factor and the feet anchor
+  as a scaled body's do and are held in the order the scaling's copy iterates the root (Depth: the
+  contract).
 - `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
   subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
   meshes the wearer names, and an armour row names none of them.
@@ -632,9 +669,10 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   nothing else in the corpus. Reading the baking class instead answers the
   wearer's `chest` gate for a mesh whose gated bones are reins. The layer poses under the wearer's
   style and tick, as vanilla runs every equipment model's own animation with its wearer's render
-  state. A row may also carry `wearer_pose`, the body pose its wearer takes while the slot is
-  filled, which the tooling derives from the layer's own item getter - the happy ghast's harness,
-  whose getter reads the very field the body asks `isEmpty` of.
+  state. The body pose its wearer takes while the slot is filled is a form of the wearer's rather
+  than a member of the row: `axes.equipment.options.<slot>.pose`, which the tooling derives from the
+  layer's own item getter - the happy ghast's harness, whose getter reads the very field the body
+  asks `isEmpty` of.
 - **A filled slot can hide a bone of its wearer's, and that is a toggle rather than a pose.** A row's
   `wearer_toggle` names the bone toggle the wearer's mesh takes while the slot is filled, and
   `AppearanceOptions.resolve` adds it to the selection for any selected slot, whatever its material,
@@ -711,27 +749,30 @@ does with them.
 drivers in force.** A pose is a function of what the caller says about the subject, so naming a row
 is naming the figures that stop resting - it is not a second mechanism, and every row goes through
 `PosePlayer` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
-on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the amplitude
-once a tick rather than deriving it from the clock, so the phase is the tick times the amplitude and
-a caller setting one without the other has described no gait. The amplitude is the full one, vanilla
-clamping what it accumulates to one. `animated` resolves to the first shipped row the subject's
-in-force inventory moves, so a caller asking for movement names no mechanism - and a subject nothing
-moves answers `bind` and stays a single frame. The universal ids are a coinage rather than
-vanilla's - vanilla carries `walkAnimationPos` and `walkAnimationSpeed` and no `stride` constant -
-and an entity's own ids ship in its catalog beside them.
+on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the speed once
+a tick rather than deriving it from the clock, so the phase is the tick times the speed, and a caller
+setting one without the other has described no gait. The speed is the subject's own ambling wander
+pace and it is the swing's amplitude as well as the phase's rate; a baby's walk clock runs three
+times as fast as its speed, which vanilla applies as a position scale and the table ships as the baby
+row's ramp extent, so no renderer code holds the three. `animated` resolves to the first shipped row
+the subject's in-force inventory moves, so a caller asking for movement names no mechanism - and a
+subject nothing moves answers `bind` and stays a single frame. The universal ids are a coinage
+rather than vanilla's - vanilla carries `walkAnimationPos` and `walkAnimationSpeed` and no `stride`
+constant - and an entity's own ids ship in its catalog beside them.
 
 **`stride` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
-figures at the same amplitude under `-Drefharness.walking=true`, which is the animated run with a
-stride rather than a run of its own - `AnimationClock.WALK_AMPLITUDE` and the shipped stride extent
-are held to one another by `StyleCatalogMirrorTest`, because the amplitude is the phase as well as
-the speed and a value that moved on one side puts the two at different points of different strides.
+figures at the speed and rate the asset side resolves for each subject - the roster
+`entityScheduleRoster` writes from `StyleResolution` - under `-Drefharness.walking=true`, which is the
+animated run with a stride rather than a run of its own. `StyleCatalogMirrorTest` holds the harness to
+arming what the roster names and nothing of its own, because the speed is the swing as well as the
+phase and a value that moved on one side puts the two at different points of different strides.
 `entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver at
 `asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
 divergence in how they were measured.
 
-- **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 90
-  subjects render byte-identical between `idle/` and `walk/`, and `rabbit_brown` and `bat` carry
-  the same delta to the digit under both presets.
+- **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 134
+  stems render byte-identical between `idle/` and `walk/`, and `bat` carries the same delta to the
+  digit under both gaits.
 - **A walk-gated clip carries the branch it sits inside, where a state-gated one needs none.** A
   state's gate names the clip that is running, so the exclusion is the selection; a walk's gate is
   the stride, which answers for every site at once, so a model choosing between two walk clips
@@ -813,8 +854,8 @@ disagree.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
   posed *definition* goes into `FeatureContext`, so a feature reading `ctx.definition()` gets posed
   passes without a gate of its own, and the collar redraws the posed body.
-- The rebuild preserves the mesh's **own bone order**, that order being the tied-depth priority. A
-  `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
+- The rebuild preserves the mesh's **own bone order**, which is vanilla's bake order and the tied-depth
+  priority. A `LinkedHashMap`, never `Map.copyOf`, whose iteration is salted per JVM launch.
 - Composition is channel-wise on the Euler triplet `BoneKit.applyBoneRotation` feeds to
   `Quaternionf.rotationZYX`. **Do not pre-compose a rotation as a matrix** - it reaches that call
   through different arithmetic and parts from the authored pose at a delta of zero.
@@ -934,18 +975,26 @@ is nothing a caller can leave out and be wrong about. That is what
 `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone read,
 an operation and a choice, and a choice turns on a numeric comparison alone.
 
-**The roster is elapsed age, the stride pair, and what a never-ticked subject leaves at zero.** The
-last of those is the one that grows, and it ships as catalog drivers: a swept scalar is a
-`StyleDriver` at `sweep` or `cycle`, moved from the rest it names to the extent it reaches across
-one strip, its decimals shipped; a one-hot selection is a `hold` driver on the row that selects it,
-whose field answers one while every other member's rests at zero. They are two wave shapes rather
-than two mechanisms, and what they share is that the resolved row's driver map answers both by
-render-state field name.
+**The roster is elapsed age, the stride pair, the clocks a plain IDLE or WALK advances, and the
+selections a subject rests in.** Each ships as a catalog driver: elapsed age is a `ramp`; the stride
+pair a `hold` and a `ramp` at the subject's own pace; a clock - a field vanilla's own tick advances
+while the subject stands or walks, such as a guardian's tail and spikes, a dragon's wings, a squid's
+tentacles, a shulker's lid, an axolotl's swim blend and a warden's heart - a `hold`, `ramp`, `stroke`
+or `trapezoid` per gait, the stride row spelling its half where it differs from the idle row's; and a
+one-hot selection a `hold` on the row that selects it, whose field answers one while every other
+member's rests at zero. A `sweep` or `cycle` moves a field from the rest it names to its extent
+across one figure period, which authored styles use and no shipped row does. They are wave shapes
+rather than mechanisms, and what they share is that the resolved row's driver map answers each by
+render-state field name. A motion vanilla starts at random or on an event - a slime's hop, a horse's
+tail flick - is no clock and is not drawn.
 
-- **A figure's excursion runs from rest, so tick zero is free.** Frame 0 of a strip, every authored
-  render and every frozen reference answer exactly what they answered before the figure was driven.
-  **A selection has no such property** and does not need one: `bind` hands back the mesh it was given
-  and every still sweep renders there, so the animated sweep is the only gate a selection reaches.
+- **A `sweep` or `cycle` runs from rest, so tick zero is free for them; a clock need not.** Frame 0
+  of an authored strip driving only those answers what the mesh answered before the figure was
+  driven. A clock answers vanilla's settled state for the gait from its first tick - a held level, or
+  a beat already lit - so frame 0 of a posed strip is not the bind frame for a subject that carries
+  one. **A selection has no such property either**, and neither needs one: `bind` hands back the mesh
+  it was given and every still sweep renders there, so the posed sweeps are the only gates a clock or
+  a selection reaches.
 - **A boolean render-state field is a figure of this kind, not a flag.** A flag is a bone's
   visibility, which folds to a literal at generation; a boolean the walk keeps symbolic arrives as a
   number wherever the body reads it, and a body that branches on one leaves a select comparing that
@@ -985,15 +1034,11 @@ render-state field name.
 - **An age whose group rests on a member driving no field ships no `idle` row, and resolving one
   through the universal row is the answer rather than a gap.** A group's idle default earns the
   standing row and no row of its own, so a default naming a field builds one and a default naming
-  none leaves the age without an `idle` to resolve. The axolotl is the only entity this can reach,
-  being the only one of the corpus shipping an age-scoped row at all: its adult group rests on
-  `IN_WATER` and derives an adult `idle`, where its baby group rests on `BABY_AXOLOTL_STILL`, which
-  names no field because a resting baby plays no clip. So `resolve("idle", <baby>)` falls through to
-  the universal standing row and renders the mesh as authored - which is what vanilla draws for the
-  same subject, measured at `0.0000` on both the still and the animated sweep, against `0.0647` and
-  `0.0208` for the adult beside it. Deriving a row there instead would emit one that drives nothing,
-  which is the shape the emitter already declines. The age axis itself is much wider than this - 41
-  of the 90 entities carry a baby form - and only the style ROW's `age` member is the axolotl's alone.
+  none leaves the age without an `idle` to resolve; the universal standing row then renders the mesh
+  as authored, which is what vanilla draws for a resting subject. Deriving a row there instead would
+  emit one that drives nothing, which is the shape the emitter already declines. The age axis is much
+  wider than the axolotl: every entity whose baby walks at a pace of its own ships its `stride` split
+  by age, so a row's `age` member is an ordinary column.
 - **A value-constant clip is half of what earns `sources: []`, never the whole of it.** A row ships
   an empty source inventory when nothing travels across its whole composed binding, which needs the
   clip it selects to hold one value per channel AND the binding to leave no moving sibling
@@ -1005,7 +1050,7 @@ render-state field name.
   rendering rather than reasoned from bone channels: each of the four that ship one - frog `jump`,
   bat `rest`, and the axolotl's `play_dead` at each age - differs from its base over 29.8% to 39.4%
   of a 128x128 canvas at frame 0, at a full alpha delta, and the three whose base moves render one
-  frame where the base renders eight.
+  frame where the base renders its strip.
 - **A flag is folded against the FIGURES alone, which is what lets a state gate one.** Nothing at
   render reads a flag channel, so a bone's visibility has to be settled where the table is written -
   but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
@@ -1022,16 +1067,19 @@ render-state field name.
   the `croak` appearance - which is the same pair an armour stand's arms already take.
 - **The roster ships once, and the contract copies are held to the shipped file.** The generator's
   `StyleRoster.DRIVEN` / `DRIVEN_FIGURES` are derivation input: what they split is emitted as the
-  style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps its
-  deliberate copy in `IdleFigures` - pinned against the shipped rows, field for field and bit for
-  bit, by `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and
-  reports as a defect in this renderer. Generator drift is silent a different way: **a field the
-  roster names and the generator folds ships the arm a never-ticked subject takes whatever a caller
-  selects**, which is what cost the rabbit's head 55.73 of delta - and a field kept symbolic that
-  no shipped row drives reads zero at every tick. `EntityPoseLoadTest` pins that the shipped poses
-  read nothing outside the driven set, because that failure mode is a silent zero: the arm a switch
-  ends at is not the arm a subject stands in, and it cost the skeleton family a forty-four degree
-  forward swing at rest before the fold reached it.
+  style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps a deliberate
+  copy of each group's per-gait default in `IdleFigures`, pinned against the shipped rows by
+  `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and reports as
+  a defect in this renderer. The harness reads every clock as the value the schedule roster carries
+  for each frame - computed by `StyleDriver.at` on this side, so a clock has one implementation and
+  no copy; the mirror holds instead that every clock a shipped row drives has a harness consumer
+  writing it. Generator drift is silent a different way: **a field the roster names and the
+  generator folds ships the arm a never-ticked subject takes whatever a caller selects**, which is
+  what cost the rabbit's head 55.73 of delta - and a field kept symbolic that no shipped row drives
+  reads zero at every tick. `EntityPoseLoadTest` pins that the shipped poses read nothing outside
+  the driven set, because that failure mode is a silent zero: the arm a switch ends at is not the
+  arm a subject stands in, and it cost the skeleton family a forty-four degree forward swing at rest
+  before the fold reached it.
 
 **Nothing at render reads a flag channel.** Every flag in the corpus folds to a literal at
 generation, so which bones a subject rests without is written onto the mesh it rests in - a bone
@@ -1043,20 +1091,60 @@ four legs `true` - before any branch, leaving only `setSleepingPose` behind an `
 rests false.
 
 **The ground truth for a posed subject is `idle/`, and it is a second reference set rather than
-a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row over the same
-schedule the harness stepped - `EntityAnimationSweep`'s `START_TICK`, `FRAME_COUNT` and
-`TICKS_PER_FRAME` are pinned on both sides - and diffs frame by frame. It is the only gate that can
+a replacement.** `entityAnimationParityVanilla` renders each subject at the `idle` row naming no
+frame count, so it draws the strip `StyleResolution` answers, and the harness steps the same subject
+over the schedule the roster carries from that same resolution, both from tick zero - and it diffs
+frame by frame. It is the only gate that can
 see the pose table at all: everything else compares the mesh as authored, where both sides freeze and
 agree by construction. Two thirds of the corpus lands under `0.25` there, which is the still sweep's
 own bar; what the rest names is listed by the sweep and is a divergence per subject rather than a
 property of the mechanism.
 
-**The canvas is measured across every frame the schedule samples**, each through its own posed mesh
-and its own tick's texture, unioned by `EntityRenderer.computeScreenBoundsAcrossFrames`. It wraps the
-scope dispatch from OUTSIDE, so the group union and the frame union compose rather than one swallowing
-the other. A one-frame schedule measures the one frame it draws and draws the geometry it already
-built for the empty-canvas early-out; a schedule with frames to spare builds each of them, nothing
-about a posed tick being carryable to its neighbour.
+**A render naming no frame count draws the strip derived for its in-force row.** `PoseStrips.of`
+samples every channel the row moves - the pose expressions of the body, every overlay pass and every
+equipment mesh, each clip site apart, each scrolling sheet, each pass opacity that follows the clock -
+and `StripFit.fit` takes the shortest loop whose restart jumps by no more than one tolerance on any
+channel. It steps one tick a frame where a visible motion is too fast for three, and wherever else the
+one-tick strip shows every visible part whole inside sixty-six ticks and restarts no worse than the
+three-tick one - it closes, or jumps no further - and three ticks a frame otherwise. A strip runs
+sixty-six frames at the most, and so 198 ticks at three a frame; the one strip that runs longer is one
+too fast for three ticks holding a slower part longer than sixty-six ticks, which runs on up to 198
+one-tick frames so that part is not cut. A one-shot that does not end where it starts stops the strip
+at its own length, and a row whose motion is too small to see is one frame. It is worked out the
+first time a row is drawn through a context and held for as long as the context holds the definition,
+so shipped, universal and authored rows take one derivation and the table ships no frame count. Named
+alone, a frame count keeps the row's step and a step fills as many frames as cover the loop; named
+together, both are the caller's.
+`PoseStripsCorpusTest` pins every shipped row's strip at each age, in-force gate set, axis form whose
+pose program differs and posed trait subject.
+
+**A pass's opacity may follow the clock.** Where the layer vanilla draws scales its colour by a
+function of the render state, the overlay row ships that function as its `opacity`, evaluated at
+every posed frame through the frame the bone channels read - so a warden's spots pulse and its heart
+beats on the ticks the pose is drawn at. A bind render evaluates it with nothing driven, which is the
+frame a never-ticked subject draws. A frame whose opacity is at most `1.0E-5` - where vanilla's own
+layer skips its draw - draws no fragment of the pass and measures none of its silhouette. The strip
+samples the opacity as it draws it, so a pulse longer than the pose's loop lengthens the strip until
+the pulse is shown whole once; where the strip restarts is judged on the body alone, and the glow may
+jump there.
+
+**A selected carried block takes its wearer's arms with it.** The body pose its wearer takes while a
+caller selects a block - the enderman's raised arms, the iron golem's offered flower, whose offer
+counts down on the age clock from the moment it is selected - is a form on the `carried` axis,
+`axes.carried.options.block.pose`, and the appearance swaps that form's pose and passes in for the
+body's, as a filled equipment slot swaps in its `equipment` form, the carried one answering first.
+Neither swaps where a shape form has already swapped its passes in or a size form a pose of its own.
+Only a posed render moves; a bind render poses nothing, so a still render and the still references
+draw the arms at rest.
+
+**The canvas is a union of silhouettes, each measured over the frames its own render draws.** The
+subject is measured across every frame of the render's schedule, each through its own posed mesh and
+its own tick's texture. Under the group scope every variant coat, every member and a baby's own adult
+is measured over its own strip, resolved through the caller's animation options exactly as the
+subject's is - so the canvas is the same whichever member is drawn, and a caller naming both knobs
+measures every silhouette at their ticks. A one-frame schedule measures the one frame it draws and
+draws the geometry it already built for the empty-canvas early-out; a schedule with frames to spare
+builds each of them, nothing about a posed tick being carryable to its neighbour.
 
 ## Block icons
 
@@ -1292,28 +1380,29 @@ Renderer-wide:
   An undecoded special-model field changes only what a malformed definition does, which loads here
   where vanilla refuses it.
 - **Do not derive a style row's `age` from which fields a form's pose reads, and do not remove the
-  member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
-  generated row, which reads as one subject's special case sitting in general code - but the member
-  carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
-  hand-authored pose, defaulting every custom style to the adult alone because an install weaves a
-  style whose age admits a baby onto the baby form too, and a baby mesh can lack a bone its adult
-  declares, which refuses a strict install. So `AppearanceOptions.applies`
-  and the filters in `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated
-  rows do, and what is actually the axolotl's is the emitted column, the two roster strings and the
-  loader's parse of them.
-  Deriving it is also not available on its own terms: applicability follows from the group-member
-  fields a form's pose reads for eight of the axolotl's nine rows, and `stride` drives the universal
-  walk pair that NEITHER axolotl pose reads, so no overlap rule answers `adult` for it.
+  member from the rows that carry it.** Every entity whose baby walks at a pace of its own - 35 of
+  them - ships its `stride` split by age, and the axolotl splits its `idle`, `stride` and `play_dead`
+  by what each age's model reads; but the member carries a second thing that has nothing to do with
+  either. `PoseBuilder.age` / `allAges` scope a hand-authored pose, defaulting every custom style to
+  the adult alone because an install weaves a style whose age admits a baby onto the baby form too,
+  and a baby mesh can lack a bone its adult declares, which refuses a strict install - and a style
+  that keeps the stride and spans both ages installs as an adult row and a baby row, each walking at
+  its own age's pace, which makes authored rows the column's second producer. So
+  `AppearanceOptions.applies` and the filters in `adultRow`, `inForce` and `carries` stay
+  load-bearing whatever the generated rows do, and what is the axolotl's alone is the two roster
+  strings that cross-check its split.
+  Deriving it is also not available on its own terms: the two sides of a paced stride drive the same
+  fields - the walk pair, at two paces - and every form of the subject reads them, so no rule over
+  which fields a pose reads tells the baby's row from its adult's.
 
   **And the emitted column is already derived, which is the whole of why there is nothing to move.**
   `StyleFlow` measures every row of a subject carrying a baby form TWICE, once per age side and each
   against that side's own meshes, and emits an age-split pair only where the two sides measure apart -
-  in what they source, or in whether they render apart from their base at all. The roster's declared
-  age is a cross-check against what the entity's forms say rather than the column's source. So the
-  column records a measurement over meshes, clips, pose programs and evaluated channel series, and a
-  loader re-deriving it from the shipped drives would be answering the same question from strictly
-  less. `stride` is what that costs: its two sides measured apart, which no rule over driven fields
-  can see.
+  in what they source, in the drives they carry, or in whether they render apart from their base at
+  all. The roster's declared age is a cross-check against what the entity's forms say rather than the
+  column's source. So the column records a measurement over meshes, clips, pose programs, paces and
+  evaluated channel series, and a loader re-deriving it from the shipped drives would be answering
+  the same question from strictly less.
 - **Do not drop the axolotl's adult `play_dead` row, and do not widen the baby one over both ages.**
   Vanilla gates playing dead on no age at all - `PlayDead.checkExtraStartConditions` is
   `return axolotl.isInWater();`, the arming site sets `PLAY_DEAD_TICKS` without reading an age, and
@@ -1323,22 +1412,14 @@ Renderer-wide:
   only play-dead appearance an adult has and the baby row drives a field the adult mesh never reads.
   The two sharing one id is deliberate and is one entry of `StyleRoster`'s id-override table, not a
   vanilla fact - the derivation would otherwise spell the adult row `playing_dead`.
-- **Do not swap the two legs in a shell's walk on the strength of the humanoid rows.** A worn shell
-  inflates both leg boxes until they intersect, and their south faces are coplanar to the bit - both
-  read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellIndex.of`'s bone
-  order settles. Ours draws `left_leg` last; every plausible bone key set puts `left_leg` in a lower
-  `HashMap` bucket than `right_leg`, so vanilla's bake draws `right_leg` last, and the swap is worth
-  `skeleton~armor=iron` `0.2046 -> 0.0269`, 818 differing pixels to 73. It is not applied because the
-  same swap costs six other wearers about as much as it wins the eight - `piglin`, `piglin_brute`,
-  `zombified_piglin` and `zombie_villager` each `+0.21`, `wither_skeleton` `+0.19`, `giant` `+0.16`,
-  for a fleet of `20.7366` against `20.9361`. The losers carry a large unrelated defect already
-  (`wither_skeleton` spreads 2104 tail pixels over its whole silhouette where `skeleton` has 615 in
-  two bands), so what the swap interacts with there is not the leg tie and is not understood. A
-  constant that helps eight rows and hurts six is a fitted constant.
-- Do not reorder a shell's bones into vanilla's whole bake order either: `body`'s bucket moves with
-  the key set, and the tooling records declaration order rather than the pre-drop key set vanilla
-  hashed, so `body` lands last on the seven names we ship and that is much worse - `skeleton~armor=iron`
-  `0.6577`. The leg pair is the one relative order that is stable across every key set tried.
+- **Do not swap or move one bone of a worn shell's walk on its own.** The walk is vanilla's draw
+  order, not a choice of the renderer's: the base mesh's bake order, which draws `right_leg` after
+  `left_leg`, and for a scaled set the order of its own mesh, whose copied root puts `body` between the
+  arms and between the legs. Under the snapped depth plane the two shell legs' `south` faces are
+  separated by their own corners' snap rather than tied, so a reorder reaches only the exact ties left,
+  where vanilla's order is vanilla's answer by construction. A tie the renderer still loses is not an
+  order it chose, and a constant moving one bone to win it back is a fitted constant; the corner snap
+  the renderer does not reproduce is in [TEXEL-RULES.md].
 - Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
   `EulerRotationAdapter`, `TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - or
   `CubeGrowFactory` a declaration that plans the renders their decoded values feed. The contributor
@@ -1370,8 +1451,8 @@ Renderer-wide:
   degrees, where vanilla's `ModelPart` holds the float radian, so a radian no float degree converts
   back to is one ULP off - three rest values at 26.1, the wither's tail and the adult armadillo's
   ear cubes. `BoneRestRadianTest` in the tooling suite pins that set against the client jar, so a
-  bump that moves it fails there. The measurement under the bullet above covers both the rest and the posed half and
-  moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
+  bump that moves it fails there. The measurement under the bullet above covers both the rest and the
+  posed half and moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
   retype every reader of a bone's rotation, the generator, the table and the pipeline dump.
 
 Geometry:
@@ -1383,9 +1464,9 @@ Geometry:
 
 Depth:
 
-- Do not reorder bones to chase a tied-depth seam - bone order is the tooling's `addOrReplaceChild`
-  order, not vanilla's `PartDefinition.children` bake order, and reproducing it was priced and
-  refused.
+- Do not reorder bones to chase a tied-depth seam. An entity mesh's bone order is vanilla's
+  `PartDefinition.children` bake order, replayed by the tooling over vanilla's own map calls, so a seam
+  it leaves is not an order the renderer chose, and moving a bone to win it there is a fitted constant.
 - Do not add a depth tolerance - a depth buffer stores a quantised value and compares it exactly, so
   slack is a fitted constant.
 - Do not replace the per-triangle depth plane with per-pixel barycentrics under an orthographic lens.
@@ -1424,35 +1505,14 @@ Entity:
   that reach lives. It buys no declared type either - an enum is one type whatever its constants are -
   and the only type behind it is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which
   has a test of its own.
-- **Do not build an entity's corners in vanilla's float order.** Both sides apply the same transforms
-  and round them in a different order. Vanilla composes one float matrix per bone that opens with the
-  canvas offset and scale, then its iso turn - `rotationXYZ(210, 45, 0)` and a half turn - then the
-  renderer's preamble and the mesh's root scale, and transforms each corner once. The renderer bakes
-  the bone chain into model space, applies `rotationXYZ(30, 225, 0)` and the facing in a second
-  product, and centres last. So a corner lands a few float steps from vanilla's, shifted one way per
-  subject - vanilla's dragon corners sit `0.023` of a `1/256` step lower on average, its elder
-  guardian's `0.019` further right - and where a corner sits that close to a midpoint between two
-  steps, the card snaps the two apart. It is fleet-wide: at 26.1 the corners the harness dumps and the
-  renderer's snap to different steps on 155 of the 19477 distinct corners of the still and armour
-  sweeps, and on the card's measured choices vanilla's corner predicts 8464 of 8466 where the
-  renderer's predicts 8370.
-
-  Measured against the stored rows with vanilla's corners substituted from that dump:
-  - Snapped the card's way, 71 rows better and none worse, `-0.113` on a fleet sum of `884.127` - and
-    that needs the GL viewport step and ties to even, both refused in [TEXEL-RULES.md].
-  - Snapped by the renderer's own rule, 52 better and 11 worse, `-0.018`.
-  - A port moves the unsnapped corners and the depth with them, which re-decides coplanar contests
-    both ways rather than the card's way: the charged creeper's doubled energy swirl and the
-    iron-armoured skeleton, stray, zombie and bogged lose `0.04` to `0.24`, the giant's and the wither
-    skeleton's worn shells gain.
-  - The partial ports lose overall: vanilla's rotation entries alone `+0.335`, with its depth row
-    `+0.929`, the canvas offset folded into the matrix first `+0.129`, both `+0.848`.
-
-  The port is the whole entity path: bone chains rooted at the canvas matrix with JOML's affine
-  rotate grouping, which `Matrix4f.rotate` does not use; every renderer's preamble and every mesh's
-  root scale as matrix ops, which no shipped table carries and the tooling flattens into pivots and
-  cube operands; the worn shell and carried blocks rebuilt on the wearer's matrix; and depth in new
-  units. It re-opens with the snap refusals in [TEXEL-RULES.md], the only route to a one-way gain.
+- **Do not build part of an entity's corners in vanilla's float order.** Both sides apply the same
+  transforms and round them in a different order, so a corner lands a few float steps from vanilla's,
+  and where one sits that close to a midpoint between two steps the card snaps the two apart. Every
+  partial port measured gains overall and re-decides those contests both ways: vanilla's rotation
+  entries alone, `-1.782` on a fleet sum of `661.266`, take the charged creeper's swirl and cost the
+  husk's worn shell up to `0.026`; the canvas offset folded into the matrix first, `-0.116`, takes the
+  zombie villager instead; both together, `-0.016`, take neither. So the port is taken whole or not at
+  all, and the whole port - what it reaches and what it is worth - is open in [KNOWN-OPEN.md].
 
 Pose authoring and compiling:
 
@@ -1491,9 +1551,10 @@ Pose authoring and compiling:
   different spaces - a field name against a bone, a member and an axis - and one evaluates itself
   where the other's arithmetic is private to the kit that reads it. They are not even peers: a
   clip's own gate and clock ARE drivers, minted three lines above the clip in `Lowering`, so a
-  merged type would take its own output as a precondition. Neither record validates anything and
-  nothing cross-checks the arms, so a merged constructor would accept a held clock carrying
-  keyframes - it would compile, render, and displace nothing. What IS worth taking is the arithmetic:
+  merged type would take its own output as a precondition. `StyleDriver` validates only its timing,
+  refusing one its wave cannot run or does not read; a clip's record validates nothing; and nothing
+  cross-checks the arms, so a merged constructor would accept a held clock carrying keyframes - it
+  would compile, render, and displace nothing. What IS worth taking is the arithmetic:
   `ClipPlayer` holds the keyframe curve and four helpers privately, called from one site, and none of
   them reads anything outside a keyframe, so they would sit on the channel beside the driver's own
   `at` and make the two units and the two rounding schedules legible as a pair for no new state.
@@ -1530,3 +1591,4 @@ Pose authoring and compiling:
 
 [tooling/CLAUDE.md]: tooling/CLAUDE.md
 [TEXEL-RULES.md]: TEXEL-RULES.md
+[KNOWN-OPEN.md]: KNOWN-OPEN.md

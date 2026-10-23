@@ -10,7 +10,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Puts a dolphin under way, which is the only state its model animates in.
+ * Puts a dolphin under way on a walking frame and holds it still on an idle one - the swim its model
+ * animates, and the still vanilla draws a dolphin nothing moves at.
  *
  * <p>{@code DolphinRenderer.extractRenderState} fills the field as
  * {@code getDeltaMovement().horizontalDistanceSqr() > 1.0E-7}, and a subject nothing has added to a
@@ -21,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * under it the body pitches by {@code -0.05 - 0.05 * cos(age * 0.3)} and the tail and its fin turn
  * by {@code -0.1} and {@code -0.2} of the same cosine, and above it the body takes its orientation
  * alone. There is nothing between the two to sweep, so the caller chooses which arm rather than how
- * far along it.
+ * far along it: the idle gait selects the still arm and the walking gait the swim.
  */
 @Mixin(DolphinRenderer.class)
 public abstract class DolphinIdleMixin {

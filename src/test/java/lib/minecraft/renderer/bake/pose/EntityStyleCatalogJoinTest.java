@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the explicit per-form {@code pose} member joined ahead of the coordinate-head derivation.
  *
  * <p>The composition rules are the load-bearing half: a row's drivers arrive FLAT against its
- * {@code base} chain, an own drive naming a {@code group} replaces the inherited driver of that
+ * {@code base} chain, a base resolves to the row of its id at the composing row's own age before its
+ * ageless row and its first, an own drive naming a {@code group} replaces the inherited driver of that
  * group, {@code rest} and {@code extent} default to {@code 0} and {@code 1} where a drive spells
  * neither, and a gated source survives the read with its gate. What refuses has to refuse at load:
  * a styles-carrying file naming no {@code period_ticks}, a base no sibling row carries, and a base
@@ -83,9 +85,9 @@ class EntityStyleCatalogJoinTest {
         PoseStyle idle = catalog.byId("idle").orElseThrow();
         assertEquals(
             Map.of("swayAngle",
-                new StyleDriver("swayAngle", StyleDriver.Wave.SWEEP, 0f, 0.7853982f, Optional.empty()),
+                new StyleDriver("swayAngle", StyleDriver.Wave.Plain.SWEEP, 0f, 0.7853982f, Optional.empty()),
                 "idleHeadTiltAnimationState",
-                new StyleDriver("idleHeadTiltAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
+                new StyleDriver("idleHeadTiltAnimationState", StyleDriver.Wave.Plain.HOLD, 0f, 1f,
                     Optional.of("action"))),
             Map.copyOf(idle.drivers()), "the root row's own drives, rest and extent defaulted 0 and 1");
         assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
@@ -98,11 +100,11 @@ class EntityStyleCatalogJoinTest {
         assertEquals(idle.drivers().get("swayAngle"), stride.drivers().get("swayAngle"),
             "an inherited driver arrives as the base composed it");
         assertEquals(
-            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()),
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.Plain.RAMP, 0f, 1f, Optional.empty()),
             stride.drivers().get("walkAnimationPos"), "an own ungrouped drive is simply added");
         assertEquals(
             List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty()),
-                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of(Flag.CHARGED))),
             List.copyOf(stride.sources()), "the object spelling carries its gate beside the bare token");
 
         PoseStyle croak = catalog.byId("croak").orElseThrow();
@@ -181,6 +183,111 @@ class EntityStyleCatalogJoinTest {
     }
 
     @Test
+    @DisplayName("a baby row composes over its base's baby row where the base id ships one per age")
+    void aBabyRowComposesOverTheBabyBase() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "idle", "age": "baby",
+                "drives": [ { "field": "idleUnderWaterAnimationState", "wave": "hold" } ] },
+              { "id": "stride", "base": "idle", "age": "adult",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] },
+              { "id": "stride", "base": "idle", "age": "baby",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("idleUnderWaterAnimationState", "walkAnimationPos"),
+            fields(catalog, "stride", Optional.of(Age.BABY)),
+            "the baby stride composes over the baby idle, not the adult idle shipped ahead of it");
+        assertEquals(List.of("movingFactor", "walkAnimationPos"), fields(catalog, "stride", Optional.of(Age.ADULT)),
+            "and the adult stride over the adult idle");
+    }
+
+    @Test
+    @DisplayName("an adult row composes over its base's adult row where the base id ships its baby row first")
+    void anAdultRowComposesOverTheAdultBase() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "age": "baby",
+                "drives": [ { "field": "idleUnderWaterAnimationState", "wave": "hold" } ] },
+              { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "stride", "base": "idle", "age": "adult",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("movingFactor", "walkAnimationPos"), fields(catalog, "stride", Optional.of(Age.ADULT)),
+            "the adult stride composes over the adult idle, not the baby idle shipped ahead of it");
+    }
+
+    @Test
+    @DisplayName("a baby row composes over its base's ageless row where the base id ships no baby row")
+    void aBabyRowComposesOverTheAgelessBase() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "idle", "drives": [ { "field": "ageInTicks", "wave": "ramp" } ] },
+              { "id": "stride", "base": "idle", "age": "baby",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("ageInTicks", "walkAnimationPos"), fields(catalog, "stride", Optional.of(Age.BABY)),
+            "the baby stride composes over the ageless idle, not the adult idle shipped ahead of it");
+    }
+
+    @Test
+    @DisplayName("an adult row composes over its base's ageless row where the base id ships no adult row")
+    void anAdultRowComposesOverTheAgelessBase() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "age": "baby",
+                "drives": [ { "field": "idleUnderWaterAnimationState", "wave": "hold" } ] },
+              { "id": "idle", "drives": [ { "field": "ageInTicks", "wave": "ramp" } ] },
+              { "id": "stride", "base": "idle", "age": "adult",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("ageInTicks", "walkAnimationPos"), fields(catalog, "stride", Optional.of(Age.ADULT)),
+            "the adult stride composes over the ageless idle, not the baby idle shipped ahead of it");
+    }
+
+    @Test
+    @DisplayName("a row composes over its base's first row where no row of the base id shares its age and none is ageless")
+    void aRowComposesOverTheFirstBaseOtherwise() {
+        StyleCatalog adultOnly = assemble(styled("""
+            [ { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "stride", "base": "idle", "age": "baby",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("movingFactor", "walkAnimationPos"), fields(adultOnly, "stride", Optional.of(Age.BABY)),
+            "a baby stride over an adult-only idle composes over the adult idle");
+
+        StyleCatalog split = assemble(styled("""
+            [ { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "idle", "age": "baby",
+                "drives": [ { "field": "idleUnderWaterAnimationState", "wave": "hold" } ] },
+              { "id": "stride", "base": "idle", "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("movingFactor", "walkAnimationPos"), fields(split, "stride", Optional.empty()),
+            "an ageless stride over an age-split idle composes over the first-shipped idle");
+    }
+
+    @Test
+    @DisplayName("each age's row of a shared base composes once and is found by its own age down a chain")
+    void eachAgeOfASharedBaseIsFoundByItsOwnAge() {
+        StyleCatalog catalog = assemble(styled("""
+            [ { "id": "idle", "age": "adult", "drives": [ { "field": "movingFactor", "wave": "hold" } ] },
+              { "id": "idle", "age": "baby",
+                "drives": [ { "field": "idleUnderWaterAnimationState", "wave": "hold" } ] },
+              { "id": "stride", "base": "idle", "age": "adult",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] },
+              { "id": "stride", "base": "idle", "age": "baby",
+                "drives": [ { "field": "walkAnimationPos", "wave": "ramp" } ] },
+              { "id": "play_dead", "base": "stride", "age": "adult",
+                "drives": [ { "field": "playingDeadFactor", "wave": "hold" } ] },
+              { "id": "play_dead", "base": "stride", "age": "baby",
+                "drives": [ { "field": "playDeadAnimationState", "wave": "hold" } ] } ]"""))
+            .styles();
+        assertEquals(List.of("movingFactor", "walkAnimationPos", "playingDeadFactor"),
+            fields(catalog, "play_dead", Optional.of(Age.ADULT)),
+            "the adult row composes over the adult stride, itself over the adult idle");
+        assertEquals(List.of("idleUnderWaterAnimationState", "walkAnimationPos", "playDeadAnimationState"),
+            fields(catalog, "play_dead", Optional.of(Age.BABY)),
+            "and the baby row over the baby stride, itself over the baby idle");
+    }
+
+    @Test
     @DisplayName("an explicit pose member wins over the coordinate-head derivation, on both ages")
     void anExplicitPoseMemberWins() {
         EntityPose byHead = pose(-1f);
@@ -219,6 +326,15 @@ class EntityStyleCatalogJoinTest {
                 "axes": { "age": { "options": {
                     "adult": { "geometry": "TestModel#createBodyLayer", "texture": "test" } } } },
                 "styles": %s } } }""".formatted(styles);
+    }
+
+    /** The fields the row of one id at one age drives, in composed order. */
+    private static @NotNull List<String> fields(@NotNull StyleCatalog catalog, @NotNull String id, @NotNull Optional<Age> age) {
+        return List.copyOf(catalog.styles().stream()
+            .filter(style -> style.id().equals(id) && style.age().equals(age))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no '" + id + "' row at " + age))
+            .drivers().keySet());
     }
 
     private static @NotNull Entity assemble(@NotNull String json) {

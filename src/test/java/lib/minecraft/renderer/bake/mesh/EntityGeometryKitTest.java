@@ -14,14 +14,17 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
@@ -87,8 +90,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * The UV tests pin that a cube's faces resolve against the texture size of the draw reading them, each
  * cube of a bone against its own atlas origin, and that a mirrored cube's EAST and WEST polygons sample
  * each other's strips, both against a reference resolution held in the test and against the polygon
- * {@link BoneKit#resolvePolygonUv} answers the bounds walk. They also pin that a cube whose visible
- * faces sample past the sheet's edge takes its cull flag from what its hidden faces sample.
+ * {@link BoneKit#resolvePolygonUv} answers the bounds walk.
  * <p>
  * The normal tests pin how a stored normal turns under a pose scale, on a turned bone below a scaled
  * one: by the chain's inverse-transpose below a non-uniform scale, as vanilla's normal matrix turns it,
@@ -102,12 +104,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * seat.
  * <p>
  * The emission tests pin what the kit hangs on each triangle beside its geometry and how many it
- * emits: the exact {@code bone:direction} debug tag, surface traits decided per cube from the texture
- * and pass each build is handed, and every face a multi-cube bone owes around a plane cube.
+ * emits: the exact {@code bone:direction} debug tag, a back-face cull that is the mesh's own flag
+ * whatever the cube samples, a translucency flag decided per cube from the texture each build is
+ * handed, the pass each build is handed, and every face a multi-cube bone owes around a plane cube.
  * <p>
  * The shared-geometry tests pin that a pass reading per-face geometry back from the table the builds
  * of one draw share emits, bit for bit, what the same pass emits built alone: over a mesh equal to a
- * held one but posed at another scale, over sheets that disagree on cull and translucency, over a sheet
+ * held one but posed at another scale, over sheets that disagree on translucency, over a sheet
  * of another size under a mesh declaring no texture size - one of them as wide and less tall - through
  * another frame, over a mesh whose first cube-bearing bone rests hidden, over plane cubes whose leading
  * faces the full build skips, and on the dragon's eyes pass and the villager's overlay passes, posed
@@ -151,9 +154,6 @@ class EntityGeometryKitTest {
     /** The build {@link #theKitBuildsWhatTheLockedWalkBuilt} compares: an off-centre fit, a pre-scale and a tint. */
     private static final EntityGeometryKit.EntityBuildParams WALK_PARAMS = new EntityGeometryKit.EntityBuildParams(
         new FitFrame(new Vector3f(1f, -2f, 3f), 0.05f, 1.25f), PassDeclaration.DEFAULT, 0xFFCC8844);
-
-    /** The three faces the iso camera presents, frozen beside {@link #lockedWalk}. */
-    private static final Face[] LOCKED_ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
 
     @Test
     @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
@@ -331,10 +331,10 @@ class EntityGeometryKitTest {
     /**
      * Pins the mirrored cube's strip swap: vanilla's cube constructor swaps a mirrored cube's {@code x}
      * and {@code maxX}, so its EAST polygon samples the WEST strip and its WEST polygon the EAST strip,
-     * while the cull test before them reads every face's own strip. The cube is opaque, so the cull test
-     * reads all six faces before any polygon is drawn. Every polygon is checked bit for bit against
-     * {@link #referencePolygonUv}, and the two side polygons against the strip each must sample, so a
-     * polygon answered from its own face's strip fails on the swap itself.
+     * while the translucency test before them reads every face's own strip. The cube is opaque, so the
+     * translucency test reads all six faces before any polygon is drawn. Every polygon is checked bit
+     * for bit against {@link #referencePolygonUv}, and the two side polygons against the strip each must
+     * sample, so a polygon answered from its own face's strip fails on the swap itself.
      */
     @Test
     @DisplayName("a mirrored cube draws its EAST face from the WEST strip and its WEST face from the EAST strip")
@@ -351,24 +351,6 @@ class EntityGeometryKitTest {
         assertThat("the two side strips differ", atlas.rect(Face.EAST), not(equalTo(atlas.rect(Face.WEST))));
         assertUSpan(triangles, "limb:east", atlas.rect(Face.WEST));
         assertUSpan(triangles, "limb:west", atlas.rect(Face.EAST));
-    }
-
-    /**
-     * Pins the cull test's last step, which reads each visible face's opposite. A strip lying past the
-     * sheet's edge samples nothing, so it is neither mostly transparent nor holding content, and a cube
-     * whose {@code UP}, {@code NORTH} and {@code EAST} strips all lie there passes both earlier scans:
-     * its hidden faces decide, drawing it two-sided while one of them samples the opaque sheet and
-     * culling it when none does. A cube sampling the opaque sheet on every face is culled by its visible
-     * faces before that step.
-     */
-    @Test
-    @DisplayName("a cube whose visible faces sample past the sheet takes its cull flag from its hidden faces")
-    void aCubeWhoseVisibleFacesSamplePastTheSheetIsCulledByItsHiddenFaces() {
-        assertThat("visible faces past the sheet, hidden faces on the opaque sheet",
-            cullsBackFaces(List.of("up", "north", "east")), equalTo(false));
-        assertThat("every face past the sheet",
-            cullsBackFaces(List.of("up", "north", "east", "down", "south", "west")), equalTo(true));
-        assertThat("every face on the opaque sheet", cullsBackFaces(List.of()), equalTo(true));
     }
 
     /**
@@ -678,6 +660,7 @@ class EntityGeometryKitTest {
 
         int attached = 0;
         int seated = 0;
+        StripMemo strips = new StripMemo();
         for (Entity entity : shipped.values()) {
             if (entity.blockOverlays().isEmpty()) continue;
             Map<String, EntityMesh.Bone> loaded = entity.model().getBones();
@@ -687,9 +670,9 @@ class EntityGeometryKitTest {
             rows.add(entity.styles().resolve(PoseStyle.STRIDE, row -> false, entity.id().toString()));
             for (PoseStyle style : rows) {
                 String id = style.id();
-                int ticksPerFrame = Math.max(1, entity.styles().stripTicksPerFrame(style));
-                for (int frame = 0; frame < StyleCatalog.STRIP_FRAMES; frame++) {
-                    int tick = frame * ticksPerFrame;
+                StripFit strip = PoseStrips.of(strips, entity, style, entity.styles().periodTicks());
+                for (int frame = 0; frame < strip.frames(); frame++) {
+                    int tick = frame * strip.ticksPerFrame();
                     EntityMesh posed = PosePlayer.posed(entity, style, entity.styles().periodTicks(), tick).model();
                     Optional<String> seat = PosePlayer.seat(posed);
                     for (Entity.BlockOverlayLayer overlay : entity.blockOverlays()) {
@@ -747,11 +730,53 @@ class EntityGeometryKitTest {
     }
 
     /**
+     * Pins that a cube culls its back faces exactly when its mesh declares {@link EntityMesh#isCull()
+     * cull}, and that no texel it samples moves that. One bone holds a cube over the opaque half of a
+     * sheet, a cube over its clear half and a plane cube, so a cull read off the texture would cull the
+     * first and draw the other two two-sided, and over a wholly opaque or a wholly clear sheet would
+     * split the cubes another way again. A mesh declaring no cull draws every triangle two-sided and one
+     * declaring it culls every triangle, built alone and replayed through a shared table alike.
+     */
+    @Test
+    @DisplayName("a cube culls its back faces exactly when its mesh declares cull, whatever its texels")
+    void aCubeCullsBackFacesExactlyWhenItsMeshDeclaresCull() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(32f), planeCubeAt(8f)));
+        Map<String, PixelBuffer> sheets = new LinkedHashMap<>();
+        sheets.put("an opaque sheet", solidWhite());
+        sheets.put("an opaque half and a clear half", halves(0xFFFFFFFF, 0x00000000));
+        sheets.put("a clear sheet", filled(0x00FFFFFF, 64));
+        sheets.put("an opaque half and a half-alpha half", halves(0xFFFFFFFF, 0x80FFFFFF));
+
+        for (boolean cull : List.of(false, true)) {
+            EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, cull);
+            Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+            for (Map.Entry<String, PixelBuffer> sheet : sheets.entrySet()) {
+                String where = (cull ? "a mesh declaring cull" : "a mesh declaring none") + " over " + sheet.getKey();
+                List<VisibleTriangle> alone = freshPass(mesh, sheet.getValue(), DEFAULT_PASS);
+                List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, sheet.getValue(), DEFAULT_PASS, table));
+                for (List<VisibleTriangle> built : List.of(alone, shared)) {
+                    assertThat(where + ": every face the bone owes", built.size(), equalTo(12 + 12 + 4));
+                    for (VisibleTriangle triangle : built) {
+                        assertThat(where + ": " + triangle.debugTag(), triangle.traits().cullBackFaces(), equalTo(cull));
+                        // A culled cube is never a translucent shell, on the replayed build as on the fresh one.
+                        if (cull) {
+                            assertThat(where + ": " + triangle.debugTag() + " is no translucent shell",
+                                triangle.traits().translucent(), equalTo(false));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Pins the surface traits as decided per cube and per build. One bone's two cubes sample the two
      * halves of one texture and take two traits values; the same mesh drawn again under other textures
-     * takes each texture's own, and drawn under another pass takes that pass. Both flags read the
-     * texture a build is handed, so traits carried over from a sibling cube, or from an earlier build of
-     * the mesh, would draw a pass with another surface's cull and sort, or under another pass.
+     * takes each texture's own, and drawn under another pass takes that pass. The translucency flag reads
+     * the texture a build is handed, so traits carried over from a sibling cube, or from an earlier build
+     * of the mesh, would draw a pass with another surface's sort, or under another pass. A mesh declaring
+     * cull draws every cube culled and none of them as a translucent shell, whatever the texture.
      */
     @Test
     @DisplayName("surface traits follow each cube's texels in each build, not its bone's or an earlier build's")
@@ -759,13 +784,17 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(32f)));
         EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
-        SurfaceTraits opaque = new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);
-        SurfaceTraits cutout = new SurfaceTraits(false, false, false, true, PassDeclaration.DEFAULT);
+        SurfaceTraits solid = new SurfaceTraits(false, false, false, true, PassDeclaration.DEFAULT);
         SurfaceTraits translucent = new SurfaceTraits(false, true, false, true, PassDeclaration.DEFAULT);
 
-        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0x80FFFFFF), opaque, translucent);
-        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0xFFFFFFFF), opaque, opaque);
-        assertTraitsPerCube(mesh, halves(0x80FFFFFF, 0x00000000), translucent, cutout);
+        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0x80FFFFFF), solid, translucent);
+        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0xFFFFFFFF), solid, solid);
+        assertTraitsPerCube(mesh, halves(0x80FFFFFF, 0x00000000), translucent, solid);
+
+        EntityMesh culling = new EntityMesh(TextureSize.DEFAULT, bones, true);
+        SurfaceTraits culled = new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);
+        assertTraitsPerCube(culling, halves(0xFFFFFFFF, 0x80FFFFFF), culled, culled);
+        assertTraitsPerCube(culling, halves(0x80FFFFFF, 0x00000000), culled, culled);
 
         // The pass is each build's own too: one mesh and one texture built under two passes in turn
         // carry the pass each build is handed, never the one before.
@@ -944,13 +973,13 @@ class EntityGeometryKitTest {
     }
 
     /**
-     * Pins that every pass over a held mesh decides its own cull and translucency flags from its own
-     * texture. One mesh is drawn through one table against an opaque sheet (culled, opaque), a clear one
-     * (unculled, cutout) and a half-alpha one (unculled, translucent), so a flag carried from the first
-     * pass to a later one shows on the second or the third.
+     * Pins that every pass over a held mesh decides its own translucency flag from its own texture, and
+     * takes its cull from the mesh. One mesh declaring no cull is drawn through one table against an
+     * opaque sheet (opaque), a clear one (cutout) and a half-alpha one (translucent), each two-sided, so a
+     * translucency flag carried from the first pass to a later one shows on the third.
      */
     @Test
-    @DisplayName("each pass over a held mesh reads its cull and translucency off its own texture")
+    @DisplayName("each pass over a held mesh reads its translucency off its own texture")
     void sharedGeometry_flagsArePerPass() {
         EntityMesh mesh = carrier(true);
         Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
@@ -962,8 +991,9 @@ class EntityGeometryKitTest {
             clear.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
         assertThat("the half-alpha pass replays them too",
             half.getFirst().position0(), sameInstance(opaque.getFirst().position0()));
-        assertThat("an opaque sheet culls", opaque.getFirst().traits().cullBackFaces(), equalTo(true));
-        assertThat("a clear sheet does not", clear.getFirst().traits().cullBackFaces(), equalTo(false));
+        assertThat("an opaque sheet draws a mesh declaring no cull two-sided",
+            opaque.getFirst().traits().cullBackFaces(), equalTo(false));
+        assertThat("and so does a clear sheet", clear.getFirst().traits().cullBackFaces(), equalTo(false));
         assertThat("and is no translucent shell", clear.getFirst().traits().translucent(), equalTo(false));
         assertThat("a half-alpha sheet is one", half.getFirst().traits().translucent(), equalTo(true));
     }
@@ -1074,12 +1104,13 @@ class EntityGeometryKitTest {
 
     /**
      * Pins the shared build on the dragon, whose eyes pass draws the body's own mesh instance through an
-     * emissive pass over a mostly transparent sheet, so the two passes disagree on cubes' flags while
-     * agreeing on every corner. A posed subject poses the body and the eyes as two separate rebuilds,
-     * so neither is the bind mesh the table holds and both are built afresh.
+     * emissive pass over a mostly transparent sheet, so the two passes draw under different pass
+     * declarations while agreeing on every corner, and on every cube's cull, which is the mesh's. A posed
+     * subject poses the body and the eyes as two separate rebuilds, so neither is the bind mesh the table
+     * holds and both are built afresh.
      */
     @Test
-    @DisplayName("the dragon's eyes pass replays the body's geometry under its own flags")
+    @DisplayName("the dragon's eyes pass replays the body's geometry under its own pass")
     void sharedGeometry_dragonEyesPass() {
         assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
             + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
@@ -1097,7 +1128,10 @@ class EntityGeometryKitTest {
         List<VisibleTriangle> glow = assertSharedMatchesFresh("eyes", dragon.model(), eyesSheet, eyesPass, table);
         assertThat("the eyes pass replays the body's corners",
             glow.getFirst().position0(), sameInstance(body.getFirst().position0()));
-        assertThat("the two passes disagree on some cube's cull or translucency", flagsDiffer(body, glow), equalTo(true));
+        // The two sheets agree on every cube's translucency, so the pass is what tells the eyes pass's
+        // traits from the body's.
+        assertThat("the two passes draw under different pass declarations",
+            glow.getFirst().traits().pass(), not(equalTo(body.getFirst().traits().pass())));
 
         PoseStyle idle = dragon.styles().resolve(PoseStyle.IDLE, row -> false, dragon.id().toString());
         Entity posed = PosePlayer.posed(dragon, idle, dragon.styles().periodTicks(), 5);
@@ -1185,7 +1219,7 @@ class EntityGeometryKitTest {
                 Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
                 Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
                 Matrix4f perCubeChain = BoneKit.composeCubeTransform(cube, bone, kitFitChainTransforms.get(boneName));
-                boolean cull = model.isCull() || lockedShouldCullBackFaces(cube, size, texture, texW, texH);
+                boolean cull = model.isCull();
                 boolean translucent = !cull && lockedPartialAlphaPresent(cube, size, texture, texW, texH);
 
                 Face.forEach(face -> {
@@ -1210,25 +1244,6 @@ class EntityGeometryKitTest {
         return triangles;
     }
 
-    /** The kit's back-face cull choice for a cube, frozen beside {@link #lockedWalk}. */
-    private static boolean lockedShouldCullBackFaces(
-        EntityMesh.Cube cube, Vector3f size, PixelBuffer texture, float texW, float texH) {
-        if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
-        for (Face face : Face.stream().toList()) {
-            if (lockedNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, 0.20f))
-                return false;
-        }
-        for (Face face : LOCKED_ISO_VISIBLE) {
-            if (lockedHasContent(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
-                return true;
-        }
-        for (Face face : LOCKED_ISO_VISIBLE) {
-            if (lockedHasContent(BoneKit.resolveFaceUv(face.opposite(), cube, size, texW, texH), texture))
-                return false;
-        }
-        return true;
-    }
-
     /** The kit's translucency choice for a cube drawn without culling, frozen beside {@link #lockedWalk}. */
     private static boolean lockedPartialAlphaPresent(
         EntityMesh.Cube cube, Vector3f size, PixelBuffer texture, float texW, float texH) {
@@ -1237,41 +1252,6 @@ class EntityGeometryKitTest {
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
                 return true;
-        }
-        return false;
-    }
-
-    /** Whether more than {@code threshold} of a face's texels are not opaque, frozen beside {@link #lockedWalk}. */
-    private static boolean lockedNonOpaqueExceeds(Vector2f[] uv, PixelBuffer texture, float threshold) {
-        int w = texture.width();
-        int h = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * w));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * h));
-        int x1 = Math.min(w, (int) Math.ceil(bounds.z() * w));
-        int y1 = Math.min(h, (int) Math.ceil(bounds.w() * h));
-        int total = (x1 - x0) * (y1 - y0);
-        if (total <= 0) return false;
-        int nonOpaque = 0;
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++)
-                if (ColorMath.alpha(texture.getPixel(x, y)) < 255) nonOpaque++;
-        }
-        return (float) nonOpaque / total > threshold;
-    }
-
-    /** Whether any texel of a face is at least partly opaque, frozen beside {@link #lockedWalk}. */
-    private static boolean lockedHasContent(Vector2f[] uv, PixelBuffer texture) {
-        int w = texture.width();
-        int h = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * w));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * h));
-        int x1 = Math.min(w, (int) Math.ceil(bounds.z() * w));
-        int y1 = Math.min(h, (int) Math.ceil(bounds.w() * h));
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++)
-                if (ColorMath.alpha(texture.getPixel(x, y)) > 0) return true;
         }
         return false;
     }
@@ -1520,8 +1500,8 @@ class EntityGeometryKitTest {
 
     /**
      * A {@code 64x64} texture tiled in {@code 4x4} texel squares that run opaque, clear, half-alpha and
-     * opaque again along each row, so cubes across the corpus land on every cull and translucency choice
-     * the kit makes.
+     * opaque again along each row, so cubes across the corpus land on every translucency choice the kit
+     * makes.
      */
     private static PixelBuffer tiledAlpha() {
         int[] alpha = { 0xFF, 0x00, 0x80, 0xFF };
@@ -1593,31 +1573,6 @@ class EntityGeometryKitTest {
                 pixels[y * 64 + x] = alpha << 24 | (x * 4) << 16 | (y * 4) << 8 | 0x40;
             }
         return PixelBuffer.of(pixels, 64, height);
-    }
-
-    /**
-     * Builds a {@code 4 x 4 x 4} cube over {@link #solidWhite}, every named face's strip overridden to a
-     * rectangle past the sheet's right edge, and answers the cull flag its triangles carry.
-     *
-     * @param pastTheSheet the directions of the faces whose strip lies past the sheet
-     * @return whether the cube's triangles cull their back faces
-     */
-    private static boolean cullsBackFaces(List<String> pastTheSheet) {
-        ConcurrentMap<String, EntityMesh.FaceUv> faceUv = Concurrent.newMap();
-        for (String direction : pastTheSheet)
-            faceUv.put(direction, new EntityMesh.FaceUv(new Vector2f(80f, 0f), new Vector2f(4f, 4f)));
-        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
-        bones.put("box", uvBone(Vector3f.ZERO, uvCube(new Vector3f(4f, 4f, 4f), Vector2f.ZERO, false, faceUv)));
-        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
-
-        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()));
-        assertThat("the cube draws all six faces", triangles.size(), equalTo(12));
-        boolean culled = triangles.getFirst().traits().cullBackFaces();
-        for (VisibleTriangle triangle : triangles) {
-            assertThat(triangle.debugTag() + " carries the cube's cull flag",
-                triangle.traits().cullBackFaces(), equalTo(culled));
-        }
-        return culled;
     }
 
     /**
@@ -1770,14 +1725,6 @@ class EntityGeometryKitTest {
         return a.size() != b.size();
     }
 
-    /** Whether two index-aligned passes over one mesh disagree on any triangle's cull or translucency. */
-    private static boolean flagsDiffer(List<VisibleTriangle> a, List<VisibleTriangle> b) {
-        for (int i = 0; i < Math.min(a.size(), b.size()); i++)
-            if (a.get(i).traits().cullBackFaces() != b.get(i).traits().cullBackFaces()
-                || a.get(i).traits().translucent() != b.get(i).traits().translucent()) return true;
-        return false;
-    }
-
     /** Asserts a unit vector points along {@code (x, y, z)}, which is normalised here. */
     private static void assertDirection(String label, Vector3f actual, double x, double y, double z) {
         double length = Math.sqrt(x * x + y * y + z * z);
@@ -1847,10 +1794,18 @@ class EntityGeometryKitTest {
     @Test
     @DisplayName("the fold's turn is load-bearing - MIRROR_Z lights the same cube differently")
     void relightTurnSelectsTheFrame() {
+        // The cube's mesh declares cull, so each face is lit by its own orientation alone. A two-sided
+        // axis-aligned cube shades every face alike under both turns, each face taking whichever of its
+        // two orientations faces the camera, and HALF_X only swaps which one that is.
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f)));
+        EntityMesh culling = new EntityMesh(TextureSize.DEFAULT, bones, true);
         ConcurrentList<VisibleTriangle> asFolded = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Y);
+            EntityGeometryKit.buildTriangles(culling, solidWhite()).triangles(),
+            LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Y);
         ConcurrentList<VisibleTriangle> asPlayer = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Z);
+            EntityGeometryKit.buildTriangles(culling, solidWhite()).triangles(),
+            LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Z);
 
         // The two turns are one HALF_X apart, so a cube lit through the wrong one shades its Y and Z
         // faces by the opposite hemisphere. Nothing about the kit's own geometry makes them agree.

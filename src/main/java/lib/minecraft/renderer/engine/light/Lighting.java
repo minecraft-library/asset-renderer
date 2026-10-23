@@ -180,8 +180,8 @@ public class Lighting {
          * Computes the per-face shade factor for a post-Y-flip kit-frame outward normal, modeling
          * vanilla's {@code Lighting.ENTITY_IN_UI} two-directional Lambertian
          * ({@code min(1, (max(0, dot(L0, n)) + max(0, dot(L1, n))) * 0.6 + 0.4)}) plus
-         * {@code PER_FACE_LIGHTING} for plane no-cull cubes. A culling cube shades by its own normal; a
-         * no-cull plane shades by whichever of the two coplanar orientations faces the camera
+         * {@code PER_FACE_LIGHTING} for no-cull faces. A culling face shades by its own normal; a no-cull
+         * face shades by whichever of its two orientations faces the camera
          * ({@code dot(viewDirection, n) < 0}), matching vanilla's per-pixel front / back colour choice.
          * The Lambertian is continuous in the normal (not bucketed to six cardinals), so rotated bones
          * (running zombie legs, leashed bees) match the refharness per-vertex.

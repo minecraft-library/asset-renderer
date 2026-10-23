@@ -38,7 +38,8 @@ import java.util.regex.Pattern;
  *       {@link #OBJECT_INTERNAL java/lang/Object}, all cache-fed.</li>
  *   <li><b>Descriptor utilities</b> - {@link #descriptorReturns descriptorReturns},
  *       {@link #argSlotCount argSlotCount}, {@link #argTypes argTypes},
- *       {@link #returnType returnType}, and {@link #internalNameOfRef internalNameOfRef}
+ *       {@link #firstArgOfSort firstArgOfSort}, {@link #returnType returnType}, and
+ *       {@link #internalNameOfRef internalNameOfRef}
  *       for reading method / field descriptors without allocating intermediate strings.</li>
  *   <li><b>String-concatenation helpers</b> - {@link #applyStringConcatRecipeWithInt
  *       applyStringConcatRecipeWithInt} substitutes a decoded {@code makeConcatWithConstants}
@@ -513,6 +514,21 @@ public final class ClassKit {
      */
     public static Type @NotNull [] argTypes(@NotNull String methodDescriptor) {
         return Type.getArgumentTypes(methodDescriptor);
+    }
+
+    /**
+     * Returns the index of the first argument of {@code methodDescriptor} whose {@link Type} sort is
+     * {@code sort}.
+     *
+     * @param methodDescriptor the method descriptor
+     * @param sort the {@link Type} sort looked for, such as {@link Type#FLOAT}
+     * @return the argument index, or -1 where no argument is of that sort
+     */
+    public static int firstArgOfSort(@NotNull String methodDescriptor, int sort) {
+        Type[] args = argTypes(methodDescriptor);
+        for (int index = 0; index < args.length; index++)
+            if (args[index].getSort() == sort) return index;
+        return -1;
     }
 
     /**

@@ -2,68 +2,89 @@ package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
-import lib.minecraft.renderer.tooling.policy.StyleRoster;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * Emits each entity's style catalog - the {@code styles} member of the model table, one row per
  * uniquely identifiable output.
  *
- * <p>A row's drivers are the join of the curated roster with what the entity's poses actually
- * read: the standing row ramps elapsed age and adds every figure and resting selection its forms
- * consult, the walking row composes the stride pair over it, and every non-default selectable
- * member earns a row of its own. The {@code bind} row is never emitted - every catalog synthesizes
- * it. Row ids are unique per entity, except that two rows may share one id where disjoint
- * {@code age} members split them - the axolotl's adult factor and baby clip both spell
- * {@code play_dead}.
+ * <p>A row's drivers are the join of the curated roster with what the entity's poses and pass
+ * opacities actually read: the standing row ramps elapsed age and adds the idle half of every clock
+ * and every resting selection its forms consult, the walking row composes the stride pair and each
+ * clock's stride half over it, and every non-default selectable member earns a row of its own. The
+ * {@code bind} row is never emitted - every catalog synthesizes it. Row ids are unique per entity,
+ * except that two rows may share one id where disjoint {@code age} members split them - the
+ * axolotl's adult factor and baby clip both spell {@code play_dead}.
  *
  * <p><b>A row's {@code sources} member is measured, never asserted.</b> Each composed row is
  * evaluated across one period per contributing mesh - the body, the baby fork, every coat, size
- * and shape option, every overlay pass and its suppressed alternate - and a mechanism is written
- * down only where dropping its drivers changes the shape of some channel's travel, where a play
- * site the row plays runs a clip that moves, or where a pass scrolls its sheet. A source only a
- * gated pass contributes carries that pass's gate token. A row ships where a mechanism moves it or
- * where its held output differs from its base's at some tick of the period - a held selection
- * ships {@code sources: []}, a distinct pose nothing travels - so a subject whose every row
- * renders as its base ships no {@code styles} member and stays bind-only.
+ * and shape option, every overlay pass and its suppressed alternate, the body a selected carried
+ * block swaps in, and the body a filled equipment slot swaps in - and a mechanism is written down
+ * only where dropping its drivers changes the shape of some channel's travel, where a play site the
+ * row plays runs a clip that moves, where a pass scrolls its sheet, or where a pass's opacity reads
+ * a drive that travels. A source only a gated pass contributes carries that pass's gate token, and
+ * one only a carried block's body contributes carries {@code carried} - so the iron golem's offered
+ * flower, swaying on the age clock, earns it a standing row only a selected block admits. A source
+ * only a filled slot's body contributes stops the flow instead, as one only a tinted pass
+ * contributes does, because no gate token admits either. A row ships where a mechanism moves
+ * it or where its held output differs from its
+ * base's at some tick of the period - a held selection ships {@code sources: []}, a distinct pose
+ * nothing travels - so a subject whose every row renders as its base ships no {@code styles}
+ * member and stays bind-only.
+ *
+ * <p><b>A stride walks at its subject's vanilla pace.</b> The walking row is measured first under
+ * the literal pair - hold 1, ramp 1 - and a side whose sources then hold {@code stride} reads the
+ * walk clock: it is driven at its age's wander and re-measured to the same sources, and its age's
+ * ceiling - the fastest walk its subject's own behaviours reach - is written once for the catalog, in
+ * the model's {@code ceilings} member under the age's token. A side reading no walk clock keeps the
+ * literal pair and records none, and a reading side with no pace stops the flow.
  *
  * <p>A state-gated play site plays where the binding holds its gate field non-zero; a walk-driven
  * one runs unconditionally, as vanilla applies it, and moves a row wherever its resolved clock or
  * capped amplitude travels under that row's binding - the nautilus feeds its clock elapsed age and
  * floors its amplitude, so its swim moves the standing row with nothing walking. The two universal
- * rows are measured per age side where the subject draws a baby mesh, and a subject whose sides
- * measure apart is emitted an age-split pair - a side with no distinct output shipping no row,
- * which is how a baby whose clips all rest stays bind-only while its adult moves.
+ * rows are measured per age side where the subject draws a baby mesh, each side keeping only the
+ * selections and clocks its own forms read, and a subject whose sides measure apart - by their
+ * sources or their drives - is emitted an age-split pair, a side with no distinct
+ * output shipping no row, which is how a baby whose clips all rest stays bind-only while its adult
+ * moves.
  *
  * <p>Drive spelling is deterministic: {@code field}, {@code wave} and {@code extent} are always
- * spelled, {@code rest} only on a sweep or cycle drive, {@code group} when the field has one, and
- * {@code base} is omitted where the standing row itself is not emitted - a baseless row spells its
- * whole composed driver map.
+ * spelled, {@code rest} only where the wave reads it - a sweep, cycle, stroke or trapezoid - then a
+ * stroke's {@code rate} and all four of a trapezoid's {@code rise}, {@code dwell}, {@code fall} and
+ * {@code gap}, a zero span included, then {@code group} when the field has one; {@code base} is
+ * omitted where the standing row itself is not emitted - a baseless row spells its whole composed
+ * driver map.
  */
 @UtilityClass
 public final class StyleFlow {
-
-    /** The universal row ids, which every emitted row either is or composes over. */
-    private static final @NotNull String IDLE = "idle";
-
-    private static final @NotNull String STRIDE = "stride";
 
     /** The three universally driven fields - elapsed age, and the stride pair. */
     private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
@@ -72,18 +93,13 @@ public final class StyleFlow {
 
     private static final @NotNull String WALK_POS = "walkAnimationPos";
 
-    /** The wave tokens a drive travels by, as the shipped table spells them. */
-    private static final @NotNull String WAVE_HOLD = "hold";
-
-    private static final @NotNull String WAVE_RAMP = "ramp";
-
-    private static final @NotNull String WAVE_SWEEP = "sweep";
-
-    private static final @NotNull String WAVE_CYCLE = "cycle";
-
-    /** The source tokens in emission order; {@code none} is a clip drive and never a row source. */
-    private static final @NotNull List<String> SOURCE_ORDER =
-        List.of("tick", "figure", "select", "stride", "scroll");
+    /**
+     * The source kinds in emission order, which is this flow's own rather than the order
+     * {@link StyleClock} declares them in. {@link StyleClock#NONE} is never a row source - its token
+     * is the spelling of a {@link ClipDrive#NONE clip drive}.
+     */
+    private static final @NotNull List<StyleClock> SOURCE_ORDER =
+        List.of(StyleClock.TICK, StyleClock.FIGURE, StyleClock.SELECT, StyleClock.STRIDE, StyleClock.SCROLL);
 
     // ------------------------------------------------------------------------------------
     // emit
@@ -94,30 +110,38 @@ public final class StyleFlow {
      *
      * <p>Two census lines close the pass, telling the two still-nesses apart: a select site whose
      * field no roster member answers is a figure to add, where a subject no row moves is simply
-     * still - flattening the first into the second is what the lines exist to prevent.
+     * still - flattening the first into the second is what the lines exist to prevent. The pace
+     * scope beneath it logs each paced side's wander and fastest walk, and closes with a count of
+     * the stride sides paced and the ones reading no walk clock.
      *
      * @param diagnostics the scope the pass is recorded against
      * @param models the model table, rewritten in place ahead of being written
      * @param poses every pose row the pose table carries
      * @param clips every parsed keyframe clip by coordinate
-     * @param periodTicks the ticks one whole excursion spans
+     * @param periodTicks the ticks a sweep or cycle figure wraps at, which is also the window every
+     *     measurement samples
+     * @param paces each subject's walks by age, keyed by entity id - a subject missing from the map
+     *     walks at no pace
      */
     public static void emit(
         @NotNull Diagnostics diagnostics, @NotNull JsonTree models,
         @NotNull Map<String, PoseOutcome> poses, @NotNull Map<String, KeyframeClip> clips,
-        int periodTicks) {
+        int periodTicks, @NotNull Map<String, EntityPace> paces) {
 
+        Diagnostics paceLog = diagnostics.child("pace");
         Map<String, Set<String>> reads = new LinkedHashMap<>();
         Map<String, PoseProgram> grounded = new LinkedHashMap<>();
-        Map<String, Set<String>> measured = new LinkedHashMap<>();
+        Map<String, Set<StyleClock>> measured = new LinkedHashMap<>();
         Set<String> unanswered = new TreeSet<>();
         Set<String> still = new TreeSet<>();
         int[] subjects = {0};
+        int[] sides = {0, 0};
 
         models.members().forEach((entity, row) -> {
             subjects[0]++;
             List<Site> sites = meshSites(row);
             List<Scroll> scrolls = scrollSites(row);
+            List<Opacity> opacities = opacitySites(row);
             Set<String> read = new LinkedHashSet<>();
             Set<String> babyRead = new LinkedHashSet<>();
             Set<String> adultRead = new LinkedHashSet<>();
@@ -126,12 +150,21 @@ public final class StyleFlow {
                 read.addAll(held);
                 (site.baby() ? babyRead : adultRead).addAll(held);
             }
+            for (Opacity opacity : opacities) {
+                read.addAll(opacity.inputs());
+                if (opacity.adultDrawn()) adultRead.addAll(opacity.inputs());
+                if (opacity.babyDrawn()) babyRead.addAll(opacity.inputs());
+            }
             recordUnanswered(entity, sites, poses, unanswered);
 
             boolean hasBaby = sites.stream().anyMatch(Site::baby);
+            EntityPace pace = paces.getOrDefault(entity, EntityPace.NONE);
+            Function<Row, List<JsonTree>> measure = side -> sourcesOf(entity, side, sites, scrolls, opacities,
+                poses, clips, periodTicks, grounded, measured, diagnostics);
             List<Row> rows = deriveRows(entity, read, babyRead, adultRead, hasBaby, diagnostics);
             Row idle = rows.getFirst();
             List<JsonTree> written = new ArrayList<>();
+            EnumMap<Age, WalkPace> ceilings = new EnumMap<>(Age.class);
             boolean idleEmitted = false;
             for (Row held : rows) {
                 if (held.select() && held.composed().equals(idle.composed())) {
@@ -139,48 +172,154 @@ public final class StyleFlow {
                         entity, held.id());
                     continue;
                 }
-                Map<String, Drive> base = IDLE.equals(held.id()) ? Map.of() : idle.composed();
+                Map<String, Drive> base = PoseStyle.IDLE.equals(held.id()) ? Map.of() : idle.composed();
+                boolean stride = PoseStyle.STRIDE.equals(held.id());
+                Row emitted = held;
+                List<JsonTree> sources;
+                List<Sided> walked = List.of();
                 if (!held.select() && hasBaby) {
-                    Row adult = aged(held, "adult");
-                    Row baby = aged(held, "baby");
-                    List<JsonTree> adultSources = sourcesOf(entity, adult, sites, scrolls, poses,
-                        clips, periodTicks, grounded, measured, diagnostics);
-                    List<JsonTree> babySources = sourcesOf(entity, baby, sites, scrolls, poses,
-                        clips, periodTicks, grounded, measured, diagnostics);
-                    boolean adultShips = !adultSources.isEmpty()
-                        || distinct(adult, base, sites, poses, clips, periodTicks, grounded);
-                    boolean babyShips = !babySources.isEmpty()
-                        || distinct(baby, base, sites, poses, clips, periodTicks, grounded);
+                    Sided adult = sided(entity, Age.ADULT, aged(held, Age.ADULT, adultRead), stride, pace, measure, paceLog);
+                    Sided baby = sided(entity, Age.BABY, aged(held, Age.BABY, babyRead), stride, pace, measure, paceLog);
+                    boolean adultShips = !adult.sources().isEmpty()
+                        || distinct(adult.row(), base, sites, poses, clips, periodTicks, grounded);
+                    boolean babyShips = !baby.sources().isEmpty()
+                        || distinct(baby.row(), base, sites, poses, clips, periodTicks, grounded);
                     if (adultShips != babyShips
-                        || !spelled(adultSources).equals(spelled(babySources))) {
+                        || !spelled(adult.sources()).equals(spelled(baby.sources()))
+                        || !bindingKey(adult.row().composed()).equals(bindingKey(baby.row().composed()))) {
                         diagnostics.info("%s style '%s' measures apart by age and is emitted age-split",
                             entity, held.id());
                         if (adultShips) {
-                            written.add(rowNode(adult, adultSources, idleEmitted));
-                            idleEmitted |= IDLE.equals(held.id());
+                            written.add(rowNode(adult.row(), adult.sources(), idleEmitted));
+                            idleEmitted |= PoseStyle.IDLE.equals(held.id());
+                            if (stride) walk(adult, sides, ceilings);
                         }
                         if (babyShips) {
-                            written.add(rowNode(baby, babySources, idleEmitted));
-                            idleEmitted |= IDLE.equals(held.id());
+                            written.add(rowNode(baby.row(), baby.sources(), idleEmitted));
+                            idleEmitted |= PoseStyle.IDLE.equals(held.id());
+                            if (stride) walk(baby, sides, ceilings);
                         }
                         continue;
                     }
-                }
-                List<JsonTree> sources = sourcesOf(entity, held, sites, scrolls, poses, clips,
-                    periodTicks, grounded, measured, diagnostics);
+                    // The two sides measure alike, so their drives are the row's own; what one side
+                    // was paced at is what the ageless row walks at, and each side records its own
+                    // age's ceiling.
+                    emitted = unaged(adult.row());
+                    sources = measure.apply(emitted);
+                    if (stride) walked = List.of(adult, baby);
+                } else if (stride) {
+                    Sided only = sided(entity, Age.ADULT, held, true, pace, measure, paceLog);
+                    emitted = only.row();
+                    sources = only.sources();
+                    walked = List.of(only);
+                } else
+                    sources = measure.apply(held);
                 if (sources.isEmpty()
-                    && !distinct(held, base, sites, poses, clips, periodTicks, grounded)) continue;
-                written.add(rowNode(held, sources, idleEmitted));
-                if (IDLE.equals(held.id())) idleEmitted = true;
+                    && !distinct(emitted, base, sites, poses, clips, periodTicks, grounded)) continue;
+                written.add(rowNode(emitted, sources, idleEmitted));
+                if (PoseStyle.IDLE.equals(held.id())) idleEmitted = true;
+                walked.forEach(side -> walk(side, sides, ceilings));
             }
             if (written.isEmpty()) still.add(entity);
-            else row.put("styles", JsonTree.array().addAll(written));
+            else {
+                row.put("styles", JsonTree.array().addAll(written));
+                if (!ceilings.isEmpty()) row.put("ceilings", ceilingsNode(ceilings));
+            }
         });
 
+        paceLog.info("%d stride side(s) walk at a vanilla pace; %d read no walk clock and keep hold 1 / ramp 1",
+            sides[0], sides[1]);
         diagnostics.info("%d select site(s) read a figure nothing answers: %s",
             unanswered.size(), unanswered);
         diagnostics.info("%d of %d subject(s) ship no style row - nothing shipped moves them: %s",
             still.size(), subjects[0], still);
+    }
+
+    /**
+     * One side of a universal row as it is measured to ship.
+     *
+     * @param age the side's age, the adult for a row with no baby
+     * @param row the side's row, paced where it walks
+     * @param sources its measured sources
+     * @param reads whether it is a stride side whose probe reads the walk clock
+     */
+    private record Sided(@NotNull Age age, @NotNull Row row, @NotNull List<JsonTree> sources, boolean reads) {}
+
+    /**
+     * One side measured to ship - a stride side driven at its age's wander where its probe, the
+     * measurement under the literal pair, reads the walk clock, then re-measured under that pace and
+     * logged with its wander and its fastest walk. A reading side with no pace keeps the literal pair
+     * and records an error, as does a pace that moves the side's sources or a fastest walk under its
+     * wander.
+     *
+     * @param entity the subject measured
+     * @param age the side's age, the adult for a row that names none
+     * @param side the side's row under the literal pair
+     * @param stride whether the side is the stride row's
+     * @param pace the subject's walks by age
+     * @param measure what measures one row's sources
+     * @param diagnostics the pace scope
+     * @return the side as it ships
+     */
+    private static @NotNull Sided sided(
+        @NotNull String entity, @NotNull Age age, @NotNull Row side, boolean stride,
+        @NotNull EntityPace pace, @NotNull Function<Row, List<JsonTree>> measure,
+        @NotNull Diagnostics diagnostics) {
+
+        List<JsonTree> probe = measure.apply(side);
+        if (!stride || !readsWalkClock(probe)) return new Sided(age, side, probe, false);
+        String token = token(age);
+        Optional<AgePace> walks = pace.at(age);
+        if (walks.isEmpty()) {
+            diagnostics.error("%s style 'stride' moves by the walk clock at %s and has no pace", entity, token);
+            return new Sided(age, side, probe, true);
+        }
+        Row paced = paced(side, walks.get());
+        List<JsonTree> sources = measure.apply(paced);
+        if (!spelled(sources).equals(spelled(probe)))
+            diagnostics.error("%s style 'stride' %s sources move under the pace: [%s] -> [%s]",
+                entity, token, spelled(probe), spelled(sources));
+        WalkPace wander = walks.get().wander();
+        WalkPace ceiling = walks.get().ceiling();
+        diagnostics.info("%s %s walks at speed %s, clock %s a tick - %s", entity, token,
+            Float.toString(wander.speed()), Float.toString(wander.rate()), wander.basis());
+        diagnostics.info("%s %s reaches speed %s, clock %s a tick at its fastest - %s", entity, token,
+            Float.toString(ceiling.speed()), Float.toString(ceiling.rate()), ceiling.basis());
+        if (ceiling.speed() < wander.speed() || ceiling.rate() < wander.rate())
+            diagnostics.error("%s %s ceiling [%s, %s] is under its wander [%s, %s]", entity, token,
+                Float.toString(ceiling.speed()), Float.toString(ceiling.rate()),
+                Float.toString(wander.speed()), Float.toString(wander.rate()));
+        return new Sided(age, paced, sources, true);
+    }
+
+    /**
+     * Records one shipped stride side - its ceiling at its age where it walks at a pace, and a count of
+     * it as paced or as reading no walk clock; a reading side with no pace is neither.
+     */
+    private static void walk(@NotNull Sided side, int @NotNull [] sides, @NotNull Map<Age, WalkPace> ceilings) {
+        side.row().ceiling().ifPresent(ceiling -> ceilings.put(side.age(), ceiling));
+        if (side.row().ceiling().isPresent()) sides[0]++;
+        else if (!side.reads()) sides[1]++;
+    }
+
+    /** Whether a measured source list holds the walk clock, bare or under a gate. */
+    private static boolean readsWalkClock(@NotNull List<JsonTree> sources) {
+        String stride = StyleClock.STRIDE.token();
+        return sources.stream().anyMatch(source -> source.isPrimitive()
+            ? source.asString().filter(stride::equals).isPresent()
+            : source.findString("source").filter(stride::equals).isPresent());
+    }
+
+    /** One stride row driven at an age's wander - the swing held, the clock ramped - holding the age's ceiling. */
+    private static @NotNull Row paced(@NotNull Row row, @NotNull AgePace pace) {
+        LinkedHashMap<String, Drive> own = new LinkedHashMap<>(row.own());
+        own.put(WALK_SPEED, drive(WALK_SPEED, StyleRoster.Motion.hold(pace.wander().speed()), Optional.empty()));
+        own.put(WALK_POS, drive(WALK_POS, StyleRoster.Motion.ramp(pace.wander().rate()), Optional.empty()));
+        LinkedHashMap<String, Drive> composed = new LinkedHashMap<>(row.composed());
+        composed.put(WALK_SPEED, own.get(WALK_SPEED));
+        composed.put(WALK_POS, own.get(WALK_POS));
+        return new Row(row.id(), row.select(), row.age(), row.toggles(), own, composed,
+            Optional.of(pace.ceiling()));
     }
 
     /**
@@ -194,7 +333,7 @@ public final class StyleFlow {
         for (Site site : sites)
             if (poses.get(site.poseKey()) instanceof PoseOutcome.Extracted extracted)
                 for (PoseClipSite play : extracted.program().clipSites())
-                    if (play.drive() == PoseClipSite.Gate.SELECT
+                    if (play.drive() == ClipDrive.SELECT
                         && !StyleRoster.driven().contains(play.state()))
                         unanswered.add(entity + " plays " + play.clip() + " behind '" + play.state() + "'");
     }
@@ -204,43 +343,32 @@ public final class StyleFlow {
     // ------------------------------------------------------------------------------------
 
     /**
-     * One render-state field a style drives, and how its value travels across a period.
+     * One render-state field a style drives, as the measurement reads it and the table spells it.
      *
-     * @param field the render-state field name
-     * @param wave the wave token
-     * @param rest what the field holds at the ends of a swept travel
-     * @param extent the far end of the travel - the whole of a held one-hot, the per-tick slope of
-     *     a ramp
-     * @param group the exclusion group token, empty for an ungrouped field
+     * @param driver the production driver a loaded row answers this field with
      */
-    private record Drive(
-        @NotNull String field,
-        @NotNull String wave,
-        float rest,
-        float extent,
-        @NotNull Optional<String> group
-    ) {
+    private record Drive(@NotNull StyleDriver driver) {
+
+        /** The render-state field this drive answers. */
+        @NotNull String field() {
+            return this.driver.field();
+        }
+
+        /** The exclusion group token this drive's field belongs to, empty for an ungrouped field. */
+        @NotNull Optional<String> group() {
+            return this.driver.group();
+        }
 
         /**
-         * What this drive answers at one tick - the excursion arithmetic the reference set is
-         * rendered against, every narrowing a {@code float}.
+         * What this drive answers at one tick - production's own {@link StyleDriver#at}, so a
+         * measurement binds what the loaded row renders.
          *
          * @param tick the tick being posed
-         * @param periodTicks the ticks one whole excursion spans
+         * @param periodTicks the window a sweep or cycle wraps at
          * @return the field's value at that tick
          */
         float at(int tick, int periodTicks) {
-            return switch (this.wave) {
-                case WAVE_HOLD -> this.extent;
-                case WAVE_RAMP -> tick * this.extent;
-                case WAVE_SWEEP, WAVE_CYCLE -> {
-                    float phase = Math.floorMod(tick, periodTicks) / (float) periodTicks;
-                    float travel = WAVE_CYCLE.equals(this.wave) ? phase : 1f - Math.abs(2f * phase - 1f);
-                    yield this.rest + (this.extent - this.rest) * travel;
-                }
-                default -> throw new ToolingException(
-                    "'%s' travels by '%s', which is not a wave", this.field, this.wave);
-            };
+            return this.driver.at(tick, periodTicks);
         }
 
         /** Whether this drive answers non-zero at any tick of one period. */
@@ -250,20 +378,50 @@ public final class StyleFlow {
             return false;
         }
 
-        /** The source kind this drive belongs to, which is what a caused variation is filed under. */
-        @NotNull String kind() {
-            if (AGE_IN_TICKS.equals(this.field)) return "tick";
-            if (WALK_SPEED.equals(this.field) || WALK_POS.equals(this.field)) return "stride";
-            if (WAVE_SWEEP.equals(this.wave) || WAVE_CYCLE.equals(this.wave)) return "figure";
-            return "select";
+        /** Whether this drive's value moves at all across one period. */
+        boolean travels(int periodTicks) {
+            float first = at(0, periodTicks);
+            for (int tick = 1; tick < periodTicks; tick++)
+                if (Float.compare(at(tick, periodTicks), first) != 0) return true;
+            return false;
         }
 
-        /** This drive spelled as the table carries it. */
+        /**
+         * The source kind this drive belongs to, which is what a caused variation is filed under -
+         * elapsed age the tick, the stride pair the stride, a grouped drive a selection, and every
+         * other drive a render-state scalar.
+         */
+        @NotNull StyleClock kind() {
+            if (AGE_IN_TICKS.equals(this.field())) return StyleClock.TICK;
+            if (WALK_SPEED.equals(this.field()) || WALK_POS.equals(this.field())) return StyleClock.STRIDE;
+            if (this.group().isPresent()) return StyleClock.SELECT;
+            return StyleClock.FIGURE;
+        }
+
+        /**
+         * This drive spelled as the table carries it - the wave by its own token, the rest only where
+         * the wave travels from it, and whatever the wave reads beside its extent after the extent.
+         */
         @NotNull JsonTree node() {
-            JsonTree node = JsonTree.object().put("field", this.field).put("wave", this.wave);
-            if (WAVE_SWEEP.equals(this.wave) || WAVE_CYCLE.equals(this.wave)) node.put("rest", this.rest);
-            node.put("extent", this.extent);
-            this.group.ifPresent(held -> node.put("group", held));
+            StyleDriver.Wave wave = this.driver.wave();
+            JsonTree node = JsonTree.object().put("field", this.field()).put("wave", wave.token());
+            boolean rested = switch (wave) {
+                case StyleDriver.Wave.Plain plain -> switch (plain) {
+                    case HOLD, RAMP -> false;
+                    case SWEEP, CYCLE -> true;
+                };
+                case StyleDriver.Wave.Stroke ignored -> true;
+                case StyleDriver.Wave.Trapezoid ignored -> true;
+            };
+            if (rested) node.put("rest", this.driver.rest());
+            node.put("extent", this.driver.extent());
+            switch (wave) {
+                case StyleDriver.Wave.Plain ignored -> { }
+                case StyleDriver.Wave.Stroke stroke -> node.put("rate", stroke.rate());
+                case StyleDriver.Wave.Trapezoid trapezoid -> node.putInt("rise", trapezoid.rise())
+                    .putInt("dwell", trapezoid.dwell()).putInt("fall", trapezoid.fall()).putInt("gap", trapezoid.gap());
+            }
+            this.group().ifPresent(held -> node.put("group", held));
             return node;
         }
 
@@ -274,23 +432,32 @@ public final class StyleFlow {
      *
      * @param id the style id
      * @param select whether this is a selection row rather than a universal one
-     * @param age the age token the row applies to, empty for both
+     * @param age the age the row applies to, empty for both
      * @param toggles the bone toggles the selection entails
      * @param own the drives the row declares itself
      * @param composed the whole driver map after base composition and group replacement
+     * @param ceiling the fastest walk a paced stride side reaches, empty on every other row
      */
     private record Row(
         @NotNull String id,
         boolean select,
-        @NotNull Optional<String> age,
+        @NotNull Optional<Age> age,
         @NotNull List<String> toggles,
         @NotNull LinkedHashMap<String, Drive> own,
-        @NotNull LinkedHashMap<String, Drive> composed
+        @NotNull LinkedHashMap<String, Drive> composed,
+        @NotNull Optional<WalkPace> ceiling
     ) {}
 
     /**
      * The entity's derived rows in emission order - standing, walking, then one row per
      * non-default driven member whose field its poses read, in roster order.
+     *
+     * <p>Each clock a form or a pass opacity reads puts its idle half on the standing row, after
+     * elapsed age and before the resting selections, and its stride half - where it has one - on the
+     * walking row, after the stride pair and before the forked selections. A stride half is spelled
+     * wherever it differs, a held zero included, since the walking row would otherwise inherit the
+     * standing row's half. The walking row's stride pair is the literal hold 1, ramp 1 a side is
+     * probed under before it takes a pace.
      *
      * @param entity the subject being derived, for the refusal
      * @param reads every field the entity's poses read
@@ -305,61 +472,107 @@ public final class StyleFlow {
         @NotNull Set<String> adultReads, boolean hasBaby, @NotNull Diagnostics diagnostics) {
 
         LinkedHashMap<String, Drive> idle = new LinkedHashMap<>();
-        idle.put(AGE_IN_TICKS, new Drive(AGE_IN_TICKS, WAVE_RAMP, 0f, 1f, Optional.empty()));
-        for (StyleRoster.Figure figure : StyleRoster.FIGURES)
-            if (reads.contains(figure.field()))
-                idle.put(figure.field(),
-                    new Drive(figure.field(), figure.wave(), figure.rest(), figure.extent(), Optional.empty()));
+        idle.put(AGE_IN_TICKS, drive(AGE_IN_TICKS, StyleRoster.Motion.ramp(1f), Optional.empty()));
+        for (StyleRoster.Clock clock : StyleRoster.CLOCKS)
+            if (reads.contains(clock.field())) idle.put(clock.field(), drive(clock.field(), clock.idle(), Optional.empty()));
         for (StyleRoster.Group group : StyleRoster.GROUPS) {
             if (!group.readBy(reads)) continue;
             StyleRoster.Member selected = group.selected(false);
             if (selected.drives())
-                idle.put(selected.field(),
-                    new Drive(selected.field(), WAVE_HOLD, 0f, 1f, Optional.of(group.token())));
+                idle.put(selected.field(), drive(selected.field(), StyleRoster.Motion.hold(1f), Optional.of(group.token())));
         }
 
         LinkedHashMap<String, Drive> strideOwn = new LinkedHashMap<>();
-        strideOwn.put(WALK_SPEED, new Drive(WALK_SPEED, WAVE_HOLD, 0f, 1f, Optional.empty()));
-        strideOwn.put(WALK_POS, new Drive(WALK_POS, WAVE_RAMP, 0f, 1f, Optional.empty()));
+        strideOwn.put(WALK_SPEED, drive(WALK_SPEED, StyleRoster.Motion.hold(1f), Optional.empty()));
+        strideOwn.put(WALK_POS, drive(WALK_POS, StyleRoster.Motion.ramp(1f), Optional.empty()));
+        for (StyleRoster.Clock clock : StyleRoster.CLOCKS)
+            if (reads.contains(clock.field()))
+                clock.stride().ifPresent(half -> strideOwn.put(clock.field(), drive(clock.field(), half, Optional.empty())));
         for (StyleRoster.Group group : StyleRoster.GROUPS) {
             if (!group.forked() || !group.readBy(reads)) continue;
             StyleRoster.Member selected = group.selected(true);
             if (selected.drives())
-                strideOwn.put(selected.field(),
-                    new Drive(selected.field(), WAVE_HOLD, 0f, 1f, Optional.of(group.token())));
+                strideOwn.put(selected.field(), drive(selected.field(), StyleRoster.Motion.hold(1f), Optional.of(group.token())));
         }
 
         List<Row> out = new ArrayList<>();
-        out.add(new Row(IDLE, false, Optional.empty(), List.of(), idle, idle));
-        out.add(new Row(STRIDE, false, Optional.empty(), List.of(), strideOwn, compose(idle, strideOwn)));
+        out.add(new Row(PoseStyle.IDLE, false, Optional.empty(), List.of(), idle, idle, Optional.empty()));
+        out.add(new Row(PoseStyle.STRIDE, false, Optional.empty(), List.of(), strideOwn, compose(idle, strideOwn),
+            Optional.empty()));
         for (StyleRoster.Group group : StyleRoster.GROUPS)
             for (StyleRoster.Member member : group.members()) {
                 if (!member.drives() || !reads.contains(member.field()) || group.isDefault(member)) continue;
-                String age = !hasBaby ? ""
-                    : babyReads.contains(member.field()) && !adultReads.contains(member.field()) ? "baby"
-                    : adultReads.contains(member.field()) && !babyReads.contains(member.field()) ? "adult"
-                    : "";
+                Optional<Age> age = !hasBaby ? Optional.empty()
+                    : babyReads.contains(member.field()) && !adultReads.contains(member.field()) ? Optional.of(Age.BABY)
+                    : adultReads.contains(member.field()) && !babyReads.contains(member.field()) ? Optional.of(Age.ADULT)
+                    : Optional.empty();
                 if (!age.equals(group.age()))
                     diagnostics.error("%s reads '%s' on %s where the roster declares %s",
-                        entity, member.field(), age.isEmpty() ? "either age's forms" : age + " forms alone",
-                        group.age().isEmpty() ? "either age" : group.age() + " alone");
+                        entity, member.field(), age.map(at -> token(at) + " forms alone").orElse("either age's forms"),
+                        group.age().map(at -> token(at) + " alone").orElse("either age"));
                 LinkedHashMap<String, Drive> own = new LinkedHashMap<>();
-                own.put(member.field(),
-                    new Drive(member.field(), WAVE_HOLD, 0f, 1f, Optional.of(group.token())));
-                out.add(new Row(StyleRoster.styleId(member.field()), true,
-                    age.isEmpty() ? Optional.empty() : Optional.of(age),
-                    StyleRoster.togglesOf(member.field()), own, compose(idle, own)));
+                own.put(member.field(), drive(member.field(), StyleRoster.Motion.hold(1f), Optional.of(group.token())));
+                out.add(new Row(StyleRoster.styleId(member.field()), true, age,
+                    StyleRoster.togglesOf(member.field()), own, compose(idle, own), Optional.empty()));
             }
         return out;
     }
 
+    /** One wave as the drive it spells for one field - travelling from a rest of zero to its extent. */
+    private static @NotNull Drive drive(
+        @NotNull String field, @NotNull StyleRoster.Motion motion, @NotNull Optional<String> group) {
+
+        return new Drive(new StyleDriver(field, motion.wave(), 0f, motion.extent(), group));
+    }
+
     /**
-     * One universal row narrowed to a single age side, everything else its own - the age is what
-     * {@link #skips} filters the meshes by, so the side measures over its own forms alone.
+     * One universal row narrowed to a single age side - the age is what {@link #skips} filters the
+     * meshes by, so the side measures over its own forms alone, and the drives are narrowed with it:
+     * the side keeps the stride pair and elapsed age, every selection whose roster group declares no
+     * age or this one, and every other drive whose field its own forms read.
+     *
+     * @param row the universal row
+     * @param age the side's age
+     * @param reads every field that side's forms and pass opacities read
+     * @return the side's row
      */
-    private static @NotNull Row aged(@NotNull Row row, @NotNull String age) {
-        return new Row(row.id(), row.select(), Optional.of(age), row.toggles(), row.own(),
-            row.composed());
+    private static @NotNull Row aged(@NotNull Row row, @NotNull Age age, @NotNull Set<String> reads) {
+        return new Row(row.id(), row.select(), Optional.of(age), row.toggles(), narrowed(row.own(), age, reads),
+            narrowed(row.composed(), age, reads), row.ceiling());
+    }
+
+    /** One driver map with every drive an age side does not keep taken out, in its own order; see {@link #aged}. */
+    private static @NotNull LinkedHashMap<String, Drive> narrowed(
+        @NotNull Map<String, Drive> drives, @NotNull Age age, @NotNull Set<String> reads) {
+
+        LinkedHashMap<String, Drive> out = new LinkedHashMap<>();
+        drives.forEach((field, drive) -> {
+            boolean kept = AGE_IN_TICKS.equals(field) || WALK_SPEED.equals(field) || WALK_POS.equals(field)
+                || drive.group().map(group -> groupAge(group).map(age::equals).orElse(true))
+                    .orElseGet(() -> reads.contains(field));
+            if (kept) out.put(field, drive);
+        });
+        return out;
+    }
+
+    /** The age the roster group spelled by a drive's group token declares, empty where either age's forms read it. */
+    private static @NotNull Optional<Age> groupAge(@NotNull String token) {
+        return StyleRoster.GROUPS.stream()
+            .filter(group -> group.token().equals(token))
+            .map(StyleRoster.Group::age)
+            .findFirst()
+            .flatMap(Function.identity());
+    }
+
+    /** The token a table spells an age by, as a style row's {@code age} and a model's {@code ceilings} key it. */
+    private static @NotNull String token(@NotNull Age age) {
+        return age.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** One age side's row taken back to both ages, its drives and its ceiling kept. */
+    private static @NotNull Row unaged(@NotNull Row row) {
+        return new Row(row.id(), row.select(), Optional.empty(), row.toggles(), row.own(), row.composed(),
+            row.ceiling());
     }
 
     /**
@@ -386,22 +599,65 @@ public final class StyleFlow {
     // ------------------------------------------------------------------------------------
 
     /**
-     * The overlay gate admitting a pass, resolved to the token the pass's {@code when} member
-     * spells - the same precedence the render-time assembler takes, flag first, then charged, then
-     * tinted.
-     *
-     * @param token the gate token, empty for an unconditional pass
-     * @param negative whether the gate admits the pass where its flag rests {@code false}, which
-     *     the source spelling cannot carry
+     * The gate admitting a mesh. A pass's is resolved from what its {@code when} member spells - the
+     * same precedence the render-time assembler takes, flag first, then charged, then tinted - and a
+     * wearer form's is the selection that swaps it in.
      */
-    private record Gate(@NotNull Optional<String> token, boolean negative) {
+    private sealed interface Gate {
 
         /** The gate of a pass nothing conditions. */
-        static final @NotNull Gate OPEN = new Gate(Optional.empty(), false);
+        @NotNull Gate OPEN = new Open();
+
+        /**
+         * The gate of a body a selected carried block swaps in - drawn exactly while a caller selects a
+         * block, which the render-time appearance admits under {@link Flag#CARRIED}.
+         */
+        @NotNull Gate CARRIED = new OnFlag(Flag.CARRIED, true);
+
+        /** A pass nothing conditions. */
+        record Open() implements Gate {}
+
+        /**
+         * A pass drawn where an appearance flag answers as it expects.
+         *
+         * @param flag the flag the pass's {@code when} member names
+         * @param expected the answer the pass is drawn at - {@code false} for a pass drawn where its
+         *     flag rests unset, which the source spelling cannot carry
+         */
+        record OnFlag(@NotNull Flag flag, boolean expected) implements Gate {}
+
+        /**
+         * A pass drawn while its tint axis selects a dye apart from its baked tint, which no flag
+         * spells and so no source can carry.
+         */
+        record Tinted() implements Gate {}
+
+        /**
+         * A body a filled equipment slot swaps in - drawn while a caller fills the slot, which no
+         * flag spells and so no source can carry.
+         *
+         * @param slot the equipment axis option naming the slot
+         */
+        record Filled(@NotNull String slot) implements Gate {}
 
         /** Whether this gate admits unconditionally. */
-        boolean open() {
-            return !this.negative && this.token.isEmpty();
+        default boolean open() {
+            return this instanceof Open;
+        }
+
+        /** Whether this gate admits only where its flag rests unset. */
+        default boolean negative() {
+            return this instanceof OnFlag(Flag ignored, boolean expected) && !expected;
+        }
+
+        /** What this gate is told apart by in a site's key. */
+        default @NotNull String key() {
+            return switch (this) {
+                case Open ignored -> "open";
+                case OnFlag(Flag flag, boolean expected) -> (expected ? "" : "!") + token(flag);
+                case Tinted ignored -> "tinted";
+                case Filled(String slot) -> "filled=" + slot;
+            };
         }
 
     }
@@ -410,7 +666,7 @@ public final class StyleFlow {
      * One mesh a subject draws, joined to the pose row that moves it.
      *
      * @param poseKey the pose table key the mesh resolves
-     * @param gate the overlay gate admitting the draw, {@link Gate#OPEN} for a form
+     * @param gate the gate admitting the draw, {@link Gate#OPEN} for a form a plain render draws
      * @param baby whether only a baby render draws it
      */
     private record Site(@NotNull String poseKey, @NotNull Gate gate, boolean baby) {}
@@ -424,22 +680,46 @@ public final class StyleFlow {
     private record Scroll(@NotNull Gate gate, boolean babyDrawn) {}
 
     /**
+     * One overlay pass whose opacity follows the clock.
+     *
+     * @param gate the overlay gate admitting the pass
+     * @param adultDrawn whether a render of any age but a baby draws the pass
+     * @param babyDrawn whether a baby render draws the pass
+     * @param inputs the render-state fields the opacity reads, in the order it names them
+     */
+    private record Opacity(@NotNull Gate gate, boolean adultDrawn, boolean babyDrawn, @NotNull Set<String> inputs) {}
+
+    /**
      * Every mesh one entity draws, each with the gate that admits it - the age forms, every coat,
-     * size and shape option through their explicit {@code pose} members, and every overlay pass,
-     * suppressed alternate and baby delta through the class heading its geometry coordinate. Worn
-     * armor and equipment layers are not drawn by a plain render and are not consulted.
+     * size and shape option through their explicit {@code pose} members, every overlay pass,
+     * suppressed alternate and baby delta through the class heading its geometry coordinate, the
+     * carried axis's form, the body a selected block swaps in, under the gate {@link Gate#CARRIED},
+     * and each equipment axis's form, the body a filled slot swaps in, under a {@link Gate.Filled}
+     * naming the slot - the two wearer axes read after every other site, so an ungated one of the
+     * same pose subsumes it. A filled slot's form is measured so that a source only it contributes
+     * stops the flow: no gate token admits a filled slot, so the source spelling has nothing to
+     * carry one under. Worn armor and the equipment layers are not drawn by a plain render and are
+     * not consulted.
      */
     private static @NotNull List<Site> meshSites(@NotNull JsonTree row) {
         LinkedHashMap<String, Site> out = new LinkedHashMap<>();
-        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) -> {
+            if (PoseFlow.CARRIED_AXIS.equals(axis) || PoseFlow.EQUIPMENT_AXIS.equals(axis)) return;
             held.find("options").ifPresent(options -> options.members().forEach((option, chosen) -> {
                 boolean baby = "age".equals(axis) && "baby".equals(option);
                 chosen.findString("pose").ifPresent(key -> site(out, key, Gate.OPEN, baby));
                 chosen.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
                     overlaySites(out, overlay, baby)));
-            }))));
+            }));
+        }));
         row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
             overlaySites(out, overlay, false)));
+        row.findPath("axes", PoseFlow.CARRIED_AXIS, "options").ifPresent(options -> options.members()
+            .forEach((option, chosen) -> chosen.findString("pose")
+                .ifPresent(key -> site(out, key, Gate.CARRIED, false))));
+        row.findPath("axes", PoseFlow.EQUIPMENT_AXIS, "options").ifPresent(options -> options.members()
+            .forEach((slot, chosen) -> chosen.findString("pose")
+                .ifPresent(key -> site(out, key, new Gate.Filled(slot), false))));
         return List.copyOf(out.values());
     }
 
@@ -463,12 +743,9 @@ public final class StyleFlow {
     private static void site(
         @NotNull Map<String, Site> out, @NotNull String poseKey, @NotNull Gate gate, boolean baby) {
 
-        String open = poseKey + "|open|" + baby;
+        String open = poseKey + '|' + Gate.OPEN.key() + '|' + baby;
         if (out.containsKey(open)) return;
-        String keyed = gate.open()
-            ? open
-            : poseKey + '|' + (gate.negative() ? "!" : "") + gate.token().orElse("") + '|' + baby;
-        out.putIfAbsent(keyed, new Site(poseKey, gate, baby));
+        out.putIfAbsent(poseKey + '|' + gate.key() + '|' + baby, new Site(poseKey, gate, baby));
     }
 
     /** Every overlay pass of the row that scrolls its sheet by a non-zero rate. */
@@ -482,15 +759,68 @@ public final class StyleFlow {
         return out;
     }
 
-    /** The gate one {@code when} member spells; see {@link Gate}. */
+    /**
+     * Every overlay pass of the row whose {@code opacity} reads the render state - the row's own and
+     * each option's, a pass of the baby age option drawn on a baby alone and one carrying a baby
+     * delta drawn at both ages, as {@link #meshSites} reads their meshes.
+     */
+    private static @NotNull List<Opacity> opacitySites(@NotNull JsonTree row) {
+        List<Opacity> out = new ArrayList<>();
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+            held.find("options").ifPresent(options -> options.members().forEach((option, chosen) -> {
+                boolean baby = "age".equals(axis) && "baby".equals(option);
+                chosen.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
+                    opacitySite(out, overlay, baby)));
+            }))));
+        row.find("overlays").ifPresent(list -> list.elements().toList().forEach(overlay ->
+            opacitySite(out, overlay, false)));
+        return out;
+    }
+
+    /** One overlay pass's opacity, where it carries one. */
+    private static void opacitySite(@NotNull List<Opacity> out, @NotNull JsonTree overlay, boolean baby) {
+        overlay.find("opacity").ifPresent(expression -> {
+            Set<String> inputs = new LinkedHashSet<>();
+            inputsOf(expression, inputs);
+            out.add(new Opacity(gateOf(overlay.find("when")), !baby, baby || overlay.has("baby"),
+                Collections.unmodifiableSet(inputs)));
+        });
+    }
+
+    /** Collects every {@code input} an expression node names, in the order it names them. */
+    private static void inputsOf(@NotNull JsonTree node, @NotNull Set<String> out) {
+        if (node.isArray()) node.elements().forEach(element -> inputsOf(element, out));
+        if (!node.isObject()) return;
+        node.members().forEach((member, value) -> {
+            if ("input".equals(member)) value.asString().ifPresent(out::add);
+            else inputsOf(value, out);
+        });
+    }
+
+    /**
+     * The gate one {@code when} member spells; see {@link Gate}.
+     *
+     * @throws ToolingException if the member names a flag no {@link Flag} is
+     */
     private static @NotNull Gate gateOf(@NotNull Optional<JsonTree> when) {
         if (when.isEmpty()) return Gate.OPEN;
         JsonTree held = when.get();
         Optional<String> flag = held.findString("flag");
-        if (flag.isPresent()) return new Gate(flag, !held.findBoolean("value").orElse(false));
-        if (held.findBoolean("charged").orElse(false)) return new Gate(Optional.of("charged"), false);
-        if (held.findBoolean("tinted").orElse(false)) return new Gate(Optional.of("tinted"), false);
+        if (flag.isPresent()) {
+            Flag named = Arrays.stream(Flag.values())
+                .filter(candidate -> token(candidate).equals(flag.get()))
+                .findFirst()
+                .orElseThrow(() -> new ToolingException("A pass is gated on flag '%s', which is not a flag", flag.get()));
+            return new Gate.OnFlag(named, held.findBoolean("value").orElse(false));
+        }
+        if (held.findBoolean("charged").orElse(false)) return new Gate.OnFlag(Flag.CHARGED, true);
+        if (held.findBoolean("tinted").orElse(false)) return new Gate.Tinted();
         return Gate.OPEN;
+    }
+
+    /** The token a table spells a flag by, as a pass's {@code when} and a source's {@code gate} name it. */
+    private static @NotNull String token(@NotNull Flag flag) {
+        return flag.name().toLowerCase(Locale.ROOT);
     }
 
     /** The class a geometry coordinate is headed with, which is what keys the pose it takes. */
@@ -559,22 +889,27 @@ public final class StyleFlow {
     // ------------------------------------------------------------------------------------
 
     /**
-     * One measured contribution - a mechanism, and the gate of the pass that contributed it.
+     * One measured contribution - a mechanism, and the gate of the mesh or pass that contributed it.
      *
-     * @param source the source kind token
-     * @param gate the contributing pass's gate
+     * @param source the source kind
+     * @param gate the gate admitting what contributed it
      */
-    private record Entry(@NotNull String source, @NotNull Gate gate) {}
+    private record Entry(@NotNull StyleClock source, @NotNull Gate gate) {}
 
     /**
      * One row's measured {@code sources} member - each contributing mesh's kinds gathered under
      * its gate, then each kind spelled once: a bare token where any ungated mesh contributes it,
      * the gated object spelling otherwise, and a refusal where only a rests-false flag gate does.
+     * A kind no ungated mesh contributes stops the flow where a tinted pass or a filled slot's body
+     * contributes it, no gate token admitting either.
+     * A pass whose opacity follows the clock contributes, under its gate, the kind of each drive its
+     * opacity reads that travels within the period - the pulse's analogue of a scroll.
      *
      * @param entity the subject being measured, for the refusal
      * @param row the derived row
      * @param sites the entity's meshes
      * @param scrolls the entity's scrolling passes
+     * @param opacities the entity's passes whose opacity follows the clock
      * @param poses every pose row the pose table carries
      * @param clips every parsed keyframe clip by coordinate
      * @param periodTicks the ticks one whole excursion spans
@@ -582,50 +917,68 @@ public final class StyleFlow {
      * @param measured the measurements already taken, by pose key and binding
      * @param diagnostics the scope a refusal is recorded against
      * @return the source entries in kind order, empty for a row nothing moves
+     * @throws ToolingException if a kind no ungated mesh contributes is contributed by a tinted pass
+     *     or by a filled slot's body
      */
     private static @NotNull List<JsonTree> sourcesOf(
         @NotNull String entity, @NotNull Row row, @NotNull List<Site> sites,
-        @NotNull List<Scroll> scrolls, @NotNull Map<String, PoseOutcome> poses,
+        @NotNull List<Scroll> scrolls, @NotNull List<Opacity> opacities, @NotNull Map<String, PoseOutcome> poses,
         @NotNull Map<String, KeyframeClip> clips, int periodTicks,
-        @NotNull Map<String, PoseProgram> grounded, @NotNull Map<String, Set<String>> measured,
+        @NotNull Map<String, PoseProgram> grounded, @NotNull Map<String, Set<StyleClock>> measured,
         @NotNull Diagnostics diagnostics) {
 
         List<Entry> entries = new ArrayList<>();
         for (Site site : sites) {
             if (skips(row, site.baby())) continue;
-            for (String kind : kindsOf(site.poseKey(), row.composed(), poses, clips, periodTicks,
+            for (StyleClock kind : kindsOf(site.poseKey(), row.composed(), poses, clips, periodTicks,
                 grounded, measured))
                 entries.add(new Entry(kind, site.gate()));
         }
         for (Scroll scroll : scrolls) {
-            if (row.age().filter("baby"::equals).isPresent() && !scroll.babyDrawn()) continue;
-            entries.add(new Entry("scroll", scroll.gate()));
+            if (row.age().filter(Age.BABY::equals).isPresent() && !scroll.babyDrawn()) continue;
+            entries.add(new Entry(StyleClock.SCROLL, scroll.gate()));
+        }
+        for (Opacity opacity : opacities) {
+            if (row.age().filter(Age.BABY::equals).isPresent() && !opacity.babyDrawn()) continue;
+            if (row.age().filter(Age.ADULT::equals).isPresent() && !opacity.adultDrawn()) continue;
+            for (String input : opacity.inputs()) {
+                Drive drive = row.composed().get(input);
+                if (drive != null && drive.travels(periodTicks)) entries.add(new Entry(drive.kind(), opacity.gate()));
+            }
         }
 
         List<JsonTree> out = new ArrayList<>();
-        for (String kind : SOURCE_ORDER) {
+        for (StyleClock kind : SOURCE_ORDER) {
             List<Entry> held = entries.stream()
-                .filter(entry -> entry.source().equals(kind))
+                .filter(entry -> entry.source() == kind)
                 .toList();
             if (held.isEmpty()) continue;
             if (held.stream().anyMatch(entry -> entry.gate().open())) {
-                out.add(JsonTree.of(kind));
+                out.add(JsonTree.of(kind.token()));
                 continue;
             }
+            if (held.stream().anyMatch(entry -> entry.gate() instanceof Gate.Tinted))
+                throw new ToolingException("%s style '%s' moves by '%s' on a pass drawn only while a tint is selected, "
+                    + "which no flag spells and no source gate can carry", entity, row.id(), kind.token());
+            for (Entry entry : held)
+                if (entry.gate() instanceof Gate.Filled(String slot))
+                    throw new ToolingException("%s style '%s' moves by '%s' on the body its '%s' slot swaps in while filled, "
+                        + "which no flag spells and no source gate can carry", entity, row.id(), kind.token(), slot);
             Set<String> gates = held.stream()
-                .filter(entry -> !entry.gate().negative())
-                .map(entry -> entry.gate().token().orElseThrow())
+                .map(Entry::gate)
+                .filter(gate -> !gate.negative())
+                .map(gate -> token(((Gate.OnFlag) gate).flag()))
                 .collect(Collectors.toCollection(TreeSet::new));
             if (gates.isEmpty()) {
                 diagnostics.error(
                     "%s style '%s' moves by '%s' only where flag [%s] rests false, which the source spelling cannot carry",
-                    entity, row.id(), kind, held.stream()
-                        .map(entry -> entry.gate().token().orElse(""))
+                    entity, row.id(), kind.token(), held.stream()
+                        .map(entry -> token(((Gate.OnFlag) entry.gate()).flag()))
                         .distinct()
                         .collect(Collectors.joining(", ")));
                 continue;
             }
-            for (String gate : gates) out.add(JsonTree.object().put("source", kind).put("gate", gate));
+            for (String gate : gates) out.add(JsonTree.object().put("source", kind.token()).put("gate", gate));
         }
         return out;
     }
@@ -635,7 +988,7 @@ public final class StyleFlow {
      * row everything but them, an ageless row every mesh.
      */
     private static boolean skips(@NotNull Row row, boolean babyMesh) {
-        return row.age().map(age -> "baby".equals(age) != babyMesh).orElse(false);
+        return row.age().map(age -> (age == Age.BABY) != babyMesh).orElse(false);
     }
 
     /**
@@ -767,32 +1120,32 @@ public final class StyleFlow {
      * @param periodTicks the ticks one whole excursion spans
      * @param grounded the grounded programs already built, by pose key
      * @param measured the measurements already taken, by pose key and binding
-     * @return the kind tokens, empty for a row this binding never moves
+     * @return the kinds, empty for a row this binding never moves
      * @throws ToolingException if a channel varies and no driver kind accounts for it
      */
-    private static @NotNull Set<String> kindsOf(
+    private static @NotNull Set<StyleClock> kindsOf(
         @NotNull String poseKey, @NotNull LinkedHashMap<String, Drive> binding,
         @NotNull Map<String, PoseOutcome> poses, @NotNull Map<String, KeyframeClip> clips,
         int periodTicks, @NotNull Map<String, PoseProgram> grounded,
-        @NotNull Map<String, Set<String>> measured) {
+        @NotNull Map<String, Set<StyleClock>> measured) {
 
         if (!(poses.get(poseKey) instanceof PoseOutcome.Extracted extracted)) return Set.of();
         String memoKey = poseKey + '|' + bindingKey(binding);
-        Set<String> held = measured.get(memoKey);
+        Set<StyleClock> held = measured.get(memoKey);
         if (held != null) return held;
 
         PoseProgram program = grounded.computeIfAbsent(poseKey, key -> ground(extracted.program()));
         Evaluated full = evaluate(program, binding, Set.of(), periodTicks);
         Set<String> varying = full.varying();
 
-        Map<String, List<String>> byKind = new LinkedHashMap<>();
+        Map<StyleClock, List<String>> byKind = new LinkedHashMap<>();
         for (Drive drive : binding.values())
             byKind.computeIfAbsent(drive.kind(), kind -> new ArrayList<>()).add(drive.field());
-        Map<String, Evaluated> droppedByKind = new LinkedHashMap<>();
+        Map<StyleClock, Evaluated> droppedByKind = new LinkedHashMap<>();
 
-        Set<String> kinds = new LinkedHashSet<>();
+        Set<StyleClock> kinds = new LinkedHashSet<>();
         if (!varying.isEmpty()) {
-            for (String kind : byKind.keySet()) {
+            for (StyleClock kind : byKind.keySet()) {
                 Evaluated dropped = droppedByKind.computeIfAbsent(kind,
                     dropping -> evaluate(program, binding, Set.copyOf(byKind.get(dropping)), periodTicks));
                 for (String channel : varying)
@@ -808,15 +1161,15 @@ public final class StyleFlow {
 
         for (int index = 0; index < full.sites().size(); index++) {
             SiteSeries site = full.sites().get(index);
-            if (site.drive() == PoseClipSite.Gate.NONE) continue;
-            if (site.drive() == PoseClipSite.Gate.SELECT) {
+            if (site.drive() == ClipDrive.NONE) continue;
+            if (site.drive() == ClipDrive.SELECT) {
                 if (!satisfied(binding.get(site.state()), periodTicks)) continue;
-                if (moves(clipOf(clips, poseKey, site)) && site.argsVary()) kinds.add("select");
+                if (moves(clipOf(clips, poseKey, site)) && site.argsVary()) kinds.add(StyleClock.SELECT);
                 continue;
             }
             if (!moves(clipOf(clips, poseKey, site)) || !strideTravels(site, poseKey)) continue;
             boolean attributed = false;
-            for (String kind : byKind.keySet()) {
+            for (StyleClock kind : byKind.keySet()) {
                 Evaluated dropped = droppedByKind.computeIfAbsent(kind,
                     dropping -> evaluate(program, binding, Set.copyOf(byKind.get(dropping)), periodTicks));
                 if (sameStrideDrive(site, dropped.sites().get(index))) continue;
@@ -828,7 +1181,7 @@ public final class StyleFlow {
                     poseKey, site.clip());
         }
 
-        Set<String> sealed = Collections.unmodifiableSet(kinds);
+        Set<StyleClock> sealed = Collections.unmodifiableSet(kinds);
         measured.put(memoKey, sealed);
         return sealed;
     }
@@ -907,11 +1260,17 @@ public final class StyleFlow {
             .count() > 1);
     }
 
-    /** One measurement's memo key half - the binding as spelled values, order-independent. */
+    /**
+     * One measurement's memo key half - the binding as spelled values, order-independent: each
+     * driver's field, its wave with everything that wave reads, its rest and extent bits and its
+     * group.
+     */
     private static @NotNull String bindingKey(@NotNull Map<String, Drive> binding) {
         return binding.values().stream()
-            .map(drive -> drive.field() + ':' + drive.wave() + ':'
-                + Float.floatToIntBits(drive.rest()) + ':' + Float.floatToIntBits(drive.extent()))
+            .map(Drive::driver)
+            .map(driver -> driver.field() + ':' + driver.wave() + ':'
+                + Float.floatToIntBits(driver.rest()) + ':' + Float.floatToIntBits(driver.extent()) + ':'
+                + driver.group().orElse(""))
             .sorted()
             .collect(Collectors.joining(","));
     }
@@ -951,7 +1310,7 @@ public final class StyleFlow {
      * @param args each argument's per-tick values
      */
     private record SiteSeries(
-        @NotNull PoseClipSite.Gate drive,
+        @NotNull ClipDrive drive,
         @NotNull String state,
         @NotNull String clip,
         @NotNull List<double[]> args
@@ -1123,21 +1482,32 @@ public final class StyleFlow {
 
     /**
      * One emitted row - id first, then its base where the standing row is itself emitted, its age,
-     * its measured sources, its entailed toggles, and its drives: the row's own where a base
-     * carries the rest, the whole composed map where none does.
+     * its measured sources, its entailed toggles, and its drives - the row's own where a base carries
+     * the rest, the whole composed map where none does.
      */
     private static @NotNull JsonTree rowNode(
         @NotNull Row row, @NotNull List<JsonTree> sources, boolean baseEmitted) {
 
         JsonTree node = JsonTree.object().put("id", row.id());
-        boolean based = baseEmitted && !IDLE.equals(row.id());
-        if (based) node.put("base", IDLE);
-        row.age().ifPresent(age -> node.put("age", age));
+        boolean based = baseEmitted && !PoseStyle.IDLE.equals(row.id());
+        if (based) node.put("base", PoseStyle.IDLE);
+        row.age().ifPresent(age -> node.put("age", token(age)));
         node.put("sources", JsonTree.array().addAll(sources));
         if (!row.toggles().isEmpty())
             node.putStrings("toggles", row.toggles().toArray(String[]::new));
         JsonTree drives = node.childArray("drives");
         for (Drive drive : (based ? row.own() : row.composed()).values()) drives.add(drive.node());
+        return node;
+    }
+
+    /**
+     * A model's {@code ceilings} member - the fastest walk each age's paced stride reaches, keyed by
+     * the age's token in age order.
+     */
+    private static @NotNull JsonTree ceilingsNode(@NotNull Map<Age, WalkPace> ceilings) {
+        JsonTree node = JsonTree.object();
+        ceilings.forEach((age, ceiling) -> node.put(token(age),
+            JsonTree.object().put("speed", ceiling.speed()).put("rate", ceiling.rate())));
         return node;
     }
 

@@ -1,11 +1,14 @@
 package lib.minecraft.renderer.asset.pose;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
@@ -51,15 +54,16 @@ public record PoseStyle(
     public static final @NotNull String ANIMATED = "animated";
 
     /**
-     * One inventory entry: a mechanism, plus the overlay gate that admits it.
+     * One inventory entry: a mechanism, plus the appearance flag that admits it.
      *
      * @param source the kind of drive behind the movement
-     * @param gate the token of the overlay gate admitting this entry - the same spelling the gated
-     *     pass's {@code when} key uses; empty for an unconditional entry
+     * @param gate the flag admitting this entry - the one the gated pass's {@code when} key names, or
+     *     {@link Flag#CARRIED} for a movement only the body a selected carried block swaps in makes;
+     *     empty for an unconditional entry
      */
     public record StyleSource(
         @NotNull StyleClock source,
-        @NotNull Optional<String> gate
+        @NotNull Optional<Flag> gate
     ) {}
 
     /**
@@ -89,6 +93,24 @@ public record PoseStyle(
             StyleDriver driver = this.drivers.get(field);
             return driver == null ? 0d : driver.at(tick, window);
         };
+    }
+
+    /**
+     * This row scoped to another age of a catalog and walking at the stride that catalog draws there
+     * - every field the stride of this row's own age drives taken out, then every driver of the other
+     * age's stride put in its own order, every other driver and every other component kept. A row
+     * spanning both ages walks at the adult's stride.
+     *
+     * @param catalog the catalog both strides are drawn from
+     * @param age the age the row is scoped to and walks at
+     * @return the row at that age
+     */
+    public @NotNull PoseStyle restrided(@NotNull StyleCatalog catalog, @NotNull Age age) {
+        LinkedHashMap<String, StyleDriver> restrided = new LinkedHashMap<>(this.drivers);
+        catalog.strideAt(this.age.orElse(Age.ADULT)).drivers().keySet().forEach(restrided::remove);
+        restrided.putAll(catalog.strideAt(age).drivers());
+        return new PoseStyle(this.id, this.sources, Concurrent.adoptLinkedMap(restrided).toUnmodifiable(),
+            this.toggles, Optional.of(age), this.periodTicks);
     }
 
 }

@@ -8,6 +8,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.ArmorPiece;
@@ -249,19 +250,23 @@ class ArmorKitTest {
     @Test
     @DisplayName("a scaled wearer's shell seats at the feet anchor")
     void shellSeatsAtTheFeetAnchor() {
-        // The generator bakes a scaled wearer's own bone pivots about the same anchor, declared
-        // by the parser itself in the same build rather than read from EntityMesh.FEET_ANCHOR - so
-        // the two agreeing is what puts a shell on a body rather than beside it, and nothing
-        // compares them. The tooling's half is pinned by its exact-float parse of the ghast; this
-        // is the renderer's half, written as a literal so an edit to EntityMesh.FEET_ANCHOR moves a
-        // test rather than a render.
+        // The generator bakes a scaled wearer's shell about the same feet anchor it bakes the
+        // wearer's own body about, so the shell's bones carry the factor and the anchor the body's
+        // do - which is what puts a shell on a body rather than beside it. The renderer expands the
+        // anchor itself for what it seats on a scaled wearer, an elytra among them, declared in
+        // EntityMesh.FEET_ANCHOR rather than read from the parser, so the two have to land on one
+        // float. Written as a literal so an edit to either moves a test rather than a render.
         Shell giant = EntityModelLoader.load()
             .get("minecraft:giant").humanoidArmor().orElseThrow();
+        EntityMesh.Bone body = giant.mesh().getBones().get("body");
 
-        assertThat(giant.meshScale(), equalTo(6f));
-        assertThat(giant.meshOffset().y(), equalTo(-120.08f));
+        assertThat(body.getScale(), equalTo(6f));
+        assertThat(body.getPivot().y(), equalTo(-120.08f));
+        assertThat(EntityMesh.flattenedShift(6f), equalTo(-120.08f));
         // The identity scale seats at the origin, which is why the term is invisible on most wearers.
-        assertThat(genericShell().meshOffset().y(), equalTo(0f));
+        EntityMesh.Bone generic = genericShell().mesh().getBones().get("body");
+        assertThat(generic.getScale(), equalTo(1f));
+        assertThat(generic.getPivot().y(), equalTo(0f));
     }
 
     @Test

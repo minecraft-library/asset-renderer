@@ -26,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Coverage of the fixed-point coverage math the rasterizer runs per pixel - the sub-pixel sample
- * quantization, the Pineda edge-function factoring, the top-left fill rule, the barycentric and
+ * quantization, the Pineda edge-function factoring, the fill rule (the GPU's top-left rule, taken in
+ * GL's Y-up frame), the barycentric and
  * bounding-box helpers that ride alongside them, and the texel an interpolated coordinate reads.
  * <p>
  * Three claims the class states in prose and nothing checked.
@@ -135,7 +136,7 @@ class RasterMathTest {
      * @param t the triangle
      * @param px the sample's x coordinate
      * @param py the sample's y coordinate
-     * @return whether the triangle owns the sample under the top-left rule
+     * @return whether the triangle owns the sample under the fill rule
      */
     private static boolean unfactoredInside(@NotNull Tri t, float px, float py) {
         long x0 = RasterMath.quantizeSample(t.v0().x());
@@ -169,7 +170,7 @@ class RasterMathTest {
 
     /** Classifies the directed edge, inverting the answer where the sign normalization reverses it. */
     private static boolean topOrLeft(long sx, long sy, long ex, long ey, long sign) {
-        boolean classified = sy == ey ? ex > sx : ey < sy;
+        boolean classified = sy == ey ? ex < sx : ey < sy;
         return sign > 0L ? classified : !classified;
     }
 
@@ -222,25 +223,66 @@ class RasterMathTest {
         }
 
         @Test
-        @DisplayName("a top or left edge owns its samples; a right edge and the far vertices do not")
-        void topAndLeftEdgesOwnTheirSamplesAndTheHypotenuseDoesNot() {
-            // Screen space with y running down: v0 is the top-left corner, v0 -> v1 the top edge,
-            // v2 -> v0 the left edge, and v1 -> v2 the downward-running hypotenuse.
-            Vector2f v0 = new Vector2f(0f, 0f);
-            Vector2f v1 = new Vector2f(4f, 0f);
-            Vector2f v2 = new Vector2f(0f, 4f);
+        @DisplayName("a pixel centre on a horizontal edge two faces share goes to the face above it alone")
+        void aSampleOnASharedHorizontalEdgeGoesToTheFaceAboveIt() {
+            // Image space with y running down. The two faces share the edge from (0.5, 2.5) to
+            // (4.5, 2.5), the upper one reaching up to (2.5, 0.5) and the lower one down to (2.5, 4.5),
+            // and the centre of pixel (1, 2) lies exactly on that edge and on no other. The GPU applies
+            // its top-left rule in GL's window frame, where y runs up, and there the shared edge is the
+            // top edge of the face that sits above it in image space, so that face takes the sample.
+            Vector2f left = new Vector2f(0.5f, 2.5f);
+            Vector2f right = new Vector2f(4.5f, 2.5f);
+            Vector2f upperApex = new Vector2f(2.5f, 0.5f);
+            Vector2f lowerApex = new Vector2f(2.5f, 4.5f);
 
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 1f, 1f), equalTo(true));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 5f, 5f), equalTo(false));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 2f, 0f), equalTo(true));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 0f, 2f), equalTo(true));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 2f, 2f), equalTo(false));
+            assertThat("inside the upper face", owns(left, right, upperApex, 2.5f, 1.5f), equalTo(true));
+            assertThat("inside the lower face", owns(left, lowerApex, right, 2.5f, 3.5f), equalTo(true));
 
-            // The corner where the two owned edges meet is owned; the other two are not, each sitting
-            // on the hypotenuse the rule excludes.
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 0f, 0f), equalTo(true));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 4f, 0f), equalTo(false));
-            assertThat(RasterMath.isInsideTriangle(v0, v1, v2, 0f, 4f), equalTo(false));
+            boolean upper = owns(left, right, upperApex, 1.5f, 2.5f);
+            boolean lower = owns(left, lowerApex, right, 1.5f, 2.5f);
+            assertThat("the face above owns the shared sample", upper, equalTo(true));
+            assertThat("the face below does not", lower, equalTo(false));
+            assertThat("exactly one face owns it", upper ^ lower, equalTo(true));
+        }
+
+        @Test
+        @DisplayName("a pixel centre on a vertical edge two faces share goes to the face on its right alone")
+        void aSampleOnASharedVerticalEdgeGoesToTheFaceOnItsRight() {
+            // The two faces share the edge from (2.5, 0.5) to (2.5, 4.5), the left one reaching out to
+            // (0.5, 2.5) and the right one to (4.5, 2.5), and the centre of pixel (2, 1) lies exactly
+            // on that edge and on no other. Flipping y leaves left and right where they are, so the
+            // edge is the left edge of the face on its right in either frame.
+            Vector2f top = new Vector2f(2.5f, 0.5f);
+            Vector2f bottom = new Vector2f(2.5f, 4.5f);
+            Vector2f leftApex = new Vector2f(0.5f, 2.5f);
+            Vector2f rightApex = new Vector2f(4.5f, 2.5f);
+
+            assertThat("inside the left face", owns(top, leftApex, bottom, 1.5f, 2.5f), equalTo(true));
+            assertThat("inside the right face", owns(top, bottom, rightApex, 3.5f, 2.5f), equalTo(true));
+
+            boolean leftFace = owns(top, leftApex, bottom, 2.5f, 1.5f);
+            boolean rightFace = owns(top, bottom, rightApex, 2.5f, 1.5f);
+            assertThat("the face on the right owns the shared sample", rightFace, equalTo(true));
+            assertThat("the face on the left does not", leftFace, equalTo(false));
+            assertThat("exactly one face owns it", leftFace ^ rightFace, equalTo(true));
+        }
+
+        /**
+         * Answers whether the triangle owns the sample, after holding that both of its windings give
+         * the same answer, so a face's ownership never depends on which way round it is submitted.
+         *
+         * @param v0 the first vertex
+         * @param v1 the second vertex
+         * @param v2 the third vertex
+         * @param px the sample's x coordinate
+         * @param py the sample's y coordinate
+         * @return whether the triangle owns the sample
+         */
+        private static boolean owns(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2, float px, float py) {
+            boolean forward = RasterMath.isInsideTriangle(v0, v1, v2, px, py);
+            boolean reversed = RasterMath.isInsideTriangle(v0, v2, v1, px, py);
+            assertThat("both windings at (" + px + ", " + py + ")", reversed, equalTo(forward));
+            return forward;
         }
 
         @Test
@@ -266,15 +308,19 @@ class RasterMathTest {
             Vector2f c = new Vector2f(4f, 4f);
             Vector2f d = new Vector2f(0f, 4f);
 
-            for (int i = 0; i <= 3; i++) {
+            for (int i = 1; i <= 3; i++) {
                 float p = i;
                 boolean upper = RasterMath.isInsideTriangle(a, b, c, p, p);
                 boolean lower = RasterMath.isInsideTriangle(a, c, d, p, p);
                 assertThat("diagonal at " + p, upper ^ lower, equalTo(true));
             }
 
-            // The quad's far corner is owned by neither half: each meets it across at least one right
-            // or bottom edge, and one such edge is enough to exclude the sample.
+            // The diagonal's two ends are corners of the quad as well, where its outline decides them,
+            // and both are owned by neither half. The top-left corner lies on the quad's top edge in
+            // image space, which the face above it owns, and the far corner on its right edge, which the
+            // face to its right owns - one such edge is enough to exclude the sample.
+            assertThat(RasterMath.isInsideTriangle(a, b, c, 0f, 0f), equalTo(false));
+            assertThat(RasterMath.isInsideTriangle(a, c, d, 0f, 0f), equalTo(false));
             assertThat(RasterMath.isInsideTriangle(a, b, c, 4f, 4f), equalTo(false));
             assertThat(RasterMath.isInsideTriangle(a, c, d, 4f, 4f), equalTo(false));
         }

@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * <p>Discovery answers the same question a render resolves: a known id the shipped catalog, a
  * styles-less entity the bind-only one, and an unknown id the refusal a render of it throws -
- * discovery never invents an entity. The shipped axolotl carries the corpus's one age-split pair,
+ * discovery never invents an entity. The shipped axolotl splits its idle and its play-dead by age,
  * so its catalog is where the per-request resolution is pinned against real data.
  */
 @DisplayName("the renderer's style discovery")
@@ -81,15 +81,16 @@ class EntityRendererStylesTest {
     }
 
     @Test
-    @DisplayName("a baby whose shipped idle applies to the adult alone answers the universal row")
-    void aBabyOutsideItsShippedIdleAnswersTheUniversalRow() {
-        // The axolotl ships its idle at the adult alone, so a baby request falls through to the
-        // universal standing row - elapsed age ramped, nothing else driven.
+    @DisplayName("a baby whose family ships an idle at each age answers its own rather than the universal row")
+    void aBabyAnswersItsOwnShippedIdle() {
+        // The axolotl ships an idle at each age, so a baby request resolves the baby's own row - its
+        // float clip selected beside elapsed age - and never falls through to the universal standing row.
         EntityOptions baby = baby();
         PoseStyle idle = renderer.styles("minecraft:axolotl")
             .resolve(PoseStyle.IDLE, baby.getAppearance()::applies, baby.getEntityId());
-        assertEquals(Set.of("ageInTicks"), idle.drivers().keySet(),
-            "the universal row drives elapsed age and nothing else");
+        assertEquals(Optional.of(Age.BABY), idle.age(), "a baby request resolves the baby's row");
+        assertEquals(Set.of("ageInTicks", "idleUnderWaterAnimationState"), idle.drivers().keySet(),
+            "which selects the float clip beside elapsed age");
     }
 
     // ------------------------------------------------------------------------------------

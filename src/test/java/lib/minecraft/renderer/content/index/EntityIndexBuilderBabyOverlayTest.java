@@ -130,7 +130,9 @@ class EntityIndexBuilderBabyOverlayTest {
             new RawAxis(null, options),  // age
             null,                     // shape
             null,                     // size
-            null);                    // state
+            null,                     // state
+            null,                     // carried
+            null);                    // equipment
     }
 
     /** The {@code type} pass - a category overlay carrying a baby delta with a suppressed form. */
@@ -146,7 +148,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                                  // texture_scroll
             false,                                                 // skip_bounds
             null,                                                  // when
-            typeBabyDelta());                                      // baby
+            typeBabyDelta(),                                       // baby
+            null);                                                 // opacity
     }
 
     /** The {@code type} pass's age delta - the baby texture plus the mesh its suppressed form draws. */
@@ -170,7 +173,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,          // texture_scroll
             true,          // skip_bounds
             null,          // when
-            null);         // baby
+            null,          // baby
+            null);         // opacity
     }
 
     /** The control family's wool pass - tinted by an axis rather than textured by one, and no age delta. */
@@ -186,7 +190,8 @@ class EntityIndexBuilderBabyOverlayTest {
             null,                                              // texture_scroll
             false,                                             // skip_bounds
             null,                                              // when
-            null);                                             // baby
+            null,                                              // baby
+            null);                                             // opacity
     }
 
     /** The saddle equipment row - the other decoration a baby drops wholesale. */
@@ -198,8 +203,7 @@ class EntityIndexBuilderBabyOverlayTest {
             Map.of("saddle", "minecraft:saddle"),  // material_assets
             "saddle",                              // default_material
             null,                                  // bones
-            null,                                  // wearer_toggle
-            null);                                 // wearer_pose
+            null);                                 // wearer_toggle
     }
 
     /** The block overlay a baby drops wholesale. */
@@ -228,7 +232,8 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("villager/villager",
                 "villager/villager_baby"),  // axes
             null,                                      // members
-            null);                                     // styles
+            null,                                      // styles
+            null);                                     // ceilings
     }
 
     /** The control family: a baby mesh and an overlay, but no age delta on it. */
@@ -244,7 +249,8 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("sheep/sheep",
                 "sheep/sheep_baby"),  // axes
             null,                 // members
-            null);                // styles
+            null,                 // styles
+            null);                // ceilings
     }
 
     private static ConcurrentMap<String, Entity> assemble() {
@@ -311,7 +317,8 @@ class EntityIndexBuilderBabyOverlayTest {
             new RawOverlayBaby(
                 BABY_DECOR,                                                              // geometry
                 null,                                                                    // no_hat_geometry
-                "equipment/llama_body/trader_llama_baby"));  // texture
+                "equipment/llama_body/trader_llama_baby"),   // texture
+            null);                                                              // opacity
         Map<String, RawModel> models = new LinkedHashMap<>();
         models.put(ENTITY, new RawModel(
             null,                                        // renderer
@@ -324,7 +331,8 @@ class EntityIndexBuilderBabyOverlayTest {
             ageAxes("llama/llama_creamy",
                 "llama/llama_creamy_baby"),  // axes
             null,                                        // members
-            null));                                      // styles
+            null,                                        // styles
+            null));                                      // ceilings
         Entity llama = EntityIndexBuilder.assemble(geometries(), new EntityModelsTable(models, null), Map.of()).get(ENTITY);
 
         assertThat("the adult decor draws the mesh its row names",

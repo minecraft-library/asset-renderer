@@ -71,6 +71,17 @@ public record BuiltStyle(
     }
 
     /**
+     * The age an install of this style compiles its row's own body at, and the age whose shipped
+     * rows an audit of a one-row install reads its known-good envelope from - the style's own age,
+     * the adult where it spans both.
+     *
+     * @return the compiled age
+     */
+    public @NotNull Age compiledAge() {
+        return this.age.orElse(Age.ADULT);
+    }
+
+    /**
      * Infers the source inventory from a script's content - any timeline, sway, spin, stride
      * ride or nonzero hover bob moves the style on the clock, and anything else holds still.
      *

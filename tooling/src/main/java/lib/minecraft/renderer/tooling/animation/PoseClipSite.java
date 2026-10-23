@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
-import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
@@ -47,7 +45,7 @@ import java.util.List;
  */
 public record PoseClipSite(
     @NotNull String clip,
-    @NotNull Gate drive,
+    @NotNull ClipDrive drive,
     @NotNull String state,
     @NotNull List<PoseExpr> arguments,
     @NotNull PoseExpr condition
@@ -74,36 +72,6 @@ public record PoseClipSite(
             reached
                 ? new PoseExpr.Select(condition, this.condition, NEVER)
                 : new PoseExpr.Select(condition, NEVER, this.condition));
-    }
-
-    /**
-     * What decides whether a clip contributes.
-     *
-     * <p>The distinction is the whole reason a pose selector can be built out of these: a clip
-     * behind a per-entity animation state contributes nothing to a render that starts no state,
-     * which is every render this library takes.
-     */
-    @Getter(style = NamingStyle.FLUENT)
-    @RequiredArgsConstructor
-    public enum Gate {
-
-        /** Held at its first frame unconditionally - the only clip kind that always contributes. */
-        NONE("none"),
-
-        /** Driven by the walk inputs, so it contributes exactly as far as the subject is walking. */
-        STRIDE("stride"),
-
-        /**
-         * Behind a running animation state - a roar, a dig, a sit, an idle. Vanilla starts one from
-         * its own {@code setupAnimationStates}, so which of a model's several is running is a
-         * selection over the render-state fields they are held in, and the site names the one it
-         * reads.
-         */
-        SELECT("select");
-
-        /** The token this gate is spelled with in the shipped table. */
-        private final @NotNull String token;
-
     }
 
 }

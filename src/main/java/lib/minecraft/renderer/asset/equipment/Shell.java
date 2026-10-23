@@ -22,9 +22,10 @@ import java.util.Optional;
  * and is summed onto the slot's deformation at render.
  *
  * <p>Three of the sets are registered through a whole-mesh {@code MeshTransformer.scaling} - giant
- * {@code 6.0}, husk {@code 1.0625}, wither skeleton {@code 1.2} - and that factor is {@link #meshScale}.
- * It rides the shell rather than the mesh so the sets that differ only by it still share one geometry
- * entry, and it is what sizes and seats the shell in step with the body it dresses.
+ * {@code 6.0}, husk {@code 1.0625}, wither skeleton {@code 1.2} - and each is dressed in a mesh of its
+ * own, the factor and the feet anchor baked into its bones as they are into a scaled body's. The
+ * scaling rebuilds the mesh root, so those sets also draw their parts in another order than the
+ * unscaled ones.
  *
  * <p>A wearer vanilla hands a second armour set is dressed in a shell of its own rather than in a
  * smaller copy of this one - its own mesh, its own two deformations, sometimes its own sheet - and that
@@ -52,8 +53,6 @@ import java.util.Optional;
  * @param mesh the ungrown armour mesh, joined from the geometry store
  * @param innerGrow the per-side growth the leggings layer applies
  * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
- * @param meshScale the whole-mesh uniform scale the set is registered through, {@code 1} for the eleven
- *     wearers registered unscaled
  * @param form which of the two shells this is - what says which parts each slot covers, which equipment
  *     layer it draws through, and whether it is trimmed
  * @param alternate the shell this wearer's other form is dressed in, empty when it has none
@@ -62,23 +61,9 @@ public record Shell(
     @NotNull EntityMesh mesh,
     @NotNull Vector3f innerGrow,
     @NotNull Vector3f outerGrow,
-    float meshScale,
     @NotNull ArmorForm form,
     @NotNull Optional<Alternate> alternate
 ) {
-
-    /**
-     * The offset the shell is seated at - the translate vanilla's whole-mesh transformer pairs with the
-     * scale, so that scaling happens about the wearer's feet rather than its origin.
-     *
-     * <p>Derived rather than carried: the same expression in the same precision the tooling baked the
-     * wearer's own bone pivots with, so the two agree bit for bit. A transcribed literal would not.
-     *
-     * @return the whole-mesh offset, zero at the identity scale
-     */
-    public @NotNull Vector3f meshOffset() {
-        return new Vector3f(0f, EntityMesh.flattenedShift(this.meshScale), 0f);
-    }
 
     /**
      * The second shell a wearer is dressed in, and the appearance selection that reaches it.

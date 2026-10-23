@@ -93,8 +93,13 @@ public final class RenderTransformWalk {
     /** The {@code Axis.rotationDegrees} descriptor, which is what makes the angle degrees. */
     private static final @NotNull String ROTATION_DEGREES_DESC = "(F)Lorg/joml/Quaternionf;";
 
-    /** The {@code Mth} trigonometry descriptor - the sampled table, never the JDK's own. */
-    private static final @NotNull String TRIGONOMETRY_DESC = "(D)F";
+    /**
+     * The operators {@link #trigonometry} applies, read off a call through {@link PoseWalk#operatorOf}:
+     * {@code Mth.sin} and {@code Mth.cos}, the sampled table and never the JDK's own, and the
+     * {@code Math.abs} over a float an inlined triangle wave takes.
+     */
+    private static final @NotNull Set<PoseOperator> TRIGONOMETRY =
+        Set.of(PoseOperator.MTH_SIN, PoseOperator.MTH_COS, PoseOperator.ABS);
 
     /** {@code PoseStack.mulPose}, which is the only way a turn reaches the stack here. */
     private static final @NotNull String MUL_POSE = "mulPose";
@@ -117,12 +122,6 @@ public final class RenderTransformWalk {
 
     /** The descriptor a boolean render-state field carries. */
     private static final @NotNull String BOOLEAN_DESC = "Z";
-
-    /** {@code java/lang/Math}, which an inlined helper reaches directly rather than through Mth. */
-    private static final @NotNull String JAVA_MATH = "java/lang/Math";
-
-    /** The {@code Math.abs} overload an inlined triangle wave takes. */
-    private static final @NotNull String ABS_DESC = "(F)F";
 
     /** The descriptor a float render-state field carries. */
     private static final @NotNull String FLOAT_DESC = "F";
@@ -446,15 +445,11 @@ public final class RenderTransformWalk {
             degrees();
             return;
         }
-        if (SourceClasses.Types.MTH.equals(invoke.owner) && TRIGONOMETRY_DESC.equals(invoke.desc)
-            && ("sin".equals(invoke.name) || "cos".equals(invoke.name))) {
-            trigonometry("sin".equals(invoke.name) ? PoseOperator.MTH_SIN : PoseOperator.MTH_COS);
-            return;
-        }
-        if (JAVA_MATH.equals(invoke.owner) && "abs".equals(invoke.name) && ABS_DESC.equals(invoke.desc)) {
-            // An inlined `Mth.triangleWave` is the only shape that reaches for this: the body writes
-            // out (abs(v % p - p/2) - p/4) / (p/4) rather than calling the helper.
-            trigonometry(PoseOperator.ABS);
+        // Math.abs reaches a body only through an inlined `Mth.triangleWave`: the body writes out
+        // (abs(v % p - p/2) - p/4) / (p/4) rather than calling the helper.
+        Optional<PoseOperator> trigonometry = PoseWalk.operatorOf(invoke).filter(TRIGONOMETRY::contains);
+        if (trigonometry.isPresent()) {
+            trigonometry(trigonometry.get());
             return;
         }
         if (SourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_OPPOSITE.equals(invoke.name)) {

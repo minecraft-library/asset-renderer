@@ -84,6 +84,11 @@ import java.util.stream.Collectors;
  * the context it wraps. {@link #measuring} derives a context that reports nothing, for the reads that
  * size a render rather than draw it. {@link #record} runs one render over a context holding a fresh
  * collector and pairs its image with what was recorded.
+ * <p>
+ * A context holding definitions carries the {@link StripMemo} every strip fitted over them is held in,
+ * answered by {@link #strips}, so a strip is released with the definitions it was fitted over. Every
+ * wrapper answers its delegate's memo but {@link #withEntities}, which holds definitions of its own and
+ * so a memo of its own.
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -572,7 +577,7 @@ public interface RendererContext {
         @Nullable Map<TintSource, ColorMap> colorMaps,
         @Nullable Map<String, Integer> colorOverrides
     ) {
-        return new MapRendererContext(textures, blocks, items, entities, colorMaps, colorOverrides);
+        return new MapRendererContext(textures, blocks, items, entities, colorMaps, colorOverrides, new StripMemo());
     }
 
     /**
@@ -592,11 +597,15 @@ public interface RendererContext {
      * id they do not hold. A held definition whose body mesh holds no bone draws nothing, so it answers
      * empty, whatever this context answers for its id.
      *
+     * <p>The derived context holds a {@link #strips strip memo} of its own, so every strip fitted
+     * through it is released with it rather than held by this context.
+     *
      * @param entities the entity definitions keyed by namespaced id
      * @return a context answering entities through the given definitions
      */
     default @NotNull RendererContext withEntities(@NotNull Map<String, Entity> entities) {
         RendererContext delegate = this;
+        StripMemo strips = new StripMemo();
         return new Forwarding() {
 
             @Override public @NotNull RendererContext delegate() {
@@ -608,6 +617,10 @@ public interface RendererContext {
 
                 Entity entity = entities.get(id);
                 return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
+            }
+
+            @Override public @NotNull StripMemo strips() {
+                return strips;
             }
         };
     }
@@ -728,6 +741,18 @@ public interface RendererContext {
      */
     default @NotNull SubstitutionCollector collector() {
         return SubstitutionCollector.DISCARD;
+    }
+
+    /**
+     * The memo the strips fitted over this context's definitions are held in. The default answers a
+     * fresh memo on every ask, which holds no strip from one ask to the next; a context holding
+     * definitions answers one memo for its whole life, {@link #withEntities} answers one of its own, and
+     * every other {@link Forwarding} wrapper answers its delegate's.
+     *
+     * @return the memo a strip fitted through this context is held in
+     */
+    default @NotNull StripMemo strips() {
+        return new StripMemo();
     }
 
     /**
@@ -859,7 +884,9 @@ public interface RendererContext {
      * <p>A report is forwarded as a lookup is: {@link #report} and {@link #collector} both reach the
      * delegate, so a stand-in reported through a wrapper is logged and recorded by the nearest collecting,
      * measuring or unwrapped context beneath it. The two describe one thing - where a stand-in goes - so a
-     * context that changes it pins both, as {@link #collecting} and {@link #measuring} do.
+     * context that changes it pins both, as {@link #collecting} and {@link #measuring} do. {@link #strips}
+     * reaches the delegate too, so a strip fitted through a wrapper is held beside the definitions it was
+     * fitted over.
      *
      * <p><b>A wrapper that pins one lookup owes a thought to the lookups that describe the same
      * thing, and the debt runs both ways.</b> The texture lookups are four views of one texture -
@@ -892,6 +919,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default void report(@NotNull Substitution substitution) {
             delegate().report(substitution);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull StripMemo strips() {
+            return delegate().strips();
         }
 
         /** {@inheritDoc} */

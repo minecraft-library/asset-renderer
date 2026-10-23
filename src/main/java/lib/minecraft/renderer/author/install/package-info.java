@@ -3,11 +3,12 @@
  * authored pose meets a subject.
  *
  * <p>{@link lib.minecraft.renderer.author.install.StyleRegistrar StyleRegistrar} compiles a style
- * against the target row's own mesh and shipped pose, appends one flat catalog row after the
- * shipped rows, weaves every pose row the runtime evaluates - an overlay pass sharing the body's
- * pose instance follows for free, a pass carrying a distinct row takes its own compile - and hands
- * the mutated definitions to the renderer's existing public constructor, so registration ships no
- * runtime change at all. {@link lib.minecraft.renderer.author.install.PlayerRig PlayerRig}
+ * against the target row's own mesh and shipped pose, appends its catalog rows after the shipped
+ * rows, weaves every pose row the runtime evaluates - an overlay pass sharing the body's pose
+ * instance follows for free, a pass carrying a distinct row takes its own compile - and hands the
+ * mutated definitions to the renderer's existing public constructor, so registration ships no
+ * runtime change at all. A style appends one flat row, or an adult row and a baby row of one id
+ * where it keeps the stride across both ages on a row carrying a baby form. {@link lib.minecraft.renderer.author.install.PlayerRig PlayerRig}
  * synthesizes the row the player renders through and
  * {@link lib.minecraft.renderer.content.index.RendererContext#withTexture withTexture} answers its reserved skin
  * ref ahead of every pack.

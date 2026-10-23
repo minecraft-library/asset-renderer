@@ -18,37 +18,37 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Holds the harness's animation contract equal to the SHIPPED style catalog, field for field.
+ * Holds the harness's animation contract equal to the SHIPPED style catalog.
  *
  * <p>The shipped {@code entity_models.json} styles member is what this renderer answers a frame
- * from, and the harness drives the same figures from declarations of its own in a separate build
- * that can name no type of this one. What goes wrong when they part is silent: the harness drives a
- * squid's tentacles to one extent while the catalog answers another, both render happily, and the
- * parity row reports the difference as a defect in this renderer. So the shipped file is read as the
- * reference side and the harness sources are regex-scraped as the pinned side, the same shape as the
- * operator roster's mirror and for the same reason.
+ * from, and the harness renders the same subjects in a separate build that can name no type of this
+ * one. What goes wrong when they part is silent: both render happily, and the parity row reports the
+ * difference as a defect in this renderer. So the shipped file is read as the reference side and the
+ * harness sources are regex-scraped as the pinned side, the same shape as the operator roster's
+ * mirror and for the same reason.
  *
- * <p>What is held equal: every swept or cycling driver against the harness's scalar roster
- * (rest, extent and shape, as float bits); every grouped one-hot driver against the harness's state
- * roster (group and field, held at extent one); the member each group rests at and moves at against
- * the rows the {@code idle} and {@code stride} ids carry; the stride pair against the harness's
- * declared amplitude; the file's period against the harness's frame schedule and
- * {@link StyleCatalog#STRIP_FRAMES}; and the network id the generator folds against the one the
- * harness renders every subject at.
+ * <p>What is held: every grouped one-hot driver against the harness's state roster (group and field,
+ * held at extent one); the member each group rests at and moves at against the rows the {@code idle}
+ * and {@code stride} ids carry; every clock the catalog drives against the harness mixin that writes
+ * it; the stride pair's shape, the rule a pace obeys and the ceiling above it; the file's figure
+ * period against {@link StyleCatalog#FIGURE_PERIOD_TICKS}; and the network id the generator folds
+ * against the one the harness renders every subject at. A clock's values and a pace reach the harness
+ * through the schedule roster, so what is held for each is a consumer or a rule, never a number.
  */
 class StyleCatalogMirrorTest {
 
@@ -60,29 +60,17 @@ class StyleCatalogMirrorTest {
     private static final Path HARNESS =
         Path.of("harness/src/client/java/lib/minecraft/refharness/IdleFigures.java");
 
-    /** Where the harness declares the amplitude it drives a walking reference at. */
-    private static final Path HARNESS_STRIDE =
-        Path.of("harness/src/client/java/lib/minecraft/refharness/AnimationClock.java");
-
-    /** Where the harness declares the frame schedule the shipped period must divide across. */
-    private static final Path HARNESS_SCHEDULE =
-        Path.of("harness/src/client/java/lib/minecraft/refharness/sweep/EntityAnimationSweep.java");
+    /** The harness's mixins, where every clock the shipped catalog drives is written. */
+    private static final Path MIXINS =
+        Path.of("harness/src/client/java/lib/minecraft/refharness/mixin");
 
     /** The generator's declared rests, among them the network id it folds every pose against. */
     private static final Path TOOLING =
-        Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/policy/StyleRoster.java");
-
-    /** The stride amplitude, read as a value rather than as text - the two spell the literal apart. */
-    private static final Pattern AMPLITUDE =
-        Pattern.compile("WALK_AMPLITUDE = ([0-9]*\\.?[0-9]+)f;");
+        Path.of("tooling/src/main/java/lib/minecraft/renderer/tooling/animation/StyleRoster.java");
 
     /** The network id both sides render every subject at, spelled apart for the same reason. */
     private static final Pattern PINNED_ID =
         Pattern.compile("(?:PINNED_ENTITY_ID = |\"entityId\", )([0-9]+)f?");
-
-    /** A scalar constant of the harness roster - the figure, its excursion and its shape. */
-    private static final Pattern CONTINUOUS =
-        Pattern.compile("^([A-Z][A-Z_]*)\\(\"(\\w+)\", ([-\\d.f]+), ([-\\d.f]+), Shape\\.(\\w+)\\)[,;]$");
 
     /** A one-hot member, which carries the selector it belongs to and the field it drives. */
     private static final Pattern STATE =
@@ -92,49 +80,69 @@ class StyleCatalogMirrorTest {
     private static final Pattern SELECTED =
         Pattern.compile("^case (\\w+) -> (?:walking \\? )?(?:State\\.)?(\\w+)(?: : (?:State\\.)?(\\w+))?;$");
 
-    /** One declared schedule constant of the harness sweep, read as a value. */
-    private static final Pattern FRAME_COUNT = Pattern.compile("FRAME_COUNT = ([0-9]+);");
+    /** One read of a clock the armed schedule carries, naming the clock. */
+    private static final Pattern CLOCK_CALL = Pattern.compile("AnimationClock\\.clock\\(\"(\\w+)\"\\)");
 
-    private static final Pattern TICKS_PER_FRAME = Pattern.compile("TICKS_PER_FRAME = ([0-9]+);");
+    /** One clock written into a render-state field - the field written, then the clock read. */
+    private static final Pattern CLOCK_WRITE =
+        Pattern.compile("state\\.(\\w+) = AnimationClock\\.clock\\(\"(\\w+)\"\\);");
 
-    private static final Pattern START_TICK = Pattern.compile("START_TICK = ([0-9]+);");
+    /** One question whether the armed schedule carries a clock, naming the clock. */
+    private static final Pattern DRIVES_CALL = Pattern.compile("AnimationClock\\.drives\\(\"(\\w+)\"\\)");
+
+    /** The fields with homes of their own - the age the harness stamps, and the pair a pace carries. */
+    private static final Set<String> STRIDE_TRIO = Set.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos");
+
+    /** The waves whose value at a frame reads no window, so the roster carries one value a frame. */
+    private static final Set<String> CARRIED_WAVES = Set.of("hold", "ramp", "stroke", "trapezoid");
 
     @Test
-    @DisplayName("the swept and cycling drivers are the harness scalar roster, excursion for excursion")
-    void theSweptDriversAreTheScalarRoster() throws IOException {
-        Map<String, String> harness = new TreeMap<>();
-        for (String line : constantsOf(HARNESS, CONTINUOUS)) {
-            Matcher scalar = CONTINUOUS.matcher(line);
-            assertTrue(scalar.matches(), line);
-            String held = harness.put(scalar.group(2),
-                excursion(Float.parseFloat(scalar.group(3)), Float.parseFloat(scalar.group(4)),
-                    scalar.group(5)));
-            assertNull(held, "'" + scalar.group(2) + "' is declared twice in " + HARNESS);
-        }
-        assertFalse(harness.isEmpty(),
-            "no scalar matched in " + HARNESS + " - the pattern has drifted");
-
-        Map<String, String> shipped = new TreeMap<>();
+    @DisplayName("every clock the catalog drives is written by a harness mixin, and every write names one")
+    void everyClockHasAHarnessConsumer() throws IOException {
+        Set<String> shipped = new TreeSet<>();
         for (Row row : rows()) {
             for (JsonObject drive : row.drives()) {
+                if (drive.has("group") || STRIDE_TRIO.contains(fieldOf(drive))) continue;
                 String wave = drive.get("wave").getAsString();
-                if (!"sweep".equals(wave) && !"cycle".equals(wave)) continue;
-                assertEquals("idle", row.id(),
-                    row.entity() + " sweeps '" + fieldOf(drive) + "' on row '" + row.id()
-                        + "' - a figure's home is the idle row, and a stride inherits it");
-                String spelled = excursion(restOf(drive), extentOf(drive),
-                    wave.toUpperCase(Locale.ROOT));
-                String held = shipped.put(fieldOf(drive), spelled);
-                assertTrue(held == null || held.equals(spelled),
-                    "'" + fieldOf(drive) + "' is swept two ways in the shipped catalog: "
-                        + held + " and " + spelled);
+                assertTrue(CARRIED_WAVES.contains(wave),
+                    row.entity() + " row '" + row.id() + "' drives clock '" + fieldOf(drive) + "' on a " + wave
+                        + " - the roster carries one value a frame for a wave that reads no window, and a "
+                        + "sweep or a cycle reads one");
+                shipped.add(fieldOf(drive));
             }
         }
 
-        assertEquals(harness, shipped,
-            "the scalar excursions the shipped catalog answers and the ones the harness drives have "
-                + "parted; a figure driven to one extent and answered at another renders as a defect "
-                + "in this renderer and is not one");
+        Set<String> written = new TreeSet<>();
+        Set<String> asked = new TreeSet<>();
+        int calls = 0;
+        int writes = 0;
+        for (String line : codeLinesOf(MIXINS)) {
+            Matcher call = CLOCK_CALL.matcher(line);
+            while (call.find()) {
+                written.add(call.group(1));
+                calls++;
+            }
+            Matcher write = CLOCK_WRITE.matcher(line);
+            while (write.find())
+                if (write.group(1).equals(write.group(2))) writes++;
+            Matcher drives = DRIVES_CALL.matcher(line);
+            while (drives.find()) asked.add(drives.group(1));
+        }
+
+        assertFalse(shipped.isEmpty(), "no clock read from " + SHIPPED + " - the catalog drives none");
+        assertFalse(written.isEmpty(),
+            "no AnimationClock.clock read matched under " + MIXINS + " - the pattern has drifted");
+        assertEquals(calls, writes,
+            "a clock read under " + MIXINS + " is not written as state.<field> = AnimationClock.clock(\"<field>\") "
+                + "with the field it names - a value written into another clock's field");
+        assertEquals(Set.of(), difference(shipped, written),
+            "driven by the shipped catalog and written by no harness mixin: the reference would hold "
+                + "vanilla's never-ticked value while this renderer drives it");
+        assertEquals(Set.of(), difference(written, shipped),
+            "written by a harness mixin and driven by no shipped row: the harness would refuse every frame "
+                + "of that subject");
+        assertEquals(Set.of(), difference(asked, written),
+            "asked after with AnimationClock.drives and written by no harness mixin");
     }
 
     @Test
@@ -239,31 +247,27 @@ class StyleCatalogMirrorTest {
     }
 
     @Test
-    @DisplayName("the stride pair and elapsed age are driven at the amplitude the harness declares")
-    void theStridePairIsDrivenAtTheHarnessAmplitude() throws IOException {
-        float amplitude = amplitudeOf(HARNESS_STRIDE);
+    @DisplayName("the stride pair is a pace where the row reads the walk clock, under its ceiling, and inert where it does not")
+    void theStridePairIsAPace() throws IOException {
         List<Row> rows = rows();
+        Set<String> withBabies = babyModels();
+        Map<String, Map<String, List<Row>>> byEntity = new TreeMap<>();
         for (Row row : rows)
+            byEntity.computeIfAbsent(row.entity(), key -> new LinkedHashMap<>())
+                .computeIfAbsent(row.id(), key -> new ArrayList<>())
+                .add(row);
+
+        int paced = 0;
+        int inert = 0;
+        Set<String> ceiledSides = new TreeSet<>();
+        for (Row row : rows) {
+            String at = row.entity() + " row '" + row.id() + "'" + row.age().map(age -> " (" + age + ")").orElse("");
             for (JsonObject drive : row.drives()) {
-                String at = row.entity() + " row '" + row.id() + "'";
                 switch (fieldOf(drive)) {
-                    case "walkAnimationSpeed" -> {
-                        assertEquals("hold", drive.get("wave").getAsString(),
-                            at + " does not hold the stride amplitude");
-                        assertEquals(Float.floatToIntBits(amplitude),
-                            Float.floatToIntBits(extentOf(drive)),
-                            at + " walks at " + extentOf(drive) + " where the harness drives "
-                                + amplitude + " - the amplitude is the phase as well as the speed, "
-                                + "so the two sides stand at different points of different strides");
-                    }
-                    case "walkAnimationPos" -> {
-                        assertEquals("ramp", drive.get("wave").getAsString(),
-                            at + " does not ramp the stride phase");
-                        assertEquals(Float.floatToIntBits(amplitude),
-                            Float.floatToIntBits(extentOf(drive)),
-                            at + " advances the phase by " + extentOf(drive)
-                                + " a tick where the harness advances it by the amplitude");
-                    }
+                    case "walkAnimationSpeed" -> assertEquals("hold", drive.get("wave").getAsString(),
+                        at + " does not hold the walk speed");
+                    case "walkAnimationPos" -> assertEquals("ramp", drive.get("wave").getAsString(),
+                        at + " does not ramp the walk clock");
                     case "ageInTicks" -> {
                         assertEquals("ramp", drive.get("wave").getAsString(),
                             at + " does not ramp elapsed age");
@@ -275,41 +279,87 @@ class StyleCatalogMirrorTest {
                 }
             }
 
-        Map<String, Map<String, Row>> byEntity = new TreeMap<>();
-        for (Row row : rows)
-            byEntity.computeIfAbsent(row.entity(), key -> new LinkedHashMap<>())
-                .putIfAbsent(row.id(), row);
+            boolean reads = row.sources().contains("stride");
+            boolean ceiled = "stride".equals(row.id()) && reads;
+            if (!ceiled) {
+                assertTrue(row.ceiling().isEmpty(),
+                    at + " meets a ceiling its catalog records, which only a stride walking at its own pace meets");
+            }
+
+            Map<String, JsonObject> composed = composedDrives(row, byEntity.get(row.entity()));
+            JsonObject speedDrive = composed.get("walkAnimationSpeed");
+            JsonObject rateDrive = composed.get("walkAnimationPos");
+            if (speedDrive == null || rateDrive == null) continue;
+            float speed = extentOf(speedDrive);
+            float rate = extentOf(rateDrive);
+
+            if (!reads) {
+                inert++;
+                assertEquals(Float.floatToIntBits(1f), Float.floatToIntBits(speed),
+                    at + " reads no walk clock and holds the walk speed at " + speed
+                        + " - a pose that reads no walk clock carries the pair at one, untouched by a pace");
+                assertEquals(Float.floatToIntBits(1f), Float.floatToIntBits(rate),
+                    at + " reads no walk clock and ramps the walk clock at " + rate
+                        + " - a pose that reads no walk clock carries the pair at one, untouched by a pace");
+                continue;
+            }
+
+            paced++;
+            assertTrue(speed > 0f && speed <= 1f,
+                at + " walks at " + speed + " - a pace is above zero, and vanilla's render-state walk speed "
+                    + "never exceeds one");
+            boolean baby = row.age().filter("baby"::equals).isPresent();
+            float expected = baby ? 3f * speed : speed;
+            assertEquals(Float.floatToIntBits(expected), Float.floatToIntBits(rate),
+                at + " ramps the walk clock at " + rate + " where its walk speed " + speed + " asks "
+                    + expected + (baby
+                        ? " - vanilla runs a baby's walk clock three times its pace"
+                        : " - the swing and an adult's walk clock are one number"));
+            if (withBabies.contains(row.entity())) {
+                assertTrue(row.age().isPresent(),
+                    at + " paces a model with a baby age and names no age - both ages would walk the baby's "
+                        + "clock at the adult's rate");
+            }
+
+            if (ceiled) {
+                ceiledSides.add(row.entity() + " " + row.age().orElse("adult"));
+                JsonObject ceiling = row.ceiling().orElse(null);
+                assertNotNull(ceiling, at + " walks at its own pace and its catalog records no ceiling at its age");
+                assertTrue(ceiling.get("speed").getAsFloat() >= speed,
+                    at + " ceiling speed " + ceiling.get("speed") + " sits under its pace " + speed);
+                assertTrue(ceiling.get("rate").getAsFloat() >= rate,
+                    at + " ceiling rate " + ceiling.get("rate") + " sits under its walk-clock rate " + rate);
+            }
+        }
+        assertTrue(paced > 0, "no row of " + SHIPPED + " walks at a pace");
+        assertTrue(inert > 0, "no row of " + SHIPPED + " carries the walk pair inert");
+        Set<String> recorded = new TreeSet<>();
+        for (Map.Entry<String, JsonElement> entity : shipped().getAsJsonObject("models").entrySet()) {
+            JsonObject ceilings = entity.getValue().getAsJsonObject().getAsJsonObject("ceilings");
+            if (ceilings != null) ceilings.keySet().forEach(age -> recorded.add(entity.getKey() + " " + age));
+        }
+        assertEquals(ceiledSides, recorded,
+            "a catalog records a ceiling at exactly the ages its stride walks at its own pace");
+
         for (Row row : rows) {
-            Set<String> composed = composedFields(row, byEntity.get(row.entity()));
+            Set<String> composed = composedDrives(row, byEntity.get(row.entity())).keySet();
             if ("stride".equals(row.id()))
                 assertTrue(composed.containsAll(Set.of("walkAnimationSpeed", "walkAnimationPos")),
-                    row.entity() + " stride row composes " + composed
+                    row.entity() + " stride row composes " + new TreeSet<>(composed)
                         + " and a stride is carried on the walk pair");
             if ("idle".equals(row.id()))
                 assertTrue(composed.contains("ageInTicks"),
-                    row.entity() + " idle row composes " + composed
+                    row.entity() + " idle row composes " + new TreeSet<>(composed)
                         + " and elapsed age is what separates an idle frame from its neighbour");
         }
     }
 
     @Test
-    @DisplayName("the shipped period is the harness frame schedule, and the strip divides it")
-    void theShippedPeriodIsTheHarnessSchedule() throws IOException {
-        int frames = (int) valueOf(HARNESS_SCHEDULE, FRAME_COUNT);
-        int ticksPerFrame = (int) valueOf(HARNESS_SCHEDULE, TICKS_PER_FRAME);
-        int start = (int) valueOf(HARNESS_SCHEDULE, START_TICK);
-        int period = shipped().get("period_ticks").getAsInt();
-
-        assertEquals(frames * ticksPerFrame, period,
-            "the ticks one shipped excursion spans and the span the harness strip covers have "
-                + "parted, so a strip either stops short of the excursion or runs past its own start");
-        assertEquals(StyleCatalog.STRIP_FRAMES, frames,
-            "the frames one shipped strip samples and the frames the harness renders have parted");
-        assertEquals(ticksPerFrame, period / StyleCatalog.STRIP_FRAMES,
-            "the per-frame tick step the catalog derives and the harness's cadence have parted");
-        assertEquals(0, start,
-            "the harness strip starts at a tick other than zero, and tick zero is what every "
-                + "driver rests at - a later seat poses frame 0 away from the authored rest");
+    @DisplayName("the shipped figure period is the catalog's one window")
+    void theFigurePeriodIsOneWindow() throws IOException {
+        assertEquals(StyleCatalog.FIGURE_PERIOD_TICKS, shipped().get("period_ticks").getAsInt(),
+            "the period the shipped file declares and the figure period a catalog it never mentions "
+                + "frames at have parted");
     }
 
     @Test
@@ -324,8 +374,20 @@ class StyleCatalogMirrorTest {
 
     // ------------------------------------------------------------------------------------
 
-    /** One shipped style row, flattened to what the pins here read of it. */
-    private record Row(String entity, String id, String base, List<JsonObject> drives) {}
+    /**
+     * One shipped style row, flattened to what the pins here read of it.
+     *
+     * @param entity the model key the row belongs to
+     * @param id the row's id
+     * @param base the id the row composes over, empty where it composes over none
+     * @param age the age the row applies to, empty where it applies to both
+     * @param sources the mechanisms the row's own inventory names, gates dropped
+     * @param ceiling the pace ceiling the row's catalog records at the age a stride row walks at, empty
+     *     for every other row and where the catalog records none there
+     * @param drives the row's own drives, in file order
+     */
+    private record Row(String entity, String id, Optional<String> base, Optional<String> age, List<String> sources,
+                       Optional<JsonObject> ceiling, List<JsonObject> drives) {}
 
     /** Every style row of the shipped file, in file order. */
     private static List<Row> rows() throws IOException {
@@ -334,28 +396,91 @@ class StyleCatalogMirrorTest {
         for (Map.Entry<String, JsonElement> entity : models.entrySet()) {
             JsonElement styles = entity.getValue().getAsJsonObject().get("styles");
             if (styles == null) continue;
+            JsonObject ceilings = entity.getValue().getAsJsonObject().getAsJsonObject("ceilings");
             for (JsonElement row : styles.getAsJsonArray()) {
                 JsonObject held = row.getAsJsonObject();
+                assertFalse(held.has("ceiling"), entity.getKey() + " row '" + held.get("id").getAsString()
+                    + "' carries a ceiling of its own, which its catalog's ceilings hold");
+                Optional<String> age = held.has("age") ? Optional.of(held.get("age").getAsString()) : Optional.empty();
+                Optional<JsonObject> ceiling = ceilings == null || !"stride".equals(held.get("id").getAsString())
+                    ? Optional.empty()
+                    : Optional.ofNullable(ceilings.getAsJsonObject(age.orElse("adult")));
                 List<JsonObject> drives = new ArrayList<>();
                 JsonArray spelled = held.getAsJsonArray("drives");
                 if (spelled != null)
                     for (JsonElement drive : spelled)
                         drives.add(drive.getAsJsonObject());
+                List<String> sources = new ArrayList<>();
+                JsonArray inventory = held.getAsJsonArray("sources");
+                if (inventory != null) {
+                    for (JsonElement source : inventory) {
+                        sources.add(source.isJsonPrimitive()
+                            ? source.getAsString()
+                            : source.getAsJsonObject().get("source").getAsString());
+                    }
+                }
                 out.add(new Row(entity.getKey(), held.get("id").getAsString(),
-                    held.has("base") ? held.get("base").getAsString() : null, drives));
+                    held.has("base") ? Optional.of(held.get("base").getAsString()) : Optional.empty(),
+                    age, List.copyOf(sources), ceiling, drives));
             }
         }
         assertFalse(out.isEmpty(), "no style row read from " + SHIPPED);
         return out;
     }
 
-    /** The fields one row composes - its own drives, flat against its base chain. */
-    private static Set<String> composedFields(Row row, Map<String, Row> byId) {
+    /** Every model key whose age axis offers a baby. */
+    private static Set<String> babyModels() throws IOException {
         Set<String> out = new TreeSet<>();
+        for (Map.Entry<String, JsonElement> entity : shipped().getAsJsonObject("models").entrySet()) {
+            JsonObject axes = entity.getValue().getAsJsonObject().getAsJsonObject("axes");
+            if (axes == null || !axes.has("age")) continue;
+            JsonObject options = axes.getAsJsonObject("age").getAsJsonObject("options");
+            if (options != null && options.has("baby")) out.add(entity.getKey());
+        }
+        assertFalse(out.isEmpty(), "no model of " + SHIPPED + " offers a baby age");
+        return out;
+    }
+
+    /**
+     * The drives one row composes - its base chain's, each overwritten by the row's own on the same
+     * field, as the loader composes them. A base resolves to the row of its id at the age of the row
+     * naming it where one ships, otherwise to its ageless row, otherwise to its first row.
+     */
+    private static Map<String, JsonObject> composedDrives(Row row, Map<String, List<Row>> byId) {
+        List<Row> chain = new ArrayList<>();
         Set<String> walked = new LinkedHashSet<>();
-        for (Row held = row; held != null && walked.add(held.id());
-             held = held.base() == null ? null : byId.get(held.base()))
-            for (JsonObject drive : held.drives()) out.add(fieldOf(drive));
+        for (Row held = row; held != null && walked.add(held.id()); held = baseOf(held, byId).orElse(null))
+            chain.add(held);
+
+        Map<String, JsonObject> out = new LinkedHashMap<>();
+        for (Row held : chain.reversed())
+            for (JsonObject drive : held.drives()) out.put(fieldOf(drive), drive);
+        return out;
+    }
+
+    /**
+     * The row one row's base resolves to, as the loader resolves it - among the rows of the id the base
+     * names, the one at the age of the row naming it where one ships, otherwise the ageless row,
+     * otherwise the first.
+     *
+     * @param row the row naming the base
+     * @param byId the rows of each id of the row's entity, in file order
+     * @return the base row, empty where the row names no base or its id carries no row
+     */
+    private static Optional<Row> baseOf(Row row, Map<String, List<Row>> byId) {
+        List<Row> over = row.base().map(byId::get).orElse(List.of());
+        if (over.isEmpty()) return Optional.empty();
+        return over.stream()
+            .filter(candidate -> candidate.age().equals(row.age()))
+            .findFirst()
+            .or(() -> over.stream().filter(candidate -> candidate.age().isEmpty()).findFirst())
+            .or(() -> Optional.of(over.getFirst()));
+    }
+
+    /** The members of the first set the second lacks, sorted. */
+    private static Set<String> difference(Set<String> first, Set<String> second) {
+        Set<String> out = new TreeSet<>(first);
+        out.removeAll(second);
         return out;
     }
 
@@ -365,19 +490,8 @@ class StyleCatalogMirrorTest {
             .getAsJsonObject();
     }
 
-    /** One excursion spelled for comparison, float identity carried by the decimal spelling. */
-    private static String excursion(float rest, float extent, String shape) {
-        return rest + ".." + extent + "@" + shape;
-    }
-
     private static String fieldOf(JsonObject drive) {
         return drive.get("field").getAsString();
-    }
-
-    /** A drive's rest, defaulted the way the loader defaults it. */
-    private static float restOf(JsonObject drive) {
-        JsonElement rest = drive.get("rest");
-        return rest == null ? 0f : rest.getAsFloat();
     }
 
     /** A drive's extent, defaulted the way the loader defaults it. */
@@ -393,14 +507,6 @@ class StyleCatalogMirrorTest {
         return Float.parseFloat(declared.group(1));
     }
 
-    /** The stride amplitude one source declares, as a value. */
-    private static float amplitudeOf(Path source) throws IOException {
-        Matcher declared = AMPLITUDE.matcher(Files.readString(source));
-        assertTrue(declared.find(),
-            "no stride amplitude matched in " + source + " - the pattern has drifted");
-        return Float.parseFloat(declared.group(1));
-    }
-
     /** Every constant of one shape in one source, indent dropped so shapes match line-anchored. */
     private static List<String> constantsOf(Path source, Pattern shape) throws IOException {
         return Files.readAllLines(source)
@@ -408,6 +514,28 @@ class StyleCatalogMirrorTest {
             .map(String::strip)
             .filter(line -> shape.matcher(line).matches())
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Every code line of the {@code .java} files under one directory, files walked sorted - a line
+     * whose stripped text opens a comment or continues a javadoc is not code, so a doc may cite a call.
+     */
+    private static List<String> codeLinesOf(Path directory) throws IOException {
+        assertTrue(Files.isDirectory(directory), directory + " is expected beside this build");
+        List<Path> files;
+        try (Stream<Path> walk = Files.walk(directory)) {
+            files = walk.filter(path -> path.toString().endsWith(".java")).sorted().toList();
+        }
+        assertFalse(files.isEmpty(), "no source under " + directory);
+        List<String> out = new ArrayList<>();
+        for (Path file : files) {
+            for (String line : Files.readAllLines(file)) {
+                String stripped = line.strip();
+                if (stripped.startsWith("*") || stripped.startsWith("/*") || stripped.startsWith("//")) continue;
+                out.add(stripped);
+            }
+        }
+        return out;
     }
 
 }

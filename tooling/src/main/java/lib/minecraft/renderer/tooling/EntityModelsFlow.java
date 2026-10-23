@@ -2,11 +2,14 @@ package lib.minecraft.renderer.tooling;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.EntityPace;
 import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.animation.RestStrip;
 import lib.minecraft.renderer.tooling.animation.StyleFlow;
+import lib.minecraft.renderer.tooling.entity.EntityPaceResolver;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
 import lib.minecraft.renderer.tooling.entity.EntityRegistration;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
@@ -57,7 +60,7 @@ public final class EntityModelsFlow {
             JsonTree root = TableEnvelope.mint(session.diagnostics().path(),
                 "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain, or no mesh for a type bound to NoopRenderer",
                 session.options().getVersion(), 3);
-            root.putInt("period_ticks", RestStrip.PERIOD_TICKS);
+            root.putInt("period_ticks", StyleCatalog.FIGURE_PERIOD_TICKS);
             GeometryManifest manifest = new GeometryManifest(session.cache());
             EntityRegistryWalk.run(session, registrations, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
@@ -65,6 +68,9 @@ public final class EntityModelsFlow {
             // are held until it has been taken, and written once. The pose flow reads them as well,
             // for where a row two ages reach rests its parts on each mesh.
             Map<String, JsonTree> geometries = GeometryFlow.parse(session, manifest);
+            // Every mesh is written in vanilla's draw order, so a factory the part tree cannot replay
+            // stops the run here, ahead of the pose table written below.
+            GeometryFlow.requireBakeOrder(geometries);
             Map<String, Set<String>> rootBones = GeometryFlow.rootBones(manifest, geometries);
             // The classes the renderers pose with, which the geometry manifest does not name: a model
             // reusing its parent's layer bakes no mesh, so nothing would have walked its pose. The
@@ -110,11 +116,18 @@ public final class EntityModelsFlow {
             // an overlay drawing the body's own mesh has to inherit the marking and the shift, which
             // deriving before either would leave behind on a mesh nobody then draws.
             EntityMeshOverlays.apply(session.diagnostics().child("overlays"), root.child("models"), geometries, manifest);
+            // Each subject's ambling and fastest walk, by age, read off the jar - after the registry
+            // walk has written every age a subject offers, and logged beside the style lines that
+            // drive the strides with them.
+            Map<String, EntityPace> paces = EntityPaceResolver.resolve(session, subjects, root.child("models"),
+                session.diagnostics().child("styles").child("pace"));
             // The style catalog is derived over the table as it finally stands - the explicit pose
             // keys, the minted overlay meshes and the settled no-hat alternates are its join - so
             // it runs after every mesh surgery and ahead of the write.
             StyleFlow.emit(session.diagnostics().child("styles"), root.child("models"),
-                posed.poses(), posed.clips(), RestStrip.PERIOD_TICKS);
+                posed.poses(), posed.clips(), StyleCatalog.FIGURE_PERIOD_TICKS, paces);
+            // Every mesh in vanilla's draw order, over the part tree as the surgeries above left it.
+            GeometryFlow.bakeOrder(geometries);
             GeometryFlow.write(session, geometries, OutputRoot.resolve("entity_geometry.json"));
             TableWriter.write(session, root, "entity_models.json");
             StrictGate.apply(session);

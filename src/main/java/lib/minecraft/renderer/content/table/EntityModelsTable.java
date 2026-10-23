@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * <p>Nothing here is post-processed by Gson: the {@code geometry} coordinates stay coordinate strings,
  * tints stay hex strings, {@code blend} stays a token, and absent members that must differ from a
- * primitive zero ({@code render.scale}, {@code pipeline.alpha}, a {@code size} option's {@code scale})
+ * primitive zero ({@code render.scale}, {@code pipeline.depth_write}, a {@code size} option's {@code scale})
  * are boxed so {@link EntityIndexBuilder} can substitute their real defaults. The geometry join, the mesh
  * surgery, the axes pivot into {@link Entity.Axes} and the per-variant sub-{@link Entity} fold all live
  * in {@link EntityIndexBuilder}, which reads these records.
@@ -53,11 +53,15 @@ public record EntityModelsTable(
      * @param wings the wings node, or {@code null} for a subject whose vanilla renderer builds no
      *     wings layer
      * @param equipment the equipment rows in roster order, or {@code null} when the subject wears none
-     * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
+     * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} /
+ *     {@code size} / {@code state} / {@code carried} / {@code equipment})
      * @param members the self-inclusive canvas-group membership, the same list on every member of the
      *     group (stray beside skeleton), resolved at generation - or {@code null} for a singleton
      * @param styles the family's style catalog rows in shipped order, or {@code null} for a family
      *     whose only output style is the synthesized bind row
+     * @param ceilings the fastest steady walk vanilla gives the family at each age its stride walks at a
+     *     pace of its own, keyed by the age token a style row's {@code age} spells, or {@code null} where
+     *     no age's stride walks at one
      */
     public record RawModel(
         @Nullable String renderer,
@@ -69,7 +73,8 @@ public record EntityModelsTable(
         @Nullable List<RawEquipmentRow> equipment,
         @NotNull RawAxes axes,
         @Nullable List<String> members,
-        @Nullable List<RawStyleRow> styles
+        @Nullable List<RawStyleRow> styles,
+        @Nullable Map<String, RawCeiling> ceilings
     ) {}
 
     /**
@@ -106,21 +111,50 @@ public record EntityModelsTable(
     ) {}
 
     /**
+     * One {@code ceilings} entry - the walk pair a family's fastest steady walk drives its stride at,
+     * at the age it is keyed by.
+     *
+     * @param speed the swing at that pace, or {@code null} where the ceiling names none
+     * @param rate how far the walk clock advances a tick at that pace, or {@code null} where the ceiling
+     *     names none
+     */
+    public record RawCeiling(
+        @Nullable Float speed,
+        @Nullable Float rate
+    ) {}
+
+    /**
      * One {@code drives} entry - the wave one render-state field travels under a style.
      *
      * @param field the render-state field name the drive answers
-     * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle})
-     * @param rest what the field holds at tick zero, boxed so an absent member falls to {@code 0f}
+     * @param wave the wave token ({@code hold} / {@code ramp} / {@code sweep} / {@code cycle} /
+     *     {@code stroke} / {@code trapezoid})
+     * @param rest the near end of the travel, which a sweep, a cycle and a stroke hold at tick zero,
+     *     boxed so an absent member falls to {@code 0f}
      * @param extent the far end of the travel, boxed so an absent member falls to {@code 1f}
      * @param group the exclusion group under which a composing row's drive replaces its base's, or
      *     {@code null} for an ungrouped field
+     * @param rate the radians of phase a stroke advances a tick, or {@code null} on every other wave
+     * @param rise the ticks a trapezoid climbs from its rest to its extent, boxed so an absent member
+     *     falls to {@code 0}
+     * @param dwell the ticks a trapezoid holds at its extent, boxed so an absent member falls to
+     *     {@code 0}
+     * @param fall the ticks a trapezoid returns to its rest, boxed so an absent member falls to
+     *     {@code 0}
+     * @param gap the ticks a trapezoid holds at its rest before the next rise, boxed so an absent
+     *     member falls to {@code 0}
      */
     public record RawDrive(
         @Nullable String field,
         @Nullable String wave,
         @Nullable Float rest,
         @Nullable Float extent,
-        @Nullable String group
+        @Nullable String group,
+        @Nullable Float rate,
+        @Nullable Integer rise,
+        @Nullable Integer dwell,
+        @Nullable Integer fall,
+        @Nullable Integer gap
     ) {}
 
     /**
@@ -129,7 +163,7 @@ public record EntityModelsTable(
      * admits it ({@code {"source": "scroll", "gate": "charged"}}).
      *
      * @param source the drive-kind token
-     * @param gate the token of the overlay gate admitting this entry, or {@code null} for an
+     * @param gate the token of the appearance flag admitting this entry, or {@code null} for an
      *     unconditional one
      */
     @JsonAdapter(RawStyleSource.Adapter.class)
@@ -169,23 +203,30 @@ public record EntityModelsTable(
      * @param shape the tropical-fish large-body axis, or {@code null} when absent
      * @param size the pufferfish mesh / salmon-slime scale axis, or {@code null} when absent
      * @param state the behavioural-state axis (wolf wild / tame / angry), or {@code null} when absent
+     * @param carried the axis whose {@code block} option re-poses the wearer while a caller selects a
+     *     block for it to hold (the enderman, the iron golem), or {@code null} when absent
+     * @param equipment the axis whose options, keyed by equipment slot, re-pose the wearer while that
+     *     slot is filled (the happy ghast's {@code body}), or {@code null} when absent
      */
     public record RawAxes(
         @Nullable RawAxis variant,
         @NotNull RawAxis age,
         @Nullable RawAxis shape,
         @Nullable RawAxis size,
-        @Nullable RawAxis state
+        @Nullable RawAxis state,
+        @Nullable RawAxis carried,
+        @Nullable RawAxis equipment
     ) {}
 
     /**
      * One option axis - {@code default} naming the option the base row represents, and the options keyed
-     * by option name. All five axes ({@code variant} / {@code age} / {@code shape} / {@code size} /
-     * {@code state}) are this one shape; which of an option's members are populated is the axis's own
-     * fact, stated on {@link RawOption}.
+     * by option name. All seven axes ({@code variant} / {@code age} / {@code shape} / {@code size} /
+     * {@code state} / {@code carried} / {@code equipment}) are this one shape; which of an option's
+     * members are populated is the axis's own fact, stated on {@link RawOption}.
      *
      * @param defaultOption the option the base row represents, or {@code null} where the axis declares
-     *     none (the age axis, whose baseline is always {@code adult})
+     *     none (the age axis, whose baseline is always {@code adult}, and the carried and equipment
+     *     axes, whose base row is no option of theirs)
      * @param options the options keyed by option name
      */
     public record RawAxis(
@@ -199,7 +240,8 @@ public record EntityModelsTable(
      * {@code texture}, a {@code variant} coat {@code textures} /
      * {@code baby_texture} / {@code geometry} / {@code block}, the {@code shape.large} option
      * {@code geometry} / {@code texture} / {@code overlays}, a {@code size} option {@code geometry} /
-     * {@code scale}, and a {@code state} option nothing at all - its name is the datum.
+     * {@code scale}, a {@code carried} or {@code equipment} option its {@code pose} alone, and a
+     * {@code state} option nothing at all - its name is the datum.
      *
      * @param geometry the option's mesh coordinate, or {@code null}
      * @param texture the option's texture as the {@code textures/entity/} sub-path, settled at
@@ -212,9 +254,11 @@ public record EntityModelsTable(
      * @param babyTexture a coat's baby texture sub-path, or {@code null} when the option has none
      * @param block the block a coat's fixed block overlays draw (the mooshroom's brown mushroom), or
      *     {@code null} when they draw the one the {@code block_overlays[]} rows already name
-     * @param pose the simple name of the model class whose pose says which way this form's bones
-     *     point, stated explicitly per form, or {@code null} where the geometry coordinate's own head
-     *     answers - the scale-only size options, whose form is the base row's
+     * @param pose the key of the pose that says which way this form's bones point, stated explicitly
+     *     per form - a model class's simple name, or for a {@code carried} or {@code equipment} option
+     *     the key of the row folded beside its body's with the selection answered - or {@code null}
+     *     where the geometry coordinate's own head answers - the scale-only size options, whose form
+     *     is the base row's
      */
     public record RawOption(
         @Nullable String geometry,
@@ -249,6 +293,11 @@ public record EntityModelsTable(
      * @param when the render condition, or {@code null} when unconditional
      * @param baby the age delta a baby render substitutes, or {@code null} when the overlay draws on an
      *     adult only
+     * @param opacity the pass's opacity as an expression in {@code entity_poses.json}'s node grammar,
+     *     reading render-state inputs alone - a constant opacity spelled as that grammar's
+     *     {@code const} - or {@code null}, or a JSON {@code null}, which the loader reads as the same
+     *     absence, where the pass draws at a constant one. Held as the node it is, the grammar being
+     *     one only that table's reader walks
      */
     public record RawOverlay(
         @Nullable String geometry,
@@ -261,7 +310,8 @@ public record EntityModelsTable(
         @SerializedName("texture_scroll") @Nullable RawTextureScroll textureScroll,
         @SerializedName("skip_bounds") boolean skipBounds,
         @Nullable RawOverlayWhen when,
-        @Nullable RawOverlayBaby baby
+        @Nullable RawOverlayBaby baby,
+        @Nullable JsonElement opacity
     ) {}
 
     /**
@@ -278,8 +328,8 @@ public record EntityModelsTable(
 
     /**
      * An overlay's {@code baby} age delta - the members a baby render substitutes, with everything else
-     * ({@code texture_by}, tint, pipeline, bounds skip, gate) inherited from the overlay row. A delta
-     * carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
+     * ({@code texture_by}, tint, pipeline, opacity, bounds skip, gate) inherited from the overlay row. A
+     * delta carrying no {@code geometry} draws the {@code age.baby} mesh, which {@link EntityIndexBuilder}
      * supplies as the base coordinate.
      *
      * <p>A baby form's mesh is its own rather than the adult's under a baby-sized deformation: a baby
@@ -305,7 +355,6 @@ public record EntityModelsTable(
      *
      * @param emissive whether the overlay renders full-bright
      * @param blend the composition token ({@code additive} / {@code translucent} / {@code normal}), or {@code null}
-     * @param alpha the per-fragment opacity, boxed so an absent member falls to {@code 1f}
      * @param depthWrite whether the pass writes the depth buffer, boxed so an absent member falls to
      *     {@code true} - the value {@code DepthStencilState.DEFAULT} carries and all but the eyes-style
      *     passes declare
@@ -315,7 +364,6 @@ public record EntityModelsTable(
     public record RawPipeline(
         boolean emissive,
         @Nullable String blend,
-        @Nullable Float alpha,
         @SerializedName("depth_write") @Nullable Boolean depthWrite,
         boolean sorted
     ) {}
@@ -380,15 +428,12 @@ public record EntityModelsTable(
      *
      * @param geometry the shell's geometry coordinate
      * @param grow the armor set's two layer deformations
-     * @param scaled the whole-mesh scale the armor set is registered through, or {@code null} at the
-     *     identity - the eleven wearers vanilla registers unscaled
      * @param alternate the shell this wearer's other form is dressed in, or {@code null} when vanilla
      *     hands its armor layer one shell twice
      */
     public record RawArmor(
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @Nullable RawArmorAlternate alternate
     ) {}
 
@@ -415,8 +460,6 @@ public record EntityModelsTable(
      *     where the coordinate's head poses the mesh
      * @param wearerToggle the bone toggle a filled slot selects on its wearer, or {@code null} where
      *     filling the slot draws every bone of the wearer's it drew
-     * @param wearerPose the pose key the wearer's body takes while this slot is filled, or {@code null}
-     *     where filling the slot changes no pose of the wearer's
      */
     public record RawEquipmentRow(
         @Nullable String slot,
@@ -425,8 +468,7 @@ public record EntityModelsTable(
         @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
         @SerializedName("default_material") @Nullable String defaultMaterial,
         @Nullable RawLayerBones bones,
-        @SerializedName("wearer_toggle") @Nullable String wearerToggle,
-        @SerializedName("wearer_pose") @Nullable String wearerPose
+        @SerializedName("wearer_toggle") @Nullable String wearerToggle
     ) {}
 
     /**
@@ -439,7 +481,7 @@ public record EntityModelsTable(
 
     /**
      * The armor row's {@code alternate} node - the second shell vanilla hands this wearer's armor layer,
-     * carrying the same three members the first writes into the row's {@code overlay} body plus the
+     * carrying the same two members the first writes into the row's {@code overlay} body plus the
      * selection that reaches it and which of the two shells it is.
      *
      * <p>Both extras are carried rather than assumed. Vanilla reaches every second set through one flag,
@@ -450,14 +492,12 @@ public record EntityModelsTable(
      * @param when the appearance selection that swaps to this shell
      * @param geometry the shell's geometry coordinate
      * @param grow the set's two layer deformations
-     * @param scaled the whole-mesh scale the set is registered through, or {@code null} at the identity
      * @param form which of vanilla's two shells this is ({@code adult} / {@code baby})
      */
     public record RawArmorAlternate(
         @Nullable RawLayerWhen when,
         @Nullable String geometry,
         @Nullable RawArmorGrow grow,
-        @Nullable Float scaled,
         @Nullable String form
     ) {}
 
