@@ -1501,35 +1501,40 @@ Entity:
   that reach lives. It buys no declared type either - an enum is one type whatever its constants are -
   and the only type behind it is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which
   has a test of its own.
-- **Do not build an entity's corners in vanilla's float order.** Both sides apply the same transforms
-  and round them in a different order. Vanilla composes one float matrix per bone that opens with the
-  canvas offset and scale, then its iso turn - `rotationXYZ(210, 45, 0)` and a half turn - then the
-  renderer's preamble and the mesh's root scale, and transforms each corner once. The renderer bakes
-  the bone chain into model space, applies `rotationXYZ(30, 225, 0)` and the facing in a second
+- **Do not build part of an entity's corners in vanilla's float order.** Both sides apply the same
+  transforms and round them in a different order. Vanilla composes one float matrix per bone that opens
+  with the canvas offset and scale, then its iso turn - `rotationXYZ(210, 45, 0)` and a half turn -
+  then the renderer's preamble and the mesh's root scale, and transforms each corner once. The renderer
+  bakes the bone chain into model space, applies `rotationXYZ(30, 225, 0)` and the facing in a second
   product, and centres last. So a corner lands a few float steps from vanilla's, shifted one way per
   subject - vanilla's dragon corners sit `0.023` of a `1/256` step lower on average, its elder
   guardian's `0.019` further right - and where a corner sits that close to a midpoint between two
   steps, the card snaps the two apart. It is fleet-wide: at 26.1 the corners the harness dumps and the
-  renderer's snap to different steps on 155 of the 19477 distinct corners of the still and armour
-  sweeps, and on the card's measured choices vanilla's corner predicts 8464 of 8466 where the
-  renderer's predicts 8370.
+  renderer's snap to different steps on 155 of the 19466 distinct corners of the still and armour
+  sweeps, and on the card's measured choices vanilla's corner predicts 8459 of 8461 where the
+  renderer's predicts 8365.
 
-  Measured against the stored rows with vanilla's corners substituted from that dump:
-  - Snapped the card's way, 71 rows better and none worse, `-0.113` on a fleet sum of `884.127` - and
-    that needs the GL viewport step and ties to even, both refused in [TEXEL-RULES.md].
-  - Snapped by the renderer's own rule, 52 better and 11 worse, `-0.018`.
-  - A port moves the unsnapped corners and the depth with them, which re-decides coplanar contests
-    both ways rather than the card's way: the charged creeper's doubled energy swirl and the
-    iron-armoured skeleton, stray, zombie and bogged lose `0.04` to `0.24`, the giant's and the wither
-    skeleton's worn shells gain.
-  - The partial ports lose overall: vanilla's rotation entries alone `+0.335`, with its depth row
-    `+0.929`, the canvas offset folded into the matrix first `+0.129`, both `+0.848`.
+  Measured against the stored rows with vanilla's corners substituted from that dump, on a fleet sum
+  of `661.266`, with depth read off the snapped corners as the renderer reads it:
+  - Snapped the card's way, 127 rows better and one worse by `0.0001`, `-1.795` - and that needs the
+    GL viewport step and ties to even, both refused in [TEXEL-RULES.md].
+  - Snapped by the renderer's own rule, 97 better and 12 worse, `-1.655`, the losses `0.010` between
+    them and `0.007` the largest. Vanilla's unsnapped corners add nothing to it: depth and coverage
+    read the same snapped corners, so a port moves both together.
+  - Both decide the charged creeper's doubled energy swirl as vanilla does, `1.769` to `0.147`, which
+    is `1.622` of either gain. The renderer's rule also closes the giant's worn shell and the card's
+    way the zombie villager's; no other worn shell moves, and no iron-armoured row loses.
+  - The partial ports gain overall and re-decide those contests both ways: vanilla's rotation entries
+    alone `-1.782` and with its depth row `-1.763` take the creeper and cost the husk's shell up to
+    `0.026`, the canvas offset folded into the matrix first `-0.116` takes the zombie villager
+    instead, and both together `-0.016` take neither.
 
-  The port is the whole entity path: bone chains rooted at the canvas matrix with JOML's affine
-  rotate grouping, which `Matrix4f.rotate` does not use; every renderer's preamble and every mesh's
-  root scale as matrix ops, which no shipped table carries and the tooling flattens into pivots and
-  cube operands; the worn shell and carried blocks rebuilt on the wearer's matrix; and depth in new
-  units. It re-opens with the snap refusals in [TEXEL-RULES.md], the only route to a one-way gain.
+  So the port is taken whole or not at all, and whole it is the entity path: bone chains rooted at the
+  canvas matrix with JOML's affine rotate grouping, which `Matrix4f.rotate` does not use; every
+  renderer's preamble and every mesh's root scale as matrix ops, which no shipped table carries and the
+  tooling flattens into pivots and cube operands; the worn shell and carried blocks rebuilt on the
+  wearer's matrix; and depth in new units. That is a piece of work of its own, not a change made in
+  passing.
 
 Pose authoring and compiling:
 
