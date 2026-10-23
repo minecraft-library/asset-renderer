@@ -69,6 +69,9 @@ class StyleRegistrarAuditTest {
     /** The row whose size forms each carry a mesh and a pose of their own. */
     private static final @NotNull String PUFFERFISH = "minecraft:pufferfish";
 
+    /** The row whose selected carried block swaps a pose of its own onto its body. */
+    private static final @NotNull String ENDERMAN = "minecraft:enderman";
+
     /** The id of each hand-built row whose one size form shares the row's pose instance. */
     private static final @NotNull String TEST = "minecraft:test";
 
@@ -101,6 +104,39 @@ class StyleRegistrarAuditTest {
         assertEquals(List.of(), described(PoseAuditor.validate(peer, row(shipped, BREEZE))),
             "so the audit reports nothing the wind's mesh lacks");
         assertAgrees(shipped, BREEZE, peer);
+    }
+
+    @Test
+    @DisplayName("a write the carried block's wearer pose refuses is refused by the install and the audit alike, under the carried form")
+    void aCarrierRefusesTheInstallAndTheAuditAlike() {
+        // The body posed by nothing, its passes with it, so the carrier's legs are the one base
+        // reading the walk the kept stride drives.
+        Entity enderman = row(shipped(), ENDERMAN);
+        Entity unposed = enderman.mutate()
+            .pose(EntityPose.NONE)
+            .overlays(enderman.overlays().stream()
+                .map(pass -> pass.withPose(EntityPose.NONE))
+                .collect(Concurrent.toUnmodifiableList()))
+            .build();
+        ConcurrentMap<String, Entity> definitions = definitions(unposed);
+        BuiltStyle plant = Poses.custom("plant").keepStride().bone("right_leg", leg -> leg.pitch(10)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        StyleException installed = assertThrows(StyleException.class, () -> registrar.add(ENDERMAN, plant),
+            "the carrier compiles against the stride its install keeps");
+        assertTrue(installed.getMessage().contains("bone 'right_leg'")
+                && installed.getMessage().contains("driven field 'walkAnimation"),
+            "the refusal names the leg and the walk its carrier base reads: " + installed.getMessage());
+        assertEquals(List.of("styles/" + ENDERMAN + "/plant/form/carried/compile"), registrar.diagnostics().entries()
+                .stream()
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+                .map(Diagnostics.Entry::path)
+                .toList(),
+            "the carried form is the arm that refuses");
+        StyleException audited = assertThrows(StyleException.class, () -> PoseAuditor.validate(plant, unposed),
+            "an audit predicts the refusal the install makes");
+        assertEquals(installed.getMessage(), audited.getMessage());
+        assertAgrees(definitions, ENDERMAN, plant);
     }
 
     @Test

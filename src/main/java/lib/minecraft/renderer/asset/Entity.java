@@ -375,6 +375,17 @@ public record Entity(
                 this.wearerPose);
         }
 
+        /**
+         * This overlay naming another pose for its wearer, every other component untouched.
+         *
+         * @param wearer the pose the wearer's body takes while a caller selects a block for this row
+         * @return the overlay naming {@code wearer}
+         */
+        public @NotNull BlockOverlayLayer withWearerPose(@NotNull EntityPose wearer) {
+            return new BlockOverlayLayer(this.blockId, this.attachedBone, this.transform, this.selectable,
+                Optional.of(wearer));
+        }
+
     }
 
     /**

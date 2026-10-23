@@ -51,8 +51,9 @@ import java.util.function.Supplier;
  * would refuse over.
  *
  * <p>A form is woven body first, then its passes, then each pose an equipment slot swaps onto its
- * wearer as a body of its own under a coined {@code $equip:<slot>} coordinate, its baby wherever the
- * style's age admits a baby,
+ * wearer as a body of its own under a coined {@code $equip:<slot>} coordinate, then each pose a
+ * selectable block swaps onto its wearer the same way under a coined {@code $carried} coordinate,
+ * its baby wherever the style's age admits a baby,
  * the passes of each shape form over its body, each size form, and each coat as a form of its own.
  * A pass sharing the pose its form was loaded with is re-pointed at the woven body and follows it
  * uncompiled; a pass carrying a distinct pose row compiles once per row across the whole walk, the
@@ -97,6 +98,12 @@ public final class FormWalker {
      * The baby form's name - its axis and option, as its scope and its coordinate spell it.
      */
     private static final String BABY_FORM = "age:baby";
+
+    /**
+     * The name of the form a selected carried block swaps onto its wearer, as its scope and its
+     * coordinate spell it.
+     */
+    private static final String CARRIED_FORM = "carried";
 
     /**
      * The name vanilla reserves for the part every bone hangs from, which no mesh here declares.
@@ -243,7 +250,8 @@ public final class FormWalker {
 
     /**
      * Weaves one form and every form it carries, answering it rebuilt with its catalog left for
-     * the caller to set: its own body and passes, its baby wherever the style's age admits a baby,
+     * the caller to set: its own body and passes, each pose a filled equipment slot or a selected
+     * carried block swaps onto it, its baby wherever the style's age admits a baby,
      * each shape form's passes over this body, each size form - woven as a form of its own where it
      * carries a pose other than this body's or a mesh resting apart from this body's, guarded where
      * it lends a mesh resting as this body's does to this body's pose - and each coat as a form of
@@ -261,6 +269,7 @@ public final class FormWalker {
         WovenBody body = this.body(form, given, coordinate, scope);
         ConcurrentList<Entity.OverlayLayer> overlays = this.passes(form, given, body, coordinate, scope);
         Entity.Layers layers = this.wearers(form, given, coordinate, scope);
+        ConcurrentList<Entity.BlockOverlayLayer> blocks = this.carriers(form, given, coordinate, scope);
         Entity.Axes axes = form.axes();
         Entity.Axes givenAxes = given.axes();
 
@@ -304,6 +313,7 @@ public final class FormWalker {
         return form.mutate()
             .pose(body.pose())
             .overlays(overlays)
+            .blockOverlays(blocks)
             .layers(layers)
             .axes(new Entity.Axes(baby, shape, axes.state(), size, variant))
             .build();
@@ -340,6 +350,34 @@ public final class FormWalker {
         }
         return new Entity.Layers(Concurrent.newUnmodifiableList(out), form.layers().humanoidArmor(),
             form.layers().wings());
+    }
+
+    /**
+     * One form's block overlays, the pose its carrier row swaps onto its wearer woven as a body of
+     * its own over the form's mesh, under the coordinate {@code carried} coined below the form's - so
+     * an installed style keeps playing on a wearer whose selected carried block swaps its body's
+     * pose, the enderman's raised arms and the iron golem's offered flower. Only the carrier row is
+     * woven, being the one row whose pose a selected carried block swaps in, so one coordinate never
+     * spells two poses. Answers the form's own block overlays by instance where no row is a carrier.
+     */
+    private @NotNull ConcurrentList<Entity.BlockOverlayLayer> carriers(@NotNull Entity form, @NotNull Entity given,
+                                                                       @NotNull String coordinate,
+                                                                       @NotNull Diagnostics scope) {
+        ConcurrentList<Entity.BlockOverlayLayer> blocks = form.blockOverlays();
+        int index = carrierIndex(blocks);
+        if (index < 0) return blocks;
+
+        Entity.BlockOverlayLayer block = blocks.get(index);
+        EntityPose wearer = block.wearerPose().get();
+        ConcurrentList<Entity.BlockOverlayLayer> givenBlocks = given.blockOverlays();
+        EntityPose evidence = index < givenBlocks.size()
+            ? givenBlocks.get(index).wearerPose().orElse(wearer)
+            : wearer;
+        WovenBody woven = this.body(form.mutate().pose(wearer).build(), given.mutate().pose(evidence).build(),
+            coined(coordinate, CARRIED_FORM), formScope(scope, CARRIED_FORM));
+        List<Entity.BlockOverlayLayer> out = new ArrayList<>(blocks);
+        out.set(index, block.withWearerPose(woven.pose()));
+        return Concurrent.newUnmodifiableList(out);
     }
 
     /**
@@ -823,6 +861,19 @@ public final class FormWalker {
     }
 
     /**
+     * The index of the carrier row - the first selectable block row, whose wearer pose a selected
+     * carried block swaps in - or {@code -1} where no row is selectable or the first names no wearer
+     * pose.
+     */
+    private static int carrierIndex(@NotNull List<Entity.BlockOverlayLayer> blocks) {
+        for (int index = 0; index < blocks.size(); index++) {
+            Entity.BlockOverlayLayer block = blocks.get(index);
+            if (block.selectable()) return block.wearerPose().isPresent() ? index : -1;
+        }
+        return -1;
+    }
+
+    /**
      * Whether a stance captured any verb at all - an empty lambda addresses nothing.
      */
     private static boolean carries(@NotNull PoseScript.Stance stance) {
@@ -865,7 +916,7 @@ public final class FormWalker {
     }
 
     /**
-     * The scope one form records under - its parent's, below {@code form/<axis>:<option>}.
+     * The scope one form records under - its parent's, below {@code form/<name>}.
      */
     private static @NotNull Diagnostics formScope(@NotNull Diagnostics scope, @NotNull String name) {
         return scope.child(FORM_SCOPE).child(name);

@@ -54,7 +54,9 @@ import java.util.function.BiFunction;
  * under the style's frame, and the style's splices do not reach it; what the weave does reach is
  * the pose an equipment slot swaps onto its wearer - the harnessed happy ghast's smaller body - woven
  * under the coined {@code $equip:<slot>} coordinate, so the style keeps playing on a wearer whose
- * filled slot swaps its body's pose.
+ * filled slot swaps its body's pose. The pose a selected carried block swaps onto its wearer - the
+ * enderman's raised arms, the iron golem's offered flower - is woven the same way under the coined
+ * {@code $carried} coordinate.
  *
  * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age

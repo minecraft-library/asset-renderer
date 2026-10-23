@@ -3,10 +3,12 @@ package lib.minecraft.renderer.author.install;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Preset;
+import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -74,7 +79,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * horse's head and the bee's body are anatomy a legged verb names: the adult's
  * part sits at the pivot of the articulation its pose turns, so the verb's turn climbs to that
  * articulation, while the baby's part carries a pivot of its own; the scale stays on the part named
- * at either age, growing it and its children and nothing hung beside it.
+ * at either age, growing it and its children and nothing hung beside it. The enderman carrying a
+ * block and the iron golem offering its poppy each draw the pose their selected block swaps onto
+ * them, so a sway on both arms plays there as it plays on the body, over the arms that pose raises,
+ * and with nothing held the same install draws as one weaving no carrier draws.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -120,6 +128,21 @@ class StyleRegistrarFormTest {
 
     /** The row whose adult hangs its body at the pivot of the root its pose turns. */
     private static final @NotNull String BEE = "minecraft:bee";
+
+    /** The row whose selected carried block raises both its arms toward it. */
+    private static final @NotNull String ENDERMAN = "minecraft:enderman";
+
+    /** The row whose selected flower holds its right arm out with it. */
+    private static final @NotNull String IRON_GOLEM = "minecraft:iron_golem";
+
+    /** The id the arm sway installs under. */
+    private static final @NotNull String WAVE = "wave";
+
+    /** The two arms the sway turns, which both carriers' meshes declare. */
+    private static final @NotNull List<String> ARMS = List.of("right_arm", "left_arm");
+
+    /** The ticks a carrier is posed at, far enough apart for the sway to move between them. */
+    private static final @NotNull List<Integer> TICKS = List.of(TICK, 2 * TICK, 3 * TICK);
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -351,6 +374,76 @@ class StyleRegistrarFormTest {
         assertEquals(3.75f, drawnScale(swung, BONE), 1e-4f, "a style leaving the body unscaled keeps the harnessed size");
         assertNotEquals(unswung.getBones().get("tentacle0").getRotation(), swung.getBones().get("tentacle0").getRotation(),
             "and the style still turns the tentacle it names");
+    }
+
+    @Test
+    @DisplayName("an enderman carrying a block keeps playing an installed style in the arms it raises to the block")
+    void anEndermanCarryingABlockKeepsPlayingAnInstalledStyle() {
+        // The selected block swaps the carrier pose in at resolve, so a weave that never reached that
+        // pose would swap the installed style out with it and hold the arms still.
+        assertCarrierPlays(ENDERMAN, "minecraft:grass_block");
+    }
+
+    @Test
+    @DisplayName("an iron golem offering its poppy keeps playing an installed style in the arms it offers the flower with")
+    void anIronGolemOfferingItsPoppyKeepsPlayingAnInstalledStyle() {
+        assertCarrierPlays(IRON_GOLEM, "minecraft:poppy");
+    }
+
+    @Test
+    @DisplayName("an absolute arm pitch lands at the authored angle on the enderman's carrier as on its body, over a field of the carrier's own")
+    void anAbsolutePitchLandsOnTheCarrierOverAFieldOfItsOwn() {
+        // The carrier raises the arm to a rest the body's does not hold, so a turn rebased against
+        // the body's rest would land off on the carrier; the carrier spells its own under its coordinate.
+        BuiltStyle reach = Poses.custom("reach").bone(ARMS.getFirst(), arm -> arm.pitch(30)).build();
+        Entity row = StyleRegistrar.ofShipped().add(ENDERMAN, reach).definitions().get(ENDERMAN);
+        for (Map.Entry<String, AppearanceOptions> holding : List.of(
+            Map.entry("nothing", AppearanceOptions.defaults()),
+            Map.entry("a grass block", AppearanceOptions.builder().carried("minecraft:grass_block").build()))) {
+            AppearanceOptions appearance = holding.getValue();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("reach", appearance::applies, ENDERMAN);
+            assertEquals(30f, turnOf(resolved, style, resolved.styles().periodTicks(), TICK, ARMS.getFirst()).pitch(), 1e-3f,
+                "the enderman holding " + holding.getKey() + " pitches its right arm to the authored angle");
+        }
+        assertTrue(row.styles().byId("reach").orElseThrow().drivers().keySet().stream()
+                .anyMatch(field -> field.startsWith("style$reach$$carried$" + ARMS.getFirst() + "$")),
+            "the carrier's turn rides a field spelled under its own coordinate");
+    }
+
+    @Test
+    @DisplayName("a carrier holding nothing draws an installed style as an install weaving no carrier draws it")
+    void aCarrierHoldingNothingDrawsAsAnUnwovenCarrierDoes() {
+        AppearanceOptions empty = AppearanceOptions.defaults();
+        for (String entityId : List.of(ENDERMAN, IRON_GOLEM)) {
+            Entity pristine = EntityModelLoader.load().get(entityId);
+            Entity unworn = pristine.mutate()
+                .blockOverlays(pristine.blockOverlays().stream()
+                    .map(block -> new Entity.BlockOverlayLayer(block.blockId(), block.attachedBone(),
+                        block.transform(), block.selectable()))
+                    .collect(Concurrent.toUnmodifiableList()))
+                .build();
+            Entity woven = empty.resolve(StyleRegistrar.ofShipped().add(entityId, wave()).definitions().get(entityId));
+            Entity plain = empty.resolve(StyleRegistrar.of(RegistrarFixtures.definitions(unworn)).add(entityId, wave())
+                .definitions().get(entityId));
+            PoseStyle style = woven.styles().resolve(WAVE, empty::applies, entityId);
+            PoseStyle bare = plain.styles().resolve(WAVE, empty::applies, entityId);
+
+            Map<String, StyleDriver> body = new LinkedHashMap<>(style.drivers());
+            body.keySet().removeIf(field -> field.contains("$$carried$"));
+            assertEquals(new LinkedHashMap<>(bare.drivers()), body,
+                entityId + "'s install adds no field but those spelled under the carrier's own coordinate");
+            int period = woven.styles().periodTicks();
+            for (int tick : TICKS) {
+                Entity drawn = PosePlayer.posed(woven, style, period, tick);
+                Entity before = PosePlayer.posed(plain, bare, period, tick);
+                assertDrawnAlike(before.model(), drawn.model(), entityId + "'s body at tick " + tick);
+                assertEquals(before.overlays().size(), drawn.overlays().size(), entityId + " draws the same passes");
+                for (int index = 0; index < drawn.overlays().size(); index++)
+                    assertDrawnAlike(before.overlays().get(index).model(), drawn.overlays().get(index).model(),
+                        entityId + "'s pass " + index + " at tick " + tick);
+            }
+        }
     }
 
     @Test
@@ -689,6 +782,97 @@ class StyleRegistrarFormTest {
             .container(step -> step.offset(0, 2, 0))
             .allAges()
             .build();
+    }
+
+    /**
+     * The carrier sway - both arms swept about y there and back once per period, which no carrier
+     * pose turns.
+     */
+    private static @NotNull BuiltStyle wave() {
+        return Poses.custom(WAVE)
+            .bone(ARMS.getFirst(), arm -> arm.sway(Turn.YAW, 0, 30))
+            .bone(ARMS.getLast(), arm -> arm.sway(Turn.YAW, 0, 30))
+            .build();
+    }
+
+    /**
+     * Installs {@link #wave()} strictly on one carrier row, resolves the row holding one block the
+     * way a render does, and holds what it draws to the woven carrier: at each tick posed, both arms
+     * sway by what the style writes on the row's body while keeping the pitch the shipped carrier
+     * raises them to, the pose drawn is the one the installed row's selectable block names for its
+     * wearer rather than the shipped one, and every pass that shared the body's pose follows it.
+     *
+     * @param entityId the carrier row the sway installs on
+     * @param block the block the appearance holds
+     */
+    private static void assertCarrierPlays(@NotNull String entityId, @NotNull String block) {
+        Entity pristine = EntityModelLoader.load().get(entityId);
+        Entity row = StyleRegistrar.ofShipped().add(entityId, wave()).definitions().get(entityId);
+        AppearanceOptions held = AppearanceOptions.builder().carried(block).build();
+        AppearanceOptions empty = AppearanceOptions.defaults();
+        Entity carried = held.resolve(row);
+        Entity shipped = held.resolve(pristine);
+        Entity uncarried = empty.resolve(row);
+        Entity plain = empty.resolve(pristine);
+        PoseStyle style = carried.styles().resolve(WAVE, held::applies, entityId);
+        int period = carried.styles().periodTicks();
+
+        Set<Float> swept = new HashSet<>();
+        for (int tick : TICKS)
+            for (String arm : ARMS) {
+                EulerRotation drawn = turnOf(carried, style, period, tick, arm);
+                EulerRotation raised = turnOf(shipped, style, period, tick, arm);
+                float written = turnOf(uncarried, style, period, tick, arm).yaw()
+                    - turnOf(plain, style, period, tick, arm).yaw();
+                assertEquals(written, drawn.yaw() - raised.yaw(), 1e-3f,
+                    entityId + " holding '" + block + "' sways '" + arm + "' at tick " + tick
+                        + " by what the style writes on its body");
+                assertEquals(raised.pitch(), drawn.pitch(), 1e-4f,
+                    "and keeps '" + arm + "' at the pitch the shipped carrier raises it to");
+                swept.add(drawn.yaw() - raised.yaw());
+            }
+        assertTrue(swept.size() > 1, "the sway moves the arms from one tick to the next: " + swept);
+
+        EntityPose carrier = carrierOf(row);
+        assertNotSame(carrierOf(pristine), carrier, "the installed row's selectable block names a woven carrier");
+        assertSame(carrier, carried.pose(), "which the held block swaps in for the body's pose");
+        assertTrue(carried.overlays().stream().noneMatch(pass -> pass.pose() == row.pose()),
+            "and every pass that shared the body's pose follows it");
+    }
+
+    /**
+     * The pose one row's first selectable block names for its wearer.
+     */
+    private static @NotNull EntityPose carrierOf(@NotNull Entity row) {
+        return row.blockOverlays().stream()
+            .filter(Entity.BlockOverlayLayer::selectable)
+            .findFirst()
+            .flatMap(Entity.BlockOverlayLayer::wearerPose)
+            .orElseThrow(() -> new AssertionError(row.id() + " names no carrier pose on a selectable block"));
+    }
+
+    /**
+     * Where one bone of a resolved subject turns at one tick under one style.
+     */
+    private static @NotNull EulerRotation turnOf(@NotNull Entity subject, @NotNull PoseStyle style, int period,
+                                                 int tick, @NotNull String bone) {
+        return PosePlayer.posed(subject.pose(), subject.model(), style, period, tick).getBones().get(bone).getRotation();
+    }
+
+    /**
+     * Holds two posed meshes to one another, bone by bone - the same bones, each turned, seated and
+     * scaled alike.
+     */
+    private static void assertDrawnAlike(@NotNull EntityMesh expected, @NotNull EntityMesh actual,
+                                         @NotNull String where) {
+        assertEquals(expected.getBones().keySet(), actual.getBones().keySet(), where + " draws the same bones");
+        expected.getBones().forEach((name, bone) -> {
+            EntityMesh.Bone drawn = actual.getBones().get(name);
+            assertEquals(bone.getRotation(), drawn.getRotation(), where + " turns '" + name + "' alike");
+            assertEquals(bone.getPivot(), drawn.getPivot(), where + " seats '" + name + "' alike");
+            assertEquals(bone.getScale(), drawn.getScale(), where + " rests '" + name + "' alike");
+            assertEquals(bone.getPoseScale(), drawn.getPoseScale(), where + " scales '" + name + "' alike");
+        });
     }
 
     /**
