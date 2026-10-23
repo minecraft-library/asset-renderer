@@ -10,6 +10,36 @@ the commit that made it, and in the `reason` recorded with the baseline it moved
 
 Delete an entry when it closes.
 
+## Entity corners are rounded in a different order from vanilla's
+
+Both sides apply the same transforms to an entity's corners and round them in a different order.
+Vanilla composes one float matrix per bone that opens with the canvas offset and scale, then its iso
+turn - `rotationXYZ(210, 45, 0)` and a half turn - then the renderer's preamble and the mesh's root
+scale, and transforms each corner once. The renderer bakes the bone chain into model space, applies
+`rotationXYZ(30, 225, 0)` and the facing in a second product, and centres last. So a corner lands a few
+float steps from vanilla's, shifted one way per subject - vanilla's dragon corners sit `0.023` of a
+`1/256` step lower on average, its elder guardian's `0.019` further right - and where a corner sits that
+close to a midpoint between two steps, the card snaps the two apart. At 26.1 the harness's corners and
+the renderer's snap to different steps on 155 of the 19466 distinct corners of the still and armour
+sweeps, and on the card's measured choices vanilla's corner predicts 8459 of 8461 where the renderer's
+predicts 8365.
+
+What porting vanilla's order is worth, measured against the stored rows with vanilla's corners
+substituted from the harness's dump, on a fleet sum of `661.266`:
+
+- Snapped by the renderer's own rule: 97 rows better and 12 worse, `-1.655`, no loss above `0.007`.
+  `1.622` of it is the charged creeper's doubled energy swirl, `1.769` to `0.147`; the giant's worn
+  shell closes too, and no iron-armoured row loses.
+- Snapped the card's way: 127 better and one worse by `0.0001`, `-1.795` - but that needs the GL
+  viewport step and ties to even, both refused in `TEXEL-RULES.md`.
+
+It is taken whole or not at all - `RENDERER-RULES.md` refuses a partial port, because each one measured
+re-decides the coplanar contests both ways. Whole, it is the entity path: bone chains rooted at the
+canvas matrix with JOML's affine rotate grouping, which `Matrix4f.rotate` does not use; every
+renderer's preamble and every mesh's root scale as matrix ops, which no shipped table carries and the
+tooling flattens into pivots and cube operands; the worn shell and carried blocks rebuilt on the
+wearer's matrix; and depth in new units. Nobody has taken it on.
+
 ## PlayerOptions has no style knob, and coining one needs a catalog source for the player
 
 The style axis is a string knob on `EntityOptions` resolved against the entity's shipped catalog.
