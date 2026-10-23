@@ -30,7 +30,7 @@ class AnimationOptionsResolvedTest {
     /** A derived strip of twenty-two frames at three ticks - a sixty-six-tick loop. */
     private static final @NotNull StripFit STRIP = new StripFit(3, 22, 0.5, Optional.empty());
 
-    /** The longest strip a derivation draws - every frame the cap allows, at three ticks. */
+    /** The longest strip a derivation covers - {@link StripFit#MAX_TICKS} ticks, every frame the coarse cap allows. */
     private static final @NotNull StripFit CAPPED = new StripFit(3, StripFit.MAX_FRAMES, 0.5, Optional.empty());
 
     /** A derived strip on the fine step - thirty-three frames at one tick, as a bee's wings take. */

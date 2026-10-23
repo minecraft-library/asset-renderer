@@ -23,13 +23,19 @@ import java.util.OptionalDouble;
  * image, back at its start but heading the other way, does not pass for a loop. An exact loop is that
  * rule at a jump of zero, and parts on different periods meet at their combined loop by the same
  * search. Where no length under the cap comes back, the strip is the length with the smallest jump, the
- * shorter of two that tie. Before it searches, the fit:
+ * shorter of two that tie. Around the search, the fit:
  * <ul>
  *     <li><b>answers {@link #STILL}</b> where no channel ever moves more than one tolerance from its value
  *     at tick 0;</li>
  *     <li><b>picks the step</b> - {@link #FINE_STEP} where some channel carries most of its repeating
- *     motion faster than two coarse frames, and at least one tolerance of it, else {@link #COARSE_STEP};
- *     the cap is {@link #MAX_FRAMES} frames at either;</li>
+ *     motion faster than two coarse frames, and at least one tolerance of it, which coarse frames would
+ *     alias. Otherwise it fits the strip at both steps and takes the fine one where that shows every
+ *     visible part whole - each part's own length, as the floor below reads it but without the cap, fits
+ *     in {@link #MAX_FRAMES} ticks - and restarts no worse, closing within one tolerance or jumping no
+ *     further than the coarse one, rounding aside; else the coarse one. The cap is {@link #MAX_TICKS}
+ *     ticks at the coarse step and {@link #MAX_FRAMES} frames at the fine, save that a strip coarse frames
+ *     would alias runs to {@link #MAX_TICKS} fine frames where a visible part is longer than
+ *     {@link #MAX_FRAMES} ticks, so that part is not cut;</li>
  *     <li><b>sets a floor</b> every length must reach, so each visible part is shown whole once: a
  *     one-shot's full length, a looping part's period, an expression's slowest visible period read off its
  *     spectrum and rounded up. The search for a restart starts a little short of the period of an expression
@@ -46,9 +52,9 @@ import java.util.OptionalDouble;
  * how long a strip runs and never where it restarts.
  *
  * <p><b>The sampling contract.</b> Every track holds {@link #WINDOW_TICKS} finite samples from tick 0, and
- * the strip chosen runs at most {@link #MAX_FRAMES} frames, so at most {@code MAX_FRAMES * COARSE_STEP}
- * ticks. The still test, the step test and the floor read the whole window rather than the strip, so the
- * fit assumes every input behaves over the window as it does over the strip. An input that changes for
+ * the strip chosen runs at most {@link #MAX_TICKS} ticks at either step. The still test, the step test,
+ * the part lengths and the floor read the whole window rather than the strip, so the fit assumes every
+ * input behaves over the window as it does over the strip. An input that changes for
  * good past the strip but inside the window - a countdown that runs out, a clip longer than the window,
  * which reads as never returning - moves those tests by motion no frame shows. The fit does not check
  * that a sample is finite, and the strip it answers over one that is not means nothing.
@@ -65,14 +71,28 @@ import java.util.OptionalDouble;
 @Parity(subject = Subject.ENTITY)
 public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Optional<String> worstChannel) {
 
-    /** The frame step a strip takes unless its motion is too fast for it - three ticks a frame. */
+    /**
+     * The frame step a strip takes where coarse frames alias none of its motion and a strip at
+     * {@link #FINE_STEP} would cut a visible part short or restart worse - three ticks a frame.
+     */
     public static final int COARSE_STEP = 3;
 
-    /** The frame step a strip takes where visible motion is too fast for {@link #COARSE_STEP} - a tick a frame. */
+    /**
+     * The frame step a strip takes where coarse frames would alias its visible motion, or where a strip at
+     * this step shows every visible part whole and restarts no worse than one at {@link #COARSE_STEP} - a
+     * tick a frame.
+     */
     public static final int FINE_STEP = 1;
 
-    /** The most frames a derived strip draws at either step - as many coarse frames as fit in {@link Timeline#MAX_LOOP_TICKS}. */
+    /**
+     * The most frames a derived strip draws - as many coarse frames as fit in {@link Timeline#MAX_LOOP_TICKS},
+     * and as many fine ones. A strip coarse frames would alias that holds a visible part longer than this
+     * many ticks draws up to {@link #MAX_TICKS} fine frames instead, so that part is not cut.
+     */
     public static final int MAX_FRAMES = Timeline.MAX_LOOP_TICKS / COARSE_STEP;
+
+    /** The most ticks a derived strip covers at either step - {@link #MAX_FRAMES} coarse frames. */
+    public static final int MAX_TICKS = MAX_FRAMES * COARSE_STEP;
 
     /**
      * The ticks every track is sampled over, from tick 0 - a power of two for the transform, and long enough
@@ -101,6 +121,16 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
 
     /** The margin within which two seams are equal, and by which a part's length is trimmed before it rounds up to whole ticks. */
     private static final double TIE_EPSILON = 1e-9;
+
+    /**
+     * The margin, in tolerances, by which a fine strip's open restart may jump further than the coarse one's
+     * and still count as no worse - a thousandth of a tolerance. The two strips read the frame after their
+     * restarts at different ticks, where samples taken through single-precision pose math differ by rounding
+     * alone: a float holds about seven significant digits, so a few steps of it come to a few
+     * hundred-thousandths of a degree on a turn of a few radians. A thousandth stays clear of that and is far
+     * under anything a frame can show.
+     */
+    private static final double SEAM_TIE = 1e-3;
 
     /** The smallest amplitude the period's parabola takes the logarithm of, so an empty bin still has one. */
     private static final double LOG_FLOOR = 1e-300;
@@ -157,7 +187,11 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
     }
 
     /**
-     * Fits the strip a set of sampled tracks owes.
+     * Fits the strip a set of sampled tracks owes. It takes {@link #FINE_STEP} where coarse frames would alias
+     * some channel's motion, running as long as a coarse strip may where a visible part is longer than
+     * {@link #MAX_FRAMES} ticks; otherwise {@link #FINE_STEP} where every visible part's own length fits in
+     * {@link #MAX_FRAMES} ticks and the fine restart closes or jumps no further than the coarse one, and
+     * {@link #COARSE_STEP} where it does not.
      *
      * @param tracks the row's sampled contributions, in the order ties are broken by
      * @return the strip, {@link #STILL} where nothing visibly moves
@@ -170,15 +204,40 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
 
         if (channels.values().stream().noneMatch(Channel::travels)) return STILL;
 
-        int step = channels.values().stream().anyMatch(Channel::tooFastForCoarseFrames) ? FINE_STEP : COARSE_STEP;
-        int capTicks = MAX_FRAMES * step;
+        // Every visible part's own length, read once for each step the fit tries.
+        List<Part> parts = new ArrayList<>();
+        for (StripTrack track : tracks)
+            if (travels(track.values(), wrapOf(track.wrap()), track.kind().tolerance())) parts.add(Part.of(track));
+        int fineCap = MAX_FRAMES * FINE_STEP;
+        boolean fitsFine = parts.stream().allMatch(part -> part.whole() <= fineCap);
 
+        // Motion coarse frames would alias takes the fine step whatever it costs, and runs as long as a coarse
+        // strip may where a part is longer than the fine cap.
+        if (channels.values().stream().anyMatch(Channel::tooFastForCoarseFrames))
+            return fitAt(parts, channels.values(), FINE_STEP, fitsFine ? fineCap : MAX_TICKS);
+
+        StripFit coarse = fitAt(parts, channels.values(), COARSE_STEP, MAX_TICKS);
+        if (!fitsFine) return coarse;
+
+        StripFit fine = fitAt(parts, channels.values(), FINE_STEP, fineCap);
+        return fine.restartsNoWorseThan(coarse) ? fine : coarse;
+    }
+
+    /**
+     * Fits the strip a row owes at one frame step and cap.
+     *
+     * @param parts every visible part's own length
+     * @param channels the row's tracks summed by channel, in the order each first appears
+     * @param step the frame step
+     * @param capTicks the longest strip at that step, a multiple of it
+     * @return the strip at that step
+     */
+    private static @NotNull StripFit fitAt(@NotNull List<Part> parts, @NotNull Collection<Channel> channels, int step, int capTicks) {
         // The floor that shows every part whole, and the one the search starts from.
         int cover = 0;
         int searchCover = 0;
-        for (StripTrack track : tracks) {
-            if (!travels(track.values(), wrapOf(track.wrap()), track.kind().tolerance())) continue;
-            Coverage coverage = coverage(track, capTicks);
+        for (Part part : parts) {
+            Coverage coverage = part.coverage(capTicks);
             cover = Math.max(cover, coverage.whole());
             searchCover = Math.max(searchCover, coverage.searched());
         }
@@ -186,7 +245,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
         // A one-shot that does not end where it started stops the strip at the floor.
         double oneShotJump = 0d;
         String jumping = null;
-        for (Channel channel : channels.values()) {
+        for (Channel channel : channels) {
             if (channel.oneShots.isEmpty()) continue;
             double jump = channel.oneShotJump();
             if (jump > oneShotJump) {
@@ -196,16 +255,16 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
         }
         if (oneShotJump > 1d) {
             int length = lengthFloor(cover, step, capTicks);
-            double rest = seamAt(channels.values(), length, step);
+            double rest = seamAt(channels, length, step);
             return new StripFit(step, length / step, Math.max(oneShotJump, rest),
-                oneShotJump >= rest ? Optional.of(jumping) : worstChannel(channels.values(), length, step));
+                oneShotJump >= rest ? Optional.of(jumping) : worstChannel(channels, length, step));
         }
 
         int floor = lengthFloor(searchCover, step, capTicks);
         int bestLength = floor;
         double bestSeam = Double.MAX_VALUE;
         for (int length = floor; length <= capTicks; length += step) {
-            double seam = seamAt(channels.values(), length, step);
+            double seam = seamAt(channels, length, step);
             if (seam <= 1d) {
                 bestLength = length;
                 bestSeam = seam;
@@ -217,32 +276,18 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
             }
         }
         return new StripFit(step, bestLength / step, bestSeam,
-            bestSeam > 0d ? worstChannel(channels.values(), bestLength, step) : Optional.empty());
+            bestSeam > 0d ? worstChannel(channels, bestLength, step) : Optional.empty());
     }
 
     /**
-     * Measures the least length a part asks to be shown whole in, and the least the search for a restart
-     * starts from over it. A one-shot asks for its length and a looping part for its period, none where that
-     * is unknown, and the search leaves out either where it is longer than the cap. An expression asks for
-     * its spectral period clamped to the cap and rounded up; where the restart judges it, as it does every
-     * kind but an opacity, the search starts from that period trimmed by the slack.
+     * Tests whether the strip restarts no worse than another: it closes, or its seam is no larger, within
+     * {@link #SEAM_TIE}.
      *
-     * @param track the part
-     * @param capTicks the longest strip at the chosen step
-     * @return the part's coverage in ticks
+     * @param other the strip it would take the place of
+     * @return true where the restart is no worse
      */
-    private static @NotNull Coverage coverage(@NotNull StripTrack track, int capTicks) {
-        return switch (track.role()) {
-            case Role.OneShot(double lengthTicks) -> Coverage.exact((int) Math.ceil(lengthTicks - TIE_EPSILON), capTicks);
-            case Role.Looping(double periodTicks) -> periodTicks > 0d && Double.isFinite(periodTicks)
-                ? Coverage.exact((int) Math.ceil(periodTicks - TIE_EPSILON), capTicks)
-                : new Coverage(0, 0);
-            case Role.Expression() -> {
-                double period = Math.min(slowestPeriod(track.values(), wrapOf(track.wrap()), track.kind().tolerance()), capTicks);
-                int whole = (int) Math.ceil(period - TIE_EPSILON);
-                yield new Coverage(whole, track.kind() == Kind.OPACITY ? whole : (int) Math.floor(COVERAGE_SLACK * period));
-            }
-        };
+    private boolean restartsNoWorseThan(@NotNull StripFit other) {
+        return this.closes() || this.seam <= other.seam + SEAM_TIE;
     }
 
     /**
@@ -773,6 +818,58 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
     private record Harmonics(double bin, double residual, double fundamental, double strongestHarmonic) {}
 
     /**
+     * One visible track's own length, read once and shared by every step the fit tries.
+     *
+     * @param length the ticks the part asks to be shown whole in, with no cap - a one-shot's length, a looping part's period, an expression's slowest visible period - and zero for a looping part with no period or an expression no peak of which reaches a tolerance
+     * @param read whether the length is read off the samples, as an expression's is, rather than declared
+     * @param opacity whether the part is an opacity, which the restart never judges
+     */
+    private record Part(double length, boolean read, boolean opacity) {
+
+        /**
+         * Reads a visible track's part.
+         *
+         * @param track the track
+         * @return its part
+         */
+        static @NotNull Part of(@NotNull StripTrack track) {
+            boolean opacity = track.kind() == Kind.OPACITY;
+            return switch (track.role()) {
+                case Role.OneShot(double lengthTicks) -> new Part(lengthTicks, false, opacity);
+                case Role.Looping(double periodTicks) -> new Part(periodTicks > 0d && Double.isFinite(periodTicks) ? periodTicks : 0d, false, opacity);
+                case Role.Expression() -> new Part(slowestPeriod(track.values(), wrapOf(track.wrap()), track.kind().tolerance()), true, opacity);
+            };
+        }
+
+        /**
+         * Rounds the part's length up to whole ticks.
+         *
+         * @return the ticks that show the part whole once, with no cap
+         */
+        int whole() {
+            return (int) Math.ceil(this.length - TIE_EPSILON);
+        }
+
+        /**
+         * Measures the least length the part asks to be shown whole in under a cap, and the least the search
+         * for a restart starts from over it. A declared length asks for itself rounded up, and the search
+         * leaves it out where it is longer than the cap. A read period asks for itself clamped to the cap and
+         * rounded up; where the restart judges it, the search starts from that period trimmed by the slack.
+         *
+         * @param capTicks the longest strip at the step tried
+         * @return the part's coverage in ticks
+         */
+        @NotNull Coverage coverage(int capTicks) {
+            if (!this.read) return Coverage.exact(this.whole(), capTicks);
+
+            double period = Math.min(this.length, capTicks);
+            int whole = (int) Math.ceil(period - TIE_EPSILON);
+            return new Coverage(whole, this.opacity ? whole : (int) Math.floor(COVERAGE_SLACK * period));
+        }
+
+    }
+
+    /**
      * The least lengths one part asks a strip to run, in ticks.
      *
      * @param whole the length that shows the part whole once, which a strip that stops at its floor runs
@@ -784,7 +881,7 @@ public record StripFit(int ticksPerFrame, int frames, double seam, @NotNull Opti
          * Builds the coverage of an exact part, whose whole length the search starts from where it fits under the cap.
          *
          * @param whole the part's length or period, rounded up to whole ticks
-         * @param capTicks the longest strip at the chosen step
+         * @param capTicks the longest strip at the step tried
          * @return the coverage
          */
         static @NotNull Coverage exact(int whole, int capTicks) {

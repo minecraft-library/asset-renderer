@@ -187,12 +187,12 @@ class PoseStripsCorpusTest {
         List<String> broken = new ArrayList<>();
         each((key, strip) -> {
             boolean step = strip.ticksPerFrame() == StripFit.FINE_STEP || strip.ticksPerFrame() == StripFit.COARSE_STEP;
-            boolean frames = strip.frames() >= 1 && strip.frames() <= StripFit.MAX_FRAMES;
+            boolean frames = strip.frames() >= 1 && strip.loopTicks() <= StripFit.MAX_TICKS;
             boolean still = !strip.isStill() || strip.ticksPerFrame() == StripFit.COARSE_STEP;
             if (!step || !frames || !still) broken.add(key + ": " + strip);
         });
-        assertEquals(List.of(), broken, "a derived strip runs from one frame to " + StripFit.MAX_FRAMES
-            + " at a step of " + StripFit.FINE_STEP + " or " + StripFit.COARSE_STEP + ", a still one at "
+        assertEquals(List.of(), broken, "a derived strip runs from one frame to " + StripFit.MAX_TICKS
+            + " ticks at a step of " + StripFit.FINE_STEP + " or " + StripFit.COARSE_STEP + ", a still one at "
             + StripFit.COARSE_STEP);
     }
 

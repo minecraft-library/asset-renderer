@@ -1070,14 +1070,18 @@ property of the mechanism.
 samples every channel the row moves - the pose expressions of the body, every overlay pass and every
 equipment mesh, each clip site apart, each scrolling sheet, each pass opacity that follows the clock -
 and `StripFit.fit` takes the shortest loop whose restart jumps by no more than one tolerance on any
-channel, at three ticks a frame or one where a visible motion is too fast for three, capped at
-sixty-six frames; a one-shot that does not end where it starts stops the strip at its own length, and
-a row whose motion is too small to see is one frame. It is worked out the first time a row is drawn
-in a process and held for the process, so shipped, universal and authored rows take one derivation
-and the table ships no frame count. Named alone, a frame count keeps the row's step and a step fills
-as many frames as cover the loop; named together, both are the caller's. `PoseStripsCorpusTest` pins
-every shipped row's strip at each age, in-force gate set, axis form whose pose program differs and
-posed trait subject.
+channel. It steps one tick a frame where a visible motion is too fast for three, and wherever else the
+one-tick strip shows every visible part whole inside sixty-six ticks and restarts no worse than the
+three-tick one - it closes, or jumps no further - and three ticks a frame otherwise. A strip runs
+sixty-six frames at the most, and so 198 ticks at three a frame; the one strip that runs longer is one
+too fast for three ticks holding a slower part longer than sixty-six ticks, which runs on up to 198
+one-tick frames so that part is not cut. A one-shot that does not end where it starts stops the strip
+at its own length, and a row whose motion is too small to see is one frame. It is worked out the
+first time a row is drawn in a process and held for the process, so shipped, universal and authored
+rows take one derivation and the table ships no frame count. Named alone, a frame count keeps the
+row's step and a step fills as many frames as cover the loop; named together, both are the caller's.
+`PoseStripsCorpusTest` pins every shipped row's strip at each age, in-force gate set, axis form whose
+pose program differs and posed trait subject.
 
 **A pass's opacity may follow the clock.** Where the layer vanilla draws scales its colour by a
 function of the render state, the overlay row ships that function as its `opacity`, evaluated at

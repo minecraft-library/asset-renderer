@@ -104,17 +104,19 @@ class PeriodFramingTest {
     // ---- strip framing -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("the declared window sets the derived strip - sixteen frames over 48 ticks, eight over 24")
+    @DisplayName("the declared window sets the derived strip - forty-seven frames for 48 ticks, twenty-four for 24")
     void theDeclaredWindowSetsTheDerivedStrip() {
+        // The sway fits the fine strip either way, so it takes a tick a frame. Over 48 ticks it eases into its
+        // rest slowly enough to come back within a degree a tick short of its window; over 24 it does not.
         Entity installed = installedBreathe();
         PoseStyle breathe = installed.styles().byId("breathe").orElseThrow();
         int period = installed.styles().periodTicks();
         StripFit declared = PoseStrips.of(installed, breathe, period);
-        assertEquals(List.of(16, 3), List.of(declared.frames(), declared.ticksPerFrame()),
-            "the sweep comes back to rest at its 48-tick window, three ticks a frame");
+        assertEquals(List.of(47, 1), List.of(declared.frames(), declared.ticksPerFrame()),
+            "the sweep comes back to rest a tick short of its 48-tick window, a tick a frame");
         assertTrue(declared.closes(), "and closes there");
         StripFit framed = PoseStrips.of(installed, undeclared(breathe), period);
-        assertEquals(List.of(8, 3), List.of(framed.frames(), framed.ticksPerFrame()),
+        assertEquals(List.of(24, 1), List.of(framed.frames(), framed.ticksPerFrame()),
             "and the same row with the component empty closes at the catalog's 24 ticks");
     }
 
@@ -169,7 +171,7 @@ class PeriodFramingTest {
     // ---- the rendered strip --------------------------------------------------------------------
 
     @Test
-    @DisplayName("a rendered strip covers the declared window at three ticks a frame")
+    @DisplayName("a rendered strip plays the declared window back to rest at a tick a frame")
     void aRenderedStripCoversTheDeclaredWindow() {
         assumeTrue(!EntityModelLoader.load().isEmpty(),
             "entity_models.json not present - run entityModels first");
@@ -181,22 +183,22 @@ class PeriodFramingTest {
             .context(RendererContext.builder().textures(textureId -> Possible.of(sheet())).build()));
 
         ImageData declared = renderer.render(rendered("breathe")).image();
-        assertEquals(16, declared.getFrames().size(),
-            "a moving style renders its whole derived strip - the 48-tick window at three ticks a frame");
+        assertEquals(47, declared.getFrames().size(),
+            "a moving style renders its whole derived strip - the 48-tick window back at rest a tick short, a tick a frame");
         for (ImageFrame frame : declared.getFrames())
-            assertEquals(150, frame.delayMs(),
-                "every frame of the 48-tick window plays for three ticks");
+            assertEquals(50, frame.delayMs(),
+                "every frame of the 48-tick window plays for one tick");
         assertFalse(Arrays.equals(
                 declared.getFrames().getFirst().pixels().data(),
-                declared.getFrames().get(8).pixels().data()),
-            "the excursion moves pixels between its rest at frame 0 and its peak at frame 8");
+                declared.getFrames().get(24).pixels().data()),
+            "the excursion moves pixels between its rest at frame 0 and its peak at frame 24");
 
         ImageData framed = renderer.render(rendered("sway")).image();
-        assertEquals(8, framed.getFrames().size(),
+        assertEquals(24, framed.getFrames().size(),
             "an undeclared moving row renders the strip its 24-tick window derives");
         for (ImageFrame frame : framed.getFrames())
-            assertEquals(150, frame.delayMs(),
-                "and its frames play for three ticks too");
+            assertEquals(50, frame.delayMs(),
+                "and its frames play for one tick too");
     }
 
     // ---- fixtures ------------------------------------------------------------------------------

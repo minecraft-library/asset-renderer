@@ -58,11 +58,12 @@ class StripFitTest {
     // ---- the search ----------------------------------------------------------------------------
 
     @Test
-    @DisplayName("a 24-tick sine loops at its own period, eight coarse frames with no jump")
-    void aTwentyFourTickSineLoopsAtEightFrames() {
+    @DisplayName("a 24-tick sine loops at its own period, twenty-four fine frames with no jump")
+    void aTwentyFourTickSineLoopsAtItsOwnPeriod() {
+        // Its loop fits the fine strip and closes there, as it does at the coarse step, so it takes a tick a frame.
         StripFit fit = StripFit.fit(List.of(rotation("leg.x_rot", expression(), sine(30d, 24))));
 
-        assertEquals(new StripFit(3, 8, 0d, Optional.empty()), fit);
+        assertEquals(new StripFit(1, 24, 0d, Optional.empty()), fit);
         assertEquals(24, fit.loopTicks());
         assertTrue(fit.closes());
         assertFalse(fit.isStill());
@@ -72,20 +73,25 @@ class StripFitTest {
     @DisplayName("an irrational term takes its first length within a tolerance, else its smallest seam, the shorter on a tie")
     void anIrrationalTermTakesTheFirstCloseElseTheSmallestSeam() {
         // The creeper's stride at its wander pace: a 26.762-tick swing of 28.267 degrees, which meets the
-        // 3-tick lattice nowhere under the cap within a degree, and comes nearest at 27.
+        // 3-tick lattice nowhere under the cap within a degree, and comes nearest at 27. A tick a frame meets
+        // it within one at 26, so that is the strip.
         double[] stride = samples(cosine(28.267, 26.762));
-        StripFit fallback = StripFit.fit(List.of(rotation("leg.x_rot", expression(), stride)));
-        assertEquals(3, fallback.ticksPerFrame());
-        assertEquals(27, fallback.loopTicks());
-        assertFalse(fallback.closes(), "the stride misses by a little over one degree, seam " + fallback.seam());
-        assertEquals(Optional.of("leg.x_rot"), fallback.worstChannel());
-        for (int length = fallback.loopTicks(); length <= StripFit.MAX_FRAMES * 3; length += 3)
-            assertTrue(seamAt(length, 3, 1d, stride) >= fallback.seam(), "a smaller seam at " + length);
-        assertEquals(seamAt(27, 3, 1d, stride), fallback.seam(), 1e-12);
+        StripFit closing = StripFit.fit(List.of(rotation("leg.x_rot", expression(), stride)));
+        assertEquals(new StripFit(1, 26, seamAt(26, 1, 1d, stride), Optional.of("leg.x_rot")), closing);
+        assertTrue(closing.closes(), "seam " + closing.seam());
+        assertTrue(seamAt(27, 3, 1d, stride) > 1d, "the coarse strip misses by a little over one degree, seam " + seamAt(27, 3, 1d, stride));
 
-        StripFit closing = StripFit.fit(List.of(rotation("leg.x_rot", expression(), cosine(25d, 26.762))));
-        assertEquals(27, closing.loopTicks());
-        assertTrue(closing.closes(), "a 25-degree swing comes round within a degree, seam " + closing.seam());
+        // Three times the swing meets neither lattice within a degree under its cap. The fine strip's smallest
+        // seam is no larger than the coarse one's, so it is the strip.
+        double[] wide = samples(cosine(3 * 28.267, 26.762));
+        StripFit fallback = StripFit.fit(List.of(rotation("leg.x_rot", expression(), wide)));
+        assertEquals(1, fallback.ticksPerFrame());
+        assertFalse(fallback.closes(), "seam " + fallback.seam());
+        assertEquals(Optional.of("leg.x_rot"), fallback.worstChannel());
+        for (int length = fallback.loopTicks(); length <= StripFit.MAX_FRAMES; length++)
+            assertTrue(seamAt(length, 1, 1d, wide) >= fallback.seam(), "a smaller seam at " + length);
+        assertEquals(seamAt(fallback.loopTicks(), 1, 1d, wide), fallback.seam(), 1e-12);
+        assertEquals(27, fallback.loopTicks());
 
         // The first length within a tolerance wins over a smaller seam further on: the 48-tick part is
         // under a degree, so it closes the strip at 24 and is back exactly at 48.
@@ -94,20 +100,22 @@ class StripFitTest {
         assertEquals(24, first.loopTicks());
         assertTrue(first.seam() > 0d && first.closes(), "seam " + first.seam());
 
-        // Two lengths tie on the smallest seam, eight tolerances of a quarter pixel at 12 and at 15.
+        // Two lengths tie on the smallest seam, eight tolerances of a quarter pixel at 12 and at 15. The fine
+        // strip ties as the coarse one does, and takes the shorter.
         StripFit tie = StripFit.fit(List.of(position("body.y", new Role.Looping(Double.NaN),
-            tick -> tick < 6 ? 0d : (tick >= 12 && tick <= 18 ? 2d : 5d))));
-        assertEquals(new StripFit(3, 4, 8d, Optional.of("body.y")), tie);
+            tick -> tick == 0 ? 0d : (tick == 12 || tick == 15 ? 2d : 5d))));
+        assertEquals(new StripFit(1, 12, 8d, Optional.of("body.y")), tie);
     }
 
     @Test
     @DisplayName("parts come round together under the cap, else at the smallest seam under it")
     void partsComeRoundTogetherUnderTheCap() {
+        // A 10-tick and a 15-tick loop meet at 30, inside the fine strip.
         StripFit together = StripFit.fit(List.of(
             rotation("leg.x_rot", new Role.Looping(10), sine(20d, 10)),
             rotation("tail.y_rot", new Role.Looping(15), sine(20d, 15))
         ));
-        assertEquals(new StripFit(3, 10, 0d, Optional.empty()), together);
+        assertEquals(new StripFit(1, 30, 0d, Optional.empty()), together);
 
         double[] thirteen = samples(sine(20d, 13));
         double[] seventeen = samples(sine(20d, 17));
@@ -115,15 +123,16 @@ class StripFitTest {
             rotation("leg.x_rot", new Role.Looping(13), thirteen),
             rotation("tail.y_rot", new Role.Looping(17), seventeen)
         ));
-        // 13, 17 and 3 meet first at 663 ticks, far past the 198 a coarse strip may run.
-        int floor = 18;
+        // 13 and 17 meet first at 221 ticks, past the 66 a fine strip may run and the 198 a coarse one may.
+        // The fine strip's smallest seam is no larger than the coarse one's, so it is the strip.
+        int floor = 17;
         int best = floor;
-        for (int length = floor; length <= StripFit.MAX_FRAMES * 3; length += 3)
-            if (seamAt(length, 3, 1d, thirteen, seventeen) < seamAt(best, 3, 1d, thirteen, seventeen)) best = length;
-        assertEquals(3, capped.ticksPerFrame());
+        for (int length = floor; length <= StripFit.MAX_FRAMES; length++)
+            if (seamAt(length, 1, 1d, thirteen, seventeen) < seamAt(best, 1, 1d, thirteen, seventeen)) best = length;
+        assertEquals(1, capped.ticksPerFrame());
         assertEquals(best, capped.loopTicks());
-        assertEquals(51, capped.loopTicks());
-        assertEquals(seamAt(best, 3, 1d, thirteen, seventeen), capped.seam(), 1e-12);
+        assertEquals(52, capped.loopTicks());
+        assertEquals(seamAt(best, 1, 1d, thirteen, seventeen), capped.seam(), 1e-12);
         assertFalse(capped.closes());
     }
 
@@ -141,10 +150,131 @@ class StripFitTest {
         assertEquals(StripFit.FINE_STEP, faint.ticksPerFrame(), "a beat a little over one degree");
 
         // Under one degree of beat the motion still travels 1.8 degrees, so it is not still, but it is
-        // too small to buy the fine step.
-        StripFit unseen = StripFit.fit(List.of(rotation("wing.z_rot", expression(), cosine(0.9, 2.992))));
-        assertEquals(StripFit.COARSE_STEP, unseen.ticksPerFrame());
+        // too small for coarse frames to alias. Alone, its loop fits the fine strip and closes there, so it
+        // takes a tick a frame regardless; beside a swing longer than sixty-six ticks, which only aliasing
+        // buys a fine strip long enough for, the beat's size alone decides the step.
+        StripTrack unseenBeat = rotation("wing.z_rot", expression(), cosine(0.9, 2.992));
+        StripFit unseen = StripFit.fit(List.of(unseenBeat));
+        assertEquals(StripFit.FINE_STEP, unseen.ticksPerFrame());
         assertFalse(unseen.isStill());
+
+        StripTrack slow = rotation("body.x_rot", expression(), sine(30d, 150));
+        assertEquals(StripFit.COARSE_STEP, StripFit.fit(List.of(unseenBeat, slow)).ticksPerFrame(), "0.9 degrees of beat beside a 150-tick swing");
+        assertEquals(StripFit.FINE_STEP, StripFit.fit(List.of(rotation("wing.z_rot", expression(), cosine(1.1, 2.992)), slow)).ticksPerFrame(),
+            "1.1 degrees of beat beside a 150-tick swing");
+    }
+
+    // ---- the step rule -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a stride whose every part fits sixty-six ticks takes 1-tick frames where its restart is no worse")
+    void aStrideThatFitsTheFineStripTakesOneTickFrames() {
+        // Every swing here is slower than two coarse frames, so no coarse frame aliases it, and each is shown
+        // whole inside sixty-six ticks. An exact loop closes at its own period at either step, and a strip that
+        // closes is no worse than another that closes.
+        assertEquals(new StripFit(1, 12, 0d, Optional.empty()), swing(sine(30d, 12)), "a 12-tick stride");
+        assertEquals(new StripFit(1, 60, 0d, Optional.empty()), swing(sine(30d, 60)), "a 60-tick swing");
+
+        // A stride at the wolf's period, 11.89 ticks: four coarse frames come back with the frame after the
+        // restart nearly two degrees off, twelve fine frames within one.
+        double[] stride = samples(cosine(30d, 11.89));
+        StripFit fit = swing(stride);
+        assertEquals(StripFit.FINE_STEP, fit.ticksPerFrame());
+        assertEquals(12, fit.loopTicks());
+        assertTrue(fit.closes(), "seam " + fit.seam());
+        assertTrue(seamAt(12, 3, 1d, stride) > 1d, "coarse seam " + seamAt(12, 3, 1d, stride));
+    }
+
+    @Test
+    @DisplayName("a stride beside a slower part longer than sixty-six ticks keeps 3-tick frames")
+    void aStrideBesideAPartPastTheFineCapKeepsCoarseFrames() {
+        // A zombie's shape: a 12-tick stride beside a 94-tick arm bob, which sixty-six fine frames would cut.
+        // The coarse strip shows the bob whole and closes where both come round, at 96.
+        double[] bob = samples(sine(5d, 94));
+        StripTrack leg = rotation("leg.x_rot", expression(), sine(30d, 12));
+        StripTrack arm = rotation("arm.x_rot", expression(), bob);
+        StripFit fit = StripFit.fit(List.of(leg, arm));
+        assertEquals(new StripFit(3, 32, seamAt(96, 3, 1d, bob), Optional.of("arm.x_rot")), fit);
+        assertTrue(fit.closes(), "seam " + fit.seam());
+
+        // A turn that ends 30 degrees on stops the strip at the bob's whole loop, and jumps by those 30 degrees
+        // at either step, so the fine restart would be no worse; the cut bob alone keeps three ticks a frame.
+        StripFit stopping = StripFit.fit(List.of(leg, arm,
+            rotation("head.x_rot", new Role.OneShot(20), tick -> tick < 20 ? 30d * tick / 20 : 30d)));
+        assertEquals(new StripFit(3, 32, 30d, Optional.of("head.x_rot")), stopping);
+    }
+
+    @Test
+    @DisplayName("a fine strip whose restart closes is taken even where the coarse seam is smaller")
+    void aFineStripThatClosesIsTakenOverASmallerCoarseSeam() {
+        // A 10-tick swing carrying half a degree of 60-tick drift. Ten fine frames come back within a tolerance;
+        // the coarse lattice first meets the swing at 30, where the drift has come further round.
+        double[] values = samples(tick -> sine(30d, 10).applyAsDouble(tick) + sine(0.5, 60).applyAsDouble(tick));
+        StripFit fit = swing(values);
+        assertEquals(new StripFit(1, 10, seamAt(10, 1, 1d, values), Optional.of("body.x_rot")), fit);
+        assertTrue(fit.closes(), "seam " + fit.seam());
+        for (int length = 9; length < 30; length += 3)
+            assertTrue(seamAt(length, 3, 1d, values) > 1d, "a coarse close at " + length);
+        assertTrue(seamAt(30, 3, 1d, values) < fit.seam(), "coarse seam " + seamAt(30, 3, 1d, values) + " against fine " + fit.seam());
+    }
+
+    @Test
+    @DisplayName("a fine strip whose open restart is larger keeps 3-tick frames")
+    void aLargerOpenFineRestartKeepsCoarseFrames() {
+        // An 8-tick and a 9-tick loop meet at 72, past the sixty-six ticks a fine strip runs and on the coarse
+        // lattice; every fine length short of it jumps.
+        double[] eight = samples(sine(20d, 8));
+        double[] nine = samples(sine(20d, 9));
+        StripFit fit = StripFit.fit(List.of(
+            rotation("leg.x_rot", new Role.Looping(8), eight),
+            rotation("tail.y_rot", new Role.Looping(9), nine)
+        ));
+        assertEquals(new StripFit(3, 24, 0d, Optional.empty()), fit);
+        for (int length = 9; length <= StripFit.MAX_FRAMES; length++)
+            assertTrue(seamAt(length, 1, 1d, eight, nine) > 1d, "a fine close at " + length);
+    }
+
+    @Test
+    @DisplayName("a strip coarse frames would alias runs past sixty-six frames to show a slower part whole, never past the coarse cap")
+    void anAliasingStripRunsPastTheFineCapForASlowPart() {
+        // A 4-tick beat coarse frames would alias, beside the 94-tick arm bob: the fine strip runs as long as a
+        // coarse one may, so it reaches the bob's whole loop and closes where the two meet, at 188.
+        StripTrack beat = rotation("wing.x_rot", new Role.Looping(4), sine(10d, 4));
+        StripFit bob = StripFit.fit(List.of(beat, rotation("arm.x_rot", expression(), sine(30d, 94))));
+        assertEquals(new StripFit(1, 188, 0d, Optional.empty()), bob);
+        assertTrue(bob.frames() > StripFit.MAX_FRAMES, "frames " + bob.frames());
+
+        // A part longer than the coarse cap is shown as long as the cap allows, and no longer.
+        StripFit past = StripFit.fit(List.of(beat, rotation("arm.x_rot", expression(), sine(30d, 250))));
+        assertEquals(StripFit.FINE_STEP, past.ticksPerFrame());
+        assertTrue(past.loopTicks() >= 188 && past.loopTicks() <= StripFit.MAX_TICKS, past.toString());
+
+        // Where every part fits sixty-six ticks the cap stays sixty-six frames: a 9-tick and a 10-tick loop
+        // beside the beat meet at 180, which the fine strip does not reach.
+        double[] nine = samples(sine(20d, 9));
+        double[] ten = samples(sine(20d, 10));
+        double[] beatValues = beat.values();
+        StripFit kept = StripFit.fit(List.of(beat,
+            rotation("leg.x_rot", new Role.Looping(9), nine),
+            rotation("tail.y_rot", new Role.Looping(10), ten)
+        ));
+        assertEquals(StripFit.FINE_STEP, kept.ticksPerFrame());
+        assertTrue(kept.frames() <= StripFit.MAX_FRAMES, kept.toString());
+        assertEquals(0d, seamAt(180, 1, 1d, beatValues, nine, ten));
+    }
+
+    @Test
+    @DisplayName("a fine restart within rounding of the coarse one is no worse, and one a hundredth of a tolerance larger is")
+    void aFineRestartWithinRoundingOfTheCoarseOneIsNoWorse() {
+        // The breeze's slide: a 30-tick turn that ends 63 degrees on stops the strip at 30 at either step,
+        // beside a turn that rises to the same 63 degrees and holds, setting no floor. The frame after the
+        // restart reads the hold at tick 31 fine and 33 coarse, where single-precision pose math leaves it about
+        // six float steps apart - 63.000060 against 63.000016.
+        StripFit rounded = held(63.00006, 63.000016);
+        assertEquals(new StripFit(1, 30, 63.00006, Optional.of("rods.x_rot")), rounded);
+
+        StripFit larger = held(63.01, 63.000016);
+        assertEquals(new StripFit(3, 10, 63.000016, Optional.of("rods.x_rot")), larger);
     }
 
     // ---- one-shots -----------------------------------------------------------------------------
@@ -152,32 +282,36 @@ class StripFitTest {
     @Test
     @DisplayName("a one-shot that returns is played whole and searched past; one that jumps stops the strip at the floor")
     void aOneShotThatReturnsIsPlayedWholeAndOneThatJumpsStopsTheStrip() {
-        // A 40-tick one-shot floors the strip at 42; the 24-tick body beside it closes next at 48.
+        // A 40-tick one-shot floors the strip at 40; the 24-tick body beside it closes next at 48. Both fit
+        // the fine strip, so it takes a tick a frame.
         StripFit returns = StripFit.fit(List.of(
             rotation("body.x_rot", expression(), sine(30d, 24)),
             rotation("head.x_rot", new Role.OneShot(40), tick -> tick < 40 ? 30 * StrictMath.sin(StrictMath.PI * tick / 40) : 0d)
         ));
-        assertEquals(new StripFit(3, 16, 0d, Optional.empty()), returns);
+        assertEquals(new StripFit(1, 48, 0d, Optional.empty()), returns);
 
+        // A strip that stops jumps by the one-shot's own 30 degrees at either step, so the fine one is no worse.
         StripFit jumps = StripFit.fit(List.of(
             rotation("body.x_rot", expression(), sine(10d, 24)),
             rotation("head.x_rot", new Role.OneShot(40), tick -> tick < 40 ? 30d * tick / 40 : 30d)
         ));
-        assertEquals(new StripFit(3, 14, 30d, Optional.of("head.x_rot")), jumps);
+        assertEquals(new StripFit(1, 40, 30d, Optional.of("head.x_rot")), jumps);
         assertFalse(jumps.closes());
     }
 
     @Test
     @DisplayName("a one-shot shorter than a loop beside it stops the strip at that loop's whole length")
     void aOneShotShorterThanALoopStopsAtTheLoop() {
-        // The breeze's shape: a 4-tick turn that holds, beside a 50-tick wind scroll on a 32-texel sheet.
+        // The breeze's shape: a 4-tick turn that holds, beside a 50-tick wind scroll on a 32-texel sheet. The
+        // scroll fits the fine strip and the stop jumps by the turn's 90 degrees at either step.
         StripFit fit = StripFit.fit(List.of(
             rotation("rods.y_rot", new Role.OneShot(4), tick -> tick < 4 ? 90d * tick / 4 : 90d),
             texel("wind.u", new Role.Looping(50), 32d, tick -> 32d * tick / 50)
         ));
 
-        assertEquals(17, fit.frames(), "the scroll's whole loop, not the one-shot's 2 frames");
-        assertEquals(51, fit.loopTicks());
+        assertEquals(50, fit.frames(), "the scroll's whole loop, not the one-shot's 4 frames");
+        assertEquals(50, fit.loopTicks());
+        assertEquals(StripFit.FINE_STEP, fit.ticksPerFrame());
         assertEquals(90d, fit.seam());
         assertEquals(Optional.of("rods.y_rot"), fit.worstChannel());
         assertFalse(fit.closes());
@@ -197,32 +331,46 @@ class StripFitTest {
         ));
         assertEquals(new StripFit(3, 47, 90d, Optional.of("body.x_rot")), digging);
 
-        // A swing beside such a one-shot is shown whole the same way, at its own period rounded up to the step.
+        // A swing beside such a one-shot is shown whole the same way, at its own period rounded up to the step:
+        // a tick a frame where the period fits the fine strip, since the stop jumps by the turn's 30 degrees at
+        // either step, and three where it does not.
         StripTrack turn = rotation("head.x_rot", new Role.OneShot(20), tick -> tick < 20 ? 30d * tick / 20 : 30d);
         for (int period : new int[] { 50, 64, 100, 139, 150 }) {
             StripFit fit = StripFit.fit(List.of(rotation("body.x_rot", expression(), sine(30d, period)), turn));
-            assertEquals(new StripFit(3, roundUp(period, 3) / 3, 30d, Optional.of("head.x_rot")), fit, period + " ticks");
+            int step = period <= StripFit.MAX_FRAMES ? 1 : 3;
+            assertEquals(new StripFit(step, roundUp(period, step) / step, 30d, Optional.of("head.x_rot")), fit, period + " ticks");
         }
     }
 
     @Test
-    @DisplayName("an exact part longer than the fine cap sets no floor; a one-shot still running is in the seam")
+    @DisplayName("an exact part longer than the coarse cap sets no floor; a one-shot still running is in the seam")
     void anExactPartPastTheCapSetsNoFloorAndARunningOneShotIsInTheSeam() {
         StripTrack beat = rotation("wing.x_rot", new Role.Looping(4), sine(10d, 4));
 
-        StripFit pastTheCap = StripFit.fit(List.of(beat, rotation("tail.x_rot", new Role.Looping(80), sine(2d, 80))));
+        // Beside a beat coarse frames would alias, the fine strip runs as long as a coarse one may where a part
+        // is longer than sixty-six ticks, so an 80-tick loop is shown whole; a 250-tick one cannot be shown
+        // whole in the 198 ticks even that strip covers, so it sets no floor.
+        StripFit pastTheFineCap = StripFit.fit(List.of(beat, rotation("tail.x_rot", new Role.Looping(80), sine(2d, 80))));
+        assertEquals(new StripFit(1, 80, 0d, Optional.empty()), pastTheFineCap, "an 80-tick loop is shown whole past sixty-six frames");
+
+        StripFit pastTheCap = StripFit.fit(List.of(beat, rotation("tail.x_rot", new Role.Looping(250), sine(2d, 250))));
         assertEquals(StripFit.FINE_STEP, pastTheCap.ticksPerFrame());
-        assertEquals(4, pastTheCap.loopTicks(), "an 80-tick loop cannot be shown whole in 66 ticks, so it sets no floor");
+        assertEquals(4, pastTheCap.loopTicks(), "a 250-tick loop cannot be shown whole in 198 ticks, so it sets no floor");
         assertTrue(pastTheCap.closes());
 
         StripFit underTheCap = StripFit.fit(List.of(beat, rotation("tail.x_rot", new Role.Looping(60), sine(2d, 60))));
         assertEquals(new StripFit(1, 60, 0d, Optional.empty()), underTheCap, "a 60-tick loop is shown whole");
 
-        // An 80-tick one-shot that returns, beating every 8 ticks while it runs: the cap cuts it at every
-        // length, so the restart is judged with it in, and only every eighth tick lands on its beat.
-        StripFit running = StripFit.fit(List.of(beat, rotation("head.x_rot", new Role.OneShot(80),
-            tick -> tick < 80 ? sine(10d, 8).applyAsDouble(tick) : 0d)));
+        // A 220-tick one-shot that returns, beating every 8 ticks while it runs: the cap cuts it at every
+        // length, so the restart is judged with it in, and only every eighth tick lands on its beat. An 80-tick
+        // one the strip runs past ends before the restart and is shown whole.
+        StripFit running = StripFit.fit(List.of(beat, rotation("head.x_rot", new Role.OneShot(220),
+            tick -> tick < 220 ? sine(10d, 8).applyAsDouble(tick) : 0d)));
         assertEquals(new StripFit(1, 8, 0d, Optional.empty()), running);
+
+        StripFit ended = StripFit.fit(List.of(beat, rotation("head.x_rot", new Role.OneShot(80),
+            tick -> tick < 80 ? sine(10d, 8).applyAsDouble(tick) : 0d)));
+        assertEquals(new StripFit(1, 80, 0d, Optional.empty()), ended);
     }
 
     // ---- wraps ---------------------------------------------------------------------------------
@@ -230,11 +378,12 @@ class StripFitTest {
     @Test
     @DisplayName("a full turn and a scroll come round their wrap with no jump")
     void wrappedChannelsCloseRoundTheirWrap() {
+        // A turn every 72 ticks is longer than the fine strip holds; a scroll every 32 fits it.
         StripFit turn = StripFit.fit(List.of(rotation("head.y_rot", expression(), tick -> 5d * tick)));
         assertEquals(new StripFit(3, 24, 0d, Optional.empty()), turn, "one turn every 72 ticks");
 
         StripFit scroll = StripFit.fit(List.of(texel("swirl.u", new Role.Looping(32), 64d, tick -> 2d * tick)));
-        assertEquals(new StripFit(3, 32, 0d, Optional.empty()), scroll, "a 64-texel sheet every 32 ticks");
+        assertEquals(new StripFit(1, 32, 0d, Optional.empty()), scroll, "a 64-texel sheet every 32 ticks");
     }
 
     // ---- opacity -------------------------------------------------------------------------------
@@ -246,8 +395,8 @@ class StripFitTest {
 
         StripFit pulsing = StripFit.fit(List.of(body,
             opacity("pass1.opacity", tick -> 0.125 - 0.125 * StrictMath.cos(2 * StrictMath.PI * (tick % 60) / 60))));
-        // The pulse reads a hair over its 60 ticks, so its whole period rounds up to 61 and the step to 63.
-        assertEquals(new StripFit(3, 21, 0d, Optional.empty()), pulsing, "a 60-tick pulse from 0 to 0.25, shown whole");
+        // The pulse reads a hair over its 60 ticks, so its whole period rounds up to 61, which the fine strip holds.
+        assertEquals(new StripFit(1, 61, 0d, Optional.empty()), pulsing, "a 60-tick pulse from 0 to 0.25, shown whole");
 
         StripFit faint = StripFit.fit(List.of(body,
             opacity("pass1.opacity", tick -> 0.005 - 0.005 * StrictMath.cos(2 * StrictMath.PI * (tick % 60) / 60))));
@@ -264,14 +413,15 @@ class StripFitTest {
         };
 
         StripFit fit = StripFit.fit(List.of(rotation("body.x_rot", expression(), sine(30d, 24)), opacity("pass1.opacity", flash)));
-        // The flash, read at 40.005, floors the strip at 42 - its whole period rounded up, then up to the
-        // step; the body closes next at 48, where the flash is 8 ticks into its fall - a jump of 51 opacity
+        // The flash, read at 40.005, floors the strip at 41 - its whole period rounded up, which the fine strip
+        // holds; the body closes next at 48, where the flash is 8 ticks into its fall - a jump of 51 opacity
         // tolerances the restart does not read. With the flash in the seam the first close would be 120.
-        assertEquals(new StripFit(3, 16, 0d, Optional.empty()), fit);
+        assertEquals(new StripFit(1, 48, 0d, Optional.empty()), fit);
         assertTrue(Math.abs(flash.applyAsDouble(48) - flash.applyAsDouble(0)) > Kind.OPACITY.tolerance());
 
-        StripFit missing = StripFit.fit(List.of(rotation("body.x_rot", expression(), cosine(28.267, 26.762)), opacity("pass1.opacity", flash)));
-        assertFalse(missing.closes());
+        // Twice the creeper's stride misses within a degree at every fine length from the flash's floor.
+        StripFit missing = StripFit.fit(List.of(rotation("body.x_rot", expression(), cosine(2 * 28.267, 26.762)), opacity("pass1.opacity", flash)));
+        assertFalse(missing.closes(), "seam " + missing.seam());
         assertEquals(Optional.of("body.x_rot"), missing.worstChannel(), "the body's jump, never the flash's larger one");
     }
 
@@ -313,29 +463,34 @@ class StripFitTest {
         assertEquals(new StripFit(3, 29, 0d, Optional.empty()), swing(sine(30d, 87)), "30 degrees at 87 ticks");
         assertEquals(new StripFit(3, 30, 0d, Optional.empty()), swing(sine(30d, 90)), "30 degrees at 90 ticks");
 
+        // A loop the fine strip holds closes there at its own period as surely as on the coarse lattice, so it
+        // takes a tick a frame; a loop read past sixty-six ticks takes three - and a 66-tick sine reads a hair
+        // over, rounding to 67, as the 60-tick pulse below reads 61.
         for (double amplitude : new double[] { 2d, 30d, 90d })
             for (int period = 12; period <= StripFit.MAX_FRAMES * 3; period += 3)
                 for (int eighth = 0; eighth < 4; eighth++) {
                     StripFit fit = swing(sine(amplitude, period, eighth * StrictMath.PI / 4));
                     String label = amplitude + " degrees at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit;
-                    assertEquals(3, fit.ticksPerFrame(), label);
+                    assertEquals(period < StripFit.MAX_FRAMES ? 1 : 3, fit.ticksPerFrame(), label);
                     assertTrue(fit.closes(), label);
                     assertTrue(fit.loopTicks() <= period && fit.loopTicks() >= 0.9 * period, label);
                 }
     }
 
     @Test
-    @DisplayName("a swing the restart judges closes at a near-loop a fraction of a tick short of its period")
+    @DisplayName("a swing the restart judges closes at a near-loop short of its period")
     void aJudgedSwingClosesJustShortOfItsPeriod() {
-        // 15 degrees every 24.27 ticks is back within a degree at 24, where the first length past its period, 27,
-        // jumps by several degrees. The restart judges what a strip leaves out of such a swing, so the search
-        // starts short of its period by the slack, and the near-loop under it is the strip.
+        // 15 degrees every 24.27 ticks is back within a degree at 23, a tick and a quarter short of its period.
+        // The restart judges what a strip leaves out of such a swing, so the search starts short of its period
+        // by the slack, and the near-loop under it is the strip; the coarse lattice's near-loop is 24, and its
+        // first length past the period, 27, jumps by several degrees.
         double[] near = samples(cosine(15d, 24.27));
         StripFit fit = swing(near);
-        assertEquals(3, fit.ticksPerFrame());
-        assertEquals(24, fit.loopTicks());
+        assertEquals(1, fit.ticksPerFrame());
+        assertEquals(23, fit.loopTicks());
         assertTrue(fit.closes(), "seam " + fit.seam());
-        assertEquals(seamAt(24, 3, 1d, near), fit.seam(), 1e-12);
+        assertEquals(seamAt(23, 1, 1d, near), fit.seam(), 1e-12);
+        assertTrue(seamAt(24, 3, 1d, near) <= 1d, "seam at 24 " + seamAt(24, 3, 1d, near));
         assertTrue(seamAt(27, 3, 1d, near) > 1d, "seam at 27 " + seamAt(27, 3, 1d, near));
     }
 
@@ -453,9 +608,10 @@ class StripFitTest {
     @Test
     @DisplayName("a slower part under one tolerance sets no floor, and a swing slower than the window floors the strip at the cap")
     void aFaintSlowPartSetsNoFloorAndASwingPastTheWindowRunsToTheCap() {
+        // The 24-tick swing alone sets the floor, so the strip fits the fine one and closes at 24 there.
         for (double period : new double[] { 87d, 150d, 204d }) {
             StripFit fit = swing(tick -> sine(30d, 24).applyAsDouble(tick) + sineAt(0.9, period).applyAsDouble(tick));
-            assertEquals(3, fit.ticksPerFrame(), "beside 0.9 degrees at " + period);
+            assertEquals(1, fit.ticksPerFrame(), "beside 0.9 degrees at " + period);
             assertEquals(24, fit.loopTicks(), "beside 0.9 degrees at " + period);
             assertTrue(fit.closes(), "beside 0.9 degrees at " + period + ", seam " + fit.seam());
         }
@@ -476,13 +632,15 @@ class StripFitTest {
     @Test
     @DisplayName("the window holds every sample the seam reads and stops short of tick 400")
     void theWindowHoldsTheSeamAndStopsShortOfTheCountdown() {
-        // The seam reads tick L + s with L up to the coarse cap. The iron golem's offered flower drops at
-        // tick 400 and stays down, which a window reaching it would read as a slow period to cover.
+        // The seam reads tick L + s with L up to the coarse cap, which a strip at either step may run to. The
+        // iron golem's offered flower drops at tick 400 and stays down, which a window reaching it would read as
+        // a slow period to cover.
         assertEquals(3, StripFit.COARSE_STEP);
         assertEquals(1, StripFit.FINE_STEP);
         assertEquals(Timeline.MAX_LOOP_TICKS / StripFit.COARSE_STEP, StripFit.MAX_FRAMES);
         assertEquals(66, StripFit.MAX_FRAMES);
-        assertTrue(StripFit.WINDOW_TICKS >= StripFit.MAX_FRAMES * StripFit.COARSE_STEP + StripFit.COARSE_STEP + 1,
+        assertEquals(StripFit.MAX_FRAMES * StripFit.COARSE_STEP, StripFit.MAX_TICKS);
+        assertTrue(StripFit.WINDOW_TICKS >= StripFit.MAX_TICKS + StripFit.COARSE_STEP + 1,
             "window " + StripFit.WINDOW_TICKS);
         assertTrue(StripFit.WINDOW_TICKS < 400, "window " + StripFit.WINDOW_TICKS);
         assertEquals(1, Integer.bitCount(StripFit.WINDOW_TICKS), "a power of two, for the transform");
@@ -491,20 +649,22 @@ class StripFitTest {
     @Test
     @DisplayName("a loop with no period sets no floor and is still judged at the restart")
     void aLoopWithNoPeriodSetsNoFloorAndStaysInTheSeam() {
-        // A 12-tick expression closes at 12 alone; the 24-tick part beside it is what holds it to 24.
+        // A 12-tick expression closes at 12 alone; the 24-tick part beside it is what holds it to 24, inside the
+        // fine strip.
         for (double period : new double[] { 0d, Double.NaN }) {
             StripFit fit = StripFit.fit(List.of(
                 rotation("head.x_rot", expression(), sine(30d, 12)),
                 rotation("leg.x_rot", new Role.Looping(period), sine(30d, 24))
             ));
-            assertEquals(new StripFit(3, 8, 0d, Optional.empty()), fit, "period " + period);
+            assertEquals(new StripFit(1, 24, 0d, Optional.empty()), fit, "period " + period);
         }
 
+        // Floored at 60, the pair next comes round at 72, which only the coarse strip reaches.
         StripFit periodic = StripFit.fit(List.of(
             rotation("head.x_rot", expression(), sine(30d, 12)),
             rotation("leg.x_rot", new Role.Looping(60), sine(30d, 24))
         ));
-        assertEquals(72, periodic.loopTicks(), "a 60-tick period floors the strip past 24 and 48");
+        assertEquals(new StripFit(3, 24, 0d, Optional.empty()), periodic, "a 60-tick period floors the strip past 24 and 48");
     }
 
     // ---- refusals ------------------------------------------------------------------------------
@@ -657,6 +817,18 @@ class StripFitTest {
         return stopping
             ? StripFit.fit(List.of(rotation("body.x_rot", expression(), term), jump))
             : StripFit.fit(List.of(still, opacity("pass1.opacity", tick -> 0.5 + term.applyAsDouble(tick) * Kind.OPACITY.tolerance())));
+    }
+
+    /**
+     * Fits a 30-tick turn that ends 63 degrees on, beside a turn that rises to 63 degrees and holds there, read
+     * at ticks 31 and 33 as given.
+     */
+    private static @NotNull StripFit held(double atThirtyOne, double atThirtyThree) {
+        return StripFit.fit(List.of(
+            rotation("rods.y_rot", new Role.OneShot(30), tick -> tick < 30 ? 2.1 * tick : 63d),
+            rotation("rods.x_rot", new Role.Looping(Double.NaN), tick -> tick <= 3 ? 0d
+                : tick < 31 ? 63d * (tick - 3) / 28 : tick == 31 ? atThirtyOne : tick == 33 ? atThirtyThree : 63d)
+        ));
     }
 
     /**
