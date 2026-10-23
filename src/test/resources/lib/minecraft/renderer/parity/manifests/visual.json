@@ -144,7 +144,7 @@
     },
     {
       "path": "entity-projections/minecraft_zombie.png",
-      "sha256": "6be6938522c1a1569e48cd91ba12cb6835db887a4de232ef68da2e2ffe89c1e8"
+      "sha256": "bfcdb6e91ab1ddbe9ab5244e245b354332c4eb19d2154d56f16897a4f0c2a34c"
     },
     {
       "path": "entity-projections/minecraft_zombie/cabinet.png",
@@ -164,15 +164,15 @@
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_cavalier_-F.png",
-      "sha256": "d1918d868d089bb16822d0b9506b8f95398ce7e757cf76320aceb88daebb3455"
+      "sha256": "15c0aa2787cdb4bb4e729c659df4eded984c3e94600159b09dc260cfb5ada062"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_cavalier_M-.png",
-      "sha256": "4428b1f44975e50319496c7a34273db2c28f77de774da78b55946791d65adddc"
+      "sha256": "da4471f82f44a055c67bff981df1b506753fc74541b370de822f9b5b93c6e697"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_cavalier_MF.png",
-      "sha256": "ac8f2cb79cdd04e1411e268648396f3409bd8d6fc17a09f6d4de04a2c0255b7a"
+      "sha256": "7addba098361848a6c000b3aa667f67f657358f745a031d15853e0882bd0a937"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_military_--.png",
@@ -180,31 +180,31 @@
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_military_-F.png",
-      "sha256": "ac7a6fb983e38f008bb77f1a8df36c42a0adfeae93a4ff2371ba1cb9d3c4c0f2"
+      "sha256": "e6e2a63421f2b4d81339d268f89a1feb36365655570979776887cdda68908ce9"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_military_M-.png",
-      "sha256": "7efdefbd21c18c1f12d67c2fcdcaebb49f6d04b67c2af054e892fa685f901e6d"
+      "sha256": "82d06cfbc6b3420fb187fbe8ebd75655cdd9ba357f31222370c54f8c35305ed3"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_military_MF.png",
-      "sha256": "406fb70c52ddd52c8482d82c8ecc2a4053b57bcdd332d196907e5017c8b69e4c"
+      "sha256": "e4b4933b58a65412c801e31a405b28b0676edbe7fb1db5eafb996a35439ac4d7"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_portrait_--.png",
-      "sha256": "b2ec0a438bae2f99b6aea6cdc2fc334658f68fae2817602c2b0a0c98a2f0c123"
+      "sha256": "913d470383025596cc95984e531120a8f9aba1843517183b554b730f591db58f"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_portrait_-F.png",
-      "sha256": "91c400b9e160f96c1230c3054c3086143cdcf58c216c3b2126a15ad4cc1179bd"
+      "sha256": "acbab2d5efefe7f37e9e7008c6d258733fe7ff913a269f79161f5b7ec64a21e0"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_portrait_M-.png",
-      "sha256": "be97c8ec68e5ee78b369431fbeda9a493bb4e4bf39218ef38e217173cfdbaa17"
+      "sha256": "6513d7498b7067845b0b68086543f5392dfba727c1608ccac5c4273a7b13c7e0"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_portrait_MF.png",
-      "sha256": "d975b89f178cd8213dc503af6d6306d9354b27d7deb25c91777da1ce8133e07c"
+      "sha256": "33f74d844929ca03fb3d59702c157dd6ac7769efc5cc568e61f11e117561cfda"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_--.png",
@@ -212,15 +212,15 @@
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_-F.png",
-      "sha256": "4738a9709149dac8cc062f7dbff9b161d35a76295d6220432c8ff215337ee6ee"
+      "sha256": "2839e79bc49006599c9e55eea62c57d4a6e8308fe2ee6f3ac7de414c31494673"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_M-.png",
-      "sha256": "9b210e616b827ee05b41b0dd53fe21e2c63f9277825a6aa5c5e4f1d34d6b6ce0"
+      "sha256": "5e5fd09ec6ab4d49d72912de5148f367a0f94c38629d6cfbdb486ccf9b6c2ad9"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_MF.png",
-      "sha256": "f4048642b948852e7f67af26fa11cbce7648e6ef84bcab1bb496613c6e95eee7"
+      "sha256": "b25287cf9c764ee40dbb123719456747fdf124488bb4f22d400f1ed7b3ddb939"
     },
     {
       "path": "entity-projections/minecraft_zombie/isometric.png",
@@ -232,15 +232,15 @@
     },
     {
       "path": "entity-projections/minecraft_zombie/one_point.png",
-      "sha256": "c131d3291511bfb59e9480172b1108cf5b6533f843c25a542087ac11f38b56eb"
+      "sha256": "e8685a17de4441d1ae7b4de05c5e39dd1d9eb3493153d1426ff7d90841aa4168"
     },
     {
       "path": "entity-projections/minecraft_zombie/portrait.png",
-      "sha256": "b2ec0a438bae2f99b6aea6cdc2fc334658f68fae2817602c2b0a0c98a2f0c123"
+      "sha256": "913d470383025596cc95984e531120a8f9aba1843517183b554b730f591db58f"
     },
     {
       "path": "entity-projections/minecraft_zombie/three_point.png",
-      "sha256": "bd5d88aca91f028cecd8460fc5048af733935d3f7a02a1348682668806f0afb6"
+      "sha256": "4c3621817944a4a2403e6912c0da1202ef71a139fedec4baafc0d928824589d8"
     },
     {
       "path": "entity-projections/minecraft_zombie/trimetric.png",
@@ -248,7 +248,7 @@
     },
     {
       "path": "entity-projections/minecraft_zombie/two_point.png",
-      "sha256": "ae00fd014481d85f732914945ee23974fd3a0f336ce0ac9130f44d5e7e5e9c81"
+      "sha256": "cc74d7e01c6ec84e48e4ca407efd58cfe74e362a4aa02b8bd02b6ecab25ded50"
     },
     {
       "path": "entity-projections/minecraft_zombie/vanilla_gui_item.png",
@@ -260,7 +260,7 @@
     },
     {
       "path": "entity-projections/minecraft_zombie_facing.png",
-      "sha256": "cfd07c22cd98bd6250a82df2e9c5b824d821be9b8219b7bf3cdceb8b0b378e39"
+      "sha256": "9cef622d0281827b4e732c029a3ea714934cac410dc2e1428e96ac38881a2be5"
     },
     {
       "path": "entity-render-3d/minecraft_allay.png",
@@ -296,7 +296,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_breeze.png",
-      "sha256": "13ab39ac28d7dfb9eb745273b07d0723a2c23e58b479a8779b7dcdda86859fbd"
+      "sha256": "1304027147f40bab87f0b94ae0e088527ef2540ee0cbcf2f67217ccee88aa0ac"
     },
     {
       "path": "entity-render-3d/minecraft_camel.png",
@@ -304,7 +304,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_camel_husk.png",
-      "sha256": "648ebd60e7e83bde61d769ca21459367102f199257f6341c10eb60d4e7aaa3b5"
+      "sha256": "4160b81fa068aab7a43b2eb498fff130e898727c24b8f04c9cc48976f9e8dcd5"
     },
     {
       "path": "entity-render-3d/minecraft_cat.png",
@@ -312,7 +312,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_cave_spider.png",
-      "sha256": "c329f202e0af4f22cad635ac7090d3a1ece6cfc74db0e57832906464f7765c27"
+      "sha256": "f560a39b81a612ba0d20c2d70108a962569fdb31ef437e579ff989f2def762be"
     },
     {
       "path": "entity-render-3d/minecraft_chicken.png",
@@ -344,7 +344,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_donkey.png",
-      "sha256": "abfecf44254a9385f79adeee5223613a45cec5f373280e02770f0678222d0069"
+      "sha256": "41449e4d99fb280e6ce763ecc838be14eb09113cda92d51bc5e68144bdca0860"
     },
     {
       "path": "entity-render-3d/minecraft_drowned.png",
@@ -356,7 +356,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_ender_dragon.png",
-      "sha256": "11ab97c75666368f3d0d8723308d41ed03a635632b6185bec2bb92fab6637439"
+      "sha256": "a5994a771d47425540c4706f68a484382b2581a660788e50e9710f02a50466e1"
     },
     {
       "path": "entity-render-3d/minecraft_enderman.png",
@@ -392,11 +392,11 @@
     },
     {
       "path": "entity-render-3d/minecraft_goat.png",
-      "sha256": "fac64a3f58ae062f107c98354cfde355ce522df672dd6898909b7230a9ffa9bd"
+      "sha256": "bf5645539846a98b93a02c731e9c8b9833258304cf0c30e224699606724ba371"
     },
     {
       "path": "entity-render-3d/minecraft_guardian.png",
-      "sha256": "ebd5c253d465fa8f8d1fdd5d7bf4c67e170f2121b1e8b31cabca0aa2c1afa1ef"
+      "sha256": "0ea9ee886f17fe5fee9d82d499f630c13f49a1125d13024ad986b294fc95bc7b"
     },
     {
       "path": "entity-render-3d/minecraft_happy_ghast.png",
@@ -404,7 +404,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_hoglin.png",
-      "sha256": "1640a0c36c68548fee53aa65988f6908ae4d25c8d01744a0308d307e70e58f90"
+      "sha256": "d0ba1cfada619a35fadbe70c434ec2a41e9fe254aab4d5acdb18bfe799d56b9b"
     },
     {
       "path": "entity-render-3d/minecraft_horse.png",
@@ -436,7 +436,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_mule.png",
-      "sha256": "6d11681330120d179607a1a27d6d0756eafc7370f05975d1fdb38b088b5d8296"
+      "sha256": "3b9609b9718ff27589e83859369b36683a030a71395ffad81955be63d94db38a"
     },
     {
       "path": "entity-render-3d/minecraft_nautilus.png",
@@ -468,11 +468,11 @@
     },
     {
       "path": "entity-render-3d/minecraft_piglin.png",
-      "sha256": "f02265e602c3809c63da1a535a60bde708e0083df959ca41fc6d65321dc6bec0"
+      "sha256": "ab765224effff7c12fb746792dbccb88b3c5a223949da5293b448cd83faf3362"
     },
     {
       "path": "entity-render-3d/minecraft_piglin_brute.png",
-      "sha256": "efffb6447725f320c238902cde32382c199d15eb098c8bf24dd0c0a145deb10f"
+      "sha256": "6a8076fa1f3c64177581b5cc228df6ecf1000d65241aecbed881b5220d6bcebc"
     },
     {
       "path": "entity-render-3d/minecraft_pillager.png",
@@ -532,7 +532,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_spider.png",
-      "sha256": "6b2736beb32b802c5d98a3d8f0c18abc9d97bb606323faa248e5c76388148080"
+      "sha256": "c891a4eb7eab0c1c17ef15b21529d0ff65521b08951c3b8ab8848d9ed5570f35"
     },
     {
       "path": "entity-render-3d/minecraft_squid.png",
@@ -584,7 +584,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_witch.png",
-      "sha256": "4b065e68afbf221de23bb6e528c674c84770f8e89fa707d1c5670f50203ce435"
+      "sha256": "abff691a1dcf4bc615db9d22d9f9d2ea4aeae771f29f4b344f8b42f386c0ed8d"
     },
     {
       "path": "entity-render-3d/minecraft_wither.png",
@@ -600,7 +600,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_zoglin.png",
-      "sha256": "e2d306fd413257f6cfc2dc520d0f4ff5cdc387f90db0550b32bbf1cb257e132c"
+      "sha256": "e4df04ba3bdbb2ae556bbce877d7f60d49ab0e0bfc3d55acd5285cd0a2db637d"
     },
     {
       "path": "entity-render-3d/minecraft_zombie.png",
@@ -620,7 +620,7 @@
     },
     {
       "path": "entity-render-3d/minecraft_zombified_piglin.png",
-      "sha256": "2a77dd92e0a2219a515775fa6d96f1f9fbf8e28db5df7a28c60f36ed46b38796"
+      "sha256": "8edd1eb452af9049079630b6f0e23f4bde408790616a06c0d993d4b3214d7e28"
     },
     {
       "path": "item-day-cycle/minecraft_clock.gif",
@@ -848,9 +848,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "fc1d5113519180f34d49115568ce79e2ae40920fe32fa061da317ed48220a1b6",
+    "asset_content_digest": "88f6058f8beaeada594b1e6a72013538cc07865097e6a4708ebe62486bb24612",
     "asset_dirty": true,
-    "asset_sha": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
+    "asset_sha": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
     "counts": {
       "files": 210
     },
@@ -859,21 +859,21 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "The warden's pulsating spots draw at vanilla's eight-bit opacity, 63/255 rather than 0.25: measured on the warden still against vanilla, exact 0.0088 mean / 3616 differing pixels, byte 0.0080 / 3448, so the byte is kept; the posed warden rows narrow with it (idle 0.0425 to 0.0418, walk 0.0224 to 0.0219), and the dumps' one change is that alpha",
+    "reason": "Every entity cube culls back faces exactly when its mesh declares cull, which the geometry table already sets from vanilla's render type - in 26.1 EntityModel draws entityCutout, which does not cull, and only the bat and the baby turtle cull - where a texel heuristic culled most solid-looking cubes. Measured against vanilla, the moved rows' summed mean delta falls 1.2297 to 0.9871 on the still sweep, 0.8580 to 0.7119 on the idle sweep and 1.8888 to 1.6430 on the walk sweep; the large gains are the breeze still 0.1159 to 0.0017, the donkey 0.0856 to 0.0214 with its chest and saddle forms, the drowned idle 0.1154 to 0.0470 and walk 0.0932 to 0.0304, the baby drowned walk 0.1096 to 0.0230, and the camel husk walk 0.1477 to 0.0181. The rows that grow do so by single pixels on silhouette edges where a back face now drawn wins its depth tie against the front face it shares an edge with, depth reading unsnapped corners where coverage reads snapped ones; the largest is the small armour stand still 0.1958 to 0.2202. manifest.visual moves on the zombie's projection sheet and its 33 facings, whose cubes now draw two-sided under every projection; no other artifact of the 25 compared moves.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
       "entities": 406,
       "glint": 330,
-      "idle": 1056,
+      "idle": 2059,
       "items": 479,
       "menus": 10,
       "players": 2,
-      "walk": 1056
+      "walk": 3739
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-21T22:22:14Z",
+    "timestamp": "2026-10-23T05:08:32Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 35624
+    "wall_time_ms": 37369
   }
 }

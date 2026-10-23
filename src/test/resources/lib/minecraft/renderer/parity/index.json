@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 35624,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "8ff249d3bccb5329a45ccf2a29be2c0220f23d5c124efbde39176f12d2642ddf"
+      "last_duration_ms": 37369,
+      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
+      "sha256": "b91be5fb7a690ff90254d6c310aa57ca21e9cbb76c877311fe8b23d6a3180573"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -222,10 +222,10 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 11659,
-      "promoted_at": "5d6a57b11dd0f6277066dc6e9065c6c627b5b120",
-      "sha256": "cdba1667e52723cc9c15b187bf0f0861fd97c978b4fd16313cad4cc456546144",
-      "sum": "16.1129"
+      "last_duration_ms": 12580,
+      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
+      "sha256": "72c3a90719cb33f039eb429ec014bdc2764fcffd272446448d80b4ac4f6e18d1",
+      "sum": "15.8703"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 33900,
-      "promoted_at": "f30ef46e881fe4a626ea7606eae6d0191152ca32",
-      "sha256": "102f650a33442cf8e68ead70efe11748847c516c037a59d7fcfb0d89fc4bb774",
-      "sum": "2.0458"
+      "last_duration_ms": 24130,
+      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
+      "sha256": "54181c26a36a2d90243cd77dba8153a5a65c20755e5a97e2f568cc8f2f427806",
+      "sum": "1.8997"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 134,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 33543,
-      "promoted_at": "ac143fe237b7f844043f13645f27a06ccde5c735",
-      "sha256": "eecbde66a9ea81b3a598f0243d4cc8e2e239a77697cfdbf9427f52e379c1ce1a",
-      "sum": "2.4877"
+      "last_duration_ms": 34146,
+      "promoted_at": "8415e31dccc2001a361f68cb8c2b81bb5eedada2",
+      "sha256": "b6e3a8cc0c6e93e4a081ebaeaa05a9a1ae12960e221020a5f84640ddc07ea74c",
+      "sum": "2.2419"
     },
     "sweep.glint": {
       "baselined": true,
