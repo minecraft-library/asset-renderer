@@ -24,7 +24,7 @@ Values this store holds, one file each.
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `f30ef46e881fe4a626ea7606eae6d0191152ca32` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 8131 | 8131 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
+| `manifest.references` | `manifests/references.json` | 9776 | 9776 entries | `6e5de7f5099416cbd2ab266205407e699e117927` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `ac143fe237b7f844043f13645f27a06ccde5c735` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `8415e31dccc2001a361f68cb8c2b81bb5eedada2` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
@@ -39,8 +39,8 @@ Values this store holds, one file each.
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.block` | `sweeps/block.json` | 1063 | sum 7.6024 | `addedec7a23b08d02a4f18bc83d435010e342988` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 15.8703 | `8415e31dccc2001a361f68cb8c2b81bb5eedada2` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 1.8997 | `8415e31dccc2001a361f68cb8c2b81bb5eedada2` | yes |
-| `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 2.2419 | `8415e31dccc2001a361f68cb8c2b81bb5eedada2` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 1.9535 | `6e5de7f5099416cbd2ab266205407e699e117927` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 2.4426 | `6e5de7f5099416cbd2ab266205407e699e117927` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7254 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
