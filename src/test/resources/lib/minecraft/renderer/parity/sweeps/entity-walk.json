@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-walk",
-    "asset_content_digest": "014f16cd342ccef8b4b5d628309f06e8a97f27c0ee657795de516e0658077e9f",
+    "asset_content_digest": "89afed67930694973e0b9af5367e157f7379f22cdd8369af978cc1254937d843",
     "asset_dirty": true,
-    "asset_sha": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+    "asset_sha": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
     "counts": {
       "failed": 0,
       "rows": 134
@@ -16,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "entityWalkParityVanilla",
-    "reason": "The depth plane is solved from the corners coverage and texture coordinates read after the 1/256 snap, where it read the unsnapped corners, so a sample between the snapped and unsnapped edge of two faces no longer reads both planes extrapolated - the GPU interpolates depth over the snapped window positions. Measured against vanilla, the moved rows' summed mean delta falls 7.9051 to 3.1258 on the still sweep (75 better, 3 worse), 0.9401 to 0.8345 idle and 2.1624 to 1.6190 walking with no idle or walk row worse, and 14.1761 to 13.9362 on the armour sweep; the largest gains are the baby drowned still 0.9674 to 0.0193, the giant in iron 0.6855 to 0.0055, the baby husk walk 0.0923 to 0.0047 and the sheep walk 0.0869 to 0.0201. Two rows grow, each traced to a corner sitting on a 1/512 snap midpoint, which now tilts the depth plane as it already moved coverage: the charged creeper still 1.1823 to 1.7686 (its swirl's doubling, while its wrong pixels fall 1327 to 835) and the zombie villager in iron 0.0002 to 0.1112. The two leather glint diagnostics rise by under 0.01. pin.player-crc's armoured iso body moves 0xF82EAD8A to 0x1AC298B3, and the armour sweep's raw renders, the player sheets and the zombie's projection sheets move with the same depth reads; the block, item, menu, fluid and portal artifacts hold.",
+    "reason": "The geometry generator writes each entity model's bones in the order vanilla's baked model draws them - each part's children in its PartDefinition HashMap's iteration order, depth first, replayed over vanilla's own map calls including the copies a whole-mesh scaling, a replaced part and a retain or clear surgery make - where it wrote addOrReplaceChild order; an exact depth tie goes to the part drawn last, so the tie now falls as vanilla's. entity_geometry.json reorders 151 of its 156 keys with every bone and member unchanged and adds four: the giant's, husk's and wither skeleton's armour shells at their scale, and the warden's bioluminescent layer; entity_models.json points those three wearers' armour and the warden's bioluminescent pass at them, the three armour rows dropping their scale member, which the scaled shells carry. Measured against vanilla: the still sweep's moved rows go 0.4492 to 0.3548 (7 better, 1 worse) - the iron-armoured wither skeleton 0.1675 to 0.1378, husk 0.0573 to 0.0313 and armour stand 0.0217 to 0.0000 - the walk sweep's 0.2543 to 0.2437 with no row worse, the armour sweep's iron piglin 2.4531 to 2.4463; the one row that grows, the zombie villager in iron 0.1112 to 0.1182, is decided by a corner on a snapping midpoint. The skeleton family's 3D renders, the piglin's raw armour render, both dumps' entity listing and the tooling and shipped-table digests move with the order; 12 of the 22 compared artifacts hold.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -31,9 +32,9 @@
       "walk": 4896
     },
     "reference_manifest_digest": "3d2144bd3ca7c5ddb6a94fdb77cdfd93b4dfd74db92db958b3f93d1ad5890740",
-    "timestamp": "2026-10-23T13:31:27Z",
+    "timestamp": "2026-10-23T18:08:14Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 39470
+    "wall_time_ms": 44406
   },
   "rows": [
     {
@@ -327,7 +328,7 @@
       "frames": "26",
       "java_h": "486",
       "java_w": "482",
-      "mean_argb_delta": "0.0183",
+      "mean_argb_delta": "0.0181",
       "status": "ok",
       "subject": "minecraft__cow_temperate",
       "vanilla_h": "486",
@@ -336,17 +337,17 @@
       "worst_frame": "14"
     },
     {
-      "frame_spread": "0.0034",
+      "frame_spread": "0.0027",
       "frames": "9",
       "java_h": "486",
       "java_w": "482",
-      "mean_argb_delta": "0.0052",
+      "mean_argb_delta": "0.0049",
       "status": "ok",
       "subject": "minecraft__cow_temperate~age=baby",
       "vanilla_h": "486",
       "vanilla_w": "482",
-      "worst_delta": "0.0074",
-      "worst_frame": "4"
+      "worst_delta": "0.0067",
+      "worst_frame": "3"
     },
     {
       "frame_spread": "0.0445",
@@ -535,7 +536,7 @@
       "frames": "12",
       "java_h": "286",
       "java_w": "376",
-      "mean_argb_delta": "0.0006",
+      "mean_argb_delta": "0.0004",
       "status": "ok",
       "subject": "minecraft__fox",
       "vanilla_h": "286",
@@ -622,17 +623,17 @@
       "worst_frame": "22"
     },
     {
-      "frame_spread": "0.0491",
+      "frame_spread": "0.0160",
       "frames": "26",
       "java_h": "398",
       "java_w": "378",
-      "mean_argb_delta": "0.0052",
+      "mean_argb_delta": "0.0036",
       "status": "ok",
       "subject": "minecraft__goat",
       "vanilla_h": "398",
       "vanilla_w": "378",
-      "worst_delta": "0.0491",
-      "worst_frame": "13"
+      "worst_delta": "0.0160",
+      "worst_frame": "18"
     },
     {
       "frame_spread": "0.0453",
@@ -847,7 +848,7 @@
       "frames": "26",
       "java_h": "568",
       "java_w": "440",
-      "mean_argb_delta": "0.0559",
+      "mean_argb_delta": "0.0558",
       "status": "ok",
       "subject": "minecraft__mooshroom_red",
       "vanilla_h": "568",
@@ -860,7 +861,7 @@
       "frames": "9",
       "java_h": "568",
       "java_w": "440",
-      "mean_argb_delta": "0.0029",
+      "mean_argb_delta": "0.0028",
       "status": "ok",
       "subject": "minecraft__mooshroom_red~age=baby",
       "vanilla_h": "568",
@@ -970,7 +971,7 @@
       "vanilla_h": "528",
       "vanilla_w": "570",
       "worst_delta": "0.0001",
-      "worst_frame": "8"
+      "worst_frame": "15"
     },
     {
       "frame_spread": "0.0195",
@@ -1012,30 +1013,30 @@
       "worst_frame": "44"
     },
     {
-      "frame_spread": "0.0257",
+      "frame_spread": "0.0218",
       "frames": "17",
       "java_h": "349",
       "java_w": "404",
-      "mean_argb_delta": "0.0657",
+      "mean_argb_delta": "0.0649",
       "status": "ok",
       "subject": "minecraft__pig_temperate",
       "vanilla_h": "349",
       "vanilla_w": "404",
-      "worst_delta": "0.0838",
-      "worst_frame": "15"
+      "worst_delta": "0.0800",
+      "worst_frame": "11"
     },
     {
-      "frame_spread": "0.0060",
+      "frame_spread": "0.0052",
       "frames": "40",
       "java_h": "349",
       "java_w": "404",
-      "mean_argb_delta": "0.0169",
+      "mean_argb_delta": "0.0161",
       "status": "ok",
       "subject": "minecraft__pig_temperate~age=baby",
       "vanilla_h": "349",
       "vanilla_w": "404",
-      "worst_delta": "0.0206",
-      "worst_frame": "15"
+      "worst_delta": "0.0198",
+      "worst_frame": "33"
     },
     {
       "frame_spread": "0.0399",
@@ -1107,7 +1108,7 @@
       "frames": "40",
       "java_h": "253",
       "java_w": "288",
-      "mean_argb_delta": "0.0043",
+      "mean_argb_delta": "0.0042",
       "status": "ok",
       "subject": "minecraft__polar_bear~age=baby",
       "vanilla_h": "253",
@@ -1181,30 +1182,30 @@
       "worst_frame": "4"
     },
     {
-      "frame_spread": "0.0374",
+      "frame_spread": "0.0314",
       "frames": "20",
       "java_h": "434",
       "java_w": "450",
-      "mean_argb_delta": "0.0201",
+      "mean_argb_delta": "0.0181",
       "status": "ok",
       "subject": "minecraft__sheep",
       "vanilla_h": "434",
       "vanilla_w": "450",
-      "worst_delta": "0.0474",
+      "worst_delta": "0.0415",
       "worst_frame": "10"
     },
     {
-      "frame_spread": "0.0855",
+      "frame_spread": "0.0498",
       "frames": "27",
       "java_h": "224",
       "java_w": "212",
-      "mean_argb_delta": "0.0294",
+      "mean_argb_delta": "0.0262",
       "status": "ok",
       "subject": "minecraft__sheep~age=baby",
       "vanilla_h": "224",
       "vanilla_w": "212",
-      "worst_delta": "0.0987",
-      "worst_frame": "17"
+      "worst_delta": "0.0630",
+      "worst_frame": "4"
     },
     {
       "frame_spread": "0.0001",
@@ -1614,7 +1615,7 @@
       "frames": "12",
       "java_h": "295",
       "java_w": "356",
-      "mean_argb_delta": "0.0298",
+      "mean_argb_delta": "0.0286",
       "status": "ok",
       "subject": "minecraft__wolf_pale",
       "vanilla_h": "295",
@@ -1790,6 +1791,6 @@
     },
     "failed": 0,
     "rows": 134,
-    "sum": "1.8992"
+    "sum": "1.8886"
   }
 }
