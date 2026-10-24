@@ -7,7 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.StaticImageData;
 import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.option.WebPWriteOptions;
 import lib.minecraft.renderer.TextRenderer;
@@ -251,7 +251,7 @@ public final class LoreTooltipDriver {
         // Also emit the first frame as a static WebP so static-only VP8L issues can
         // be isolated from animation-chunk wrapping issues.
         File webpStaticOut = OUTPUT_DIR.resolve(slug + "_static.webp").toFile();
-        StaticFirstFrame staticImage = new StaticFirstFrame(image.getFrames().getFirst(), image.hasAlpha());
+        ImageData staticImage = StaticImageData.of(image.toPixelBuffer(), image.getAlphaMode());
         ImageFactory.toFile(
             staticImage,
             ImageFormat.WEBP,
@@ -415,49 +415,6 @@ public final class LoreTooltipDriver {
             name = out.getName();
         }
         System.out.printf("  %s -> %s (%dx%d, %d frame(s))%n", slug, name, w, h, frameCount);
-    }
-
-    /**
-     * One-frame {@link ImageData} wrapping the first frame of an animated render, so a lone frame
-     * can be re-encoded as a static WebP to isolate VP8L issues from animation-chunk wrapping.
-     *
-     * @param frame the one frame this image presents, taken off the front of an animated render
-     * @param alpha whether that frame carries an alpha channel
-     */
-    private record StaticFirstFrame(@NotNull ImageFrame frame, boolean alpha) implements ImageData {
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ConcurrentList<ImageFrame> getFrames() {
-            ConcurrentList<ImageFrame> list = Concurrent.newList();
-            list.add(frame);
-            return list;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public boolean hasAlpha() {
-            return alpha;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public int getWidth() {
-            return frame.pixels().width();
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public int getHeight() {
-            return frame.pixels().height();
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public boolean isAnimated() {
-            return false;
-        }
-
     }
 
 }

@@ -4,6 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
@@ -60,6 +62,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * item's {@code minecraft:tooltip_style} component, and the raise a renderer holding no context gives
  * the arm. The cases needing the real sprites off the offline extraction skip per method rather than
  * per class, so the procedural pins still run on a host without it.
+ * <p>
+ * Each image is also pinned to the mark its frames are held in - {@link AlphaMode#STRAIGHT} for the
+ * code-drawn box, which paints its colours as given, and {@link AlphaMode#PREMULTIPLIED} for a sprite
+ * tooltip, chat text and a render of no line - and a premultiplied one to holding no colour channel
+ * above its alpha, since a premultiplied channel is the straight one scaled by that alpha.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -404,6 +411,83 @@ class TextRendererTest {
         // The gold-recoloured ring drove the render: its 50FFAA00 top texel blended over the fill gives
         // F55A350A, where the vanilla frame gives F523005A.
         assertThat("styled gold ring", ringTop(buf), is(0xF55A350A));
+    }
+
+    @Test
+    @DisplayName("a code-drawn tooltip is marked straight, still and animated, since its box paints its colours as given")
+    void aCodeDrawnTooltipIsMarkedStraight() {
+        TextRenderer renderer = new TextRenderer();
+        ImageData still = renderer.render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build()).image();
+        ImageData animated = renderer.render(TextOptions.builder()
+            .style(TextOptions.Style.LORE)
+            .lines(LineSegment.fromLegacy("&7Mark &kab", '&'))
+            .chromeStyle(ChromeStyle.PROCEDURAL)
+            .build()).image();
+
+        assertHeldIn(still, AlphaMode.STRAIGHT);
+        assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
+        assertHeldIn(animated, AlphaMode.STRAIGHT);
+    }
+
+    @Test
+    @DisplayName("a sprite tooltip is marked premultiplied, still and animated, and its straight copy holds the sprite's texel")
+    void aSpriteTooltipIsMarkedPremultiplied() {
+        assumeSprites();
+        TextRenderer renderer = new TextRenderer(realContext());
+        ImageData still = renderer.render(loreBuilder().chromeStyle(ChromeStyle.SPRITE).build()).image();
+        ImageData animated = renderer.render(TextOptions.builder()
+            .style(TextOptions.Style.LORE)
+            .lines(LineSegment.fromLegacy("&7Mark &kab", '&'))
+            .chromeStyle(ChromeStyle.SPRITE)
+            .build()).image();
+
+        assertHeldIn(still, AlphaMode.PREMULTIPLIED);
+        // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
+        // reads un-premultiplies it back to the background sprite's texel.
+        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
+        assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
+        assertHeldIn(animated, AlphaMode.PREMULTIPLIED);
+    }
+
+    @Test
+    @DisplayName("chat text and a render of no line are marked premultiplied, since neither draws a box")
+    void aRenderDrawingNoBoxIsMarkedPremultiplied() {
+        TextRenderer renderer = new TextRenderer();
+        assertHeldIn(renderer.render(loreBuilder().style(TextOptions.Style.CHAT).build()).image(), AlphaMode.PREMULTIPLIED);
+        assertHeldIn(renderer.render(TextOptions.defaults()).image(), AlphaMode.PREMULTIPLIED);
+    }
+
+    /**
+     * Asserts that an image is marked as held in the given convention and, when that convention is
+     * {@link AlphaMode#PREMULTIPLIED}, that every frame's pixels are held in it. A premultiplied colour
+     * channel is the straight channel scaled by the pixel's alpha, so none can exceed that alpha; the
+     * first pixel whose red, green or blue does fails the image, named by its frame, position and colour.
+     *
+     * @param image the rendered image
+     * @param alphaMode the convention the image's frames are expected to be held in
+     */
+    private static void assertHeldIn(ImageData image, AlphaMode alphaMode) {
+        assertThat("alpha mode", image.getAlphaMode(), is(alphaMode));
+        if (alphaMode != AlphaMode.PREMULTIPLIED)
+            return;
+
+        String channelAboveAlpha = "none";
+        ConcurrentList<ImageFrame> frames = image.getFrames();
+        search:
+        for (int f = 0; f < frames.size(); f++) {
+            PixelBuffer pixels = frames.get(f).pixels();
+            for (int y = 0; y < pixels.height(); y++) {
+                for (int x = 0; x < pixels.width(); x++) {
+                    int argb = pixels.getPixel(x, y);
+                    int alpha = ColorMath.alpha(argb);
+                    if (ColorMath.red(argb) > alpha || ColorMath.green(argb) > alpha || ColorMath.blue(argb) > alpha) {
+                        channelAboveAlpha = String.format("frame %d at (%d, %d) holds %08X", f, x, y, argb);
+                        break search;
+                    }
+                }
+            }
+        }
+        assertThat("first pixel with a colour channel above its alpha", channelAboveAlpha, is("none"));
     }
 
     /**

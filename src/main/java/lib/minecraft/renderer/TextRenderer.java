@@ -49,6 +49,15 @@ import java.util.Optional;
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link TextKit} obfuscation substitution.
+ * <p>
+ * The image is held in the convention its frames are drawn in. The sprite box and the glyphs blend
+ * onto the transparent canvas, so a {@link ChromeStyle#SPRITE} tooltip, chat text and a render of no
+ * line answer {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
+ * copy that edits made through it do not reach, and an encoder writes each see-through pixel's
+ * straight colour. The {@link ChromeStyle#PROCEDURAL} box paints its colours as given, so a
+ * procedural tooltip answers {@link AlphaMode#STRAIGHT}. A
+ * {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes its colour in the
+ * convention the image answers.
  */
 @Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
@@ -137,18 +146,21 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
-        // Every frame is marked STRAIGHT, which is exact of the code-drawn box, since it paints its
-        // colour; the sprite box blends its sprites onto the canvas, so its translucent chrome is held
-        // premultiplied under the same mark.
+        // The code-drawn box paints its colours as given, so a frame holding it is straight; the sprite box
+        // and the glyphs blend onto the transparent canvas, so every other frame is held premultiplied.
+        AlphaMode alphaMode = isLore && options.getChromeStyle() == ChromeStyle.PROCEDURAL
+            ? AlphaMode.STRAIGHT
+            : AlphaMode.PREMULTIPLIED;
+
         if (!animated)
-            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst(), AlphaMode.STRAIGHT);
+            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst(), alphaMode);
 
         int ticksPerFrame = ticksPerFrame(options);
         int frameCount = animationFrameCount(options, ticksPerFrame);
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst(), AlphaMode.STRAIGHT);
+            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst(), alphaMode);
     }
 
     /**
