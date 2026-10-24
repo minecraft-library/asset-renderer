@@ -7,6 +7,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -262,24 +263,25 @@ class TimelineTest {
         ImageData result = new Timeline.TickLoop(0, 4, 1, 50).wrap(f -> {
             indices.add(f);
             return PixelBuffer.create(1, 1);
-        });
+        }, AlphaMode.PREMULTIPLIED);
         assertThat(indices, is(List.of(0, 1, 2, 3)));
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), is(4));
     }
 
     @Test
-    @DisplayName("wrap of one frame collapses to a StaticImageData")
+    @DisplayName("wrap of one frame collapses to a StaticImageData marked as its caller drew it")
     void wrapSingleFrameStatic() {
-        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.create(2, 2));
+        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.create(2, 2), AlphaMode.STRAIGHT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
+        assertThat(result.getAlphaMode(), is(AlphaMode.STRAIGHT));
     }
 
     @Test
     @DisplayName("wrap of an empty schedule throws")
     void wrapEmptyThrows() {
         assertThrows(RenderException.class,
-            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.create(1, 1)));
+            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.create(1, 1), AlphaMode.PREMULTIPLIED));
     }
 
     @Test
@@ -290,11 +292,13 @@ class TimelineTest {
     }
 
     @Test
-    @DisplayName("bake of one frame collapses to a StaticImageData")
+    @DisplayName("bake of one frame collapses to a StaticImageData marked premultiplied, as a still is")
     void bakeSingleFrameStatic() {
         ImageData result = new Timeline.Static(9).bake(
             RasterPass.of(1, 1, 1, false, (target, tick) -> target.setPixel(0, 0, 0xFFFFFFFF)));
         assertThat(result, is(instanceOf(StaticImageData.class)));
+        assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat(Timeline.still(PixelBuffer.create(1, 1)).getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test

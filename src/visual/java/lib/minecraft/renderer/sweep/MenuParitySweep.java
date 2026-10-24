@@ -181,7 +181,7 @@ public final class MenuParitySweep {
             }
 
             ImageData java = javaRenderer.render(subject.options()).image();
-            BufferedImage javaImg = java.toBufferedImage();
+            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
 
             ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
             ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));

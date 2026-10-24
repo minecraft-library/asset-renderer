@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
@@ -336,7 +337,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 cells[first + cell.index()] = new GridResult.Cell(first + cell.index(), cell.col(), cell.row() + firstRow,
                     cell.x(), cell.y() + firstRow * tileSize, cell.width(), cell.height(), cell.substitutions());
 
-            return grid.image().toPixelBuffer();
+            // The grid holds the band premultiplied; the writer takes straight colour, the conversion
+            // the image library's PNG writer makes, so a written sheet is the rendered sheet encoded.
+            return grid.image().toPixelBuffer(AlphaMode.STRAIGHT);
         }), file);
 
         if (bake.refusedAny(standing))

@@ -9,6 +9,7 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
@@ -108,19 +109,21 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
 
     /**
      * Plays this schedule out over caller-drawn frames: invokes {@code frameAt} serially for each
-     * frame index in order, then wraps the frames at this schedule's per-frame delays. The frame index
-     * is first-class - producers whose drawing is seeded per frame consume it directly.
+     * frame index in order, then wraps the frames at this schedule's per-frame delays, marked as held in
+     * the convention the caller drew them in. The frame index is first-class - producers whose drawing
+     * is seeded per frame consume it directly.
      *
      * @param frameAt draws the frame at an index
+     * @param alphaMode the convention the drawn frames hold
      * @return the finished image
      * @throws RenderException if the schedule is empty
      */
-    default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt) {
+    default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt, @NotNull AlphaMode alphaMode) {
         ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
             .mapToObj(frameAt)
             .collect(Concurrent.toUnmodifiableList());
 
-        return wrapAt(buffers, this);
+        return wrapAt(buffers, this, alphaMode);
     }
 
     /**
@@ -215,12 +218,16 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
     /**
      * Wraps a single finished buffer as a static image - the one-frame terminal for renderers that
      * draw without a schedule.
+     * <p>
+     * The buffer is a finished frame, drawn source-over onto a transparent buffer or laid down from
+     * finished renders, so its colours carry their alpha and the image is marked
+     * {@link AlphaMode#PREMULTIPLIED}.
      *
-     * @param buffer the finished frame
+     * @param buffer the finished frame, held premultiplied
      * @return the static image
      */
     static @NotNull ImageData still(@NotNull PixelBuffer buffer) {
-        return StaticImageData.of(buffer.toBufferedImage());
+        return StaticImageData.of(buffer, AlphaMode.PREMULTIPLIED);
     }
 
     /**
@@ -263,9 +270,12 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * axis rather than {@link TickTimeline#tickAt} so that a schedule sampling between ticks still has
      * one; on a tick-native schedule the two agree exactly, because that axis is the tick lattice by
      * construction.
+     * <p>
+     * A raster pass draws source-over onto a transparent buffer, which leaves every colour carrying
+     * its alpha, so the image is marked {@link AlphaMode#PREMULTIPLIED}.
      *
      * @param pass the raster configuration and callbacks to play this schedule through
-     * @return the finished image
+     * @return the finished image, held premultiplied
      * @throws RenderException if the schedule is empty
      */
     default @NotNull ImageData bake(@NotNull RasterPass pass) {
@@ -287,31 +297,35 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
                 .collect(Concurrent.toList());
 
         RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
-        return wrapAt(result.frames(), result.playback());
+        return wrapAt(result.frames(), result.playback(), AlphaMode.PREMULTIPLIED);
     }
 
     /**
      * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
      * image, several become an animated image whose frame {@code f} displays for
-     * {@code playback.delayMs(f)}.
+     * {@code playback.delayMs(f)}. Either is marked as held in {@code alphaMode}.
      *
      * <p>Every frame here is a whole canvas rendered from scratch at the same size and seated at the
-     * origin, so each one REPLACES its predecessor rather than adding to it. That is what
-     * {@link FrameDisposal#RESTORE_TO_BACKGROUND} and {@link FrameBlend#SOURCE} say, and it has to be
-     * said: the two-argument {@link ImageFrame#of(PixelBuffer, int)} defaults to
-     * {@link FrameDisposal#NONE}, which leaves the previous frame standing and composites the next
-     * over it. On an opaque subject that is invisible; on a transparent one - which is every render
-     * this library returns - it smears, because the part of frame {@code f} that went transparent
-     * still shows frame {@code f - 1} through it.
+     * origin, so each one REPLACES its predecessor rather than adding to it, which
+     * {@link FrameDisposal#RESTORE_TO_BACKGROUND} and {@link FrameBlend#SOURCE} say. A frame left
+     * standing under the next would smear a transparent subject - every render this library returns -
+     * because the part of frame {@code f} that went transparent would still show frame {@code f - 1}
+     * through it.
+     *
+     * @param frames the finished frames, in playback order
+     * @param playback the schedule whose per-frame delays the frames display for
+     * @param alphaMode the convention the frames hold
+     * @return the finished image
+     * @throws RenderException if {@code frames} is empty
      */
-    private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback) {
+    private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback, @NotNull AlphaMode alphaMode) {
         if (frames.isEmpty())
             throw new RenderException("Frame list must contain at least one frame");
 
         if (frames.size() == 1)
-            return StaticImageData.of(frames.getFirst().toBufferedImage());
+            return StaticImageData.of(frames.getFirst(), alphaMode);
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder();
+        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(alphaMode);
         for (int f = 0; f < frames.size(); f++)
             builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));

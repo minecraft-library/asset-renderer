@@ -341,7 +341,7 @@ class AtlasRendererLayoutTest {
     /**
      * Asserts a sheet lays its tiles down densely: tile {@code i} at column {@code i} modulo the column
      * count and row {@code i} over it, each cell the tile size, the sheet as many rows as the tiles fill,
-     * and every cell past the last tile the background alone.
+     * and every cell past the last tile the background alone, laid down premultiplied as the sheet holds it.
      *
      * @param label what is checked
      * @param atlas the atlas
@@ -364,6 +364,7 @@ class AtlasRendererLayoutTest {
 
         PixelBuffer background = PixelBuffer.create(columns * size, rows * size);
         options.getBackground().fill(background);
+        background.premultiplyAlpha();
         PixelBuffer sheet = atlas.image().toPixelBuffer();
         for (int i = tiles.size(); i < rows * columns; i++) {
             int x = (i % columns) * size;

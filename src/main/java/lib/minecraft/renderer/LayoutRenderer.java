@@ -97,9 +97,9 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
     private static int @NotNull [] measure(@NotNull ConcurrentList<ImageData> children) {
         int[] dims = new int[children.size() * 2];
         for (int i = 0; i < children.size(); i++) {
-            var image = children.get(i).toBufferedImage();
-            dims[i * 2] = image.getWidth();
-            dims[i * 2 + 1] = image.getHeight();
+            var frame = children.get(i).toPixelBuffer();
+            dims[i * 2] = frame.width();
+            dims[i * 2 + 1] = frame.height();
         }
         return dims;
     }

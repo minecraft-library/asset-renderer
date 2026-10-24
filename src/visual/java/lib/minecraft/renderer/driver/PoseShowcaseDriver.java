@@ -139,7 +139,7 @@ public final class PoseShowcaseDriver {
                 ConcurrentList<ImageFrame> frames = image.getFrames();
                 if (frames.size() > 1) {
                     Path out = OUTPUT_DIR.resolve(name + ".gif");
-                    writeGif(out, frames);
+                    writeGif(out, image);
                     System.out.printf("  %-28s -> %s.gif (%d frames, %d ms each)%n",
                         styleId + " on " + showcase.entityId(), name, frames.size(), frames.getFirst().delayMs());
                 } else {
@@ -257,19 +257,25 @@ public final class PoseShowcaseDriver {
 
     /**
      * Builds an animated GIF (infinite loop, transparent background) from the rendered frames,
-     * each keeping its own delay.
+     * each keeping its own delay, held in the convention the render is marked with.
      *
      * <p><b>Each frame clears the canvas behind it rather than painting over what was there.</b>
      * A GIF frame carries its own disposal and the default leaves the previous frame standing -
      * right for an opaque strip, wrong for a transparent one, where every pose the subject has
      * held accumulates behind the current frame and reads as smearing.
+     *
+     * @param out the GIF file to write
+     * @param image the rendered animation
+     * @throws IOException if the file cannot be written
      */
-    private static void writeGif(@NotNull Path out, @NotNull ConcurrentList<ImageFrame> frames) throws IOException {
+    private static void writeGif(@NotNull Path out, @NotNull ImageData image) throws IOException {
+        ConcurrentList<ImageFrame> frames = image.getFrames();
         BufferedImage first = frames.getFirst().pixels().toBufferedImage();
         AnimatedImageData.Builder builder = AnimatedImageData.builder()
             .withWidth(first.getWidth())
             .withHeight(first.getHeight())
-            .withLoopCount(LoopCount.Preset.INFINITE);
+            .withLoopCount(LoopCount.Preset.INFINITE)
+            .withAlphaMode(image.getAlphaMode());
         for (ImageFrame frame : frames)
             builder.withFrame(ImageFrame.of(frame.pixels(), frame.delayMs(), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));

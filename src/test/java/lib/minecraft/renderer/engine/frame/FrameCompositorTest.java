@@ -7,6 +7,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -37,12 +38,15 @@ import static org.hamcrest.Matchers.is;
  * cadence is sampled at its own rate rather than a rounded one, and periods that share few factors
  * can drive the merged loop past {@link Timeline#MAX_LOOP_MS}. Both are pinned below, the second
  * because it is a way the merge can now degrade that uniform 50 ms periods could not reach.
+ * <p>
+ * Either result is marked {@link AlphaMode#PREMULTIPLIED}, and an animated composite lays a
+ * see-through fill down premultiplied, the convention of the finished renders laid over it.
  */
 @DisplayName("FrameCompositor.merge - result-type dispatch and merged loop length")
 class FrameCompositorTest {
 
     @Test
-    @DisplayName("all-static layers produce a StaticImageData fast path")
+    @DisplayName("all-static layers produce a StaticImageData fast path, marked premultiplied")
     void allStaticProducesStatic() {
         ConcurrentList<FramePlacement> layers = Concurrent.newList();
         layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
@@ -50,18 +54,24 @@ class FrameCompositorTest {
 
         ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
+        assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test
-    @DisplayName("any animated layer promotes the result to AnimatedImageData")
+    @DisplayName("any animated layer promotes the result to AnimatedImageData, marked premultiplied over a premultiplied fill")
     void animatedLayerPromotesResult() {
         ConcurrentList<FramePlacement> layers = Concurrent.newList();
         layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
         layers.add(new FramePlacement(0, 0, animated(4, 4, 4, 50)));
 
-        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+        // The canvas is two columns wider than the layers, so x = 5 shows the fill alone: 0x80336699
+        // premultiplied rounds 0x33 * 128 / 255 to 0x1A, 0x66 to 0x33 and 0x99 to 0x4D.
+        ImageData result = FrameCompositor.merge(layers, 6, 4, 30, Background.solid(0x80336699));
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
+        assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        for (ImageFrame frame : result.getFrames())
+            assertThat(frame.pixels().getPixel(5, 0), is(0x801A334D));
     }
 
     @Test

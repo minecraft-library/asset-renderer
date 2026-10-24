@@ -44,10 +44,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Coverage of a grid whose tiles are supplied: the grid asks each tile for its render as it draws it, and
  * the sheet holds the bytes a serial composition of the same renders holds.
  * <p>
- * The reference is written here rather than taken from the grid: a buffer filled with the background,
- * then each tile rescaled into its cell by {@link PixelBuffer#blitScaled} and laid down with
- * {@link BlendMode#PREMULTIPLIED}, one after another. Every tile
- * is pixels built in memory, mixing transparent, part-transparent and opaque texels, at the cell's size
+ * The reference is written here rather than taken from the grid: a buffer filled with the background
+ * and premultiplied, then each tile rescaled into its cell by {@link PixelBuffer#blitScaled} and laid
+ * down with {@link BlendMode#PREMULTIPLIED}, one after another. Every tile is pixels built in memory,
+ * mixing transparent, part-transparent and opaque texels, at the cell's size
  * and rescaled from a smaller and a larger one, over transparent, part-transparent and checkerboard
  * backgrounds, with and without separation, and at a cell large enough that a draw made off every
  * fork-join pool splits its rows across threads, while one made on a fork-join worker runs them in order
@@ -155,6 +155,7 @@ class GridRendererSuppliedTileTest {
 
         PixelBuffer expected = PixelBuffer.create(COLUMNS * 16, 3 * 16);
         Background.solid(0x80336699).fill(expected);
+        expected.premultiplyAlpha();
         for (int i = 0; i < renders.size(); i++)
             expected.blitScaled(renders.get(i).image().toPixelBuffer(), cells[i][0] * 16, cells[i][1] * 16, 16, 16, BlendMode.PREMULTIPLIED);
 
@@ -208,11 +209,11 @@ class GridRendererSuppliedTileTest {
     }
 
     @Test
-    @DisplayName("a transparent black background is the new buffer's own, and a transparent colour is still laid down")
+    @DisplayName("a transparent background of any colour leaves the new buffer's transparent black")
     void aTransparentBackgroundIsLaidDownExactly() {
         for (int argb : new int[] { 0x00000000, 0x00FF0000 }) {
             GridResult sheet = render(Concurrent.newList(), 16, 0, Background.solid(argb), UnaryOperator.identity());
-            assertThat("solid(0x%08X)".formatted(argb), IntStream.of(sheet.image().toPixelBuffer().data()).allMatch(pixel -> pixel == argb), is(true));
+            assertThat("solid(0x%08X)".formatted(argb), IntStream.of(sheet.image().toPixelBuffer().data()).allMatch(pixel -> pixel == 0), is(true));
             assertThat(sheet.cells(), is(empty()));
         }
     }
@@ -266,8 +267,8 @@ class GridRendererSuppliedTileTest {
     }
 
     /**
-     * Composes the reference: a buffer of the sheet's size filled with the background, then each render
-     * rescaled into its cell, one after another.
+     * Composes the reference: a buffer of the sheet's size filled with the background and premultiplied,
+     * then each render rescaled into its cell, one after another.
      *
      * @param renders the renders, render {@code i} at cell {@code i}
      * @param cell the cell size
@@ -279,6 +280,7 @@ class GridRendererSuppliedTileTest {
         int rows = Math.max(1, (renders.size() + COLUMNS - 1) / COLUMNS + 1);
         PixelBuffer sheet = PixelBuffer.create(COLUMNS * (cell + separation) + separation, rows * (cell + separation) + separation);
         background.fill(sheet);
+        sheet.premultiplyAlpha();
         for (int i = 0; i < renders.size(); i++)
             sheet.blitScaled(renders.get(i).image().toPixelBuffer(), x(i, cell, separation), y(i, cell, separation), cell, cell, BlendMode.PREMULTIPLIED);
         return sheet.data();

@@ -107,7 +107,7 @@ public final class BlockFlipbookDriver {
                     int[] samples = {0, frameCount / 2, frameCount - 1};
                     for (int s : samples) {
                         File frameFile = OUTPUT_DIR.resolve("%s_f%03d.png".formatted(blockId.replace(":", "_"), s)).toFile();
-                        ImageFactory.toFile(StaticImageData.of(image.getFrames().get(s).pixels().toBufferedImage()), ImageFormat.PNG, frameFile);
+                        ImageFactory.toFile(StaticImageData.of(image.getFrames().get(s).pixels(), image.getAlphaMode()), ImageFormat.PNG, frameFile);
                     }
                 }
                 System.out.printf("  %-24s -> %s (%d frame%s)%n",

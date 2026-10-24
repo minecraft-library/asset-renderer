@@ -351,6 +351,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PlayerRendererBackgroundTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlayerRendererDefaultSkinTest": {
       "artifacts": [],
       "source": "derived"

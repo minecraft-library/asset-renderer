@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
@@ -549,7 +550,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
                 drawLabels(frameBuffer, labels, argb, f);
                 return frameBuffer;
-            }));
+            }, AlphaMode.PREMULTIPLIED));
     }
 
     /**

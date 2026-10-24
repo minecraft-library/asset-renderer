@@ -10,6 +10,7 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
@@ -51,13 +52,16 @@ public class FrameCompositor {
      * Otherwise returns an {@link AnimatedImageData} whose duration is the LCM of the animated layers'
      * loop periods (capped at {@link Timeline#MAX_LOOP_MS}), so every animated placement completes a
      * whole number of loops, sampled at {@code framesPerSecond}.
+     * <p>
+     * The fill is laid down premultiplied and every placement is laid over it as a finished render, so
+     * either image is marked {@link AlphaMode#PREMULTIPLIED}.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param canvasW the canvas width in pixels
      * @param canvasH the canvas height in pixels
      * @param framesPerSecond the output frame rate, used only when producing animated output
      * @param background the canvas background fill applied before blitting any layer
-     * @return the composited image data
+     * @return the composited image data, held premultiplied
      */
     public static @NotNull ImageData merge(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
@@ -66,21 +70,21 @@ public class FrameCompositor {
             .collect(Concurrent.toList());
 
         if (!anyAnimated)
-            return StaticImageData.of(renderFrame(layers, samplers, canvasW, canvasH, background, 0).toBufferedImage());
+            return StaticImageData.of(renderFrame(layers, samplers, canvasW, canvasH, background, 0), AlphaMode.PREMULTIPLIED);
 
         long mergedLoopMs = computeMergedLoopMs(layers);
         int outputFrameDelayMs = Timeline.delayForFps(framesPerSecond);
         int outputFrameCount = Math.max(1, (int) Math.ceil((double) mergedLoopMs / outputFrameDelayMs));
         Timeline.FpsLoop playback = new Timeline.FpsLoop(framesPerSecond, outputFrameCount);
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder();
+        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(AlphaMode.PREMULTIPLIED);
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
             PixelBuffer frame = renderFrame(layers, samplers, canvasW, canvasH, background, playback.playbackMsAt(frameIndex));
 
             // renderFrame fills the background and blits every placement from scratch, so this frame
-            // is the whole canvas and not a delta against the last one. Say so: the two-argument
-            // ImageFrame.of defaults to FrameDisposal.NONE, which leaves the previous frame standing
-            // underneath, and a transparent canvas then shows it through wherever this one is clear.
+            // is the whole canvas and not a delta against the last one, and it replaces the frame
+            // before it, as RESTORE_TO_BACKGROUND and SOURCE say; a frame left standing would show
+            // through wherever this one is clear.
             builder.withFrame(ImageFrame.of(frame, playback.delayMs(frameIndex), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
         }
@@ -89,8 +93,9 @@ public class FrameCompositor {
     }
 
     /**
-     * Renders one output frame at {@code timeMs}: fills the background, then draws each placement
-     * (sampled at that playback time) at its destination origin, in back-to-front list order.
+     * Renders one output frame at {@code timeMs}: fills the background, premultiplied so it holds the
+     * convention of the finished renders laid over it, then draws each placement (sampled at that
+     * playback time) at its destination origin, in back-to-front list order.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param samplers each placement's {@link #sampler sampler}, parallel to {@code layers}
@@ -103,6 +108,7 @@ public class FrameCompositor {
     private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, @NotNull ConcurrentList<Sampler> samplers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         background.fill(buffer);
+        buffer.premultiplyAlpha();
 
         for (int index = 0; index < layers.size(); index++) {
             Sampler sampler = samplers.get(index);
@@ -202,10 +208,10 @@ public class FrameCompositor {
      * transparent, and {@link FrameDisposal#RESTORE_TO_PREVIOUS RESTORE_TO_PREVIOUS} puts the canvas
      * back as it stood before the frame was drawn.
      * <p>
-     * A frame's {@link FrameBlend} is not read. The image library's GIF reader marks every frame
-     * {@link FrameBlend#SOURCE SOURCE}, though a GIF frame's transparent texels leave the picture
-     * beneath them, and its WebP reader keeps each frame's blend on a frame it has already composed
-     * into the whole picture.
+     * A frame's {@link FrameBlend} is not read: a frame that covers the canvas replaces it and any
+     * other is drawn source-over, whatever blend it carries. The image library's GIF reader marks every
+     * frame {@link FrameBlend#OVER OVER}, and its WebP reader answers each frame already composed into
+     * the whole picture, marked {@link FrameBlend#SOURCE SOURCE}.
      * <p>
      * A picture is composed when playback first reaches its frame and kept for every later sample, so
      * the frames are drawn once each however many output frames, and loops, sample the animation.

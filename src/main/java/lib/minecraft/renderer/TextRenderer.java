@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
@@ -132,15 +133,17 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
+        // The tooltip chrome is painted in its own colour rather than blended onto the canvas, so every
+        // frame holds straight colour and is marked so.
         if (!animated)
-            return Timeline.still(drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst());
+            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst(), AlphaMode.STRAIGHT);
 
         int ticksPerFrame = ticksPerFrame(options);
         int frameCount = animationFrameCount(options, ticksPerFrame);
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst());
+            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst(), AlphaMode.STRAIGHT);
     }
 
     /**
