@@ -29,6 +29,17 @@ artifact, because every producer runs on the classpath they declare, so the new 
 in `BlindnessMapTest`'s record of what a version is blind to, which is what refuses either half
 alone; a sweep never does, every sweep being a main of this build.
 
+**Coining a store artifact whose producer loads a production context owes the context's rules a place
+as well.** The reference graph cuts that context whole, so what it reads through - the pack stack, the
+index and the service registration that installs its decoders - answers no producer that reaches it
+through the context, and B4, B5 and B36 are what plan the new one, with B35 beside them when the
+producer reads a row of a shipped table. It joins the `sees` of each of B4, B5 and B36 whose mechanism
+it is measured to reach, or that rule's `blind` with the mechanism and `BlindnessMapTest`'s record of
+what the context's reads are blind to, which is what refuses either half alone. Under B35 it owes no
+such pair: it joins that rule's `sees` only if a measured perturbation of a table moves it, and the
+table and what it moved go in `BlindnessMapTest`'s record of the measured table reads, while one no
+table perturbation moves goes on neither of B35's lists.
+
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.
 

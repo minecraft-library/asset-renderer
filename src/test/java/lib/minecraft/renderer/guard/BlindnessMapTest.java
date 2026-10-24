@@ -139,12 +139,21 @@ final class BlindnessMapTest {
      * block sweep draws a {@code block_state} case as the block's inventory icon through
      * {@code ItemRenderer}, which names the trim kit, and no stack it builds carries a trim.
      *
-     * <p>B28's two come from the one type under {@code exception} that is not a throwable:
+     * <p>B28's nine come from the one type under {@code exception} that is not a throwable:
      * {@code RuleRejection}, the record a rejected pack rule leaves, which also declares the pack
-     * resolution claim of the readers that produce it. That rule selects the block and item sweeps
-     * for every file it triggers on, while the graph answers only the dumps and the colormap digests
-     * for the record - so the exception claim is right, and the pair is a declared reach rather than
-     * an exercised one.
+     * resolution claim of the readers that produce it. That rule selects every producer drawing a
+     * texture through the production context for every file it triggers on, while the graph answers
+     * only the dumps and the colormap digests for the record - so the exception claim is right, and
+     * each pair is a declared reach rather than an exercised one.
+     *
+     * <p>B5's comes from the colormap digests' test, which builds the pack stack and resolves the
+     * colormaps through it itself and asks the renderer context for nothing. The index rule is right
+     * that the context's lookups are blind to it - flipping a bit of every texel the context answers
+     * left all three digests where they were - while the pack rule selects it on the three pack-side
+     * files both rules fire on, the stack those colormaps resolve from being its to speak for, and
+     * the engine rule, which plans what the graph answers, selects it on the context's interface and
+     * its map-backed form, whose rows name it because the test class reaches the client-assets
+     * extension that builds a context.
      *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
@@ -169,7 +178,11 @@ final class BlindnessMapTest {
         "B23 -> sweep.block", "B23 -> sweep.item",
         "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla",
-        "B28 -> sweep.block", "B28 -> sweep.item");
+        "B28 -> manifest.player-raw", "B28 -> sweep.armor", "B28 -> sweep.entity",
+        "B28 -> sweep.entity-animation", "B28 -> sweep.entity-walk", "B28 -> sweep.glint",
+        "B28 -> sweep.block", "B28 -> sweep.item",
+        "B28 -> sweep.player",
+        "B5 -> digest.colormap-lut");
 
     /**
      * Stored artifacts the {@linkplain #VERSION_DECLARATIONS version files} call blind, each one a
@@ -321,6 +334,67 @@ final class BlindnessMapTest {
      */
     private static final List<String> VERSION_DECLARATIONS =
         List.of("build.gradle.kts", "gradle/libs.versions.toml");
+
+    /** The production context's binary name, whose graph row is every producer that reaches one. */
+    private static final String PRODUCTION_CONTEXT =
+        "lib/minecraft/renderer/content/index/IndexedRendererContext";
+
+    /**
+     * The files the production context resolves every texture, sidecar and flipbook through, and the
+     * registration it loads its decoders by.
+     *
+     * <p>The reference graph cuts that context whole, so nothing it holds inherits the producers that
+     * reach it, and what an edit to one of these plans is what the rules over it author. Every
+     * producer the graph answers for the context, but those {@link #BLIND_TO_THE_CONTEXT} records,
+     * draws its textures through these lookups and gets past the context's load only with the
+     * registration, so each of these plans the context's whole row but those. Written down rather
+     * than read off the rules, for the reason the version files are: taken from them, the check would
+     * agree with whatever they say.
+     */
+    private static final List<String> CONTEXT_READS = List.of(
+        "src/main/java/lib/minecraft/renderer/content/index/IndexedRendererContext.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/MCMetaParser.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/PackStack.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/ResolvedTexture.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/TextureIndexer.java",
+        "src/main/resources/META-INF/services/dev.simplified.gson.GsonContributor");
+
+    /**
+     * Artifacts the production context's graph row names that a file in {@link #CONTEXT_READS}
+     * leaves unplanned, each one a decision a rule firing on that file states as blind.
+     *
+     * <p>The colormap digests alone. Their test builds the pack stack and resolves the colormaps
+     * through it itself, and asks a context for nothing - the row names them because the test class
+     * reaches the client-assets extension that builds one. Flipping a bit of every texel the context
+     * answers, and taking the registration off the classpath, each left all three digests where they
+     * were, so the index rule and the registration's rule call them blind, while the pack rule, which
+     * speaks for the stack the colormaps resolve from, plans them.
+     */
+    private static final Set<String> BLIND_TO_THE_CONTEXT = Set.of("digest.colormap-lut");
+
+    /**
+     * The shipped tables a measured perturbation moved a production-context producer through, each
+     * with the artifacts it moved.
+     *
+     * <p>A table reaches a render per value and only the renders that read a row of it, while the
+     * context loads every table for every producer, so which producers read one is a measurement and
+     * not something the graph can answer. Each entry is one the shipped tables' rule's {@code source}
+     * records, written down for the reason the version files are.
+     */
+    private static final Map<String, List<String>> TABLE_READS = Map.of(
+        "src/main/resources/lib/minecraft/renderer/block_models.json", List.of("pin.block-crc"),
+        "src/main/resources/lib/minecraft/renderer/glint_items.json",
+        List.of("manifest.visual", "sweep.menu"));
+
+    /**
+     * Files a rule over the context's reads fires on that no producer of the context's row loads.
+     *
+     * <p>The graph answers the class the tooling manifest alone, and the producers the context's
+     * rules list beyond the block, item and entity sweeps and the dumps were measured as well: with
+     * its static initialiser made to throw, each ran and nothing it writes moved.
+     */
+    private static final List<String> UNREAD_BY_THE_CONTEXT =
+        List.of("src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java");
 
     /**
      * The directory a renderer is a direct child of.
@@ -1349,6 +1423,69 @@ final class BlindnessMapTest {
             recorded.stream()
                 .filter(id -> index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
                 .toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("each file the production context reads through plans every producer drawing through it")
+    void everyContextReadPlansWhatDrawsThroughIt() {
+        Set<String> row = DERIVED_REACH.getOrDefault(PRODUCTION_CONTEXT, Set.of());
+        List<String> tracked = trackedFiles();
+        List<JsonObject> rules = rules();
+        List<String> untracked = new ArrayList<>();
+        Set<String> omitted = new TreeSet<>();
+        List<String> unstated = new ArrayList<>();
+        for (String path : CONTEXT_READS) {
+            if (!tracked.contains(path)) untracked.add(path);
+            Set<String> sees = seesFor(path, rules);
+            Set<String> claimed = new TreeSet<>();
+            firedOn(path, rules).forEach(rule -> claimed.addAll(strings(rule.getAsJsonArray("blind"))));
+            for (String id : row) {
+                if (sees.contains(id)) continue;
+                omitted.add(id);
+                if (!claimed.contains(id)) unstated.add(path + " -> " + id);
+            }
+        }
+        List<String> unplannedReads = new ArrayList<>();
+        List<String> outsideTheRow = new ArrayList<>();
+        TABLE_READS.forEach((path, read) -> {
+            if (!tracked.contains(path)) untracked.add(path);
+            Set<String> sees = seesFor(path, rules);
+            read.stream().filter(id -> !sees.contains(id))
+                .forEach(id -> unplannedReads.add(path + " -> " + id));
+            read.stream().filter(id -> !row.contains(id))
+                .forEach(id -> outsideTheRow.add(path + " -> " + id));
+        });
+        List<String> overplanned = new ArrayList<>();
+        for (String path : UNREAD_BY_THE_CONTEXT) {
+            if (!tracked.contains(path)) untracked.add(path);
+            seesFor(path, rules).stream().filter(row::contains)
+                .forEach(id -> overplanned.add(path + " -> " + id));
+        }
+
+        assertThat(REACH_GRAPH + " answers nothing for " + PRODUCTION_CONTEXT + ", so every clause "
+            + "below is about an empty row. Regenerate it with 'python parity/scripts/parity reach build' "
+            + "over a compiled tree", row, is(not(empty())));
+        assertThat("files this case holds that git does not track, so what it says about them is about a "
+            + "path no commit can change", untracked, is(empty()));
+        assertThat("artifacts of the production context's graph row some file it reads through does not "
+            + "plan, against the recorded ones. The graph cuts the context whole, so the rules over these "
+            + "files are the only place a producer drawing through it is planned: an artifact coined "
+            + "without a place there is one a texture, sidecar or decoder change captures nothing for. Add "
+            + "it to the sees of the rule over the file, measured, or to that rule's blind with the "
+            + "mechanism and to the recorded set; and a recorded one no file leaves unplanned is a decision "
+            + "the map no longer makes", omitted, equalTo(new TreeSet<>(BLIND_TO_THE_CONTEXT)));
+        assertThat("artifacts a file the context reads through leaves unplanned that no rule firing on it "
+            + "calls blind, so the omission is in the plan and its mechanism is nowhere", unstated,
+            is(empty()));
+        assertThat("measured table reads the plan for the table does not include. Each is a value change "
+            + "the artifact sees that a plan over the table captures nothing for", unplannedReads,
+            is(empty()));
+        assertThat("measured table reads naming an artifact the production context's graph row does not, "
+            + "so its producer loads no context and the measurement has to be taken again",
+            outsideTheRow, is(empty()));
+        assertThat("artifacts of the context's row a file no producer of that row loads still plans. The "
+            + "tooling demote is what subtracts them there, so one here is a widening it lost",
+            overplanned, is(empty()));
     }
 
     @Test

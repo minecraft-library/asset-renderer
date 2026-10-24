@@ -160,20 +160,37 @@
     {
       "authored_paths": [],
       "blind": [],
-      "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps",
+      "claim": "A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps, and the stack it builds is where every texture and sidecar a render draws resolves",
       "claim_key": "pack-resolution",
       "id": "B4",
       "mode": "select",
-      "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not",
-      "reason": "With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all. The colormap digests are here because ColorMapLoader sits under this same glob and resolves every LUT off the compiled stack, so what this code hands back IS what those three digests are taken over.",
+      "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not; and widen every gui.scaling border by one pixel in MCMetaParser and re-run tooltipParityVanilla: the tooltip rows move while neither dump can, since neither records a border",
+      "reason": "With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all. The colormap digests are here because ColorMapLoader sits under this same glob and resolves every LUT off the compiled stack, so what this code hands back IS what those three digests are taken over. The stack is also where every texture and its sidecar resolve: TextureIndexer scans each pack into rows, ResolvedTexture binds a PNG to the .png.mcmeta beside it, MCMetaParser reads the sidecar's gui.scaling, and PackStack decodes, caches and plays them, so the production context's texture, sidecar and flipbook lookups answer from here. The reference graph cuts that context whole, so nothing here inherits the producers that reach it, and every one of them is listed because every one draws a texture through it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table draws its recipe-book button, a knowledge book, through the item renderer over this stack; the tooltip sweep, whose sprite box is the tooltip background and frame sprites nine-sliced by their gui.scaling sidecars; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders. Neither dump records a texel or a border - a texture row carries its pack, its path and its sidecar's type, size and stretch_inner - so a texel or border change here is seen by the renders alone.",
       "sees": [
         "manifest.dump.packs",
         "sweep.block",
         "sweep.item",
         "digest.colormap-lut",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.menu",
+        "sweep.tooltip",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.armor",
+        "sweep.glint",
+        "sweep.player",
+        "manifest.fluid",
+        "manifest.portal",
+        "manifest.visual",
+        "manifest.player-sheets",
+        "manifest.player-raw",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc"
       ],
-      "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved",
+      "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved; by perturbing PackStack.java's decode: one bit of every texel flipped moved the menu sweep's crafting-table row, 25 of the tooltip sweep's 28 rows, every row of the entity (406), entity-animation (134), entity-walk (134), glint (11), armour (7) and player (2) sweeps, 210 of the visual manifest's 211 members, every member of the player-sheet (104), fluid (12) and portal (12) manifests, the nine java.png members of the raw player and armour manifest and every entry of the four CRC pins; the gui/ textures alone moved the same 25 tooltip rows and no menu row, and the item/ textures alone the crafting-table row and no tooltip row; by perturbing MCMetaParser.java: every gui.scaling border a pixel wider moved 23 tooltip rows, the eleven lore-tooltip members of the visual manifest and no menu row",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/BlockModelLoader.java",
         "src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java",
@@ -190,13 +207,15 @@
     },
     {
       "authored_paths": [],
-      "blind": [],
-      "claim": "A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context",
+      "blind": [
+        "digest.colormap-lut"
+      ],
+      "claim": "A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context - and that context's lookups are what every render resolves its textures and sidecars through",
       "claim_key": "index-and-loader",
       "id": "B5",
       "mode": "select",
-      "probe": "PipelineParityDump builds an IndexedRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult",
-      "reason": "BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. The corpus counts ride this glob because BlockDefaultsLoader and GlintItemsLoader are both under it and both counts are the size of what they return.",
+      "probe": "PipelineParityDump builds an IndexedRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult; and make IndexedRendererContext.findMeta answer no sidecar and re-run tooltipParityVanilla: the 25 compared rows move",
+      "reason": "BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. The corpus counts ride this glob because BlockDefaultsLoader and GlintItemsLoader are both under it and both counts are the size of what they return. IndexedRendererContext is that context, and the reference graph cuts it whole, so nothing it holds inherits the producers that reach it and what a change behind it plans is what the rules over these packages author. Its resolveTexture, findMeta and findFlipbook answer every texture, sidecar and flipbook a renderer asks for, so every producer that draws through a context is on it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table resolves its recipe-book button's knowledge-book texture through resolveTexture; the tooltip sweep, whose sprite box reads all three for the tooltip background and frame sprites; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders. The colormap digests are blind to it: their test builds the pack stack and resolves the colormaps through it itself and asks a context for nothing, which is B4's to speak for.",
       "sees": [
         "manifest.dump.vanilla",
         "manifest.dump.packs",
@@ -205,9 +224,23 @@
         "sweep.entity",
         "pin.corpus-count",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.menu",
+        "sweep.tooltip",
+        "sweep.armor",
+        "sweep.glint",
+        "sweep.player",
+        "manifest.fluid",
+        "manifest.portal",
+        "manifest.visual",
+        "manifest.player-sheets",
+        "manifest.player-raw",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc"
       ],
-      "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved",
+      "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved; by perturbing IndexedRendererContext.java: resolveTexture flipping one bit of every texel it answers moved the menu sweep's crafting-table row, 25 of the tooltip sweep's 28 rows, every row of the glint (11), armour (7) and player (2) sweeps, 210 of the visual manifest's 211 members, every member of the player-sheet (104), fluid (12) and portal (12) manifests, the nine java.png members of the raw player and armour manifest and every entry of the four CRC pins, and none of the three colormap digests; findMeta answering no sidecar moved the same 25 tooltip rows, the eleven lore-tooltip members of the visual manifest and nothing else those producers write",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/**",
         "src/main/java/lib/minecraft/renderer/content/pack/BlockEntityShadows.java",
@@ -417,7 +450,14 @@
         "pin.portal-crc",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.menu",
+        "sweep.tooltip",
+        "manifest.fluid",
+        "manifest.portal",
+        "manifest.visual",
+        "manifest.player-sheets",
+        "pin.fluid-crc"
       ],
       "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
       "claim_key": "tooling-blindness",
@@ -429,7 +469,7 @@
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
-      "source": "measured by perturbing PotionColorsFlow.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'",
+      "source": "measured by perturbing PotionColorsFlow.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'; and no producer the production context's rules plan loads TableEnvelope: with its static initialiser made to throw, the menu, tooltip, glint, armour and player sweeps, the fluid, portal, visual and player-sheet drivers, the four CRC pin tests and the colormap digest test all ran, and nothing they write moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java",
         "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
@@ -1023,11 +1063,11 @@
         "src/main/resources/lib/minecraft/renderer/*.json"
       ],
       "blind": [],
-      "claim": "The shipped tables are pipeline INPUT, so a change to one reaches every render that loads it",
+      "claim": "The shipped tables are pipeline INPUT, so a change to one reaches every render that reads a row of it",
       "id": "B35",
       "mode": "select",
       "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
-      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, every one of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same eleven, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of them are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything.",
+      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, every one of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files and digest.shipped-tables digests the same eleven, so both see any edit directly; the sweeps and the dumps see it through the index the loaders build. Two of them are counted as well as read - block_defaults.json and glint_items.json - and pin.corpus-count holds exactly those two sizes, so adding or dropping a row moves it directly rather than through an index. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything. The menu sweep reads one: its crafting table's recipe-book button draws a knowledge book through the item index, so whether it glints is glint_items.json's to say, and the visual manifest's item and menu renders read the same list. The block CRC pin reads block_models.json, its white banner being a block entity drawn from that table. The tooltip sweep reads none - its chrome is two GUI sprites and their sidecars, and its text is minecraft-text's - and neither do the player sweep, the player sheets, the fluid and portal manifests, the fluid, player and portal pins or the colormap digests: each draws from textures, code and constants no table holds a row of, so no table value reaches them and they are on neither list. A table edit that fails to decode still stops a context loading, which reaches all of them the way the service registration does; that is B36's load-time reach rather than the per-value one this rule states.",
       "sees": [
         "manifest.tooling-tables",
         "digest.shipped-tables",
@@ -1041,9 +1081,12 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.menu",
+        "manifest.visual",
+        "pin.block-crc"
       ],
-      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over",
+      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over; and by adding minecraft:knowledge_book to glint_items.json: the menu sweep's crafting-table row moved and no tooltip row did; by listing every item in glint_items.json and tinting every block block_tints.json names no tint for: the crafting-table row and 25 of the visual manifest's 211 members moved, every one an item or menu render, and glint_items.json alone moved the same 25; by emptying block_models.json: the block CRC pin's white banner moved; and with every table's rows emptied, and again under the listing and tinting above, the player sweep, the player sheets, the fluid and portal manifests, the fluid, player and portal pins, the colormap digests and the tooltip sweep held",
       "trigger_paths": [
         "src/main/resources/lib/minecraft/renderer/*.json"
       ]
@@ -1052,12 +1095,14 @@
       "authored_paths": [
         "src/main/resources/META-INF/services/**"
       ],
-      "blind": [],
-      "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads is blind to it",
+      "blind": [
+        "digest.colormap-lut"
+      ],
+      "claim": "The GsonContributor service registration configures every pipeline decode, so nothing that loads a renderer context is blind to it",
       "id": "B36",
       "mode": "select",
       "probe": "delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one",
-      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how RendererGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.",
+      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how RendererGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35. Every producer that loads the production context is on it - the block, item, entity, armour, glint, player, menu and tooltip sweeps, the fluid, portal and visual manifests, the player sheets, the raw player and armour renders and the CRC pins taken over four of those renders - because without the registration the context fails to load before any of them writes a byte. The colormap digests are blind to it: their test reads the colormaps off the pack stack through ImageIO and loads no context, and a model the stack fails to decode beside them is logged rather than thrown.",
       "sees": [
         "digest.shipped-tables",
         "sweep.entity",
@@ -1069,9 +1114,20 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.menu",
+        "sweep.tooltip",
+        "sweep.player",
+        "manifest.fluid",
+        "manifest.portal",
+        "manifest.visual",
+        "manifest.player-sheets",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc"
       ],
-      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/",
+      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/; and by taking the registration off the runtime classpath: the menu, tooltip, glint, armour and player sweeps and the fluid, portal, visual and player-sheet drivers each failed decoding what it loads and wrote no report or render, the four CRC pin tests failed in their setup, and the colormap digest test passed with its three digests unchanged",
       "trigger_paths": [
         "src/main/resources/META-INF/services/**"
       ]

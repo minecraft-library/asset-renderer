@@ -27,6 +27,15 @@ BODIES call is kept, those having no implementor to carry a change. A CLASS is c
 reference it holds is one it makes. Measured - cutting the concrete assembled context by declaration
 instead takes the tree from 29 engine-wide types to 151.
 
+**What a class cut whole holds plans only what the rules over it author.** The cut class answers its
+own row - every producer whose code reaches it - and nothing it holds inherits that row, so the pack
+stack, the texture rows and the sidecar parser behind the production context answer only the dumps
+and the colormap digests, which reach them around it. The rules over what a cut class holds are the
+one place the producers drawing through it are planned: between them, the rules firing on each file
+the cut class reads through list every producer its row names, or one of them calls that producer
+blind with the mechanism that keeps it out, and `BlindnessMapTest` holds the files the production
+context reads through to that row.
+
 **A library type that reaches nothing declares what it reaches.** Two different things answer the
 empty set - a renderer this store holds no artifact for, and a type reached across a seam or built by
 a service loader out of a file no constant pool mentions - and `reach check` refuses one that says
