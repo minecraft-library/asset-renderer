@@ -44,9 +44,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * what earns the digest its place is naming the NEXT one rather than fixing this one.
  *
  * <p>The two tables do not write a mesh's bones in one order. The entity table holds vanilla's bake
- * order and the block-entity table its factory's declaration order, the rule `RENDERER-RULES.md` states
- * under "Depth: the contract", so a mesh both flows bake carries one bone set in two orders. That is a
- * verdict of its own here, and a difference in what the bones hold still reads as two payloads.
+ * order and the block-entity table its factory's declaration order, the rule `docs/renderer/Depth.md`
+ * states under "Depth: the contract", so a mesh both flows bake carries one bone set in two orders.
+ * That is a verdict of its own here, and a difference in what the bones hold still reads as two
+ * payloads.
  */
 @DisplayName("each geometry table names a mesh once, and the coordinates both flows bake are the ones already known")
 class CrossFlowGeometryTest {

@@ -243,8 +243,7 @@ final class BlindnessMapTest {
         Map.entry("parityMainSources", "\"src/main/java\""),
         Map.entry("parityGitIndex", "gitIndex"),
         Map.entry("parityClaudeMd", "\"CLAUDE.md\""),
-        Map.entry("parityRendererRules", "\"RENDERER-RULES.md\""),
-        Map.entry("parityTexelRules", "\"TEXEL-RULES.md\""));
+        Map.entry("parityDocs", "parityDocs"));
 
     /**
      * The files the Gradle task registry is a function of.
@@ -393,21 +392,22 @@ final class BlindnessMapTest {
     /** The repository's orientation, whose headings the map's {@code source} column cites by name. */
     private static final Path CLAUDE_MD = Path.of("CLAUDE.md");
 
-    /** The renderer's own rules, a second file those citations name. */
-    private static final Path RENDERER_RULES = Path.of("RENDERER-RULES.md");
-
-    /** The texel fetch's rules, the third file those citations name. */
-    private static final Path TEXEL_RULES = Path.of("TEXEL-RULES.md");
+    /**
+     * The root of the topic files the orientation routes to, the second place those citations name.
+     *
+     * <p>A citation spells the file holding its heading by repo-relative path, and the heading is
+     * resolved against that file alone: the rules a claim came from sit in one topic file each while
+     * the orientation stays small enough to load unread, and resolving a citation against another
+     * file would report a live heading as dead.
+     */
+    private static final String DOCS = "docs/";
 
     /**
-     * Every file a citation can name, keyed by the spelling the {@code source} column cites it under.
-     *
-     * <p>More than one because the rules a claim came from sit beside the code they bind while the
-     * orientation stays small enough to load unread: a citation says which file holds the heading, and
-     * resolving one against another file would report a live heading as dead.
+     * The topic files written in artifact ids by nature - the store's own mechanics, whose subject is
+     * what each artifact is rooted at and how it is registered - and so the one part of {@link #DOCS}
+     * the id check below does not read.
      */
-    private static final Map<String, Path> CITED_FILES =
-        Map.of("CLAUDE.md", CLAUDE_MD, "RENDERER-RULES.md", RENDERER_RULES, "TEXEL-RULES.md", TEXEL_RULES);
+    private static final String STORE_DOCS = "docs/parity/";
 
     /**
      * The committed reference graph, which is what a rule declaring {@code derived} selects through.
@@ -434,7 +434,7 @@ final class BlindnessMapTest {
 
     /** A citation naming a rules file and one of its sections, as the {@code source} column spells one. */
     private static final Pattern SECTION_CITATION =
-        Pattern.compile("((?:RENDERER-RULES|TEXEL-RULES|CLAUDE)\\.md) '([^']*)'");
+        Pattern.compile("((?:docs/[\\w/]+|CLAUDE)\\.md) '([^']*)'");
 
     /** What a rule's {@code source} says instead of a citation when this map is where a fact lives. */
     private static final String HOME_CLAIM = "moved out of CLAUDE.md and this map is its home";
@@ -459,14 +459,13 @@ final class BlindnessMapTest {
      * than lines, because these files wrap their prose and a rewrap is not a different statement.
      */
     private static final List<String> CLAUDE_MD_CUSTODY = List.of(
-        ".claude/skills/parity-gate/references/diagnostics.md: `RENDERER-RULES.md` and "
-            + "`TEXEL-RULES.md` in the repo root carry the durable findings: the depth contract, the "
-            + "armour shell, the face vocabulary, the iso pose, the texel fetch. Which artifacts see a "
-            + "given change is not one of them - that answer is `blindness.json`, which `parityPlan` "
-            + "resolves and `references/blindness.md` renders, and where a rule's claim did come from "
-            + "a section of `RENDERER-RULES.md`, of `TEXEL-RULES.md` or of `CLAUDE.md` the rule cites "
-            + "it by name. This file holds the *method* - how those were arrived at - and does not "
-            + "restate them.");
+        ".claude/skills/parity-gate/references/diagnostics.md: The topic files under "
+            + "`docs/renderer/` carry the durable findings: the depth contract, the armour shell, the "
+            + "face vocabulary, the iso pose, the texel fetch. Which artifacts see a given change is "
+            + "not one of them - that answer is `blindness.json`, which `parityPlan` resolves and "
+            + "`references/blindness.md` renders, and where a rule's claim did come from a section of "
+            + "a topic file under `docs/` or of `CLAUDE.md` the rule cites it by name. This file holds "
+            + "the *method* - how those were arrived at - and does not restate them.");
 
     /** One inline code span, which is how the skill body spells each trigger path. */
     private static final Pattern BACKTICKED = Pattern.compile("`([^`]+)`");
@@ -568,28 +567,25 @@ final class BlindnessMapTest {
     @Test
     @DisplayName("every rules-file section a rule cites is a heading that file still carries")
     void everyClaudeMdCitationNamesALiveHeading() {
+        Set<String> tracked = Set.copyOf(trackedFiles());
         Map<String, Set<String>> headings = new TreeMap<>();
-        CITED_FILES.forEach((name, path) -> {
-            Set<String> own = new TreeSet<>();
-            Matcher heading = MARKDOWN_HEADING.matcher(text(path));
-            while (heading.find()) own.add(heading.group(1).trim());
-            headings.put(name, own);
-        });
-
         List<String> cited = new ArrayList<>();
         List<String> dead = new ArrayList<>();
         for (JsonObject rule : rules()) {
             Matcher citation = SECTION_CITATION.matcher(rule.get("source").getAsString());
             while (citation.find()) {
+                Set<String> own = headings.computeIfAbsent(citation.group(1),
+                    file -> tracked.contains(file) ? headingsOf(Path.of(file)) : Set.of());
                 cited.add(rule.get("id").getAsString() + " -> " + citation.group(1) + " '"
                     + citation.group(2) + "'");
-                if (!headings.get(citation.group(1)).contains(citation.group(2)))
+                if (!own.contains(citation.group(2)))
                     dead.add(cited.getLast());
             }
         }
 
-        assertThat("a cited file carrying no heading at all, so every citation into it would read "
-            + "as dead and the failure would be in this walk rather than in the map",
+        assertThat("a cited file git does not track or that carries no heading at all, so every "
+            + "citation into it would read as dead and the failure would be in this walk rather than "
+            + "in the map",
             headings.entrySet().stream().filter(file -> file.getValue().isEmpty()).map(Map.Entry::getKey)
                 .toList(), is(empty()));
         assertThat("no rule cites a section of any rules file, so this case has no operand; it "
@@ -617,13 +613,21 @@ final class BlindnessMapTest {
                 .filter(paragraph -> CUSTODY.matcher(paragraph).find())
                 .map(paragraph -> path + ": " + paragraph))
             .toList();
-        String rulebook = text(CLAUDE_MD) + "\n" + text(RENDERER_RULES) + "\n" + text(TEXEL_RULES);
+        List<String> topicFiles = trackedFiles().stream()
+            .filter(path -> path.startsWith(DOCS) && path.endsWith(".md") && !path.startsWith(STORE_DOCS))
+            .sorted()
+            .toList();
+        StringBuilder rules = new StringBuilder(text(CLAUDE_MD));
+        topicFiles.forEach(path -> rules.append('\n').append(text(Path.of(path))));
+        String rulebook = rules.toString();
         List<String> named = ParityArtifacts.ALL.stream()
             .map(ParityArtifacts.Registration::id)
             .filter(rulebook::contains)
             .sorted()
             .toList();
 
+        assertThat("git tracks no topic file under " + DOCS + " outside " + STORE_DOCS + ", so the "
+            + "id check below would read the orientation alone", topicFiles, is(not(empty())));
         assertThat("no rule's source claims this map is a fact's home, so both clauses below are "
             + "true of nothing; this case needs a different shape rather than deleting", claiming,
             is(not(empty())));
@@ -636,12 +640,12 @@ final class BlindnessMapTest {
             + "with - a claim naming no section and an answer that is not a citation, so the check "
             + "above sees neither. A new statement of custody is a decision: make it agree with the "
             + "map, or record it here", custody, equalTo(CLAUDE_MD_CUSTODY));
-        assertThat("artifact ids the rules files name. A statement of what a gate sees has to "
-            + "name the gate, and a gate is an artifact of this store - so an id in any of them is "
-            + "the answer those rows say moved out of it, growing a second home back where it was. "
-            + "The map is where the statement goes; citing a section of one of them as where a "
-            + "rule's claim came from is the other case, and the check above is what holds that "
-            + "citation live", named, is(empty()));
+        assertThat("artifact ids the orientation or a topic file names. A statement of what a gate "
+            + "sees has to name the gate, and a gate is an artifact of this store - so an id in any "
+            + "of them is the answer those rows say moved out of it, growing a second home back "
+            + "where it was. The map is where the statement goes; citing a section of one of them as "
+            + "where a rule's claim came from is the other case, and the check above is what holds "
+            + "that citation live", named, is(empty()));
     }
 
     /**
@@ -663,6 +667,19 @@ final class BlindnessMapTest {
             .filter(path -> !generated.contains(path))
             .sorted()
             .toList();
+    }
+
+    /**
+     * The headings of one markdown file, at any level, trimmed.
+     *
+     * @param markdown the file's repo-relative path
+     * @return the heading texts, sorted
+     */
+    private static Set<String> headingsOf(Path markdown) {
+        Set<String> own = new TreeSet<>();
+        Matcher heading = MARKDOWN_HEADING.matcher(text(markdown));
+        while (heading.find()) own.add(heading.group(1).trim());
+        return own;
     }
 
     /**

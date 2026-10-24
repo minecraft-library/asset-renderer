@@ -1,11 +1,14 @@
 # Known open
 
+Load when filing, picking up or closing an open question nobody owns. Indexed from
+[`CLAUDE.md`](../CLAUDE.md).
+
 Items that are open and unowned: a decision nobody has taken, or a capability something shipped
 already claims and does not have. They live here because the alternative is a working note that gets
 deleted, and then the same investigation runs a second time.
 
-What does **not** belong here. A refusal that stays refused is a decision - `RENDERER-RULES.md`'s
-*Decisions that stay closed*, `TEXEL-RULES.md`'s, or `tooling/CLAUDE.md`'s. A measurement belongs in
+What does **not** belong here. A refusal that stays refused is a decision - the
+*Decisions that stay closed* of the topic file under `docs/` it concerns. A measurement belongs in
 the commit that made it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
@@ -31,9 +34,10 @@ substituted from the harness's dump, on a fleet sum of `661.266`:
   `1.622` of it is the charged creeper's doubled energy swirl, `1.769` to `0.147`; the giant's worn
   shell closes too, and no iron-armoured row loses.
 - Snapped the card's way: 127 better and one worse by `0.0001`, `-1.795` - but that needs the GL
-  viewport step and ties to even, both refused in `TEXEL-RULES.md`.
+  viewport step and ties to even, both refused in [renderer/TexelFetch.md](renderer/TexelFetch.md).
 
-It is taken whole or not at all - `RENDERER-RULES.md` refuses a partial port, because each one measured
+It is taken whole or not at all - [renderer/Geometry.md](renderer/Geometry.md) refuses a partial
+port, because each one measured
 re-decides the coplanar contests both ways. Whole, it is the entity path: bone chains rooted at the
 canvas matrix with JOML's affine rotate grouping, which `Matrix4f.rotate` does not use; every
 renderer's preamble and every mesh's root scale as matrix ops, which no shipped table carries and the

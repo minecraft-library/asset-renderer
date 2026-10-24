@@ -89,7 +89,7 @@ class BoneRestRadianTest {
     private static final @NotNull String CLINIT_DESC = "()V";
 
     /** The rule a moved pin re-opens, named so a red after a version bump reads as a re-measurement. */
-    private static final @NotNull String RULE = "the RENDERER-RULES.md bullet 'Do not carry a bone's rotation in radians'";
+    private static final @NotNull String RULE = "the docs/renderer/Geometry.md bullet 'Do not carry a bone's rotation in radians'";
 
     /** The order the pins and the measurement are compared in. */
     private static final @NotNull Comparator<Rest> ORDER = Comparator.comparing(Rest::owner)

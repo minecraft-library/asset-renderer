@@ -10,29 +10,52 @@ store holds is blind to one.
 
 ## Where the rest is written down
 
-This file is orientation: the build, the gates, and where to look. The rules themselves live beside
-the code they bind, so **read the one that covers what you are touching before you touch it** - none
-of them is loaded for you.
+This file is orientation: the build, the gates, and where to look. The rules live under `docs/`, one
+topic a file, and `tooling/`, `harness/` and `parity/` each keep a `CLAUDE.md` of their own that
+loads when you work there and routes to their part of `docs/`. **Read the file that covers what you
+are touching before you touch it** - none of them is loaded for you. A topic file that settles
+refusals closes on its own *Decisions that stay closed*, where refused changes and accepted gaps
+share a shape and are listed together; a refusal whose stated mechanism is not in the code is void -
+check it against source before honouring one.
 
-| Working on | Read |
+| Touching | Read |
 |---|---|
-| `src/main/java/**` - geometry, depth, armour, entities, menus, options | [RENDERER-RULES.md] |
-| Fetching a texel - the boundary rule, the corner snap, the GPU's interpolation, the coordinate probe | [TEXEL-RULES.md] |
-| `tooling/**` - the generator flows and the tables they emit | [tooling/CLAUDE.md] |
-| `harness/**` - the vanilla client that makes the ground truth | [harness/CLAUDE.md] |
-| `parity/**` - reach declarations, the store's roster and index | [parity/CLAUDE.md] |
+| `call/**` - the `*Options` bags, `RenderResult` and the composite results, `LayerSlot`; laying a finished render down (`BlendMode`); `ItemContext` and an item definition's walk; the `vanilla/appearance` vocabulary | [RequestsAndResults](docs/renderer/RequestsAndResults.md) |
+| `content/read` and `filter.block`; the `content/json` value adapters | [PackContent](docs/renderer/PackContent.md) |
+| A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
+| `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
+| `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |
+| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
+| Depth in `engine/raster` - `DepthMath`, the snapped depth plane, coplanar ties, draw order, the sort, the fill rule | [Depth](docs/renderer/Depth.md) |
+| The texel fetch - `RasterMath.texelOf`, `faceTexel`, `lastTexel`, a pass's wrap; the corner snap's grid and tie rule; the GPU's own coordinate | [TexelFetch](docs/renderer/TexelFetch.md), [TexCoordProbe](docs/renderer/TexCoordProbe.md) |
+| `bake/armor` - `Shell`, `ShellIndex`, the armour kits, `WornBox`, the wings; `ArmorSlot` and `ArmorForm` | [Armour](docs/renderer/Armour.md) |
+| How `entity_models.json` loads - `EntityIndexBuilder`, axes, overlays, carried blocks and the poses forms swap in; porting a new entity | [EntityModelForm](docs/renderer/EntityModelForm.md) |
+| Posing: style rows, `PosePlayer` writing a row onto a mesh, pose keys | [pose/Catalog](docs/renderer/pose/Catalog.md) |
+| Posing: `setupRotations` steps, the container and `$container`, the `root` clip channel, `EntityMeshFacing`, `EntityMeshShift` | [pose/Container](docs/renderer/pose/Container.md) |
+| Posing: what a frame answers - `PoseStyle.frameAt`, `StyleDriver`, selection groups, flags, the two clocks | [pose/Drivers](docs/renderer/pose/Drivers.md) |
+| Posing: `PoseStrips`, `StripFit`, the `idle/` and `walk/` references, a pass's opacity, the posed canvas | [pose/Strips](docs/renderer/pose/Strips.md) |
+| Posing: `author/**`, `PoseCompiler`, the `PoseOperator` roster | [pose/Authoring](docs/renderer/pose/Authoring.md) |
+| A block item's icon, how a slot draws an item, `SpecialTransform`, the block index's first-variant pick | [Blocks](docs/renderer/Blocks.md) |
+| `ScreenMetrics`, `MenuLayout`, `MenuRenderer`, `Window`, marks, `bake.gui` | [Menus](docs/renderer/Menus.md) |
+| A parity row disagreeing with its reference | [Debugging](docs/renderer/Debugging.md); probe traps and worked examples: `.claude/skills/parity-gate/references/diagnostics.md` |
+| A `@Parity` declaration; a `blindness.json` rule; `ParityArtifacts` and `index.json`; renaming a class, heading or file the store cites | [DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md), [RosterAndIndex](docs/parity/RosterAndIndex.md), [StoreState](docs/parity/StoreState.md) |
+| `build.gradle.kts` and `gradle/*.gradle.kts`, the source sets, the Vector flag, ASM | [BuildScripts](docs/project/BuildScripts.md) |
+| Which suite a test belongs in - the cache extensions, the slow tag | [TestSuites](docs/project/TestSuites.md) |
+| `content/client`; the exception hierarchy - `ClientException`, `ToolingException` | [ClientAcquisition](docs/project/ClientAcquisition.md) |
+| `./gradlew jmh`; the scripts under `src/test/resources/scripts/` | [Jmh](docs/project/Jmh.md), [DeveloperScripts](docs/project/DeveloperScripts.md) |
+| `tooling/**`, `harness/**`, `parity/**` | [tooling/CLAUDE.md], [harness/CLAUDE.md], [parity/CLAUDE.md] - each loads on entry and routes to its part of `docs/` |
 | Running a gate - tasks, flags, refusals, runbooks | `.claude/skills/parity-gate/SKILL.md` |
-| Diagnosing a mover - probe traps, worked examples, version rosters | `.claude/skills/parity-gate/references/diagnostics.md` |
-| An open question nobody owns | `KNOWN-OPEN.md` |
+| An open question nobody owns | [KnownOpen](docs/KnownOpen.md) |
 
 `guard/TierOrderTest` holds the package order: a package imports only what sits below it in the
 tiers the test's tables declare, and its `KNOWN` ledger is the exact list of edges that still break
 that order.
 
-Durable rules belong in one of those files. The measurements and narratives that produced them belong
-in the commit that landed them, and in the reason recorded with the baseline they moved. A rule that
-is really a question goes in `KNOWN-OPEN.md` instead, because a question filed as a rule reads as
-settled.
+Durable rules belong in one of those files. The measurements and narratives that produced them
+belong in the commit that landed them, and in the reason recorded with the baseline they moved. A
+rule that is really a question goes in [KnownOpen](docs/KnownOpen.md) instead, because a question
+filed as a rule reads as settled. A new topic file takes a ProperCase name, opens on a line saying
+when to load it and which `CLAUDE.md` indexes it, and is linked from that file.
 
 ## Build
 
@@ -42,77 +65,39 @@ settled.
   `parity.gradle.kts` (the store, the harness runs, the capture steps). They are applied at the END
   of the root script and in that order, because each resolves tasks by name and `named` answers only
   for one already registered.
-  - An applied script sees no declaration of the root's and gets no type-safe accessors. Both are why
-    `val sourceSets = the<SourceSetContainer>()` opens two of them, and why the one value they need
-    from the root - the resolved `-Dasset.*` set - crosses as `extra["assetFlagsInForce"]` rather
-    than as the function that computes it.
-  - The guards read all four as one text through `BuildScripts.all()`, so what they pin is what the
-    build declares rather than which file declares it.
-- JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`), wired into
-  JavaCompile, Test, JavaExec, JMH and Javadoc in `build.gradle.kts`. It is a COMPILE requirement:
-  `SimdOps` is the one source that imports `jdk.incubator.vector.*`, and every other task carries the
-  flag so this repo's own launches stay on the SIMD path rather than because a launch without it
-  breaks. Missing it on a JVM launch is a **silent scalar fallback**, not a class-not-found:
-  `SimdSupport` probes once with a non-initialising `Class.forName` inside `catch (Throwable)`, and
-  the two-class split is what keeps the JVM from ever resolving the incubator imports when the answer
-  is no. That is also why a downstream consumer of the published JAR owes the flag nothing. Missing
-  it on `javadoc` IS a hard failure - `SimdOps` reports the package as not visible. `javadoc` stays
-  red either way - every error it has left is a builder an annotation processor produces and the
-  doclet cannot see - so it is wired because the flag belongs everywhere it is read, not because the
-  task becomes usable.
-- ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
-  declared in `tooling/build.gradle.kts` alone and `:tooling` is taken by nobody, so it is on this
-  project's classpath nowhere and in no published JAR.
+- JDK 21 with the **Vector API incubator** (`--add-modules=jdk.incubator.vector`); a JVM launch
+  missing the flag is a **silent scalar fallback**, not a class-not-found.
 - `:tooling` is a SUBPROJECT of this build, not a build beside it, and that is what lets the
   generators resolve this project's production types instead of re-declaring them. The direction is
   one-way - `:tooling` takes `project(":")` on `implementation` - so nothing it declares comes back.
-  A composite substitutes an INCLUDED build into its root and never the reverse, which is why one
-  build rather than two is the only shape that works; see [tooling/CLAUDE.md].
-- `src/visual/java` is a source set of its own: the render drivers, the parity sweeps, the parity
-  store and the pipeline dump - programs with a `main`, not tests. The test set reads the store, so
-  it takes visual's output, one way and never the reverse, and visual inherits the test
-  configurations rather than re-declaring every pin.
 - Two builds sit beside this one: `parity`, which it includes, and the harness, which it reaches by
   shelling into that wrapper. `parity` stays a build of its own because the harness includes it and
   an included build has to be standalone.
-- Client-jar acquisition is `lib.minecraft.renderer.content.client` in this source tree -
-  `ClientAcquisition`, `ClientOptions`, `ClientAssets`. It is the one place in
-  the repo that touches the network, and it raises `ClientException` off `RuntimeException` rather
-  than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
-  failed to acquire. A request the Mojang API fails surfaces as that API's own
-  `MojangApiException`, unwrapped; `ClientException` is what acquisition raises for the rest.
-  `acquire()` caches the jar at `<cacheRoot>/vanilla/<version>/client.jar` and hands back the vanilla
-  pack as a `PackContainer.Live` - the jar's `assets/minecraft` and `data/minecraft` trees read into
-  memory once, plus the `pack.mcmeta` it synthesises from `version.json`. Nothing is extracted unless
-  `ClientOptions.extractAssets` asks, and then into `<cacheRoot>/vanilla/<version>/pack`, beside the
-  jar and the harness `references/` rather than around them.
 - `parity/` is the smallest leaf - five annotation types and the toolkit's Python package. Every
   build that writes a declaration takes it **`compileOnly`**; see [parity/CLAUDE.md].
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
   version string. `./gradlew dependencies` for the live set.
+
+What an applied script cannot see, which task types carry the Vector flag and why `javadoc` stays
+red either way, ASM, the source sets and which way the dependency runs are
+[BuildScripts](docs/project/BuildScripts.md). Client acquisition - `content.client`, the one place
+in the repo that touches the network - and the refusal that keeps its exception off the renderer's
+root are [ClientAcquisition](docs/project/ClientAcquisition.md).
 
 ## Gates
 
 `./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag
 and is never up-to-date-cached.
 
-**What the tag separates is the NETWORK, not the cache.** The fast suite reads the client assets as a
-matter of course: a test that needs them installs `ClientAssetsExtension`, which reads the vanilla pack
-out of the client jar cached at the root `ClientOptions` itself defaults to, once per JVM, and ABANDONS
-the class where no jar is cached - so a fast run cannot download. The Minecraft fonts go the same
-way: a class that renders text installs `MinecraftFontsExtension`, which reads them from the test classpath,
-`cache/fonts` or the text library's per-user cache and ABANDONS the class where none holds them,
-since the library's own fallback clones `font-generator` over the network. Five classes keep the tag,
-for what they need beyond those caches: `ClientAcquisitionIntegrationTest` is the acquisition's own
-test and the one place the client's cold path runs, `FontGenerationIntegrationTest` the one place the
-font generator runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need the
-sample packs under `cache/asset-renderer/packs`, and `ReferenceKeyRoundTripTest` needs the harness
-reference tree. A pack read from the cache by path cannot download, so `HypixelPlusReachTest` reads
-`cache/texturepacks/Hypixel+ 0.23.4 for 1.21.8.zip` in the fast suite and ABANDONS the class where
-the zip is absent. `ClientJarGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an
-absent client jar or font cache, so a suite thinned by assumption says so once rather than reporting
-green over coverage it skipped; nothing fails on an absent pack. `SlowTagRuleTest` holds that rule
-against the sources.
+**What the tag separates is the NETWORK, not the cache.** The fast suite reads the client assets as
+a matter of course: a test that needs them installs `ClientAssetsExtension`, which reads the vanilla
+pack out of the client jar cached at the root `ClientOptions` itself defaults to, once per JVM, and
+ABANDONS the class where no jar is cached - so a fast run cannot download. A class that renders text
+installs `MinecraftFontsExtension` the same way, since the text library's own fallback reaches the
+network. `ClientJarGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an absent client
+jar or font cache, so a suite thinned by assumption says so once rather than reporting green over
+coverage it skipped; nothing fails on an absent pack. The five classes that keep the tag, and the
+packs a fast test may read, are [TestSuites](docs/project/TestSuites.md).
 
 A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when
@@ -131,7 +116,8 @@ gates together cost seconds.
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
 writes a capture, `parityCompare` reports movers, `parityPromote` makes a capture the baseline. The
 declaration mechanics behind it - how reach is resolved, what coining an artifact owes - are in
-[parity/CLAUDE.md].
+[DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md) and
+[RosterAndIndex](docs/parity/RosterAndIndex.md).
 
 - Determinism is the precondition for a hash. Prove a producer reproduces across fresh JVMs before
   comparing digests: `Set.of`, `Map.of` and their `copyOf` forms iterate in an order salted per JVM,
@@ -144,9 +130,11 @@ declaration mechanics behind it - how reach is resolved, what coining an artifac
   rename compiles clean and fails at runtime.
 
 **Two renames are a promote rather than a rename**, and both bite before you are anywhere near the
-gate: a test or visual-set class the store homes a row at, and a heading of `RENDERER-RULES.md` or
-`TEXEL-RULES.md` a reach rule cites. [parity/CLAUDE.md] lists which files those are and what an edit
-to one owes; grep the store for the class or the heading before touching it.
+gate: a test or visual-set class the store homes a row at, and a heading a reach rule cites - of
+this file or of a topic file under `docs/` - or the path of the file that holds it.
+[StoreState](docs/parity/StoreState.md) lists which files those are, the five that pin a line number
+as well, and what an edit to one owes; grep the store for the class or the heading before touching
+it.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
@@ -159,9 +147,6 @@ The eight flows keep their names in this project's `tooling` group as aliases on
 tasks, which is what keeps the parity artifact table's producer list resolving - it looks each up
 with `named` on THIS project.
 
-- The dependency runs one way and only one. `:tooling` takes `project(":")`; nothing here names a
-  tooling type, and `implementation` is what stops ASM and the walkers coming back - they are on
-  this project's classpath nowhere and in no published JAR.
 - **A renderer change can now move an emitted table**, which it structurally could not while the
   generators re-declared what they needed. `tooling-flow-gate` is the measurement either way, and it
   is owed by a change on this side too rather than only by one under `tooling/`.
@@ -190,33 +175,17 @@ byte-stable ground truth the nine sweeps diff against, one sub-tree each under
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
 - **`renderVanillaAllReferences` writes the whole tree in ONE boot**, all nine sweeps, `idle/`
-  and `walk/` included. A freeze is armed per sweep off `PoseState` rather than read once per JVM, and
-  `HarnessMode.resolve` orders a run `BIND` before `IDLE` before `WALK` - which is a correctness
-  requirement, not tidiness: a freeze SKIPS `setupAnim` rather than undoing it, so a posed sweep ahead
-  of a frozen one would leave every bone it touched posed and the frozen sub-trees would record that.
-  Every narrower run still leaves the sub-trees it does not name exactly as it found them.
-- **The two posed sub-trees are one sweep at two gaits**, `-Drefharness.walking=true` selecting the
-  second, and the asset side is one driver at `asset.parity.gait=walk`. Each names its own gait -
-  `idle/` and `walk/` on the harness side, `idle` and `walk` on the property - so the two sides map a
-  sub-tree by one spelling. Neither doubles the subjects: what a gait changes is the walk each
-  subject is armed at and so the strip it takes.
-- **The posed sub-trees are rendered at the roster `entityScheduleRoster` writes** beside the tree,
-  which every posed reference run writes first: each subject's frames, step, walk and clock values,
-  resolved through the code the asset side's own render runs. The harness refuses a subject the
-  roster does not name, and each sub-tree records what it rendered in its `schedule.json`, which the
-  two animation sweeps hold to their own resolution.
+  and `walk/` included. Every narrower run still leaves the sub-trees it does not name exactly as
+  it found them.
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
 - A reference that moves on a re-render with your change stashed was stale, not moved.
 
+Why the boot orders its sweeps, the two posed sub-trees, and the roster they are rendered at are
+[SweepArchitecture](docs/harness/SweepArchitecture.md).
+
 Capture, compare and promote go through the `parity-gate` skill; the re-render runbook is its
 `references/procedures.md`.
-
-## JMH
-
-`./gradlew jmh` with `-PjmhWarmup` (3), `-PjmhIters` (5), `-PjmhForks` (2), `-PjmhInclude=<regex>`
-and `-PjmhProfilers=gc,stack`. Forks get `-Xmx2g` plus the Vector module. Benches live in
-`src/jmh/java/lib/minecraft/renderer/bench/`.
 
 ## Skip these
 
@@ -235,45 +204,14 @@ establishes; state the measurement rather than where it was written down. The ru
 authored - prose, comments, javadoc, a diagnostic or an exception message, commit text - and the
 shapes above are written as shapes, so this paragraph names no entry a reader could go looking for.
 
-Only the path half is greppable: `git ls-files | xargs grep -l 'notes/'` at review, deliberately not
-in the pre-commit hook. What survives that grep is the `notes/**` blindness glob, in the map and in
-the skill's rendered view of it; the test exempting that glob from the assertion that every
-`no_reach` glob matches a tracked path; the ignore rule that makes the directory gitignored; this
-section; each gate skill's list of commit kinds that skip it; and the two toolkit tests asserting
-that `notes/parity` is refused as a working root. Telling those from a citation is a reading rather
-than a pattern. The entry-number half has no one pattern to grep for, a note's ids being whatever
-that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
-citation at all: the reach rules carry their own `B<n>` in an `id` member.
-
-The phase-number spelling has a review grep of its own, and the tree is clean of what it forbids:
-`git ls-files | xargs grep -nE '\bP-?[0-9]{1,2}\b' | grep -vE 'P[0-9]+[a-zA-Z]'` answers today with
-the promoted artifacts, whose recorded reason is the exemption below, and binaries whose bytes happen
-to match - the two Gradle wrapper jars and several of the README's images under `docs/images/`.
+What a review greps for to hold both halves, and what survives the grep, is
+[ReviewGreps](docs/ReviewGreps.md).
 
 The one exemption is a frozen measurement already promoted into the store, which moves by
-re-promoting and never by an edit - see [parity/CLAUDE.md]. The next reason written still follows the
-rule.
+re-promoting and never by an edit - see [RosterAndIndex](docs/parity/RosterAndIndex.md). The next
+reason written still follows the rule.
 
-## Developer scripts
-
-`parity/scripts/parity/` is the parity toolkit, run as `python parity/scripts/parity <command>` and
-documented in its own `README.md`. Every other developer script lives in
-`src/test/resources/scripts/`, which `processTestResources` excludes whole, so one is neither a
-fixture nor a shipped resource. There are three:
-
-- `euler_reference_svg.py` regenerates the SVG in `EulerRotation`'s javadoc.
-- `chrome_slicer_corpus.py` draws the chrome fixtures and `manifest.json` that
-  `ChromeSlicerCorpusTest` reads; `--check` compares them with the tracked corpus and writes
-  nothing.
-- `mutate_guards.py` applies each mutant in a spec file, runs the tests that should catch it and
-  restores the file, which is how a guard is shown to go red.
-
-Each is named by a `no_reach` entry of its own in `blindness.json` and listed in
-`BlindnessMapTest.ABSORBABLE_BY_AN_EXCUSE`, so a fourth owes both.
-
-[RENDERER-RULES.md]: RENDERER-RULES.md
-[TEXEL-RULES.md]: TEXEL-RULES.md
-[parity/CLAUDE.md]: parity/CLAUDE.md
 [harness]: harness
 [harness/CLAUDE.md]: harness/CLAUDE.md
+[parity/CLAUDE.md]: parity/CLAUDE.md
 [tooling/CLAUDE.md]: tooling/CLAUDE.md

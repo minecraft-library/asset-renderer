@@ -494,7 +494,7 @@ Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
 ```
 
-A sweep is a diagnostic report, not a pass/fail gate; it becomes one when its table is compared against a stored baseline, which is what the five `parity`-group tasks do (`./gradlew tasks --group parity`): `parityPlan` resolves which artifacts can see a change, `parityCapture` runs their producers and writes the capture, `parityExpect` registers the movers a change intends, `parityCompare` reports what actually moved, and `parityPromote` makes a capture the new baseline. See `RENDERER-RULES.md` for the per-renderer rules and its "Debugging a mismatch" section, `harness/CLAUDE.md` for the session-refresh checklist, and `.claude/skills/parity-gate/references/procedures.md` for the re-render runbook; `CLAUDE.md` is the map to all three.
+A sweep is a diagnostic report, not a pass/fail gate; it becomes one when its table is compared against a stored baseline, which is what the five `parity`-group tasks do (`./gradlew tasks --group parity`): `parityPlan` resolves which artifacts can see a change, `parityCapture` runs their producers and writes the capture, `parityExpect` registers the movers a change intends, `parityCompare` reports what actually moved, and `parityPromote` makes a capture the new baseline. See `docs/renderer/` for the per-renderer rules and `docs/renderer/Debugging.md` for debugging a mismatch, `harness/CLAUDE.md` for the session-refresh checklist, and `.claude/skills/parity-gate/references/procedures.md` for the re-render runbook; `CLAUDE.md` is the map to all three.
 
 ### JMH Benchmarks
 
@@ -586,13 +586,17 @@ asset-renderer/
 │   ├── test/resources/      # Fixtures + the tracked parity store under lib/minecraft/renderer/parity/
 │   ├── visual/java/         # main() entry points: render drivers, parity sweeps, the pipeline dump and the parity store
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks
-├── docs/images/     # the README's showcase renders, written by ReadmeShowcaseTest
+├── docs/           # the rules, one topic a file, each indexed from the CLAUDE.md that owns it
+│   ├── renderer/    # the renderer's rules: depth, the texel fetch, armour, posing, menus, ...
+│   ├── harness/  tooling/  parity/  project/   # the detail behind each CLAUDE.md
+│   ├── KnownOpen.md # open questions nobody owns
+│   └── images/      # the README's showcase renders, written by ReadmeShowcaseTest
 ├── tooling/         # :tooling subproject: the eight generator flows + ASM scanners
 ├── parity/          # included build: the @Parity annotations + the parity toolkit (Python)
 ├── harness/         # separate build: the vanilla-reference-harness Fabric mod
 ├── build.gradle.kts  settings.gradle.kts
 ├── gradle/          # libs.versions.toml + tooling/visual/parity build scripts
-└── RENDERER-RULES.md  TEXEL-RULES.md  KNOWN-OPEN.md  CLAUDE.md  CONTRIBUTING.md  COPYRIGHT.md  LICENSE.md
+└── CLAUDE.md  CONTRIBUTING.md  COPYRIGHT.md  LICENSE.md
 ```
 
 > [!NOTE]
