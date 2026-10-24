@@ -1,16 +1,15 @@
-# asset-renderer texel rules
+# Texel rules
+
+Load when touching the texel fetch in `engine/raster` - `Rasterizer`'s per-pixel fetch,
+`RasterMath.texelOf` and `exactTexelOf`, `faceTexel` and `lastTexel` - the `1/256` corner snap as it
+feeds interpolation, its grid and its tie rule, or a pass's texture wrap. Reading the harness's
+texture-coordinate probe is [TexCoordProbe.md](TexCoordProbe.md), and the depth half of the raster
+contract is [Depth.md](Depth.md). Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 How a texture coordinate becomes a texel: what the reference GPU does to a triangle's texture
 coordinates between its corners and its sampler, what the renderer reproduces of that and how, and
-what it deliberately does not. Load this when touching the texel fetch in `engine/raster` -
-`Rasterizer`'s per-pixel fetch, `RasterMath.texelOf` and `exactTexelOf`, `faceTexel` and `lastTexel` -
-the `1/256` corner snap as it feeds interpolation, a pass's texture wrap, or the harness's
-texture-coordinate probe. `CLAUDE.md` carries the orientation and points here; the depth half of the
-raster contract is `RENDERER-RULES.md`'s *Depth: the contract*.
-
-Every rule below is durable. The measurements that produced one belong in the commit that landed it,
-and in the reason recorded with the baseline it moved; the numbers kept here are the ones a rule, a
-closed decision or the card's described behaviour rests on.
+what it deliberately does not. The numbers kept here are the ones a rule, a closed decision or the
+card's described behaviour rests on.
 
 ## What the reference GPU does
 
@@ -92,7 +91,7 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
   geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle whose
   upper corner rounds a texel beyond, and wrapping those reads from the opposite edge. The offset
   itself arrives already wrapped, taken into the render type's argument as vanilla takes it -
-  `RENDERER-RULES.md`'s *Entity model form* has why.
+  [Entity model form](EntityModelForm.md) has why.
 - A perspective lens interpolates the coordinate perspective-correctly - each corner's weight
   re-weighted by its inverse clip-`w`, then normalized - and turns the exact read off. Those two are
   everything the `perspectiveCorrect` flag forks; depth reads one plane under every lens.
@@ -107,7 +106,7 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
   it with `-Dasset.snap.grid`) settles them as the card does; any other grid moves the corners by a
   different amount and can settle a whole staircase the other way.
 - **The texture coordinate interpolates from the snapped corners**, as coverage and depth do, because
-  the interior texel edges follow them. Depth's half is the depth contract in `RENDERER-RULES.md`; the
+  the interior texel edges follow them. Depth's half is the depth contract in [Depth.md](Depth.md); the
   snap moves which samples are covered, which texel they read and the depth they compare as one.
 - The snap rounds half up in image space, `Math.round(v * 256)`. A corner java computes exactly on a
   `1/512` midpoint is not a midpoint in vanilla's own vertex arithmetic, so no tie rule on java's
@@ -117,7 +116,7 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
 
 Each of these is a property of the card, or of where vanilla's corners land, that java's exact values
 do not carry. Modelling the card's setup is a closed decision below; computing the corners in
-vanilla's order is one in `RENDERER-RULES.md`.
+vanilla's order is one in [Geometry.md](Geometry.md).
 
 - **The boundaries the card keeps exactly on the boundary.** Labelled by colour, 421 of the 4706
   boundary pixels the still, idle, walk and block sweeps hold at 26.1. Whether a boundary lands on or
@@ -149,40 +148,7 @@ vanilla's order is one in `RENDERER-RULES.md`.
   front body's side face down a 69-pixel column where java draws the tail's end cap, 13 sheet rows
   apart.
 
-## Reading the GPU's coordinate: the probe
-
-The harness's texture-coordinate probe (`TexCoordProbeMixin`, run as `harness/CLAUDE.md` says) is how
-everything in *What the reference GPU does* is known, and the way to re-measure it after a client
-bump.
-
-- **What it covers.** It patches `core/entity`, the fragment program every entity render type compiles:
-  cutout, translucent, eyes, armour, the breeze's wind and the energy swirl, each by its defines. The
-  block sweep draws its blocks through two of those render types, so it reads every sweep's subjects
-  that way - the entities, the player and armour sweeps, and the blocks. What another program draws -
-  an item through its own, the glint, a shadow, a leash - is not a coordinate.
-- **What a pixel holds.** The interpolated coordinate's whole `float`, one axis per boot: the low 24
-  bits in red, green and blue, high byte first, and the top byte in alpha with its high bit flipped.
-  Decode as `((a ^ 0x80) << 24) | (r << 16) | (g << 8) | b`. `+0.0` reads alpha `0x80` and `[0, 2)`
-  reads `0x80..0xBF`; the shader writes `-0.0` as `+0.0`, so `(0, 0, 0, 0)` is the cleared background
-  and nothing else. Alpha `0xFF` is a magnitude of at least `2^127`, so an opaque pixel another
-  program drew is recognisable; a part-transparent one writes its own alpha and cannot be told from a
-  coordinate by the pixel alone.
-- **Which fragment it is.** The shader runs vanilla's own `main` first, so every fragment vanilla
-  discards is discarded, and `TexCoordProbeBlendMixin` draws every pipeline with blending off while
-  the probe is armed - so a pixel is the last fragment that passed the depth test, an additive pass
-  included, written as it is. A pass with a texture matrix reports the transformed coordinate, the
-  one it samples.
-- **Reading a boundary.** Pair each pixel with the texel java read there - the `[PX]` pixel trace,
-  `-Dasset.entity.pixel.dump=x0,y0,x1,y1`, logs it on every `WRITE` - and measure the card's value in
-  float steps from the boundary `k / n` it sits nearest: `0` is on, negative is under. A disagreement
-  of more than one texel is a different surface or a thin face rather than a boundary, and the
-  coordinate the probe holds names the face of the sheet it came from.
-
 ## Decisions that stay closed
-
-A refusal whose stated mechanism is not in the code is void - check it against source before
-honouring one. `RENDERER-RULES.md` keeps the renderer's other refusals and `tooling/CLAUDE.md` the
-generators'.
 
 - **Do not model the reference card's interpolation setup.** The setup in *What the reference GPU
   does* can be replayed in plain double arithmetic, bit for bit with an exact-arithmetic reference,

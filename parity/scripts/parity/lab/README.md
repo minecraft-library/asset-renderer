@@ -52,9 +52,10 @@ among the scratchpad losses this package exists to stop happening again:
 - re-scoring a frozen probe under a new comparison (`rescore`)
 
 Writing them here would be inventing rather than porting, and nothing on disk is lost by their
-absence. What each was for survives as a method rather than as a number - `CLAUDE.md` keeps "read
-a suspected tint fault per channel, never through luma", and states the depth grid a quantum probe
-reads against - and no figure any of the four produced is recorded anywhere tracked. Recovering one
+absence. What each was for survives as a method rather than as a number - the parity gate's
+`references/diagnostics.md` keeps "read a suspected tint fault per channel, never through luma",
+and `docs/renderer/Depth.md` states the depth grid a quantum probe reads against - and no figure any
+of the four produced is recorded anywhere tracked. Recovering one
 means measuring again.
 
 The probe **arm/disarm** script is deliberately not here either. A gate tool that edits `src/` is

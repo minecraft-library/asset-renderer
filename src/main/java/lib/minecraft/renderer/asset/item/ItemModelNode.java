@@ -431,7 +431,7 @@ public sealed interface ItemModelNode
      * with a real gate - the block sum - not a hookup.
      *
      * <p>The quaternions arrive as raw {@code [x, y, z, w]} components, so none of the Tait-Bryan
-     * factory ordering in RENDERER-RULES.md 'JOML factories' applies to them.
+     * factory ordering in docs/renderer/Geometry.md 'JOML factories' applies to them.
      *
      * @param leftRotation the left rotation quaternion, {@code [x, y, z, w]}
      * @param rightRotation the right rotation quaternion, {@code [x, y, z, w]}

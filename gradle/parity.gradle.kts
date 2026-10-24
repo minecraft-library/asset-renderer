@@ -268,6 +268,11 @@ val paritySkillReferences: String = ".claude/skills/parity-gate/references"
 // leaves the suite UP-TO-DATE and the guard never runs on the edit it exists for.
 val paritySkillFile: String = ".claude/skills/parity-gate/SKILL.md"
 
+// The topic files under docs/, the markdown alone: the blindness map's `source` fields cite their
+// headings by name, and BlindnessMapTest holds both those citations and their prose to the map. The
+// README's showcase images sit beside them and are read by no guard here, so they stay out.
+val parityDocs: FileCollection = fileTree("docs") { include("**/*.md") }
+
 // This checkout's git index, wherever git keeps it. `.git` at the project root is the git directory
 // of a primary checkout and a `gitdir: <path>` pointer file at a linked worktree; the pointer names
 // the worktree's own directory under the primary's `.git/worktrees/`, and the index sits in
@@ -1030,13 +1035,11 @@ tasks.withType<Test>().configureEach {
     // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
     // with nothing in this file having moved.
     inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
-    // RENDERER-RULES.md for the same reason, that file holding the sections the renderer's own
-    // claims cite. It is one of the three files one check reads, so leaving it undeclared would let a
-    // heading move there against an UP-TO-DATE suite while the orientation beside it is watched.
-    inputs.file("RENDERER-RULES.md").withPropertyName("parityRendererRules")
-    // TEXEL-RULES.md for the same reason again, that file holding the sections the claims about the
-    // texel fetch cite.
-    inputs.file("TEXEL-RULES.md").withPropertyName("parityTexelRules")
+    // The topic files under docs/ for the same reason, those holding the sections the renderer's own
+    // claims and the texel fetch's cite. The check reading them reads the orientation too, so leaving
+    // them undeclared would let a heading move there against an UP-TO-DATE suite while the
+    // orientation beside them is watched.
+    inputs.files(parityDocs).withPropertyName("parityDocs")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
     // those rows are tasks a plugin registers and this file never spells - so a check parsing the

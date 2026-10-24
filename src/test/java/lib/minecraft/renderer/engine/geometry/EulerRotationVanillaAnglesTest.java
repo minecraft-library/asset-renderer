@@ -57,8 +57,8 @@ class EulerRotationVanillaAnglesTest {
     private static final @NotNull List<String> ELEMENT_ANGLES = List.of("angle", "x", "y", "z");
 
     /** The rule this measurement backs, so a failure names the decision to re-measure. */
-    private static final @NotNull String RULE = "RENDERER-RULES.md, \"Do not switch EulerRotation's "
-        + "degrees-to-radians conversion to vanilla's float multiply\"";
+    private static final @NotNull String RULE = "docs/renderer/Geometry.md, \"Do not switch "
+        + "EulerRotation's degrees-to-radians conversion to vanilla's float multiply\"";
 
     @Test
     @DisplayName("no display or element angle is one of the degrees the two routes part on")

@@ -122,7 +122,7 @@
         "digest.shipped-tables",
         "manifest.dump.packs"
       ],
-      "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'",
+      "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; docs/renderer/PackContent.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/**",
         "src/main/java/lib/minecraft/renderer/call/request/ItemContext.java",
@@ -351,7 +351,7 @@
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
       "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
       "sees": [],
-      "source": "measured by perturbing Rasterizer.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
+      "source": "measured by perturbing Rasterizer.java: 0 of 0 declared sees moved, and 2 declared blind held; docs/renderer/Depth.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"
@@ -376,7 +376,7 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
-      "source": "measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; TEXEL-RULES.md 'The fetch'",
+      "source": "measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; docs/renderer/Depth.md 'Depth: the contract'; docs/renderer/TexelFetch.md 'The fetch'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"

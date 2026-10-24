@@ -44,7 +44,7 @@ final class VectorModuleWiringTest {
     private static final String MODULE = "jdk.incubator.vector";
 
     /** Where the repo states which task types are given the flag, in prose and nowhere else. */
-    private static final Path REPO_RULES = Path.of("CLAUDE.md");
+    private static final Path REPO_RULES = Path.of("docs/project/BuildScripts.md");
 
     /**
      * The build bullet's consumer list, captured as one run so a narrowed one is read, not missed.
