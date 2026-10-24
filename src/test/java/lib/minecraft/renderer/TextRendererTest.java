@@ -48,18 +48,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pixel pins for {@link TextRenderer}'s {@code LORE}-style tooltip chrome, both of its arms drawn
  * through the renderer.
  * <p>
- * {@link ChromeStyle#PROCEDURAL}'s fill and gradient ring are sampled at known output coordinates
- * against vanilla's exact colours - background fill {@code 0xF0100010}, gradient top
+ * {@link ChromeStyle#PROCEDURAL} paints vanilla's colours as given, so its fill and gradient ring are
+ * sampled at known output coordinates against them - background fill {@code 0xF0100010}, gradient top
  * {@code 0x505000FF}, gradient bottom {@code 0x5028007F}, and the interpolated left edge bracketed
  * between them.
  * <p>
- * {@link ChromeStyle#SPRITE}'s cases pin its nine-slice pair - the notched corners and open ring
- * corners, the canvas its smaller padding sizes and the alpha multipliers applied to the sprite bytes,
- * each drawn from a context seeded with the real background and frame sprites - along with a styled
- * pair reached end to end through an item's {@code minecraft:tooltip_style} component, and the raise a
- * renderer holding no context gives the arm. The cases needing the real sprites off the offline
- * extraction skip per method rather than per class, so the procedural pins still run on a host without
- * it.
+ * {@link ChromeStyle#SPRITE}'s cases pin the bytes its blended nine-slice pair leaves, the client's
+ * framebuffer bytes - the notched corners and open ring corners, the canvas its smaller padding sizes
+ * and the alpha multipliers applied to each texel before it blends, each drawn from a context seeded
+ * with the real background and frame sprites - along with a styled pair reached end to end through an
+ * item's {@code minecraft:tooltip_style} component, and the raise a renderer holding no context gives
+ * the arm. The cases needing the real sprites off the offline extraction skip per method rather than
+ * per class, so the procedural pins still run on a host without it.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -67,14 +67,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
-    /** Vanilla's tooltip background fill, painted by both chromes */
+    /** Vanilla's tooltip background fill - the background sprite's texel, and what the code-drawn box paints */
     private static final int BACKGROUND_FILL = 0xF0100010;
 
-    /** Vanilla's border gradient at the ring's top stroke */
+    /** Vanilla's border gradient at the ring's top stroke - the frame sprite's texel, and what the code-drawn box paints */
     private static final int RING_TOP = 0x505000FF;
 
-    /** Vanilla's border gradient at the ring's bottom stroke */
+    /** Vanilla's border gradient at the ring's bottom stroke - the frame sprite's texel, and what the code-drawn box paints */
     private static final int RING_BOTTOM = 0x5028007F;
+
+    /** The fill as the client's framebuffer holds it: {@link #BACKGROUND_FILL} blended onto the cleared canvas */
+    private static final int BLENDED_FILL = 0xF00F000F;
+
+    /** {@link #RING_TOP} blended over {@link #BLENDED_FILL} */
+    private static final int BLENDED_RING_TOP = 0xF523005A;
+
+    /** {@link #RING_BOTTOM} blended over {@link #BLENDED_FILL} */
+    private static final int BLENDED_RING_BOTTOM = 0xF5170032;
 
     /** Output row of the ring's top stroke - the stroke is 1 mcPixel thick, inset 1 mcPixel from the edge */
     private static final int RING_TOP_ROW = 2;
@@ -314,8 +323,8 @@ class TextRendererTest {
 
         assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(0, 0)), is(0));
         assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(buf.width() - 1, buf.height() - 1)), is(0));
-        assertThat("fill flush top edge", buf.getPixel(buf.width() / 2, 0), is(BACKGROUND_FILL));
-        assertThat("fill flush left edge", buf.getPixel(0, buf.height() / 2), is(BACKGROUND_FILL));
+        assertThat("fill flush top edge", buf.getPixel(buf.width() / 2, 0), is(BLENDED_FILL));
+        assertThat("fill flush left edge", buf.getPixel(0, buf.height() / 2), is(BLENDED_FILL));
     }
 
     @Test
@@ -324,12 +333,12 @@ class TextRendererTest {
         assumeSprites();
         PixelBuffer buf = renderSprite(loreBuilder());
 
-        assertThat("ring top gradient", ringTop(buf), is(RING_TOP));
-        assertThat("ring bottom gradient", ringBottom(buf), is(RING_BOTTOM));
+        assertThat("ring top gradient", ringTop(buf), is(BLENDED_RING_TOP));
+        assertThat("ring bottom gradient", ringBottom(buf), is(BLENDED_RING_BOTTOM));
         // The ring corner texel is transparent in the sprite (open corner), so the background fill shows
         // through there - unlike PROCEDURAL, whose top/bottom strokes span the full width and paint the
         // ring corner purple.
-        assertThat("open ring corner shows background fill", buf.getPixel(2, 2), is(BACKGROUND_FILL));
+        assertThat("open ring corner shows background fill", buf.getPixel(2, 2), is(BLENDED_FILL));
     }
 
     @Test
@@ -345,26 +354,14 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("default alphas leave the sprite bytes untouched (multiplier 1.0)")
-    void multiplierNeutrality() {
-        assumeSprites();
-        PixelBuffer buf = renderSprite(loreBuilder());
-
-        assertThat("background alpha untouched", ColorMath.alpha(buf.getPixel(buf.width() / 2, 0)),
-            is(ColorMath.alpha(BACKGROUND_FILL)));
-        assertThat("ring alpha untouched", ColorMath.alpha(ringTop(buf)), is(ColorMath.alpha(RING_TOP)));
-    }
-
-    @Test
     @DisplayName("lowered background alpha multiplies the sprite alpha proportionally")
     void alphaOverrideMultiplies() {
         assumeSprites();
-        // backgroundAlpha 120 / vanilla 240 = 0.5 multiplier -> baked 0xF0 becomes 0x78.
+        // backgroundAlpha 120 / vanilla 240 = 0.5 multiplier -> baked 0xF0 becomes 0x78, and the halved
+        // 78100010 texel blends onto the clear canvas: 0x10 * 120/255 rounds to 0x08.
         PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(120));
 
-        int px = buf.getPixel(buf.width() / 2, 0);
-        assertThat("halved background alpha", ColorMath.alpha(px), is(0x78));
-        assertThat("background rgb untouched", px & 0xFFFFFF, is(BACKGROUND_FILL & 0xFFFFFF));
+        assertThat("halved background texel blended", buf.getPixel(buf.width() / 2, 0), is(0x78080008));
     }
 
     @Test
@@ -404,8 +401,9 @@ class TextRendererTest {
         ).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
-        // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.
-        assertThat("styled gold ring", ringTop(buf), is(0x50FFAA00));
+        // The gold-recoloured ring drove the render: its 50FFAA00 top texel blended over the fill gives
+        // F55A350A, where the vanilla frame gives F523005A.
+        assertThat("styled gold ring", ringTop(buf), is(0xF55A350A));
     }
 
     /**

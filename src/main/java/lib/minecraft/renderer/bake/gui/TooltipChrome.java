@@ -145,8 +145,9 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         /**
          * The sprite chrome: nine-slice the {@code tooltip/background} then {@code tooltip/frame} sprites
          * over the content box inflated by the vanilla margin, so their transparent margins bleed
-         * off-canvas. The option alphas become multipliers relative to the baked sprite alphas (240 / 80),
-         * so default options leave the sprite bytes untouched and a lowered alpha fades proportionally.
+         * off-canvas. The option alphas become multipliers on each texel's alpha relative to the baked
+         * sprite alphas (240 / 80), applied before the texel blends, so default options draw the sprites
+         * as authored and a lowered alpha fades them proportionally.
          */
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                              @NotNull Optional<ChromeSprites> maybeSprites, @NotNull TextOptions options) {

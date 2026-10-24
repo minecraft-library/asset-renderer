@@ -24,8 +24,12 @@ import static org.hamcrest.Matchers.not;
 /**
  * Unit tests for {@link NineSliceKit}, exercising the three scaling modes against the real 26.1
  * tooltip sprites (background border 9 / frame border 10 + stretch_inner) at the exact blit geometry
- * the tooltip chrome uses, plus the pure-algorithm cases (stretch, tile, nominal downsample,
- * degenerate-rect clamp, alpha multiplier) on synthetic sprites so they run without the client jar.
+ * the tooltip chrome uses, alpha multiplier included, plus the pure-algorithm cases (stretch, tile,
+ * nominal downsample, degenerate-rect clamp) on synthetic sprites so they run without the client jar.
+ * <p>
+ * The real-sprite cases pin the bytes the kit's blend leaves on a clear canvas: each translucent texel
+ * keeps its alpha and has its colour scaled by it, as the client's framebuffer holds it. The synthetic
+ * sprites are opaque, and the blend lays an opaque texel down as it is.
  * <p>
  * The real-sprite cases skip per method rather than per class, so they run wherever the client jar is
  * cached while the synthetic ones run everywhere.
@@ -85,10 +89,11 @@ class NineSliceKitTest {
 
         // Corner mcPixel is notched (sprite (8,8) is the cut corner) -> transparent.
         assertThat("notched top-left corner", ColorMath.alpha(canvas.getPixel(0, 0)), is(0));
-        // Fill reaches the top edge mid-span and the left edge mid-span (only corners are cut).
-        assertThat("fill flush top edge", canvas.getPixel(CANVAS_W / 2, 0), is(0xF0100010));
-        assertThat("fill flush left edge", canvas.getPixel(0, CANVAS_H / 2), is(0xF0100010));
-        assertThat("center fill", canvas.getPixel(CANVAS_W / 2, CANVAS_H / 2), is(0xF0100010));
+        // Fill reaches the top edge mid-span and the left edge mid-span (only corners are cut), the
+        // F0100010 texel blended onto the clear canvas.
+        assertThat("fill flush top edge", canvas.getPixel(CANVAS_W / 2, 0), is(0xF00F000F));
+        assertThat("fill flush left edge", canvas.getPixel(0, CANVAS_H / 2), is(0xF00F000F));
+        assertThat("center fill", canvas.getPixel(CANVAS_W / 2, CANVAS_H / 2), is(0xF00F000F));
     }
 
     @Test
@@ -101,10 +106,10 @@ class NineSliceKitTest {
 
         NineSliceKit.draw(canvas, frame, gui, BLIT_X, BLIT_Y, BLIT_W, BLIT_H, PX_SCALE, 1.0f);
 
-        // Ring top stroke sits at output y=2 (1 mcPx inset) with the vanilla top gradient colour.
-        assertThat("ring top", canvas.getPixel(CANVAS_W / 2, 2), is(0x505000FF));
-        // Ring bottom stroke at output y=canvasH-3 with the bottom gradient colour.
-        assertThat("ring bottom", canvas.getPixel(CANVAS_W / 2, CANVAS_H - 3), is(0x5028007F));
+        // Ring top stroke sits at output y=2 (1 mcPx inset), its 505000FF texel blended onto the clear canvas.
+        assertThat("ring top", canvas.getPixel(CANVAS_W / 2, 2), is(0x50190050));
+        // Ring bottom stroke at output y=canvasH-3, its 5028007F texel blended onto the clear canvas.
+        assertThat("ring bottom", canvas.getPixel(CANVAS_W / 2, CANVAS_H - 3), is(0x500D0028));
         // The ring corner pixel is transparent in the sprite -> open corner (destination untouched).
         assertThat("open ring corner", ColorMath.alpha(canvas.getPixel(2, 2)), is(0));
         // Left edge mid-height is the stretched gradient interior: border alpha 0x50, green constant 0,
@@ -112,12 +117,12 @@ class NineSliceKitTest {
         int mid = canvas.getPixel(2, CANVAS_H / 2);
         assertThat("left edge alpha", ColorMath.alpha(mid), is(0x50));
         assertThat("left edge green constant", ColorMath.green(mid), is(0));
-        assertThat("left edge is interpolated (not top)", mid, is(not(0x505000FF)));
-        assertThat("left edge is interpolated (not bottom)", mid, is(not(0x5028007F)));
+        assertThat("left edge is interpolated (not top)", mid, is(not(0x50190050)));
+        assertThat("left edge is interpolated (not bottom)", mid, is(not(0x500D0028)));
     }
 
     @Test
-    @DisplayName("alpha multiplier scales the frame ring alpha, leaving rgb untouched")
+    @DisplayName("alpha multiplier scales the ring texel's alpha before it blends")
     void alphaMultiplierScalesRingAlpha() {
         assumeSprites();
         PixelBuffer frame = load("frame.png");
@@ -126,10 +131,9 @@ class NineSliceKitTest {
 
         NineSliceKit.draw(canvas, frame, gui, BLIT_X, BLIT_Y, BLIT_W, BLIT_H, PX_SCALE, 0.5f);
 
-        int top = canvas.getPixel(CANVAS_W / 2, 2);
-        // 0x50 (80) * 0.5 = 40 = 0x28; rgb unchanged.
-        assertThat("halved ring alpha", ColorMath.alpha(top), is(0x28));
-        assertThat("ring rgb untouched", top & 0xFFFFFF, is(0x5000FF));
+        // 0x50 (80) * 0.5 = 40 = 0x28, then the halved 285000FF texel blends onto the clear canvas:
+        // 0x50 * 40/255 rounds to 0x0D and 0xFF * 40/255 to 0x28.
+        assertThat("halved ring texel blended", canvas.getPixel(CANVAS_W / 2, 2), is(0x280D0028));
     }
 
     @Test

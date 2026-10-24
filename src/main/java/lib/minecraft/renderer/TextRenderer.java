@@ -137,8 +137,9 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
-        // The tooltip chrome is painted in its own colour rather than blended onto the canvas, so every
-        // frame holds straight colour and is marked so.
+        // Every frame is marked STRAIGHT, which is exact of the code-drawn box, since it paints its
+        // colour; the sprite box blends its sprites onto the canvas, so its translucent chrome is held
+        // premultiplied under the same mark.
         if (!animated)
             return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst(), AlphaMode.STRAIGHT);
 

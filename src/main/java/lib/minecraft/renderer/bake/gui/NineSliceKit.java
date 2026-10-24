@@ -2,9 +2,11 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -12,17 +14,16 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Blits a {@code gui.scaling}-governed sprite (stretch, tile, nine_slice) into a destination rect.
  * <p>
- * The reusable GUI-sprite compositor matching the {@code GlintKit} /
- * {@link TextKit} static-kit convention. Every {@code gui/sprites/**} widget scales through the same
- * {@link MCMeta.GuiScaling} system; the two named consumers are the themable tooltip chrome and the
- * menu chest chrome.
+ * The reusable GUI-sprite compositor matching the {@link GlintKit} / {@link TextKit} static-kit
+ * convention. Every {@code gui/sprites/**} widget scales through the same {@link MCMeta.GuiScaling}
+ * system, and the themable tooltip chrome draws its sprite pair through it.
  * <p>
- * Compositing is a straight-alpha <b>paint</b>: each sprite texel whose (post-multiplier) alpha is
- * non-zero overwrites the destination pixel, and a fully transparent texel leaves the destination
- * untouched. This matches the vanilla opaque GUI-sprite blit and the renderer's existing chrome
- * (which places its background fill and gradient ring with straight-alpha writes), so an
- * {@code alphaMul} of {@code 1.0} reproduces the sprite bytes exactly and a semi-transparent ring
- * texel replaces the fill beneath it rather than compositing over it.
+ * Each texel is laid down as the client lays a GUI sprite: its alpha scaled by the caller's
+ * multiplier, a texel left at alpha 0 discarded so the destination pixel stays as it was, and every
+ * other texel blended over the destination with {@link BlendMode#NORMAL}, the client's source-alpha
+ * blend. A sprite drawn onto a transparent canvas therefore holds each translucent texel already
+ * scaled by its alpha - the bytes the client's framebuffer holds - and a translucent ring texel
+ * composites over the fill beneath it.
  * <p>
  * Slicing happens in <b>sprite space</b> at the sprite's nominal ({@link MCMeta.GuiScaling#width()} /
  * {@link MCMeta.GuiScaling#height()}) resolution; each mapped texel then expands by {@code pxScale}
@@ -44,7 +45,8 @@ public class NineSliceKit {
      * @param w the destination rect width in output px
      * @param h the destination rect height in output px
      * @param pxScale the output px per sprite px ({@code MinecraftFont.MC_PIXEL_SCALE} = 2 for text chrome)
-     * @param alphaMul the per-texel alpha multiplier, {@code 1.0} leaving the sprite bytes untouched
+     * @param alphaMul the per-texel alpha multiplier, applied before the texel blends; {@code 1.0} draws
+     * the sprite as authored
      */
     public static void draw(
         @NotNull PixelBuffer dest,
@@ -68,7 +70,7 @@ public class NineSliceKit {
             int sy = syByLocal[dy - y];
             for (int dx = x0; dx < x1; dx++) {
                 int argb = multiply(src.getPixel(sxByLocal[dx - x], sy), alphaMul);
-                if (ColorMath.alpha(argb) != 0) dest.setPixel(dx, dy, argb);
+                if (ColorMath.alpha(argb) != 0) dest.setPixel(dx, dy, ColorMath.blend(argb, dest.getPixel(dx, dy), BlendMode.NORMAL));
             }
         }
     }
