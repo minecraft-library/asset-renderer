@@ -256,6 +256,10 @@ whole cost. In the first two states, read the producer list instead.
 - `-PallowDirty=true` on `parityPromote` - promote a capture taken from an uncommitted tree, and
   record the exception in the promoted provenance. Reach for it only when the alternative is worse:
   the baseline is then re-derivable from no commit, and nothing read later recovers that.
+- `-PallowPartial=true` on `parityPromote` - promote a capture that records failed rows, and record
+  the exception in the promoted provenance. It answers the partial-capture refusal for a sweep whose
+  rows fail by design until a later fix lands, so its first baseline holds those rows as failed; a
+  row that fails for any other reason is a producer to fix, not a baseline to take.
 - `-Ppopulation=changed` on `parityPromote` - the answer to the refusal below on a row count that
   moved, and the only one. It says the new covered set is intended, and records the exception in the
   promoted provenance. It waives nothing else: the digests still have to have been compared, and a

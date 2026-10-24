@@ -1556,7 +1556,7 @@ tasks {
 
     register<Exec>("parityPromote") {
         description = "Promotes the parity working root into the production store as the new baseline and writes the " +
-            "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap -PallowDirty"
+            "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap -PallowDirty -PallowPartial"
         group = "parity"
         dependsOn("paritySelfTest")
         // `parityPromote parityCompare` promoted the root into the store and then diffed the root
@@ -1585,6 +1585,10 @@ tasks {
         // refusal is one nobody can answer. It is recorded in the promoted provenance, because an
         // exception nothing writes down cannot be told from the refusal never having fired.
         val allowDirty = parityFlag("allowDirty")
+        // The partial-capture refusal's override, reachable from here for the same reason: a sweep
+        // whose rows fail by design until a later fix lands has a first baseline only through it, and
+        // the toolkit records the exception in the promoted provenance.
+        val allowPartial = parityFlag("allowPartial")
         parityToolkit(*buildList {
             add("promote-apply")
             add("--root"); add(parityWorkingRoot)
@@ -1595,6 +1599,7 @@ tasks {
             if (population) add("--population-changed")
             if (bootstrap) add("--bootstrap")
             if (allowDirty) add("--allow-dirty")
+            if (allowPartial) add("--allow-partial")
         }.toTypedArray())
         outputs.upToDateWhen { false }
     }
