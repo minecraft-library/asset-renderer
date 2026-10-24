@@ -120,6 +120,10 @@ public final class ParityArtifacts {
         // are the only subjects this row is the gate for. Same floor, a sweep being a pure function of
         // two file sets.
         Registration.store("sweep.entity-walk", 2, "entityWalkParityVanilla"),
+        // The tooltip references diffed at an equal canvas, each roster subject whole and as its box
+        // alone, so a mover says whether the box or the text moved. Same floor, a sweep being a pure
+        // function of two file sets.
+        Registration.store("sweep.tooltip", 2, "tooltipParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all.

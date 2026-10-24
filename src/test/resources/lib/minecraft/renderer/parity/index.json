@@ -292,6 +292,11 @@
       "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
       "sha256": "61db25532c9673656e695b9d6c76e98e3f9d1c5b88857e601936fb0edea1625c",
       "sum": "8.3792"
+    },
+    "sweep.tooltip": {
+      "baselined": false,
+      "determinism_floor": 2,
+      "kind": "sweep-table"
     }
   },
   "external": {

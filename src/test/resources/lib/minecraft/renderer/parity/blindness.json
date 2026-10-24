@@ -872,7 +872,8 @@
         "manifest.references",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'",
       "trigger_paths": [
@@ -967,7 +968,8 @@
         "manifest.portal",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
@@ -1287,7 +1289,7 @@
       "id": "B47",
       "mode": "select",
       "probe": "bump one strictly() pin to a sha jitpack serves, capture the bundle this rule plans, and read which rows move; an artifact that holds under every pin is a narrowing to measure, never one to assume",
-      "reason": "These two files are where this project's dependency versions are written down - the strictly() pins in the build file and the third-party versions in the catalog, Gson's and JOML's among them - and a version is a statement about which code a producer runs, not about which producer runs. So an edit here can move a stored byte without a line of this repo's source changing, which is the opposite of what B31 says about the wiring it still speaks for. Every producer this store captures runs code these pins choose. The renders, the pins taken over them and the sweeps draw through the image and text libraries, the menu sweep among them: its titles and the anvil's field are drawn by minecraft-text and compared pixel for pixel against the client's. The dump decodes the pack stack through Gson and gson-extras and writes each compound through nbt-factory's SNBT writer. The generator flows run in the tooling subproject, which takes this project on its implementation classpath and every pin declared here with it, beside the ASM version its own build file declares, which B43 speaks for. The shipped-tables digest is taken over Gson's re-serialised form of each table, and the corpus count is the size of what each loader decodes. The harness is a build of its own whose versions B29 speaks for, but its posed sub-trees are rendered at the schedule entityScheduleRoster writes, a task of this build run on the visual runtime classpath. So nothing is listed blind. The sees list is the mechanism's consequence rather than one perturbation's: a single pin was measured and the rest follow from a version swapping code, so narrowing it is a measurement somebody can take.",
+      "reason": "These two files are where this project's dependency versions are written down - the strictly() pins in the build file and the third-party versions in the catalog, Gson's and JOML's among them - and a version is a statement about which code a producer runs, not about which producer runs. So an edit here can move a stored byte without a line of this repo's source changing, which is the opposite of what B31 says about the wiring it still speaks for. Every producer this store captures runs code these pins choose. The renders, the pins taken over them and the sweeps draw through the image and text libraries, the menu and tooltip sweeps among them: a menu's titles and the anvil's field, and every line of a tooltip, are drawn by minecraft-text and compared pixel for pixel against the client's. The dump decodes the pack stack through Gson and gson-extras and writes each compound through nbt-factory's SNBT writer. The generator flows run in the tooling subproject, which takes this project on its implementation classpath and every pin declared here with it, beside the ASM version its own build file declares, which B43 speaks for. The shipped-tables digest is taken over Gson's re-serialised form of each table, and the corpus count is the size of what each loader decodes. The harness is a build of its own whose versions B29 speaks for, but its posed sub-trees are rendered at the schedule entityScheduleRoster writes, a task of this build run on the visual runtime classpath. So nothing is listed blind. The sees list is the mechanism's consequence rather than one perturbation's: a single pin was measured and the rest follow from a version swapping code, so narrowing it is a measurement somebody can take.",
       "sees": [
         "digest.colormap-lut",
         "digest.shipped-tables",
@@ -1315,7 +1317,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "measured by bumping the minecraft-library:text pin from 117775e to 172ed90: 13 of 199 manifest.visual rows moved, every one of them a render that draws text, and the other thirteen artifacts captured beside it held; every other member is declared from what its producer runs - the libraries its code imports and the classpath its task is given",
       "trigger_paths": [
@@ -1343,14 +1346,15 @@
         "sweep.item",
         "sweep.player",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "A menu reaches the visual manifest and nothing else this store holds",
       "claim_key": "menu-closure",
       "id": "B48",
       "mode": "demote",
       "probe": "perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does",
-      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the call.slot package holds nine other slot enums, and the call.request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
+      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, the glint sweep an overlay over an item and the tooltip sweep a text render over its box; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the call.slot package holds nine other slot enums, and the call.request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
       "sees": [
         "manifest.visual",
         "sweep.menu"
@@ -1416,7 +1420,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The menu sweep reaches the menu references and no other sub-tree",
       "claim_key": "harness-menu-sweep",
@@ -1444,7 +1449,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The block sweep and the types only it reaches write blocks/ and nothing else",
       "claim_key": "harness-block-sweep",
@@ -1478,7 +1484,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The item sweep enumerates the non-block items and writes items/ alone",
       "claim_key": "harness-item-sweep",
@@ -1505,7 +1512,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The GUI item frame renderer draws for the item sweep and for the foil half of the glint one",
       "claim_key": "harness-gui-item-frame",
@@ -1532,7 +1540,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "manifest.player-raw"
+        "manifest.player-raw",
+        "sweep.tooltip"
       ],
       "claim": "The entity sweep enumerates the entity roster and writes entities/ alone",
       "claim_key": "harness-entity-sweep",
@@ -1557,7 +1566,8 @@
         "sweep.block",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "claim": "The entity frame renderer and its bounds walker draw every mob any sweep renders",
       "claim_key": "harness-entity-frame",
@@ -1590,7 +1600,8 @@
         "sweep.menu",
         "sweep.player",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The armour sweep names its own subjects and writes armor/ alone",
       "claim_key": "harness-armor-sweep",
@@ -1619,7 +1630,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The glint sweep steps its own clock and writes glint/ alone",
       "claim_key": "harness-glint-sweep",
@@ -1646,7 +1658,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "The player sweep and its frame renderer write players/ and no other sub-tree",
       "claim_key": "harness-player-sweep",
@@ -1678,7 +1691,8 @@
         "manifest.player-raw",
         "manifest.references",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.tooltip"
       ],
       "claim": "A probe writes outside the reference tree, so nothing this store holds can see one",
       "claim_key": "harness-probe-sweep",
@@ -1706,7 +1720,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "claim": "The posed sweep renders every subject at its own schedule and writes idle/ and walk/ alone",
       "claim_key": "harness-animation-sweep",
@@ -1775,16 +1790,17 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
-      "claim": "The CIT grammar reaches the item, armour, entity, menu and player producers through a match none of them asks, because none of them stacks a pack carrying a CIT rule",
+      "claim": "The CIT grammar reaches the item, armour, entity, menu, player and tooltip producers through a match none of them asks, because none of them stacks a pack carrying a CIT rule",
       "claim_key": "cit-grammar",
       "id": "B64",
       "mode": "demote",
-      "probe": "invert the answer ItemContext.matches gives, capture the twelve artifacts listed blind and compare them against the store: every one holds and none gains or loses a row, while the fast suite's CIT match cases fail under the same edit",
-      "reason": "CitRule and the value predicates under asset/rule/filter are the CIT grammar: the parser builds them out of a cit/ tree, and they are matched in one place - ItemContext.matches(CitRule), which the item override, the armour override and the glint lookup each call for every rule of the type they walk in the stack's RuleSet. That method is why the reference graph answers fifteen artifacts for every grammar type: every item, armour, entity, menu and player producer reaches ItemContext, and the asset-layer claim selects whatever the graph answers. RuleScanner returns an empty rule set for a pack carrying no optifine/ tree and the client jar carries none, and the twelve producers listed blind render with the client jar alone - no sweep, visual main or pin stacks a texture pack, and the player-sheet driver stacks one only when a capture passes -Ppack. So no CIT rule is parsed or matched in any of them, and a change to the grammar cannot reach a byte they write. The three the graph still answers - both dumps and the colormap digest - stay selected by B2 and B25 on these same paths, and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim types rather than a glob: the rule package holds the CTM grammar and the colour overrides beside the CIT types, and ItemContext is built by every item render whether or not a rule exists, so a glob over the package or a trigger on the context would hide a sweep from a change that moves it. The grammar's own gate is ./gradlew test, where CitParserTest, CitRuleMatchTest, NbtRuleMatchTest and IntRangeTest run. CitOutput, CitType, DamageSpec, EnchantmentSpec and Hand are the values a parsed rule carries, and what holds for the grammar holds for them on the parse side as on the match: CitParser builds each one out of a cit/ tree, and they are read only where a rule is - the type tests of the item, armour and glint walks, the hand, damage and enchantment checks of ItemContext.matches, the glint lookup's texture and CitResult.of, which carries a matched output into the render. Every one of those reads sits inside a walk over the stack's CIT rules, which holds none in the twelve producers, and CitTypes.of, the one call on those paths outside a walk, picks the subject an armour walk then compares against no rule. Their own gate is the same suite, with IndexedRendererContextItemOverrideTest, IndexedRendererContextArmorOverrideTest and RuleLookupGlintTest beside the four above.",
+      "probe": "invert the answer ItemContext.matches gives, capture the artifacts listed blind and compare them against the store: every one holds and none gains or loses a row, while the fast suite's CIT match cases fail under the same edit",
+      "reason": "CitRule and the value predicates under asset/rule/filter are the CIT grammar: the parser builds them out of a cit/ tree, and they are matched in one place - ItemContext.matches(CitRule), which the item override, the armour override and the glint lookup each call for every rule of the type they walk in the stack's RuleSet. That method is why the reference graph answers the renders for every grammar type: every item, armour, entity, menu and player producer reaches ItemContext, the tooltip producer reaches it through the tooltip chrome's item-style lookup, which it never calls, and the asset-layer claim selects whatever the graph answers. RuleScanner returns an empty rule set for a pack carrying no optifine/ tree and the client jar carries none, and the producers listed blind render with the client jar alone - no sweep, visual main or pin stacks a texture pack, and the player-sheet driver stacks one only when a capture passes -Ppack. So no CIT rule is parsed or matched in any of them, and a change to the grammar cannot reach a byte they write. The three the graph still answers - both dumps and the colormap digest - stay selected by B2 and B25 on these same paths, and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim types rather than a glob: the rule package holds the CTM grammar and the colour overrides beside the CIT types, and ItemContext is built by every item render whether or not a rule exists, so a glob over the package or a trigger on the context would hide a sweep from a change that moves it. The grammar's own gate is ./gradlew test, where CitParserTest, CitRuleMatchTest, NbtRuleMatchTest and IntRangeTest run. CitOutput, CitType, DamageSpec, EnchantmentSpec and Hand are the values a parsed rule carries, and what holds for the grammar holds for them on the parse side as on the match: CitParser builds each one out of a cit/ tree, and they are read only where a rule is - the type tests of the item, armour and glint walks, the hand, damage and enchantment checks of ItemContext.matches, the glint lookup's texture and CitResult.of, which carries a matched output into the render. Every one of those reads sits inside a walk over the stack's CIT rules, which holds none in the producers listed blind, and CitTypes.of, the one call on those paths outside a walk, picks the subject an armour walk then compares against no rule. Their own gate is the same suite, with IndexedRendererContextItemOverrideTest, IndexedRendererContextArmorOverrideTest and RuleLookupGlintTest beside the four above.",
       "sees": [],
-      "source": "measured by perturbing ItemContext.java so its CIT match answered the inverse of every rule: 0 of 0 declared sees moved, and 11 declared blind held, none of them gaining or losing a row; the 18 fast-suite cases that walk a CIT rule through the armour override, the glint lookup or the match itself failed under the same edit, so the perturbation was live on every path a CIT rule is read through; then by perturbing, together, how CitParser, CitType.parse and Hand.parse build the five value types CitRule carries and every place a rule's values are read - the type tests of the item and glint walks, the armour walk's subject, the hand, damage and enchantment checks of ItemContext.matches and CitResult.of: the eleven declared blind held against an unperturbed capture of the same eleven, none of them gaining or losing a row; each of the twelve edits alone turned at least one fast-suite case red, 43 in all, the item walk's through a probe case outside the committed suite; IndexedRendererContextItemOverrideTest holds the committed cases that walk that loop with a rule, and each of five edits to the walk alone - its type test inverted or removed, the last match kept for the first, the glint dropped from the winning output or from the no-match result - turned at least one of its seven cases red; and sweep.entity-walk, the stride row, by the first perturbation alone: under the inverted match the same 18 fast-suite cases failed and its capture held against the store, none of its rows gaining or losing",
+      "source": "measured by perturbing ItemContext.java so its CIT match answered the inverse of every rule: 0 of 0 declared sees moved, and 11 declared blind held, none of them gaining or losing a row; the 18 fast-suite cases that walk a CIT rule through the armour override, the glint lookup or the match itself failed under the same edit, so the perturbation was live on every path a CIT rule is read through; then by perturbing, together, how CitParser, CitType.parse and Hand.parse build the five value types CitRule carries and every place a rule's values are read - the type tests of the item and glint walks, the armour walk's subject, the hand, damage and enchantment checks of ItemContext.matches and CitResult.of: the eleven declared blind held against an unperturbed capture of the same eleven, none of them gaining or losing a row; each of the twelve edits alone turned at least one fast-suite case red, 43 in all, the item walk's through a probe case outside the committed suite; IndexedRendererContextItemOverrideTest holds the committed cases that walk that loop with a rule, and each of five edits to the walk alone - its type test inverted or removed, the last match kept for the first, the glint dropped from the winning output or from the no-match result - turned at least one of its seven cases red; and sweep.entity-walk, the stride row, by the first perturbation alone: under the inverted match the same 18 fast-suite cases failed and its capture held against the store, none of its rows gaining or losing; sweep.tooltip declared from the call site: the tooltip sweep builds no ItemContext and stacks no pack, so the lookup that carries its edge never runs",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/CitOutput.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java",
@@ -1841,9 +1857,10 @@
       "id": "B66",
       "mode": "demote",
       "probe": "move the sweep's fixed origin by one GUI pixel and re-render the whole tree: every tooltips/ file moves and every other sub-tree hashes identically",
-      "reason": "TooltipSweep draws every subject of the tracked tooltip roster through the client's own tooltip call, and the same subject's box alone, into the shared GUI capture, and writes tooltips/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. No sweep this store holds reads tooltips/, and manifest.references hashes the whole tree, so that is the whole answer.",
+      "reason": "TooltipSweep draws every subject of the tracked tooltip roster through the client's own tooltip call, and the same subject's box alone, into the shared GUI capture, and writes tooltips/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The tooltip references are what sweep.tooltip diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.",
       "sees": [
-        "manifest.references"
+        "manifest.references",
+        "sweep.tooltip"
       ],
       "source": "declared from the write site, the B61 shape: SweepRunner resolves every path this sweep writes as outputRoot / sweep.outputDir(), and the sweep makes no write outside that resolution; the whole-tree render that added tooltips/ to the stored tree added its 28 files and moved no path outside it",
       "trigger_paths": [
@@ -1855,15 +1872,16 @@
         "src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json"
       ],
       "blind": [],
-      "claim": "The tooltip roster is what the tooltip references are drawn from, so an edit to it reaches them",
+      "claim": "The tooltip roster is what the tooltip references and the tooltip sweep are both drawn from, so an edit to it reaches both",
       "id": "B67",
       "mode": "select",
-      "probe": "change one subject's colour and run renderVanillaTooltipReferences: that subject's full reference moves, and its box-alone twin and every other file hold",
-      "reason": "The harness reads this file by path - the harness build defaults refharness.tooltipRoster to it - and draws every subject it names, and each subject's box alone, into tooltips/, so an edit to it re-renders that sub-tree. It is a resource, which no declaration can reach, so the rule is authored. The harness's own sources reach the same sub-tree through B29 and B66.",
+      "probe": "change one subject's colour, run renderVanillaTooltipReferences and then tooltipParityVanilla: that subject's full reference and its full row move, and its box-alone reference, its box-alone row and every other file and row hold",
+      "reason": "The harness reads this file by path - the harness build defaults refharness.tooltipRoster to it - and draws every subject it names, and each subject's box alone, into tooltips/, so an edit to it re-renders that sub-tree. TooltipParitySweep reads the same file off the visual classpath and renders every subject it names, whole and as its box alone, so an edit moves the measurement with the ground truth it is measured against. It is a resource, which no declaration can reach, so the rule is authored. The harness's own sources reach the same sub-tree through B29 and B66.",
       "sees": [
-        "manifest.references"
+        "manifest.references",
+        "sweep.tooltip"
       ],
-      "source": "declared from the read site: TooltipSweep enumerates the file refharness.tooltipRoster names and nothing else, and the harness build sets that property on every run",
+      "source": "declared from the two read sites: TooltipSweep enumerates the file refharness.tooltipRoster names and nothing else, the harness build sets that property on every run, and TooltipParitySweep reads the same file as the classpath resource beside it",
       "trigger_paths": [
         "src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json"
       ]
@@ -1886,14 +1904,65 @@
       "id": "B68",
       "mode": "demote",
       "probe": "change the capture's clear colour and re-render the whole tree: menus/ and tooltips/ move and every other sub-tree hashes identically",
-      "reason": "GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep and TooltipSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, no sweep this store holds reads tooltips/, and manifest.references hashes the whole tree, so those two are the whole answer.",
+      "reason": "GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep and TooltipSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu and tooltip references are what sweep.menu and sweep.tooltip diff against, and manifest.references hashes the whole tree, so those three are the whole answer.",
       "sees": [
         "sweep.menu",
-        "manifest.references"
+        "manifest.references",
+        "sweep.tooltip"
       ],
       "source": "measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held",
       "trigger_paths": [
         "harness/src/client/java/lib/minecraft/refharness/frame/GuiFrameRenderer.java"
+      ]
+    },
+    {
+      "authored_paths": [
+        "src/visual/java/lib/minecraft/renderer/driver/LoreTooltipDriver.java"
+      ],
+      "blind": [
+        "digest.colormap-lut",
+        "digest.shipped-tables",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.references",
+        "manifest.tooling-tables",
+        "pin.block-crc",
+        "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.kit-corners",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "pin.vanilla-iso-pose",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "claim": "A text render reaches the visual manifest and the tooltip sweep, and nothing else this store holds",
+      "claim_key": "text-closure",
+      "id": "B69",
+      "mode": "demote",
+      "probe": "perturb a chrome number - the sprite padding, a border - re-run the render bundle and read which artifacts move: the lore-tooltip members of manifest.visual and the tooltip sweep's rows move, and nothing else does",
+      "reason": "TextRenderer draws a tooltip or a run of chat text over the chrome TooltipChrome contributes, and NineSliceKit is the sprite box's blit. No other renderer calls any of the three - a menu draws its labels through TextKit, which is why TextKit and GradientKit are not carriers - and of the producers this store captures only two construct a TextRenderer: the lore-tooltip driver, whose files manifest.visual hashes, and the tooltip sweep. On these paths the reference graph answers through the engine claim and the visual mains select through B32, so the demote is what states the closure, and with an empty held ledger reach check refuses any new edge from a carrier into what it lists blind. The trigger list is verbatim paths and never a glob: bake.gui holds the text kits the menu, item, block and glint producers reach, and a glob over it would hide those sweeps from a change that moves them.",
+      "sees": [
+        "manifest.visual",
+        "sweep.tooltip"
+      ],
+      "source": "declared from the reference graph: TextRenderer, TooltipChrome and NineSliceKit are reached from LoreTooltipDriver and TooltipParitySweep and from no other root, and the held demote's empty ledger holds that on every rebuild of the graph",
+      "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/TextRenderer.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/NineSliceKit.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/TooltipChrome.java",
+        "src/visual/java/lib/minecraft/renderer/driver/LoreTooltipDriver.java"
       ]
     }
   ]

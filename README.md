@@ -464,7 +464,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over nine sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint and the shipped container screens, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `idle`, `walk`). Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla          -PentityId=minecraft:zombie      # omit -P for the full sweep
@@ -476,6 +476,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew playerParityVanilla                                           # FULL + SKULL scopes
 ./gradlew armorParityVanilla                                            # worn-armor shells
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
+./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone
 ```
 
 > [!NOTE]
@@ -484,12 +485,13 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`-group tasks):
 
 ```bash
-./gradlew renderVanillaAllReferences        # all nine sweeps in one client boot - the only task that leaves no sub-tree stale
+./gradlew renderVanillaAllReferences        # every sweep in one client boot - the only task that leaves no sub-tree stale
 ./gradlew renderVanillaReferences           # blocks + items + entities + player
 ./gradlew renderVanillaGlintReferences      # animated glint strips (then run glintParityVanilla)
 ./gradlew renderVanillaPlayerReferences     # player scopes (then run playerParityVanilla)
 ./gradlew renderVanillaArmorReferences      # worn-armor shells (then run armorParityVanilla)
 ./gradlew renderVanillaMenuReferences       # container screens (then run menuParityVanilla)
+./gradlew renderVanillaTooltipReferences    # tooltips (then run tooltipParityVanilla)
 ./gradlew renderVanillaAnimationReferences  # idle/ frames (then run entityAnimationParityVanilla)
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
 ```

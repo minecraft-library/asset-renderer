@@ -17,6 +17,9 @@ import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
@@ -47,6 +50,7 @@ import java.util.Optional;
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link TextKit} obfuscation substitution.
  */
+@Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
 
     /**

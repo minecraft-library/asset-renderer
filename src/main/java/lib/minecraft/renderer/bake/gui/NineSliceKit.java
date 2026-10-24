@@ -5,6 +5,8 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -27,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
  * nearest-neighbor, so corners stay pixel-crisp and a baked gradient edge stretches continuously.
  */
 @UtilityClass
+@Parity(claim = "text-closure", mode = Mode.DEMOTE)
 public class NineSliceKit {
 
     /**

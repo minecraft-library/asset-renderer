@@ -387,11 +387,7 @@ final class BlindnessMapTest {
     /**
      * The stored artifacts whose names identify each renderer that has one.
      *
-     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact - it is written
-     * outside every root a capture hashes, and its own tests are its gate - and the grid, layout and
-     * text renderers have none at all. Those four appear nowhere among the
-     * store's ids, which is the fact the roster exists to carry: a subject is the only place in this
-     * repository a reader learns that the text renderer is in the parity picture and is ungated.
+     * <p>Eight of the eleven, and {@link #UNPICTURED} names the other three.
      *
      * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
      * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
@@ -410,7 +406,23 @@ final class BlindnessMapTest {
         "ITEM", List.of("sweep.item"),
         "MENU", List.of("sweep.menu"),
         "PLAYER", List.of("sweep.player"),
-        "PORTAL", List.of("manifest.portal"));
+        "PORTAL", List.of("manifest.portal"),
+        "TEXT", List.of("sweep.tooltip"));
+
+    /**
+     * The renderers with no stored artifact of their own, in enum order.
+     *
+     * <p>The atlas renderer's output is registered as no artifact - it is written outside every root a
+     * capture hashes, and its own tests are its gate - and the grid and layout renderers have none at
+     * all. Those three appear nowhere among the store's ids, which is the fact the roster exists to
+     * carry: a subject is the only place in this repository a reader learns that the grid and layout
+     * renderers are in the parity picture and are ungated.
+     *
+     * <p>Written down beside {@link #IDENTIFYING_ARTIFACTS} rather than read as its complement, because
+     * a renderer dropped from that map would then read as one with no picture, and every claim naming
+     * it would be held to nothing.
+     */
+    private static final List<String> UNPICTURED = List.of("ATLAS", "GRID", "LAYOUT");
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -1625,7 +1637,19 @@ final class BlindnessMapTest {
                 }
             });
         }
+        List<String> renderers = Stream.of(Subject.values()).map(Enum::name)
+            .filter(name -> !NOT_A_RENDERER.contains(name))
+            .sorted()
+            .toList();
+        List<String> accounted = Stream.concat(IDENTIFYING_ARTIFACTS.keySet().stream(), UNPICTURED.stream())
+            .sorted()
+            .toList();
 
+        assertThat("the renderers with a picture and the renderers without one, against the roster. "
+            + "The two clauses on what a claim reaches quantify over the renderers with a picture, so "
+            + "one missing from both lists has every claim naming it held to nothing - no picture for "
+            + "the claim to reach, and no other claim refused for reaching that renderer's own - and "
+            + "one in both is said to have a picture and to have none", accounted, equalTo(renderers));
         assertThat("no claim names exactly one renderer, which would leave both clauses below true "
             + "of nothing", checked, is(not(empty())));
         assertThat("claims naming one renderer that reach a different renderer's own picture. "

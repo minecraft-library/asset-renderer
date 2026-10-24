@@ -51,7 +51,7 @@ final class SweepSortDirectionTest {
         "EntityParitySweep.java", "EntityAnimationParitySweep.java",
         "BlockParitySweep.java", "ItemParitySweep.java",
         "PlayerParitySweep.java", "ArmorParitySweep.java", "GlintParitySweep.java",
-        "MenuParitySweep.java");
+        "MenuParitySweep.java", "TooltipParitySweep.java");
 
     /** Where the build file registers the task that runs each writer. */
 

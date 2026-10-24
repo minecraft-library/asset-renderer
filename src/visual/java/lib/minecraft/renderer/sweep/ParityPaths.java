@@ -8,12 +8,10 @@ import java.nio.file.Path;
 /**
  * The one owner of the vanilla reference tree's path.
  *
- * <p>The version segment used to be a literal in five Gradle task bodies, six sweep mains and one
- * round-trip test with nothing linking them, so a Minecraft version bump was twelve string edits and
- * a missed one produced a sweep that silently found no ground truth and reported a clean tree. The
- * build now derives the segment from the harness's own {@code gradle.properties} and hands it down as
- * {@code asset.parity.references}; the default here is what lets a bare {@code java} invocation and a
- * fork that never saw the property agree.
+ * <p>The build derives the tree's version segment from the harness's own {@code gradle.properties}
+ * and hands it to every {@code Test} and {@code JavaExec} fork as {@code asset.parity.references}, and
+ * the default here is the same string, so a bare {@code java} invocation and a fork that never saw the
+ * property agree.
  */
 @UtilityClass
 public final class ParityPaths {
@@ -31,8 +29,7 @@ public final class ParityPaths {
     /**
      * Returns one sub-tree of the reference tree.
      *
-     * @param subTree the sub-tree name - {@code blocks}, {@code items}, {@code entities},
-     *     {@code players}, {@code glint} or {@code armor}
+     * @param subTree the sub-tree name, the directory the harness sweep that draws it writes
      * @return its directory
      */
     public static @NotNull Path references(@NotNull String subTree) {

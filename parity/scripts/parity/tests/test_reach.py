@@ -651,6 +651,36 @@ class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
                   and any(blindness.matches(path, rule.trigger_paths) for path in paths)}
         self.assertEqual(sorted(firing), sorted(reach.HELD_DEMOTES))
 
+    #: The held demotes that state a closure: a renderer whose types reach the visual manifest and
+    #: one sweep, and nothing else the store holds.
+    CLOSURES = ("menu-closure", "text-closure")
+
+    def test_every_closure_carrier_answers_what_its_demote_sees(self):
+        """The half of a closure its empty ledger cannot hold: each carrier reaches what it sees.
+
+        The empty ledger refuses an edge into what the demote calls blind, so a carrier reaches no
+        more than the claim says. But a demote also puts what it sees back in every plan it fires
+        on, so a carrier the graph no longer answers with one of those artifacts - a producer that
+        stopped constructing the type, or a graph built before the producer was rooted - plans
+        exactly as one it still reaches, and the claim would go false with every plan unchanged.
+
+        Read over the carriers a declaration puts under the claim. An authored path is a driver
+        that renders through the closure without being one of its producers, so the graph answers
+        it the visual manifest alone.
+        """
+        paths = reach.source_paths(REPO)
+        for claim in self.CLOSURES:
+            with self.subTest(claim=claim):
+                self.assertEqual(reach.HELD_DEMOTES[claim], frozenset())
+                (rule,) = [one for one in self.rules
+                           if one.claim_key == claim and one.mode == "demote"]
+                carriers = [path for path in paths if blindness.matches(path, rule.trigger_paths)
+                            and not blindness.matches(path, rule.authored_paths)]
+                self.assertTrue(carriers, f"'{claim}' is declared on no source path")
+                for path in carriers:
+                    self.assertEqual(sorted(reach.answered_by(self.payload, path) or ()),
+                                     sorted(rule.sees), path)
+
 
 @unittest.skipUnless(all((REPO / root).is_dir() for root in reach.CLASS_ROOTS),
                      "needs every class root compiled")

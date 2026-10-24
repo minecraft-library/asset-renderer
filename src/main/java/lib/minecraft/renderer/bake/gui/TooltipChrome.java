@@ -16,6 +16,8 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
@@ -34,6 +36,7 @@ import java.util.Optional;
  *
  * @see lib.minecraft.renderer.TextRenderer
  */
+@Parity(claim = "text-closure", mode = Mode.DEMOTE)
 public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
 
     /**

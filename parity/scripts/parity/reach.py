@@ -112,6 +112,7 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "sweep.player": ("PlayerParitySweep",),
     "sweep.armor": ("ArmorParitySweep",),
     "sweep.menu": ("MenuParitySweep",),
+    "sweep.tooltip": ("TooltipParitySweep",),
     # --- render manifests. player-raw aggregates both rescaling sweeps rather than either one.
     "manifest.player-raw": ("PlayerParitySweep", "ArmorParitySweep"),
     "manifest.player-sheets": ("PlayerRenderDriver",),
@@ -168,21 +169,23 @@ UNROOTED: dict[str, str] = {
 #: listed - a new carrier, or a new edge into one - and a listed path that no longer reaches it or
 #: that the demote no longer fires on, so a ledger only shrinks.
 #:
-#: Two ledgers are empty. ``tooling-blindness`` is true only of code no renderer producer runs: a
+#: Three ledgers are empty. ``tooling-blindness`` is true only of code no renderer producer runs: a
 #: generator change cannot move a sweep, the sweeps reading the SHIPPED tables, so a renderer caller
 #: of ``TableEnvelope`` would put the sweeps it reaches in the envelope's reach and the demote would
 #: subtract them from every plan selecting it. ``menu-closure`` is true only while a menu type
-#: reaches nothing but the visual manifest and the menu sweep.
+#: reaches nothing but the visual manifest and the menu sweep, and ``text-closure`` only while a
+#: text type reaches nothing but the visual manifest and the tooltip sweep.
 #:
 #: The other four subtract what the graph reaches, by decision. The three derived ones -
 #: ``engine-renders``, ``tensor-math`` and ``face-vocabulary`` - take the two dumps off a type the
-#: dump reads or serialises and never renders; ``cit-grammar`` takes the item, armour, entity, menu
-#: and player renders off a grammar type those producers reach through a match none of them
+#: dump reads or serialises and never renders; ``cit-grammar`` takes the item, armour, entity, menu,
+#: player and tooltip renders off a grammar type those producers reach through a match none of them
 #: exercises, since none stacks a pack carrying a CIT rule. The ``harness-*`` claims fire on no
 #: scanned source path, so the graph has nothing to check for them and none is held.
 HELD_DEMOTES: dict[str, frozenset[str]] = {
     "tooling-blindness": frozenset(),
     "menu-closure": frozenset(),
+    "text-closure": frozenset(),
     "engine-renders": frozenset({
         "src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java",
         "src/main/java/lib/minecraft/renderer/engine/draw/PassDeclaration.java",

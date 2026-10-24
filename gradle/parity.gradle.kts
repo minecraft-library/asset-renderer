@@ -455,24 +455,25 @@ data class ParityArtifact(
     /**
      * Whether this row's value is a function of the vanilla reference tree at all.
      *
-     * <p>The six that diff against it and the one that hashes it. Wider than `referenceDerived` by
-     * exactly that row, and the two part company because a digest of the tree is what a number is
-     * measured against and would restate that row's own content - but the render mode that last
-     * wrote the tree is a fact about the invocation, which the row that hashes it needs as much.
+     * <p>Every sweep, which diffs against it, and the one row that hashes it. Wider than
+     * `referenceDerived` by exactly that row, and the two part company because a digest of the tree
+     * is what a number is measured against and would restate that row's own content - but the render
+     * mode that last wrote the tree is a fact about the invocation, which the row that hashes it
+     * needs as much.
      */
     val readsReferenceTree: Boolean get() = referenceDerived || artifact == parityReferencesArtifact
 }
 
-// Rows 16 to 24 carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
-// self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
-// file at its own production-relative path rather than reading a producer directory. `--source` naming
-// the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses exactly as the
-// shipped-tables directory does. Row 16 is one of them and not an exception: `table-canonical` is
-// Gson's number formatting, which Python cannot reproduce for the seven float-bearing tables, so no
-// reader outside the test JVM can take that digest at all.
-// Row 16 is `test` and row 17 is `slowTest` because BundledResourceShaTest runs in the fast suite
-// while ClientAcquisitionIntegrationTest is @Tag("slow") - naming `test` for the latter would let a
-// fast-suite run credit itself with a value it never computed.
+// The digest and pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those
+// producers self-capture from inside the test JVM, so the capture step validates and stamps the
+// already-canonical file at its own production-relative path rather than reading a producer directory.
+// `--source` naming the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses
+// exactly as the shipped-tables directory does. `digest.shipped-tables` is one of them and not an
+// exception: `table-canonical` is Gson's number formatting, which Python cannot reproduce for the seven
+// float-bearing tables, so no reader outside the test JVM can take that digest at all.
+// `digest.shipped-tables` names `test` and `digest.colormap-lut` names `slowTest` because
+// BundledResourceShaTest runs in the fast suite while ClientAcquisitionIntegrationTest is @Tag("slow") -
+// naming `test` for the latter would let a fast-suite run credit itself with a value it never computed.
 //
 // manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
 // leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
@@ -502,6 +503,8 @@ val parityArtifacts = listOf(
     // holds those subjects still on both sides, so nothing it compares can report them moving wrongly.
     ParityArtifact("sweep.entity-walk", listOf("entityWalkParityVanilla"),
         "cache/visual/entity-walk-parity-vanilla", listOf("entityId")),
+    ParityArtifact("sweep.tooltip", listOf("tooltipParityVanilla"), "cache/visual/tooltip-parity-vanilla",
+        listOf("tooltipId")),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
@@ -1132,7 +1135,8 @@ tasks {
     registerHarnessRun("renderVanillaTooltipReferences", "refharnessModes=TOOLTIPS", "TOOLTIPS", false,
         listOf("tooltips"),
         "Runs the harness in TOOLTIPS mode: references/tooltips/ only - every subject of the tracked " +
-        "tooltip roster drawn through the client's own tooltip call, and its box alone.")
+        "tooltip roster drawn through the client's own tooltip call, and its box alone. Then run " +
+        "tooltipParityVanilla.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
         listOf("idle"),

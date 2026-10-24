@@ -103,6 +103,9 @@
     ],
     "sweep.player": [
       "lib/minecraft/renderer/sweep/PlayerParitySweep"
+    ],
+    "sweep.tooltip": [
+      "lib/minecraft/renderer/sweep/TooltipParitySweep"
     ]
   },
   "types": {
@@ -405,7 +408,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -415,7 +419,8 @@
     },
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -760,7 +765,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -793,7 +799,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -822,7 +829,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -995,7 +1003,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1016,7 +1025,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1037,7 +1047,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1098,7 +1109,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1119,7 +1131,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1140,7 +1153,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1177,7 +1191,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1202,7 +1217,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1223,7 +1239,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1244,7 +1261,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1265,7 +1283,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1290,7 +1309,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1707,7 +1727,8 @@
         "sweep.block",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1749,7 +1770,8 @@
     },
     "lib/minecraft/renderer/bake/gui/NineSliceKit": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1785,7 +1807,8 @@
         "sweep.block",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1795,7 +1818,8 @@
     },
     "lib/minecraft/renderer/bake/gui/TooltipChrome": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2290,7 +2314,8 @@
     },
     "lib/minecraft/renderer/call/request/ChromeStyle": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2344,7 +2369,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2456,7 +2482,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2472,7 +2499,8 @@
     },
     "lib/minecraft/renderer/call/request/TextOptions": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2535,7 +2563,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2558,7 +2587,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2585,7 +2615,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2674,7 +2705,8 @@
     },
     "lib/minecraft/renderer/call/slot/TextSlot": {
       "artifacts": [
-        "manifest.visual"
+        "manifest.visual",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2701,7 +2733,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2728,7 +2761,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2755,7 +2789,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2793,7 +2828,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2821,7 +2857,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2849,7 +2886,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -2881,7 +2919,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3091,7 +3130,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3151,7 +3191,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3177,7 +3218,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3918,7 +3960,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4434,7 +4477,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4459,7 +4503,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4487,7 +4532,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4569,7 +4615,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4821,7 +4868,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4842,7 +4890,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4863,7 +4912,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4888,7 +4938,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5562,7 +5613,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5619,7 +5671,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5655,7 +5708,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5684,7 +5738,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5713,7 +5768,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5940,8 +5996,13 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/store/diff/ParityMetricsTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/store/diff/RenderDigest": {
@@ -6081,7 +6142,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -6107,7 +6169,14 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/TooltipParitySweep": {
+      "artifacts": [
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -7220,7 +7289,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -7557,7 +7627,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -7587,7 +7658,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },

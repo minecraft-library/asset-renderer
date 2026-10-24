@@ -268,6 +268,15 @@ register<JavaExec>("menuParityVanilla") {
     args = if (menuId != null) listOf(menuId) else listOf()
 }
 
+register<JavaExec>("tooltipParityVanilla") {
+    description = "Per-subject tooltip parity report comparing Java TextRenderer against the vanilla-reference-harness tooltip references at cache/.../references/tooltips/, every subject of the tracked roster whole and as its box alone. Each reference is the box's whole sprite rect, cut to the renderer's canvas by the chrome's own padding, so this is a direct diff rather than a bbox-aligned one. Writes per-subject diff panels and a TSV to cache/visual/tooltip-parity-vanilla/. Run renderVanillaTooltipReferences first. -PtooltipId=one_line"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.sweep.TooltipParitySweep")
+    classpath = sourceSets["visual"].runtimeClasspath
+    val tooltipId = project.findProperty("tooltipId") as String?
+    args = if (tooltipId != null) listOf(tooltipId) else listOf()
+}
+
 register<JavaExec>("packIconParityVanilla") {
     description = "Per-stack parity report for the block items a resource pack shadows: the renderer's GUI_ICON of every pack-icon roster stack, the roster's packs loaded, against the client's slot drawing of the same stack at cache/.../pack-icons/. Writes per-subject diff panels and a TSV to cache/visual/pack-icon-parity-vanilla/. Run renderVanillaPackIcons first. -PitemId=minecraft:oak_log"
     group = "visual"
