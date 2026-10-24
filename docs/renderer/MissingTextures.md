@@ -62,6 +62,16 @@ tile shows the checkerboard where a single render would.
   rule above about a refused definition holds for it. Vanilla's own definitions all bake. A pack
   stitching its own textures into the blocks atlas, and drawing one of them beside a vanilla `item/`
   sprite in one model, is what meets it.
+- **A model names a sprite, which reads the texture its atlas stitched it from.** A pack's
+  `atlases/items.json` or `atlases/blocks.json` can stitch a texture under a sprite id of its own -
+  ItemsAdder packs stitch `omc_foods:items/seeds/salad_seed` as `_omc_foods:items/seeds/salad_seed` -
+  and its models then name the sprite, which is no texture file. `IndexedRendererContext` reads every
+  texture id as a sprite of the items atlas first and the blocks atlas second, as the client looks a
+  model texture up, and reads the texture a `single` or `directory` source stitched it from, its
+  sidecar included; an id neither atlas holds reads as itself. An `unstitch` region and a paletted
+  permutation read their own id too, as neither is a whole texture file. Every vanilla sprite is
+  stitched from the texture of its own id, so on a vanilla stack every id reads itself and no gate can
+  see this: `AtlasSpriteResolutionTest` is the gate.
 - **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
   entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
   source before the static wings, a pack-rule wing tile before the equipment wing - the first

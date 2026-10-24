@@ -13,6 +13,7 @@ import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -256,7 +257,8 @@ class TextureViewCoherenceTest {
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), synthesizer, Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
 
         PixelBuffer buffer = PixelBuffer.create(16, 16);
         bases = new LinkedHashMap<>();
