@@ -19519,6 +19519,118 @@
       "sha256": "add95611f7ee3319a9f79b4425e3a7ee944eeb3237a0387a2fdc4dcc0bffb1f5"
     },
     {
+      "path": "tooltips/five_lines.png",
+      "sha256": "5fc2d0b6f37dd264b04f6431e0c6583cd40217e5fa44788e3d73e4f269b63c7e"
+    },
+    {
+      "path": "tooltips/five_lines_chrome.png",
+      "sha256": "111f762a391013d9d848d6c05630138a8b132fbc01551d76ab1805ca673007ef"
+    },
+    {
+      "path": "tooltips/formats.png",
+      "sha256": "7c67277775d7e85db1d8784ada3c203edaa11961bf607aecb6bfc7b0edb80af9"
+    },
+    {
+      "path": "tooltips/formats_chrome.png",
+      "sha256": "f6fda670f71d86672d0ed87de8fd9d281a159ad0ec1f1b131ff4df86dc78746b"
+    },
+    {
+      "path": "tooltips/hex_colours.png",
+      "sha256": "885e8bbc2c01aac9439264cb948ecfc332302255d7b94926f53ad5d42b1585a2"
+    },
+    {
+      "path": "tooltips/hex_colours_chrome.png",
+      "sha256": "46ebf10f63a2dec717722889e5d2adda0e49e2f14a7268e5caabc8a00442163b"
+    },
+    {
+      "path": "tooltips/item_like.png",
+      "sha256": "e4d0638317435c3531da0b627aa7028febebea97385dc9239fd8f3d83d357e88"
+    },
+    {
+      "path": "tooltips/item_like_chrome.png",
+      "sha256": "8bb175302817b24894be8144f88088639309bda7b92889f37d3974b0d3545ae1"
+    },
+    {
+      "path": "tooltips/legacy_colours.png",
+      "sha256": "9167f7799e2006eeb1d986b37bf7a0ad88fa343279d1e47e88dd4be674c49bc3"
+    },
+    {
+      "path": "tooltips/legacy_colours_chrome.png",
+      "sha256": "2d2e9a23708ba5da9934b5718377598d9216f62a6a04fd34c1a9b612586af5d0"
+    },
+    {
+      "path": "tooltips/long_line.png",
+      "sha256": "f61bc169de8c313bb36242d26c38e7729aef2546702d0eeef9dbc965a75009d1"
+    },
+    {
+      "path": "tooltips/long_line_chrome.png",
+      "sha256": "26d2fd7a027877f7adeea7dd16d3e5c2a1214e20fba259799c5a1b4adcce8ac9"
+    },
+    {
+      "path": "tooltips/mixed_segments.png",
+      "sha256": "0b081d7203422ff163b355d7554f01ae03e8dbc244b2e5d67463eca41f66f2a8"
+    },
+    {
+      "path": "tooltips/mixed_segments_chrome.png",
+      "sha256": "88fa76789cdbfd9ea85a9801547952aae650f864d039115f50e8ed89065a6e52"
+    },
+    {
+      "path": "tooltips/narrow.png",
+      "sha256": "f1f60363bd9c8f80e5a5b19f43f3b72a4c4956ca872930ff1afa23f1e4f331e0"
+    },
+    {
+      "path": "tooltips/narrow_chrome.png",
+      "sha256": "251b7cada4371929513089619e61add0e93aa54dc694d3cedcaea66df2d30ae1"
+    },
+    {
+      "path": "tooltips/one_line.png",
+      "sha256": "c7cf7127d539902eb4b5abba1066a1f07fe0952ac427e73971b18f6754fcfeb9"
+    },
+    {
+      "path": "tooltips/one_line_chrome.png",
+      "sha256": "dfaff469c293a8caf599f104229c47852177b04a10b05a3c9c4aa7d928a7bc3b"
+    },
+    {
+      "path": "tooltips/one_line_chrome~style=hypixel_skyblock__legendary.png",
+      "sha256": "4d0e96e162979ec270bee895832c2e48f23d25d0a710d4b8078610215e3cb6e6"
+    },
+    {
+      "path": "tooltips/one_line~style=hypixel_skyblock__legendary.png",
+      "sha256": "9d2247eed7aa4e46464845d0c24da9766fdad8b0858413a7439432a6c59aafd8"
+    },
+    {
+      "path": "tooltips/shadow_color.png",
+      "sha256": "959e650203c5ad4f0fc3bc84c9c98c7787f61c87f84d63ff95b5b8781b4c4d61"
+    },
+    {
+      "path": "tooltips/shadow_color_chrome.png",
+      "sha256": "2e6189ca4f41f9c78896f169b1b80cfa6fe980108e01532fa7e070a7bd5dcadd"
+    },
+    {
+      "path": "tooltips/two_lines.png",
+      "sha256": "97151493d703bbcc0aa409fb7f9a60aba3c680e8e200f5cb8ac279a3685dde1c"
+    },
+    {
+      "path": "tooltips/two_lines_chrome.png",
+      "sha256": "2c9928113e2f79526f5ce7b99a5a24228796b21ec54be2a85008081caabbf4ee"
+    },
+    {
+      "path": "tooltips/unstyled.png",
+      "sha256": "ec805a59ac9519e1f164fd2d26902200a2cf85458ee046448e848cf0c9198f74"
+    },
+    {
+      "path": "tooltips/unstyled_chrome.png",
+      "sha256": "563f8f6dbfe96b9b7bbc6f2046979a03b72d7c44f69f7a8f368c7aa7e09f1635"
+    },
+    {
+      "path": "tooltips/width_glyphs.png",
+      "sha256": "ed7a29d0c137157e813106d651c362f325a8087368213950772d325c73a3194a"
+    },
+    {
+      "path": "tooltips/width_glyphs_chrome.png",
+      "sha256": "dbb7a09c5382cb37028c0de8eb8854a107c3c48aa0767952dbca8f73a091fb6a"
+    },
+    {
       "path": "walk/minecraft__allay/frame_000.png",
       "sha256": "05289c0cc8d5e4b3ec2687214f9fc4f6ee4bbede2728ae7aa1135ad230fe54c3"
     },
@@ -39112,20 +39224,20 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "135fcc6b7f4b1f99470ed854eaecc4d418565465d55721b8632ee1a31609728c",
+    "asset_content_digest": "ae613db577963ffe8772a4f396a12c6797092b2ecc07cd870b1e2806864a08d2",
     "asset_dirty": false,
-    "asset_sha": "6e5de7f5099416cbd2ab266205407e699e117927",
+    "asset_sha": "fba522bb206e605e001a436c98d96d4bc7df9324",
     "counts": {
-      "files": 9776
+      "files": 9804
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "EVERY,ANIMATION,WALK",
-    "parity_class": "moving",
+    "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "A strip takes 1-tick frames wherever the 1-tick strip shows every visible part whole and its restart is no worse, and an aliasing-forced 1-tick strip runs on to 198 ticks where a slower part needs it; 138 golden rows move, 128 from 3-tick to 1-tick frames and 10 running longer. manifest.references moves by design: its moved, added and dropped paths all lie under idle/ and walk/ (134 stems in each, every stem's frame count equal to its schedule sidecar, idle/ 2547 frames and walk/ 4896), every path outside them holding. sweep.entity-animation (25 rows) and sweep.entity-walk (83 rows) move with them, every row's frames equal to the strip golden (268 rows joined). Mean deltas to vanilla stay under 0.1 (largest 0.0923, the baby husk walk); rows that grow sample more ticks or measure on a canvas the longer strip widens, their extra disagreements the one-step shade floor and isolated tie pixels - the baby husk walk's worst frame differs on 932 pixels, 925 of them by 8 or less, with no coverage difference - and rows that shrink include the baby sheep walk 0.1000 to 0.0876, the elder guardian walk 0.0226 to 0.0110 and the baby goat walk 0.0157 to 0.0059. The 14 other compared artifacts hold.",
+    "reason": "The harness draws vanilla tooltips through one GUI capture the menu sweep shares; tooltips/ gains the 28 references of the tracked roster (14 subjects, each whole and as its box alone); menus/ and every other path held, and two whole-tree captures agreed",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -39135,11 +39247,12 @@
       "items": 479,
       "menus": 10,
       "players": 2,
+      "tooltips": 28,
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-23T05:36:00Z",
+    "timestamp": "2026-10-24T13:53:20Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 128936
+    "wall_time_ms": 126121
   }
 }
