@@ -22,6 +22,13 @@ and the graph answers an artifact only through its root, so an artifact with non
 every derived plan and the plan does not say so. A row one class writes under a property roots at
 that class like any other: `sweep.entity-walk` roots where `sweep.entity-animation` does.
 
+**Coining a store artifact owes the version rule a place too.** The two files this project's
+dependency versions are written in - the root build file and the catalog - plan every stored
+artifact, because every producer runs on the classpath they declare, so the new one joins B47's
+`sees`. One whose producer runs no code a pin chooses goes in B47's `blind` with that mechanism and
+in `BlindnessMapTest`'s record of what a version is blind to, which is what refuses either half
+alone; a sweep never does, every sweep being a main of this build.
+
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.
 

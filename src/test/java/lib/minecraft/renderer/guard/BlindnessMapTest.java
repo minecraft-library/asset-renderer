@@ -172,6 +172,17 @@ final class BlindnessMapTest {
         "B28 -> sweep.block", "B28 -> sweep.item");
 
     /**
+     * Stored artifacts the {@linkplain #VERSION_DECLARATIONS version files} call blind, each one a
+     * decision.
+     *
+     * <p>Empty: every producer this store captures runs code a pin there chooses, so a version bump
+     * plans the whole store. An artifact whose producer runs none - one a build beside this one writes
+     * from inputs nothing here produces - goes in the version rule's {@code blind} with that mechanism
+     * and in this set, and never a sweep, a sweep being a main of this build.
+     */
+    private static final Set<String> BLIND_TO_A_VERSION = Set.of();
+
+    /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.
      *
      * <p>A rule wins wherever both match, so each of these is held up by its rule today and by the
@@ -298,6 +309,18 @@ final class BlindnessMapTest {
      */
     private static final List<String> MEMBERSHIP_DECLARATIONS =
         List.of("gradle/visual.gradle.kts", "parity/scripts/parity/manifest.py");
+
+    /**
+     * The files this project's dependency versions are written in.
+     *
+     * <p>A version is a statement about which code a producer runs, and every producer this store
+     * captures runs on a classpath these two files declare - this project's source sets take the pins
+     * as {@code api}, and the generators take this project. Written down rather than read off the rule
+     * that answers for them, for the reason the membership files are: taken from that rule, the check
+     * would agree with whatever it says.
+     */
+    private static final List<String> VERSION_DECLARATIONS =
+        List.of("build.gradle.kts", "gradle/libs.versions.toml");
 
     /**
      * The directory a renderer is a direct child of.
@@ -1277,6 +1300,40 @@ final class BlindnessMapTest {
             + "can select and no rule calls blind is gated by whatever its reader happens to be, "
             + "which is an inference rather than a statement - the point of a blind entry is that "
             + "the real gate gets written down", silent, is(empty()));
+    }
+
+    @Test
+    @DisplayName("each file a version is written in plans every stored artifact but the recorded blind ones")
+    void everyVersionDeclarationPlansTheWholeStore() {
+        List<String> stored = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
+            .filter(id -> !ParityStore.isRootFile(id)).sorted().toList();
+        JsonObject index = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+        List<String> recorded = BLIND_TO_A_VERSION.stream().sorted().toList();
+        List<String> tracked = trackedFiles();
+        for (String path : VERSION_DECLARATIONS) {
+            List<JsonObject> fired = firedOn(path, rules());
+            Set<String> sees = seesFor(path);
+            Set<String> claimed = new TreeSet<>();
+            fired.forEach(rule -> claimed.addAll(strings(rule.getAsJsonArray("blind"))));
+
+            assertThat(path + " is a file git does not track, so the version rule is being held to a "
+                + "path no commit can change and both answers below are about nothing",
+                tracked.contains(path), is(true));
+            assertThat(path + ": stored artifacts a version bump does not plan, against the recorded ones. "
+                + "A version swaps the code every producer here runs, so an artifact coined without a "
+                + "place in the version rule's sees is one a pin bump captures nothing for. Add it to "
+                + "B47's sees, or to its blind with the mechanism and to the recorded set",
+                stored.stream().filter(id -> !sees.contains(id)).toList(), equalTo(recorded));
+            assertThat(path + ": what the rules firing on it call blind, against the recorded set. A blind "
+                + "entry the set does not name is an artifact a pin bump stops capturing without anybody "
+                + "having decided it, and a recorded one no rule calls blind is a decision the map does "
+                + "not state", List.copyOf(claimed), equalTo(recorded));
+        }
+        assertThat("a sweep recorded as blind to a version. Every sweep is a main of this build and runs "
+            + "on the classpath the pins declare, so a version reaches it whatever it compares",
+            recorded.stream()
+                .filter(id -> index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
+                .toList(), is(empty()));
     }
 
     @Test
