@@ -37,7 +37,8 @@ import java.util.Optional;
  * codec wrapping can all be eyeballed against real content. The chrome resolves the vanilla
  * {@code tooltip/background} + {@code tooltip/frame} sprites through a real pack-stack context
  * ({@link ChromeStyle#SPRITE}). This is a <b>functional / visual</b> tool ("does it
- * render") - there is no parity gate.
+ * render"), and every file it writes is a member of the parity store's {@code manifest.visual},
+ * compared byte for byte against its promoted baseline.
  * <p>
  * Seven tooltips render. Two come from legacy strings: an {@link #ACCESSORY_LEGACY accessory}
  * (static, one PNG) and a {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes
@@ -50,7 +51,7 @@ import java.util.Optional;
  * {@link GradientSpec.Mode modes} at per-letter fidelity (one flat colour per glyph), the same four
  * at per-pixel fidelity in a smooth and a blocky band width, two italic segments whose per-pixel
  * bands shear parallel to the slanted stems, and two scrolling gradients that promote the render to
- * an animated GIF looping seamlessly over one cycle.
+ * an animation looping seamlessly over one cycle, written as a GIF and a lossless WebP like the weapon.
  * <p>
  * Usage: {@code ./gradlew loreTooltip}. Takes no {@code -P} flags; outputs land in
  * {@code cache/visual/lore-tooltip/}.
@@ -146,7 +147,8 @@ public final class LoreTooltipDriver {
         // Italic segments with auto shear: per-pixel bands run parallel to the slanted stems.
         renderGradient("gradient_italic_shear", gradientItalicShearLines(), context);
 
-        // Scrolling gradient: promotes to an animated GIF, one seamless cycle at cycleTicks 40.
+        // Scrolling gradient: promotes to an animation, one seamless cycle at cycleTicks 40, written
+        // as the weapon's GIF and lossless WebP pair.
         renderGradient("gradient_scroll", gradientScrollLines(), context);
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
@@ -183,9 +185,10 @@ public final class LoreTooltipDriver {
     }
 
     /**
-     * Renders an animated tooltip to GIF + lossless WebP + lossy WebP (with a motion-search
-     * thread sweep) + a static first-frame WebP. Used for tooltips that carry obfuscated text
-     * so the codec-level palette handling and P-frame motion encoding can be eyeballed.
+     * Renders an animated tooltip to the GIF and lossless WebP pair {@link #writeAnimated} writes,
+     * plus a lossy WebP (with a motion-search thread sweep) and a static first-frame WebP. Used for
+     * tooltips that carry obfuscated text so the codec-level palette handling and P-frame motion
+     * encoding can be eyeballed.
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
@@ -210,34 +213,9 @@ public final class LoreTooltipDriver {
         int h = image.getFrames().getFirst().pixels().height();
         int frameCount = image.getFrames().size();
 
-        File gifOut = OUTPUT_DIR.resolve(slug + ".gif").toFile();
-        long gifStart = System.nanoTime();
-        ImageFactory.toFile(
-            image,
-            ImageFormat.GIF,
-            gifOut,
-            GifWriteOptions.builder()
-                // GIF can't show the tooltip's 240-alpha background as partial transparency,
-                // so flatten every pixel onto black before quantizing. Anything that would
-                // have looked translucent over the game world gets composited onto the same
-                // black letterbox most viewers/chat embeds display behind a GIF.
-                .withBackgroundRgb(0x000000)
-                .build()
-        );
-        long gifMs = (System.nanoTime() - gifStart) / 1_000_000L;
-
-        File webpOut = OUTPUT_DIR.resolve(slug + ".webp").toFile();
-        long webpStart = System.nanoTime();
-        ImageFactory.toFile(
-            image,
-            ImageFormat.WEBP,
-            webpOut,
-            WebPWriteOptions.builder()
-                .isLossless()
-                .isMultithreaded()
-                .build()
-        );
-        long webpMs = (System.nanoTime() - webpStart) / 1_000_000L;
+        long pairStart = System.nanoTime();
+        writeAnimated(slug, image);
+        long pairMs = (System.nanoTime() - pairStart) / 1_000_000L;
 
         // Lossy VP8 variant - exercises the whole lossy pipeline end-to-end on a
         // real tooltip at full resolution. Sweeps P-frame motion-search parallelism
@@ -281,10 +259,44 @@ public final class LoreTooltipDriver {
             WebPWriteOptions.builder().isLossless().build()
         );
 
-        System.out.printf("  %s -> %s (gif %d ms, webp %d ms, webp-lossy %d ms, render %d ms, %dx%d, %d frames)%n",
-            slug, gifOut.getName().replace(".gif", ".{gif,webp,webp-lossy}"),
-            gifMs, webpMs, webpLossyMs, renderMs, w, h, frameCount);
+        System.out.printf("  %s -> %s.{gif,webp,webp-lossy} (gif+webp %d ms, webp-lossy %d ms, render %d ms, %dx%d, %d frames)%n",
+            slug, slug, pairMs, webpLossyMs, renderMs, w, h, frameCount);
         System.out.println("    webp-lossy motionSearchThreads sweep:" + mvThreadTable);
+    }
+
+    /**
+     * Writes an animated tooltip as {@code <slug>.gif} and {@code <slug>.webp}. The GIF flattens the
+     * frames onto black and quantizes them to one 256-colour palette on a centisecond delay grid; the
+     * lossless WebP keeps every frame's colour and its delay in milliseconds exactly. A change to the
+     * GIF writer therefore moves only the GIF, and a change to the render moves the WebP, and the GIF
+     * as well unless its flatten, palette or delay grid absorbs the move.
+     *
+     * @param slug output filename stem under {@link #OUTPUT_DIR}
+     * @param image the animated render
+     * @throws IOException if either file cannot be written
+     */
+    private static void writeAnimated(@NotNull String slug, @NotNull ImageData image) throws IOException {
+        ImageFactory.toFile(
+            image,
+            ImageFormat.GIF,
+            OUTPUT_DIR.resolve(slug + ".gif").toFile(),
+            GifWriteOptions.builder()
+                // GIF can't show the tooltip's 240-alpha background as partial transparency,
+                // so flatten every pixel onto black before quantizing. Anything that would
+                // have looked translucent over the game world gets composited onto the same
+                // black letterbox most viewers/chat embeds display behind a GIF.
+                .withBackgroundRgb(0x000000)
+                .build()
+        );
+        ImageFactory.toFile(
+            image,
+            ImageFormat.WEBP,
+            OUTPUT_DIR.resolve(slug + ".webp").toFile(),
+            WebPWriteOptions.builder()
+                .isLossless()
+                .isMultithreaded()
+                .build()
+        );
     }
 
     /**
@@ -371,7 +383,8 @@ public final class LoreTooltipDriver {
 
     /**
      * Renders pre-built gradient tooltip lines. Static gradients write a PNG; a scrolling gradient
-     * promotes the render to a frame sequence, written as a GIF (black-flattened, like the weapon).
+     * promotes the render to a frame sequence, written as the weapon's GIF and lossless WebP pair
+     * through {@link #writeAnimated}.
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param lines the tooltip lines (may carry per-segment gradients)
@@ -394,9 +407,8 @@ public final class LoreTooltipDriver {
 
         String name;
         if (image.isAnimated()) {
-            File out = OUTPUT_DIR.resolve(slug + ".gif").toFile();
-            ImageFactory.toFile(image, ImageFormat.GIF, out, GifWriteOptions.builder().withBackgroundRgb(0x000000).build());
-            name = out.getName();
+            writeAnimated(slug, image);
+            name = slug + ".{gif,webp}";
         } else {
             File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
             ImageFactory.toFile(image, ImageFormat.PNG, out);
