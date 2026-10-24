@@ -684,47 +684,47 @@
     },
     {
       "path": "lore-tooltip/accessory.png",
-      "sha256": "b5bed95d9b84604fd4bdd4afc49118a00e9323361e9aac0359fb52a5128e40d6"
+      "sha256": "a954260cbb3e640570f38411d7419ab254c9210b7b0ef5a4fd8a92a60fcd4c6e"
     },
     {
       "path": "lore-tooltip/gradient_band1.png",
-      "sha256": "91a044b6665f914a6336d6c927aa3d2c0bd2b087280d5d4000bddbf0ea71e4b4"
+      "sha256": "97e8fd2f6b8c79a54642d720e67856d2edd26cac749101003b4b6ef998efeff2"
     },
     {
       "path": "lore-tooltip/gradient_band8.png",
-      "sha256": "d4af76d6755e627ae31ee34e55f0093c6a9f35233b3afcf266489f1b1fa64a9f"
+      "sha256": "31708522d8572c3f6479db85a82f42def0113cb748acb3ad1d8c758e69ce1e43"
     },
     {
       "path": "lore-tooltip/gradient_italic_shear.png",
-      "sha256": "de44f33a0c91852dcf67908d87132e1e44c859716eddc2132bb47b2ed1c366e1"
+      "sha256": "7e911acbbd78efc94d6226183acfa391eb888e9d7e5a7e00d4199b5330913154"
     },
     {
       "path": "lore-tooltip/gradient_perletter.png",
-      "sha256": "efada720243f95d4a8aca21310982b95e7f1e8d9118009d7844d519522b6a785"
+      "sha256": "6d5e3b19201e0162d374e8db5e557db140c0ec07d183e4309693ff0d680394bd"
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "e7becc502d076e6cadcf0cd713804f116ae0b5f30b96530f425f806e6ee5bbb1"
+      "sha256": "7cd43f7e64ba7de7416bc3fcdfd854c65f0acb07775f8d0cf0e4c09945f6effa"
     },
     {
       "path": "lore-tooltip/gradient_scroll.webp",
-      "sha256": "5d7cf140a48679f19395772c38bd540f1333afcc229229cba04cce8639eef315"
+      "sha256": "1be27c6ff6974f0a4d6f814d8e66353d09b58d90b81c3ee9ee0337144a807e33"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "9b5fc743cf39d58989d8aa8fbaf11d7d2254be8d8f48bb66849612d1af5fda31"
+      "sha256": "c4c24e2ea82daababdf8354bb0ec9842d124e2b73aa231209b393d239715c47d"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "a985e2f80f0dbe174168161ae86e112a1ce467cd1e5b40dcfbe2ad570489e486"
+      "sha256": "a889ca696caa2670d66659c26854cd856f6af16da2e114d99a742987e5aa48c2"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "9ae2d0cb119329be13d44a8f9f9bd90722fd09db486eee557ca99dd9499f31c0"
+      "sha256": "6a2cf074a12e1a8efb6c422d3165e38d3306829ba0060299cc49415810ba0a71"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "e841f1d5ff7431dd468ed9c8aecac97c214040f9d0693dfb34556c8e5bb702cf"
+      "sha256": "3adc0a43459774822e5f0114f361d88e3eb0081468c1f8c08027a7180f5134ca"
     },
     {
       "path": "menu-render/anvil.png",
@@ -851,20 +851,20 @@
   "key": "path",
   "kind": "manifest",
   "provenance": {
+    "allow_partial": true,
     "artifact": "manifest.visual",
-    "asset_content_digest": "4debc821c78d4c0635b4aaf858fb2c9d4f4186d4e90116e6678c87c2887aa00d",
-    "asset_dirty": false,
-    "asset_sha": "244802c351414cbce3ea679cc375a5ac17e2ba5c",
+    "asset_content_digest": "030cf5d680425acf556601d117478f44e57cda93d1e4ae00c16bab9985a03c17",
+    "asset_dirty": true,
+    "asset_sha": "376ca7d2f91b2d7ca4545302a5a8b380658216fe",
     "counts": {
       "files": 211
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "LoreTooltipDriver writes the scrolling gradient as a lossless WebP beside its GIF, as it does the weapon, so a GIF-writer change can be told from a render change; manifest.visual gains lore-tooltip/gradient_scroll.webp and nothing moved",
+    "reason": "NineSliceKit blends each sprite texel with the client's TRANSLUCENT op instead of painting it: ten box-alone tooltip rows reach 0 and the other three keep 18 exact-boundary side-ramp pixels (an open question, docs/KnownOpen.md); seven full rows reach 0 and four keep text deltas; the eleven lore-tooltip renders move with the box. The 3 failed rows hold by design",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -874,11 +874,12 @@
       "items": 479,
       "menus": 10,
       "players": 2,
+      "tooltips": 28,
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-24T11:04:56Z",
+    "timestamp": "2026-10-24T19:07:45Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 35265
+    "wall_time_ms": 39982
   }
 }
