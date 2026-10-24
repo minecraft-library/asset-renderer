@@ -294,9 +294,15 @@
       "sum": "8.3792"
     },
     "sweep.tooltip": {
-      "baselined": false,
+      "baselined": true,
       "determinism_floor": 2,
-      "kind": "sweep-table"
+      "entries": 28,
+      "file": "sweeps/tooltip.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 3694,
+      "promoted_at": "d51afba315868b71ff0b902c592f1c958e360fa1",
+      "sha256": "f2d9923f8a36f67802d1de8468f436deabb23610abb488cd580a5aa118fa3a4e",
+      "sum": "1244.9482"
     }
   },
   "external": {
