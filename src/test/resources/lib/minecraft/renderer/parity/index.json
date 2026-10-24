@@ -105,12 +105,12 @@
     "manifest.visual": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 210,
+      "entries": 211,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 32286,
-      "promoted_at": "7fa264798c46931820cb4e94ab6ee7cef1dacd7f",
-      "sha256": "e07dae557826f9c66e6b18e3f69df6d04a061e6c76ac103d67e15c0d4c60240d"
+      "last_duration_ms": 35265,
+      "promoted_at": "244802c351414cbce3ea679cc375a5ac17e2ba5c",
+      "sha256": "d20981af7f0db303a3b77d7deac0024d7756b3fb572afb792b69ecc5f9a47f48"
     },
     "pin.block-crc": {
       "baselined": true,
