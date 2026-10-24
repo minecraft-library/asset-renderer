@@ -544,7 +544,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
-        // frame index doubling as the per-frame obfuscation seed.
+        // frame index being what TextKit seeds each label's scramble from.
         return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
@@ -592,14 +592,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull PixelBuffer buffer,
         @NotNull ConcurrentList<Label> labels,
         int defaultArgb,
-        long frameSeed
+        long frame
     ) {
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
 
         for (Label label : labels)
             TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
-                defaultArgb, frameSeed, frameSeed, false);
+                defaultArgb, frame, frame, false);
     }
 
 }

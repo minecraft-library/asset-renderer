@@ -10,6 +10,7 @@ import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Random;
+import java.util.random.RandomGenerator;
 
 /**
  * Static text rendering utilities for styled Minecraft text, drawn through a
@@ -22,8 +23,14 @@ import java.util.Random;
  * A line's width is {@link #measureLineMcPixels}, the client's {@code Font#width}.
  * <p>
  * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
- * obfuscation substitution ({@code §k} - see {@link #substitute}). Shadow, strikethrough, and
- * underline offsets match vanilla's pixel-level rendering.
+ * obfuscation ({@code §k}). Shadow, strikethrough, and underline offsets match vanilla's pixel-level
+ * rendering.
+ * <p>
+ * An obfuscated run draws, in place of each glyph, a random glyph its font lays out at the same
+ * non-bold advance ({@link MinecraftFont#obfuscate(String, RandomGenerator)}), so a non-bold run
+ * keeps its width on every frame. Every run of a line draws from one stream seeded by the frame and
+ * the line's origin, so a frame redraws its own scramble while the lines and runs of one frame draw
+ * different ones.
  *
  * @see MinecraftFont
  * @see MinecraftGraphics
@@ -81,29 +88,31 @@ public class TextKit {
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param frame the animation frame drawn, which with the line's origin seeds the scramble of its
+     * obfuscated runs
      */
     public static void drawLine(
         @NotNull MinecraftGraphics g,
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
         int defaultArgb,
-        long frameSeed
+        long frame
     ) {
-        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frame, frame);
     }
 
     /**
      * Draws all segments in a {@link LineSegment}, threading an animation {@code tick} alongside the
-     * obfuscation {@code frameSeed} so gradient segments can scroll. A caller wanting the line's
-     * width measures it with {@link #measureLineMcPixels}.
+     * {@code frame} so gradient segments can scroll. A caller wanting the line's width measures it
+     * with {@link #measureLineMcPixels}.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param line the line of styled segments to render
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param frame the animation frame drawn, which with the line's origin seeds the scramble of its
+     * obfuscated runs
      * @param tick the absolute animation tick driving gradient scroll phase
      */
     public static void drawLine(
@@ -111,10 +120,10 @@ public class TextKit {
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
         int defaultArgb,
-        long frameSeed,
+        long frame,
         long tick
     ) {
-        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frame, tick, true);
     }
 
     /**
@@ -130,7 +139,8 @@ public class TextKit {
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param frame the animation frame drawn, which with the line's origin seeds the scramble of its
+     * obfuscated runs
      * @param tick the absolute animation tick driving gradient scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
      */
@@ -139,13 +149,14 @@ public class TextKit {
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
         int defaultArgb,
-        long frameSeed,
+        long frame,
         long tick,
         boolean dropShadow
     ) {
+        RandomGenerator random = obfuscationStream(frame, xMcPx, yMcPx);
         float penMcPx = xMcPx;
         for (TextSegment segment : line.getSegments())
-            penMcPx += drawSegment(g, segment, penMcPx, yMcPx, defaultArgb, frameSeed, tick, dropShadow);
+            penMcPx += drawSegment(g, segment, penMcPx, yMcPx, defaultArgb, random, tick, dropShadow);
     }
 
     /**
@@ -159,7 +170,7 @@ public class TextKit {
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color when the segment has no explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param random the line's obfuscation stream, drawn from only by an obfuscated segment
      * @param tick the absolute animation tick driving gradient scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
      * @return the advance width of the segment in mcPixels, its fraction kept
@@ -169,21 +180,21 @@ public class TextKit {
         @NotNull TextSegment segment,
         float xMcPx, float yMcPx,
         int defaultArgb,
-        long frameSeed,
+        @NotNull RandomGenerator random,
         long tick,
         boolean dropShadow
     ) {
         String text = segment.getText();
         if (text.isEmpty()) return 0;
 
+        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         if (segment.isObfuscated())
-            text = substitute(text, frameSeed);
+            text = font.obfuscate(text, random);
 
         if (segment.getGradient().isPresent())
             return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick, dropShadow);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
-        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
 
@@ -317,50 +328,40 @@ public class TextKit {
     // --- obfuscation ---
 
     /**
-     * Glyph pool for the {@code §k} scramble - 66 printable ASCII characters (A-Z, a-z, 0-9, and
-     * {@code !@#$}) approximating vanilla's sampled glyph pool.
-     */
-    private static final @NotNull String OBFUSCATION_POOL =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$";
-
-    /**
-     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from the
-     * {@link #OBFUSCATION_POOL glyph pool}, seeded on {@code frameSeed}. Reproduces vanilla's
-     * obfuscated ({@code §k}) effect - which reshuffles every glyph in a run each client tick - as a
-     * per-frame deterministic scramble: seeding the random stream on the frame index makes a given
-     * frame reproducible across runs. Length and whitespace are preserved (whitespace passes through
-     * untouched), so word boundaries and run character-count survive the scramble.
+     * Opens the stream every obfuscated run of one line draws from, seeded by the frame and the
+     * line's origin, so a frame redraws its own scramble and two lines of one frame draw two.
+     * <p>
+     * The seed is splitmix64's finalizer taken twice: once over the frame alone, then over that XORed
+     * with the origin, which packs injectively, its baseline in the high word and its column in the
+     * low. The first mix spreads the frame over all 64 bits, so no two columns line up with the
+     * difference between two frames; XORed in plain, the frame would share the column's word, and a
+     * line at column {@code c} would draw on frame {@code f} what a line on its baseline at column
+     * {@code d} draws on frame {@code f ^ c ^ d}. The second mix keeps near seeds apart, since a
+     * {@link Random} seeded with near values steps its first pick through the candidates at a
+     * near-fixed stride. The generator is a {@code Random} because its sequence is specified for every
+     * JVM, which a frame's bytes need to reproduce.
      *
-     * @param text the source text
-     * @param frameSeed the frame-index seed
-     * @return the scrambled text
+     * @param frame the animation frame drawn
+     * @param xMcPx the line's starting cursor X in mcPixels
+     * @param yMcPx the line's baseline Y in mcPixels
+     * @return the line's obfuscation stream
      */
-    static @NotNull String substitute(@NotNull String text, long frameSeed) {
-        return substitute(text, frameSeed, OBFUSCATION_POOL);
+    private static @NotNull RandomGenerator obfuscationStream(long frame, int xMcPx, int yMcPx) {
+        return new Random(splitmix64(splitmix64(frame) ^ ((long) yMcPx << 32 | xMcPx & 0xFFFFFFFFL)));
     }
 
     /**
-     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from a
-     * glyph pool. Whitespace passes through unchanged, and {@code text} is returned as-is when either
-     * it or {@code pool} is empty.
+     * Mixes a value through splitmix64's finalizer, a bijection on {@code long} under which near
+     * inputs answer unrelated outputs.
      *
-     * @param text the source text
-     * @param frameSeed the frame-index seed
-     * @param pool the glyph pool to sample from
-     * @return the scrambled text
+     * @param z the value to mix
+     * @return the mixed value
      */
-    private static @NotNull String substitute(@NotNull String text, long frameSeed, @NotNull String pool) {
-        if (text.isEmpty() || pool.isEmpty()) return text;
-
-        Random random = new Random(frameSeed);
-        char[] buffer = new char[text.length()];
-        for (int i = 0; i < text.length(); i++) {
-            char original = text.charAt(i);
-            buffer[i] = Character.isWhitespace(original)
-                ? original
-                : pool.charAt(random.nextInt(pool.length()));
-        }
-        return new String(buffer);
+    private static long splitmix64(long z) {
+        z += 0x9E3779B97F4A7C15L;
+        z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
+        z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
+        return z ^ (z >>> 31);
     }
 
 }

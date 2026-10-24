@@ -150,15 +150,16 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * Draws one frame at the given mcPixel canvas dimensions. Composes an ordered
      * {@link LayerStack} of the tooltip background + gradient border (LORE style only) and the
      * glyph rows, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
-     * before flattening onto a single buffer. The {@code frameSeed} drives the per-frame
-     * obfuscation substitution so each animation frame shows a fresh scramble.
+     * before flattening onto a single buffer. {@link TextKit} seeds each line's obfuscation scramble
+     * from the {@code frameIndex} and the line's origin, so each animation frame shows a fresh
+     * scramble.
      *
      * @param options the text render options
      * @param chrome the tooltip chrome the request's style selects
      * @param sprites the sprite pair resolved for this render, empty unless a sprite chrome resolved one
      * @param canvasWMcPx the canvas width in mcPixels
      * @param canvasHMcPx the canvas height in mcPixels
-     * @param frameSeed the obfuscation seed for this frame
+     * @param frameIndex the animation frame drawn, from which {@link TextKit} seeds each line's scramble
      * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
      */
@@ -168,7 +169,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         @NotNull Optional<TooltipChrome.ChromeSprites> sprites,
         int canvasWMcPx,
         int canvasHMcPx,
-        long frameSeed,
+        long frameIndex,
         long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
@@ -181,7 +182,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the
         // background + border (LORE only), then the renderer appends the glyph rows. Callers can splice
         // passes via TextOptions.layerDecorator. The obfuscation animation stays the renderer's per-frame
-        // loop - the TEXT layer captures the seed.
+        // loop - the TEXT layer captures the frame index.
         LayerStack<ImageLayer> stack = new LayerStack<>();
         if (isLore) {
             TooltipChrome.ChromeBox box = new TooltipChrome.ChromeBox(w, h, MinecraftFont.MC_PIXEL_SCALE);
@@ -191,7 +192,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             int baselineMcPx = padMcPx + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed, tick);
+                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameIndex, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;
