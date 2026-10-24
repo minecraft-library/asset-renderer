@@ -708,19 +708,19 @@
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "a957ba079d7aa4c4f4958afd324bc8f1278e9fedb791e7cfc855cdadf07f3740"
+      "sha256": "9b5fc743cf39d58989d8aa8fbaf11d7d2254be8d8f48bb66849612d1af5fda31"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "d24b0fea0c36836a0d63bbe7e05d9a34d05e7a06b035f6023202869fb969583c"
+      "sha256": "a985e2f80f0dbe174168161ae86e112a1ce467cd1e5b40dcfbe2ad570489e486"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "97c2d5dd96f5dda1091f7744390d61bdfc997a4366d77fcaea5bbb70ee558625"
+      "sha256": "9ae2d0cb119329be13d44a8f9f9bd90722fd09db486eee557ca99dd9499f31c0"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "d3f64411c3044ab6b1a33ec1b10500d946f0f1b6bce3d37e42872b2f940461af"
+      "sha256": "e841f1d5ff7431dd468ed9c8aecac97c214040f9d0693dfb34556c8e5bb702cf"
     },
     {
       "path": "menu-render/anvil.png",
@@ -848,9 +848,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "cfbb25ad9c064830be41059d5fd22d106ded12975aee2c71267577b883186a95",
+    "asset_content_digest": "401e7a72e7bf56886a6c6a9cde782de781b09604cf77703aa8a98d304aab2a28",
     "asset_dirty": true,
-    "asset_sha": "7f692b6c5e798f442ae083fa6f3f4eaf619bb01b",
+    "asset_sha": "7fa264798c46931820cb4e94ab6ee7cef1dacd7f",
     "counts": {
       "files": 210
     },
@@ -859,7 +859,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "TextKit draws on a float Minecraft-pixel pen as the client's Font does, so weapon line 7's 'for' after the 135 output px run moves one output pixel right on every frame; the four lore-tooltip weapon files moved, every other member and artifact held",
+    "reason": "TextKit obfuscates through MinecraftFont#obfuscate with one stream per line seeded from the frame and the line's origin: the weapon footer's scrambled glyphs keep their width and change on every frame; the four lore-tooltip weapon files moved, each to its predicted digest, and every other member and artifact held",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -872,8 +872,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-24T08:36:45Z",
+    "timestamp": "2026-10-24T10:02:04Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 34295
+    "wall_time_ms": 32286
   }
 }

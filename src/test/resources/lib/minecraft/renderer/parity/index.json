@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 34295,
-      "promoted_at": "7f692b6c5e798f442ae083fa6f3f4eaf619bb01b",
-      "sha256": "9540a13b6b0cf733ecd7ae774a63689676b654053b9feaa64d3a5db22a456a93"
+      "last_duration_ms": 32286,
+      "promoted_at": "7fa264798c46931820cb4e94ab6ee7cef1dacd7f",
+      "sha256": "e07dae557826f9c66e6b18e3f69df6d04a061e6c76ac103d67e15c0d4c60240d"
     },
     "pin.block-crc": {
       "baselined": true,
