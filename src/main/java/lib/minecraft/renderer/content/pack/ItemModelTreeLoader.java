@@ -178,7 +178,7 @@ public class ItemModelTreeLoader {
      * <p>
      * The client bakes every leaf of every definition as it loads, whichever branch a stack would take,
      * and a leaf model's quads must all draw from one atlas. Each texture a model draws is looked up in
-     * the {@linkplain ItemsAtlas items atlas} first and the blocks atlas second, and one in neither
+     * the {@linkplain SpriteAtlas items atlas} first and the blocks atlas second, and one in neither
      * draws the missing sprite the blocks atlas holds - so a leaf mixing an items-atlas sprite with any
      * other fails, a reference resolving to no texture included. A model built from elements draws a
      * quad per face, each face its texture; one without elements draws its {@code layerN} sprites from
@@ -198,7 +198,7 @@ public class ItemModelTreeLoader {
      * @return the trees, each one the client cannot bake replaced by a rejected tree
      */
     public static @NotNull ConcurrentMap<String, ItemModelTree> refuseUnbakeable(
-        @NotNull Map<String, ItemModelTree> trees, @NotNull ResolvedModels models, @NotNull ItemsAtlas atlas
+        @NotNull Map<String, ItemModelTree> trees, @NotNull ResolvedModels models, @NotNull SpriteAtlas atlas
     ) {
         HashMap<String, ItemModelTree> baked = new HashMap<>(trees);
         trees.forEach((itemId, tree) -> mixedAtlasLeaf(tree.root(), models, atlas).ifPresent(model -> {
@@ -209,7 +209,7 @@ public class ItemModelTreeLoader {
     }
 
     /** The first {@code minecraft:model} leaf below a node whose quads draw from more than one atlas. */
-    private static @NotNull Optional<String> mixedAtlasLeaf(@NotNull ItemModelNode node, @NotNull ResolvedModels models, @NotNull ItemsAtlas atlas) {
+    private static @NotNull Optional<String> mixedAtlasLeaf(@NotNull ItemModelNode node, @NotNull ResolvedModels models, @NotNull SpriteAtlas atlas) {
         return switch (node) {
             case ItemModelNode.Model model -> models.find(model.model())
                 .toOptional()
@@ -242,7 +242,7 @@ public class ItemModelTreeLoader {
     }
 
     /** Whether a model's quads draw an items-atlas sprite and a sprite from any other atlas. */
-    private static boolean drawsFromBothAtlases(@NotNull ModelData model, @NotNull ItemsAtlas atlas) {
+    private static boolean drawsFromBothAtlases(@NotNull ModelData model, @NotNull SpriteAtlas atlas) {
         boolean items = false;
         boolean other = false;
         for (Optional<String> texture : quadTextures(model)) {

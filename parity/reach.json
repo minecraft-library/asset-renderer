@@ -126,6 +126,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasSpriteResolutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/BlockRenderer": {
       "artifacts": [
         "manifest.player-raw",
@@ -3430,13 +3434,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/pack/ItemsAtlas": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/pack/LegacyOverrideMapper": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3530,6 +3527,13 @@
     "lib/minecraft/renderer/content/pack/ResolvedTexture": {
       "artifacts": [
         "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/SpriteAtlas": {
+      "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],

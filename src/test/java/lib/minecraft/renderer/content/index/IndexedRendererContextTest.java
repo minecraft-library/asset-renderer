@@ -31,6 +31,7 @@ import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.geometry.Face;
@@ -294,7 +295,8 @@ class IndexedRendererContextTest {
             models, entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
             Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
     }
 
     @Test
@@ -524,7 +526,8 @@ class IndexedRendererContextTest {
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
         assertThat(withoutColormaps.findColorMap(TintSource.GRASS).getState(), is(Possible.State.ABSENT));
         assertThat(withoutColormaps.findColorMap(TintSource.FOLIAGE).getState(), is(Possible.State.ABSENT));
         assertThat(withoutColormaps.findColorMap(TintSource.WATER).getState(), is(Possible.State.EMPTY));
@@ -599,7 +602,8 @@ class IndexedRendererContextTest {
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             rows, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
 
         assertThat(entities.findEntity("minecraft:zombie").orElseThrow(), is(sameInstance(zombie)));
         for (String id : EntityMeshlessRowTest.DRAWING_NOTHING)
@@ -645,7 +649,8 @@ class IndexedRendererContextTest {
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), potions, patterns,
             Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
 
         // A definition the loader refused is held, and answers present as its rejected tree.
         assertThat(tables.findItemTree(refusedId.id()).map(ItemModelTree::isRejected), is(Possible.of(true)));
