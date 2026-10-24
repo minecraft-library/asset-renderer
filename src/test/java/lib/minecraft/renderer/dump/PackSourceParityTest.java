@@ -1,10 +1,13 @@
 package lib.minecraft.renderer.dump;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import lib.minecraft.renderer.dump.PackSourceParity.Comparison;
 import lib.minecraft.renderer.dump.PackSourceParity.Supplied;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -14,8 +17,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage of {@link PackSourceParity}'s two pure halves: collapsing one resource's files to a stack,
- * and sorting each disagreement between two sides' stacks into its category.
+ * Coverage of {@link PackSourceParity}'s pure halves: mapping a pack run's requested packs to files and
+ * to the client's ids, collapsing one resource's files to a stack, and sorting each disagreement
+ * between two sides' stacks into its category.
  */
 @DisplayName("PackSourceParity stack comparison")
 class PackSourceParityTest {
@@ -27,6 +31,16 @@ class PackSourceParityTest {
     private static final Supplied PACK_C = new Supplied("file/p", "c");
 
     private static final Supplied OTHER_D = new Supplied("file/q", "d");
+
+    @Test
+    @DisplayName("a dump's requested packs map to files in its folder in request order, labelled after vanilla")
+    void requestedPacksMapInOrder() {
+        JsonObject dump = JsonParser.parseString(
+            "{\"pack_directory\": \"packs\", \"requested\": [\"file/p\", \"file/q.zip\"]}").getAsJsonObject();
+
+        assertThat(PackSourceParity.packFiles(dump), contains(Path.of("packs", "p").toFile(), Path.of("packs", "q.zip").toFile()));
+        assertThat(PackSourceParity.labels(dump), contains("vanilla", "file/p", "file/q.zip"));
+    }
 
     @Test
     @DisplayName("a pack's later file stands in for its earlier one, and packs keep their order")

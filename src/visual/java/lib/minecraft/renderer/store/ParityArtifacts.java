@@ -216,7 +216,8 @@ public final class ParityArtifacts {
         Registration.external("probe.pixel"),
         Registration.external("probe.depth-quantum"),
         Registration.external("probe.pack-icons"),
-        Registration.external("probe.pack-sources")
+        Registration.external("probe.pack-sources"),
+        Registration.external("probe.pack-tooltips")
     );
 
     /** Every registration by id. */

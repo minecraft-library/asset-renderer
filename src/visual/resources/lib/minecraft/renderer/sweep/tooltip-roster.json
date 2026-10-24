@@ -1,5 +1,5 @@
 {
-  "//": "The tooltips the harness draws into references/tooltips/, each line a vanilla text component as an item tooltip carries one, every colour and format spelled out except on the one subject that tests the default. One subject names a tooltip style no pack ships, which the client draws as the missing texture. No line is obfuscated: the client's obfuscation random is unseeded, so such a line would not reproduce.",
+  "//": "The tooltips the harness draws into references/tooltips/, each line a vanilla text component as an item tooltip carries one, every colour and format spelled out except on the one subject that tests the default. One subject names a tooltip style no pack ships, which the client draws as the missing texture. No line is obfuscated: the client's obfuscation random is unseeded, so such a line would not reproduce. The packs section is what a pack run draws into pack-tooltips/<label>/ beside the reference tree: each of its subjects names an unstyled subject above by key and draws that subject's lines under the pack's sprites, in one of the pack's tooltip styles where it names one. Every line a pack subject reaches is printable ASCII, because the pack's font adds icon glyphs the client would draw and the renderer draws no font from a pack; TooltipParitySweepTest holds that. Only hypixel-skyblock has a section: defrosted redraws only the letters, for the same reason; eureka.cats.zip and FurSky Reborn.cats.zip are Catharsis containers the client cannot read; and Hypixel+ ships no text or tooltip file.",
   "format": 1,
   "subjects": [
     {"key": "one_line", "lines": [{"text": "Stone", "color": "white"}]},
@@ -57,5 +57,27 @@
     {"key": "unstyled", "lines": [{"text": "No colour given"}]},
     {"key": "width_glyphs", "lines": [{"text": "\"'()*{}", "color": "white"}]},
     {"key": "one_line", "style": "hypixel_skyblock:legendary", "lines": [{"text": "Stone", "color": "white"}]}
-  ]
+  ],
+  "packs": {
+    "hypixel-skyblock": {
+      "subjects": [
+        {"key": "one_line"}, {"key": "narrow"}, {"key": "two_lines"}, {"key": "five_lines"},
+        {"key": "long_line"}, {"key": "legacy_colours"}, {"key": "mixed_segments"}, {"key": "item_like"},
+        {"key": "one_line", "style": "hypixel_skyblock:admin"},
+        {"key": "one_line", "style": "hypixel_skyblock:common"},
+        {"key": "one_line", "style": "hypixel_skyblock:epic"},
+        {"key": "one_line", "style": "hypixel_skyblock:legendary"},
+        {"key": "one_line", "style": "hypixel_skyblock:mythic"},
+        {"key": "one_line", "style": "hypixel_skyblock:rare"},
+        {"key": "one_line", "style": "hypixel_skyblock:special"},
+        {"key": "one_line", "style": "hypixel_skyblock:supreme"},
+        {"key": "one_line", "style": "hypixel_skyblock:ultimate"},
+        {"key": "one_line", "style": "hypixel_skyblock:uncommon"},
+        {"key": "one_line", "style": "hypixel_skyblock:very_special"},
+        {"key": "two_lines", "style": "hypixel_skyblock:ultimate"},
+        {"key": "five_lines", "style": "hypixel_skyblock:ultimate"},
+        {"key": "narrow", "style": "hypixel_skyblock:legendary"}
+      ]
+    }
+  }
 }

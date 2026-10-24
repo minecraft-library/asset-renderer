@@ -843,7 +843,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "pin.corpus-count",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -852,7 +853,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "pin.corpus-count",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -868,7 +870,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "pin.corpus-count",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -986,7 +989,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1060,7 +1064,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1068,7 +1073,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1076,7 +1082,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1084,7 +1091,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1092,7 +1100,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1166,7 +1175,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -1174,7 +1184,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3495,7 +3506,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3507,7 +3519,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3523,7 +3536,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3535,7 +3549,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3574,7 +3589,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3589,7 +3605,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3609,7 +3626,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3621,7 +3639,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3629,7 +3648,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3641,7 +3661,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3676,7 +3697,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3707,7 +3729,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3727,7 +3750,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3743,7 +3767,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3755,7 +3780,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -3938,7 +3964,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -4063,7 +4090,9 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/dump/PackSourceParity": {
-      "artifacts": [],
+      "artifacts": [
+        "sweep.tooltip"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/dump/PackSourceParityTest": {
@@ -4774,7 +4803,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5091,7 +5121,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5126,7 +5157,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5157,7 +5189,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5188,7 +5221,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5250,7 +5284,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.player"
+        "sweep.player",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5781,7 +5816,8 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5895,7 +5931,8 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose"
+        "pin.vanilla-iso-pose",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5915,7 +5952,8 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose"
+        "pin.vanilla-iso-pose",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5935,7 +5973,8 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose"
+        "pin.vanilla-iso-pose",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -5963,7 +6002,8 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose"
+        "pin.vanilla-iso-pose",
+        "sweep.tooltip"
       ],
       "source": "derived"
     },
@@ -6182,6 +6222,10 @@
       "artifacts": [
         "sweep.tooltip"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/TooltipParitySweepTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/BlockDefaultsFlow": {

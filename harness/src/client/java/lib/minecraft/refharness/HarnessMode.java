@@ -85,9 +85,9 @@ public enum HarnessMode {
      * tree: which pack the client takes each resource from, with {@link HarnessConfig#PACKS}
      * selected over vanilla.
      *
-     * <p>One of the two {@linkplain #loadsPacks() pack modes}, the only ones a run naming packs may
-     * select - the packs are selected before the first resource load, so every other sweep in the boot
-     * would render through them.
+     * <p>A {@linkplain #loadsPacks() pack mode}, the only kind a run naming packs may select - the
+     * packs are selected before the first resource load, so every other sweep in the boot would render
+     * through them.
      */
     PACK_SOURCES,
     /**
@@ -95,9 +95,17 @@ public enum HarnessMode {
      * names through the slot path, with {@link HarnessConfig#PACKS} selected over vanilla, into a
      * directory outside the reference tree.
      *
-     * <p>The other {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
+     * <p>A {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
      */
-    PACK_ICONS;
+    PACK_ICONS,
+    /**
+     * Only the tooltip sweep over the section of asset-renderer's tooltip roster for
+     * {@link HarnessConfig#PACKS}, with those packs selected over vanilla, into
+     * {@code pack-tooltips/<label>/} beside the reference tree.
+     *
+     * <p>A {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
+     */
+    PACK_TOOLTIPS;
 
     /**
      * Resolves the modes this run performs, in the order they run.
@@ -143,8 +151,8 @@ public enum HarnessMode {
         if (selected.isEmpty()) selected.add(FULL);
         if (!HarnessConfig.packIds().isEmpty() && !selected.stream().allMatch(HarnessMode::loadsPacks))
             throw new IllegalStateException(String.format(
-                "Resource packs '%s' load only under PACK_SOURCES and PACK_ICONS, and this run selects '%s'",
-                HarnessConfig.PACKS, selected));
+                "Resource packs '%s' load only under the pack modes '%s', and this run selects '%s'",
+                HarnessConfig.PACKS, Arrays.stream(values()).filter(HarnessMode::loadsPacks).toList(), selected));
         return selected.stream().sorted(Comparator.comparing(HarnessMode::gait)).toList();
     }
 
@@ -165,13 +173,13 @@ public enum HarnessMode {
     }
 
     /**
-     * Whether this mode may run with resource packs selected - true only of the two pack modes, whose
+     * Whether this mode may run with resource packs selected - true only of the pack modes, whose
      * sweeps write outside the reference tree and exist to answer for a pack.
      *
      * @return whether the mode may load packs
      */
     public boolean loadsPacks() {
-        return this == PACK_SOURCES || this == PACK_ICONS;
+        return this == PACK_SOURCES || this == PACK_ICONS || this == PACK_TOOLTIPS;
     }
 
     /**
@@ -217,6 +225,7 @@ public enum HarnessMode {
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
             case PACK_SOURCES -> List.of(new PackSourceSweep());
             case PACK_ICONS -> List.of(new PackIconSweep());
+            case PACK_TOOLTIPS -> List.of(new TooltipSweep(HarnessConfig.packIds()));
         };
     }
 }

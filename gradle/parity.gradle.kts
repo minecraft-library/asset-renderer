@@ -1171,10 +1171,17 @@ tasks {
         "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
         "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
 
-    // The one run that loads resource packs, and HarnessMode.resolve refuses packs beside any other
-    // mode. The default names are PipelineParityDump.PACK_FIXTURES, the packs the packs dump is taken
-    // over and from the same folder: the harness is a build of its own launched as a process, so it
-    // cannot read the constant, and the two lists are kept equal by hand.
+    // renderVanillaPackSources, renderVanillaPackTooltipsHypixelSkyblock and renderVanillaPackIcons are
+    // the runs that load resource packs, one per pack mode. HarnessMode.resolve refuses packs beside any
+    // other mode, because the packs load at boot and every sweep after them would draw through them. The
+    // pack-source and pack-icon runs take -PrefharnessPacks over a default of their own; the pack-tooltip
+    // run fixes its pack by its name, so a task named for one pack never draws another, and takes only
+    // the folder. The pack-source default names are PipelineParityDump.PACK_FIXTURES, the packs the packs
+    // dump is taken over and from the same folder: the harness is a build of its own launched as a
+    // process, so it cannot read the constant, and the two lists are kept equal by hand.
+    val packFixtureDir = layout.projectDirectory.dir(
+        (project.findProperty("refharnessPackDir") as String?) ?: "cache/asset-renderer/packs").asFile.absolutePath
+
     registerHarnessRun("renderVanillaPackSources", "refharnessModes=PACK_SOURCES", "PACK_SOURCES", false, emptyList(),
         "Harness PACK_SOURCES probe: boots the client with -PrefharnessPacks selected over vanilla - comma-separated " +
         "file names under -PrefharnessPackDir (default cache/asset-renderer/packs/), lowest priority first, defaulting " +
@@ -1182,8 +1189,15 @@ tasks {
         "to pack-sources/sources.json, OUTSIDE the reference tree. Refreshes no reference. Then run packSourceParityVanilla.",
         listOf(
             "-PrefharnessPacks=${project.findProperty("refharnessPacks") ?: "defrosted,hypixel-skyblock,eureka.cats.zip"}",
-            "-PrefharnessPackDir=${layout.projectDirectory.dir(
-                (project.findProperty("refharnessPackDir") as String?) ?: "cache/asset-renderer/packs").asFile.absolutePath}"))
+            "-PrefharnessPackDir=$packFixtureDir"))
+
+    registerHarnessRun("renderVanillaPackTooltipsHypixelSkyblock", "refharnessModes=PACK_TOOLTIPS", "PACK_TOOLTIPS", false, emptyList(),
+        "Harness PACK_TOOLTIPS probe: boots the client with hypixel-skyblock from -PrefharnessPackDir (default " +
+        "cache/asset-renderer/packs/) selected over vanilla, and draws the tooltip roster's hypixel-skyblock section - " +
+        "each subject whole and as its box alone - into pack-tooltips/hypixel-skyblock/, OUTSIDE the reference tree, " +
+        "beside a stack.json naming the packs and the chrome sprites the client resolved. Refreshes no reference. " +
+        "Then run tooltipHypixelSkyblockParityVanilla.",
+        listOf("-PrefharnessPacks=hypixel-skyblock", "-PrefharnessPackDir=$packFixtureDir"))
 
     // The pack-icon roster and the run that draws it are one question asked over one set of packs, so
     // both take the packs from here: Hypixel+, whose shadowed block items are the subjects no

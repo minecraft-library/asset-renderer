@@ -1,5 +1,8 @@
 package lib.minecraft.refharness.sweep;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -12,6 +15,7 @@ import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.GuiFrameRenderer;
+import lib.minecraft.refharness.mixin.TooltipRenderUtilAccessor;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -21,23 +25,35 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.metadata.gui.GuiMetadataSection;
+import net.minecraft.client.resources.metadata.gui.GuiSpriteScaling;
+import net.minecraft.data.AtlasIds;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Vector2i;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Tooltip sweep. Draws every subject of asset-renderer's tooltip roster through the client's own
@@ -66,6 +82,18 @@ import java.util.Set;
  * target resize and a mover is attributable without a mask: one in the box-alone twin is the box,
  * one in the full tooltip alone is the text.
  *
+ * <p><b>A pack run draws the roster's section for its packs.</b> Constructed with the packs a run
+ * selects, the sweep reads the roster's {@code packs} section keyed by their file names and draws it
+ * into {@code pack-tooltips/<label>/}, beside the reference tree its run hands it as the output root.
+ * A pack subject names a vanilla subject by key and draws that subject's lines under the packs'
+ * sprites, in one of their tooltip styles where it names one, so a pack drawing and the vanilla
+ * drawing of its key carry one text. Before the first drawing it writes {@code stack.json} beside
+ * them: the packs the client selected and, for every tooltip sprite the section reaches, the id the
+ * client's own tooltip draws, the stack of packs supplying its file and the scaling of the sprite the
+ * client stitched - what asset-renderer holds its own chrome resolution to before it compares a pixel.
+ * A requested pack the client did not select, a roster with no section for the packs and a pack
+ * subject naming no unstyled vanilla subject each refuse the run.
+ *
  * <p>No subject is obfuscated. The client's obfuscation picks its glyphs off {@code Font.random},
  * which nothing seeds, so such a line would not reproduce and the whole tree's determinism would go
  * with it.
@@ -92,7 +120,49 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     private static final ClientTooltipPositioner AT_THE_ORIGIN =
         (screenWidth, screenHeight, x, y, width, height) -> new Vector2i(x, y);
 
+    /** The prefix the client's folder source gives the id of every pack it discovers. */
+    private static final String FILE_PREFIX = "file/";
+
+    /** The handshake a pack run writes beside its drawings. */
+    private static final String STACK = "stack.json";
+
+    /** The schema version of the handshake. */
+    private static final int STACK_FORMAT = 1;
+
+    /** Where the client's GUI atlas reads a sprite's file from - vanilla's {@code atlases/gui.json} source. */
+    private static final FileToIdConverter GUI_SPRITE_FILES = new FileToIdConverter("textures/gui/sprites", ".png");
+
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+
     private final GuiFrameRenderer capture = new GuiFrameRenderer("tooltip");
+
+    /** The packs a pack run requested, as the client's folder source names them; empty for the vanilla roster. */
+    private final List<String> requested;
+
+    /**
+     * The packs' file names comma-joined in request order, which keys the roster's section and names
+     * the output directory; empty for the vanilla roster.
+     */
+    private final Optional<String> pack;
+
+    /** Constructs the sweep that draws the vanilla roster into {@code tooltips/}. */
+    public TooltipSweep() {
+        this.requested = List.of();
+        this.pack = Optional.empty();
+    }
+
+    /**
+     * Constructs the sweep that draws the roster's section for a pack run's packs into
+     * {@code pack-tooltips/<label>/}.
+     *
+     * @param packIds the requested packs as {@link HarnessConfig#packIds()} answers them, whose file
+     *     names, comma-joined in request order, are the label that keys the roster's section and
+     *     names the output directory
+     */
+    public TooltipSweep(List<String> packIds) {
+        this.requested = List.copyOf(packIds);
+        this.pack = Optional.of(packIds.stream().map(id -> id.substring(FILE_PREFIX.length())).collect(Collectors.joining(",")));
+    }
 
     /**
      * One tooltip to render.
@@ -107,9 +177,25 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     public record TooltipSubject(String key, Optional<Identifier> style, List<ClientTooltipComponent> lines,
                                  int width, int height, boolean chrome) {}
 
+    /**
+     * One subject as the roster lists it, before its lines are parsed.
+     *
+     * @param key the roster key
+     * @param style the tooltip style the subject names, empty for the default box
+     * @param lines the subject's lines as the roster spells them
+     */
+    private record Listed(String key, Optional<Identifier> style, JsonArray lines) {}
+
+    /**
+     * Answers the directory this sweep writes into - {@code tooltips} for the vanilla roster, and for a
+     * pack run a directory beside the reference tree its run hands it as the output root, named for the
+     * run's packs.
+     *
+     * @return {@code tooltips}, or {@code pack-tooltips/<label>} for a pack run
+     */
     @Override
     public String outputDir() {
-        return "tooltips";
+        return pack.map(label -> "pack-tooltips/" + label).orElse("tooltips");
     }
 
     /**
@@ -118,9 +204,10 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      *
      * @param ctx the sweep context
      * @return the subjects, in roster order
-     * @throws IllegalStateException if a redrawing pack is selected, or the roster is unnamed, absent,
-     *     malformed, of another format, carries a line the client's codec refuses, or names two
-     *     subjects that would write one file
+     * @throws IllegalStateException if a redrawing pack is selected, a requested pack is not, or the
+     *     roster is unnamed, absent, malformed, of another format, has no section for a pack run's
+     *     packs, lists a pack subject naming no unstyled subject, carries a line the client's codec
+     *     refuses, or names two subjects that would write one file
      */
     @Override
     public List<TooltipSubject> enumerate(SweepContext ctx) {
@@ -128,8 +215,15 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
         List<String> redrawing = selected.stream().filter(REDRAWING_PACKS::contains).toList();
         if (!redrawing.isEmpty()) {
             throw new IllegalStateException(String.format(
-                "The tooltip references are drawn over vanilla's own sprites, and this client selected '%s' of '%s'",
+                "The tooltip references are drawn over %s, and this client selected '%s' of '%s'",
+                pack.isEmpty() ? "vanilla's own sprites" : "the sprites of '" + requested + "' over vanilla's",
                 redrawing, selected));
+        }
+        List<String> unselected = requested.stream().filter(id -> !selected.contains(id)).toList();
+        if (!unselected.isEmpty()) {
+            throw new IllegalStateException(String.format(
+                "The pack tooltips are drawn over '%s', and this client did not select '%s' of them - it selected '%s'",
+                requested, unselected, selected));
         }
 
         Path file = rosterFile();
@@ -139,24 +233,15 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
             throw new IllegalStateException(String.format(
                 "The tooltip roster is format '%s', and this harness reads format '%s'", format, FORMAT));
         }
-        JsonElement listed = roster.get("subjects");
-        if (listed == null || !listed.isJsonArray())
-            throw new IllegalStateException(String.format("The tooltip roster at '%s' lists no subjects", file));
 
         Font font = ctx.client().font;
         DynamicOps<JsonElement> ops = ctx.level().registryAccess().createSerializationContext(JsonOps.INSTANCE);
         List<TooltipSubject> subjects = new ArrayList<>();
         Set<String> files = new HashSet<>();
-        for (JsonElement element : listed.getAsJsonArray()) {
-            JsonObject entry = asObject(element, "a subject");
-            String key = member(entry, "key", "a subject").getAsString();
-            Optional<Identifier> style = entry.has("style")
-                ? Optional.of(Identifier.read(entry.get("style").getAsString()).getOrThrow(message ->
-                    new IllegalStateException(String.format("Tooltip subject '%s' names no style: '%s'", key, message))))
-                : Optional.empty();
-
+        for (Listed entry : listed(roster, file)) {
+            String key = entry.key();
             List<ClientTooltipComponent> lines = new ArrayList<>();
-            for (JsonElement line : member(entry, "lines", key).getAsJsonArray()) {
+            for (JsonElement line : entry.lines()) {
                 Component component = ComponentSerialization.CODEC.parse(ops, line).getOrThrow(message ->
                     new IllegalStateException(String.format("Tooltip subject '%s' carries a line the client refuses: '%s'", key, message)));
                 lines.add(ClientTooltipComponent.create(component.getVisualOrderText()));
@@ -172,7 +257,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
             }
 
             for (boolean chrome : new boolean[] { false, true }) {
-                TooltipSubject subject = new TooltipSubject(key, style, List.copyOf(lines), width, height, chrome);
+                TooltipSubject subject = new TooltipSubject(key, entry.style(), List.copyOf(lines), width, height, chrome);
                 String name = key(subject).fileName();
                 if (!files.add(name)) {
                     throw new IllegalStateException(String.format(
@@ -187,7 +272,8 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     }
 
     /**
-     * Refuses a client whose options draw a tooltip other than vanilla's default.
+     * Refuses a client whose options draw a tooltip other than vanilla's default, then, for a pack
+     * run, writes the handshake beside its drawings.
      *
      * <p>Asserted rather than set: a font option takes effect through a resource reload, and the run
      * directory every run shares would keep whatever this set.
@@ -196,6 +282,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      * @param subjects the enumerated work list
      * @throws IllegalStateException if high contrast, the forced Unicode font or the Japanese glyph
      *     variants are on, or the language is not {@code en_us}
+     * @throws UncheckedIOException if a pack run's handshake cannot be written
      */
     @Override
     public void prepare(SweepContext ctx, List<TooltipSubject> subjects) {
@@ -209,6 +296,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
                     + "off in 'en_us', and this client runs them at '%s', '%s' and '%s' in '%s'",
                 highContrast, unicode, japanese, options.languageCode));
         }
+        if (pack.isPresent()) writeStack(ctx, subjects);
     }
 
     /**
@@ -262,6 +350,166 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     @Override
     public boolean honoursTargetFilter() {
         return false;
+    }
+
+    /**
+     * Lists the subjects this sweep draws - the roster's own for the vanilla roster, and for a pack run
+     * its section's, each with the lines of the unstyled vanilla subject its key names.
+     *
+     * @param roster the roster
+     * @param file the roster's path, for the refusals
+     * @return the subjects, in roster order
+     * @throws IllegalStateException if the roster lists no subjects, has no section for a pack run's
+     *     packs, or lists a pack subject naming no unstyled subject
+     */
+    private List<Listed> listed(JsonObject roster, Path file) {
+        List<Listed> vanilla = new ArrayList<>();
+        for (JsonElement element : subjects(roster, "The top level", file)) {
+            JsonObject entry = asObject(element, "a subject");
+            String key = member(entry, "key", "a subject").getAsString();
+            vanilla.add(new Listed(key, style(entry, key), member(entry, "lines", key).getAsJsonArray()));
+        }
+        if (pack.isEmpty()) return vanilla;
+
+        String label = pack.get();
+        JsonElement sections = roster.get("packs");
+        if (sections == null || !sections.isJsonObject() || !sections.getAsJsonObject().has(label)) {
+            throw new IllegalStateException(String.format(
+                "The tooltip roster at '%s' has no section for packs '%s' - its sections are '%s'", file, label,
+                sections != null && sections.isJsonObject() ? sections.getAsJsonObject().keySet() : List.of()));
+        }
+        Map<String, JsonArray> unstyled = new HashMap<>();
+        for (Listed subject : vanilla)
+            if (subject.style().isEmpty()) unstyled.putIfAbsent(subject.key(), subject.lines());
+
+        List<Listed> section = new ArrayList<>();
+        JsonObject packSection = asObject(sections.getAsJsonObject().get(label), "the section for " + label);
+        for (JsonElement element : subjects(packSection, "The section for " + label, file)) {
+            JsonObject entry = asObject(element, "a pack subject");
+            String key = member(entry, "key", "a pack subject").getAsString();
+            JsonArray lines = unstyled.get(key);
+            if (lines == null) {
+                throw new IllegalStateException(String.format(
+                    "Pack subject '%s' of '%s' names no unstyled subject of the roster", key, label));
+            }
+            section.add(new Listed(key, style(entry, key), lines));
+        }
+        return section;
+    }
+
+    /**
+     * Writes a pack run's handshake beside its drawings: the client's pack selection, and for every
+     * tooltip sprite the subjects reach - keyed by the id the client's own tooltip draws, sorted - the
+     * file the client's GUI atlas reads it from, the stack of packs supplying that file and the scaling
+     * of the sprite the client stitched.
+     *
+     * @param ctx the sweep context
+     * @param subjects the enumerated work list
+     * @throws UncheckedIOException if a supplied file cannot be read or the handshake cannot be written
+     */
+    private void writeStack(SweepContext ctx, List<TooltipSubject> subjects) {
+        Minecraft client = ctx.client();
+        JsonObject root = new JsonObject();
+        root.addProperty("format", STACK_FORMAT);
+        PackSourceSweep.selection(client, root);
+
+        ResourceManager manager = client.getResourceManager();
+        TextureAtlas atlas = client.getAtlasManager().getAtlasOrThrow(AtlasIds.GUI);
+        Path target = ctx.outputRoot().resolve(outputDir()).resolve(STACK);
+        try {
+            Map<String, JsonObject> sources = new TreeMap<>();
+            for (Optional<Identifier> style : subjects.stream().map(TooltipSubject::style).distinct().toList()) {
+                Identifier key = style.orElse(null);
+                List<Identifier> sprites = List.of(
+                    TooltipRenderUtilAccessor.refharness$backgroundSprite(key), TooltipRenderUtilAccessor.refharness$frameSprite(key));
+                for (Identifier sprite : sprites) {
+                    Identifier spriteFile = GUI_SPRITE_FILES.idToFile(sprite);
+                    JsonObject entry = new JsonObject();
+                    entry.addProperty("file", spriteFile.toString());
+                    entry.add("stack", PackSourceSweep.stack(manager.getResourceStack(spriteFile)));
+                    entry.add("scaling", scaling(atlas.getSprite(sprite)));
+                    sources.put(sprite.toString(), entry);
+                }
+            }
+            JsonObject chrome = new JsonObject();
+            sources.forEach(chrome::add);
+            root.add("chrome_sources", chrome);
+
+            Files.createDirectories(target.getParent());
+            Files.writeString(target, GSON.toJson(root));
+            LOG.info("TooltipSweep: {} chrome sprites over {} -> {}", sources.size(), requested, target);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(String.format("The pack-tooltip handshake '%s' could not be written", target), ex);
+        }
+    }
+
+    /**
+     * Answers the scaling the client's GUI blit reads for a stitched sprite, in the client codec's field
+     * names for its type. The read is the body of {@code GuiGraphicsExtractor#getSpriteScaling}, so a
+     * sprite whose sidecar declares none answers the client's default stretch.
+     *
+     * @param sprite the stitched sprite
+     * @return the scaling
+     * @throws IllegalStateException if the scaling is of a type the handshake has no form for
+     */
+    private static JsonObject scaling(TextureAtlasSprite sprite) {
+        GuiSpriteScaling scaling = sprite.contents().getAdditionalMetadata(GuiMetadataSection.TYPE)
+            .orElse(GuiMetadataSection.DEFAULT)
+            .scaling();
+        JsonObject json = new JsonObject();
+        json.addProperty("type", scaling.type().getSerializedName());
+        switch (scaling) {
+            case GuiSpriteScaling.Stretch _ -> { }
+            case GuiSpriteScaling.Tile tile -> {
+                json.addProperty("width", tile.width());
+                json.addProperty("height", tile.height());
+            }
+            case GuiSpriteScaling.NineSlice nineSlice -> {
+                json.addProperty("width", nineSlice.width());
+                json.addProperty("height", nineSlice.height());
+                JsonObject border = new JsonObject();
+                border.addProperty("left", nineSlice.border().left());
+                border.addProperty("top", nineSlice.border().top());
+                border.addProperty("right", nineSlice.border().right());
+                border.addProperty("bottom", nineSlice.border().bottom());
+                json.add("border", border);
+                json.addProperty("stretch_inner", nineSlice.stretchInner());
+            }
+            default -> throw new IllegalStateException(String.format(
+                "GUI sprite '%s' scales as '%s', which the handshake has no form for",
+                sprite.contents().name(), scaling.type().getSerializedName()));
+        }
+        return json;
+    }
+
+    /**
+     * Reads the tooltip style an entry names.
+     *
+     * @param entry the roster entry
+     * @param key the entry's key, for the refusal
+     * @return the style, empty when the entry names none
+     * @throws IllegalStateException if the style is not an identifier
+     */
+    private static Optional<Identifier> style(JsonObject entry, String key) {
+        if (!entry.has("style")) return Optional.empty();
+        return Optional.of(Identifier.read(entry.get("style").getAsString()).getOrThrow(message ->
+            new IllegalStateException(String.format("Tooltip subject '%s' names no style: '%s'", key, message))));
+    }
+
+    /**
+     * Answers the subjects an object lists.
+     *
+     * @param object the roster or one of its sections
+     * @param where what the object is in the roster, capitalised to open the refusal
+     * @param file the roster's path, for the refusal
+     * @return the listed subjects
+     * @throws IllegalStateException if the object lists none
+     */
+    private static JsonArray subjects(JsonObject object, String where, Path file) {
+        JsonElement listed = object.get("subjects");
+        if (listed == null || !listed.isJsonArray())
+            throw new IllegalStateException(String.format("%s of the tooltip roster at '%s' lists no subjects", where, file));
+        return listed.getAsJsonArray();
     }
 
     /**

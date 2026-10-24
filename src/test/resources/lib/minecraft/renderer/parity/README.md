@@ -3,7 +3,7 @@
 Generated from `index.json`. **Do not edit** - regenerate with:
 
 ```
-./gradlew test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 Every artifact this store knows about is below. An artifact that is not `baselined`
@@ -76,6 +76,7 @@ citation by path is never the only record that something exists.
 | `probe.depth-quantum` | `cache/asset-renderer/vanilla/<version>/depth-quantum-probe/` | written deliberately outside the reference tree by renderVanillaDepthQuantumProbe |
 | `probe.pack-icons` | `cache/asset-renderer/vanilla/<version>/pack-icons/` | written deliberately outside the reference tree by renderVanillaPackIcons over the roster packIconRoster writes beside it, and read by packIconParityVanilla, a diagnostic report rather than a gate |
 | `probe.pack-sources` | `cache/asset-renderer/vanilla/<version>/pack-sources/` | written deliberately outside the reference tree by renderVanillaPackSources, and read by packSourceParityVanilla, a diagnostic report rather than a gate |
+| `probe.pack-tooltips` | `cache/asset-renderer/vanilla/<version>/pack-tooltips/` | written deliberately outside the reference tree by renderVanillaPackTooltipsHypixelSkyblock, one directory per pack configuration, each beside its stack.json, and read by tooltipHypixelSkyblockParityVanilla, a diagnostic report rather than a gate |
 | `probe.pixel` | `untracked working notes` | instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this |
 | `report.capture-note` | `commit messages` | its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose |
 | `report.expected-diff` | `<working root>/_run/expected-diff.json` | a pre-registered input to one gate, written before the capture it gates |

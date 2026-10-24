@@ -130,6 +130,34 @@ public final class PackSourceSweep implements Sweep<String> {
     private static JsonObject dump(Minecraft client) throws IOException {
         JsonObject root = new JsonObject();
         root.addProperty("format", FORMAT);
+        selection(client, root);
+        JsonArray missing = root.getAsJsonArray("missing");
+        if (!missing.isEmpty())
+            LOG.warn("PackSourceSweep: the client did not select {} of the requested packs", missing);
+        root.add("directories", strings(DIRECTORIES));
+
+        ResourceManager manager = client.getResourceManager();
+        Map<String, JsonArray> stacks = new TreeMap<>();
+        for (String directory : DIRECTORIES) {
+            for (Map.Entry<Identifier, List<Resource>> listed : manager.listResourceStacks(directory, id -> true).entrySet())
+                stacks.put(listed.getKey().toString(), stack(listed.getValue()));
+        }
+        JsonObject resources = new JsonObject();
+        stacks.forEach(resources::add);
+        root.add("resources", resources);
+        return root;
+    }
+
+    /**
+     * Appends the run's pack selection to a document - the client's resource format, the folder its
+     * folder source discovers packs in, the packs {@link HarnessConfig#PACKS} requested, every pack the
+     * client selected with the compatibility it graded the pack at, and the requested packs it did not
+     * select.
+     *
+     * @param client the running client
+     * @param root the document the five members are appended to, in that order
+     */
+    static void selection(Minecraft client, JsonObject root) {
         PackFormat format = SharedConstants.getCurrentVersion().packVersion(PackType.CLIENT_RESOURCES);
         root.addProperty("resource_format", format.major() + "." + format.minor());
         root.addProperty("pack_directory", client.getResourcePackDirectory().toAbsolutePath().normalize().toString());
@@ -146,34 +174,36 @@ public final class PackSourceSweep implements Sweep<String> {
             selected.add(entry);
         }
         root.add("selected", selected);
-        List<String> missing = requested.stream().filter(id -> !selectedIds.contains(id)).toList();
-        if (!missing.isEmpty())
-            LOG.warn("PackSourceSweep: the client did not select {} of the requested packs", missing);
-        root.add("missing", strings(missing));
-        root.add("directories", strings(DIRECTORIES));
-
-        ResourceManager manager = client.getResourceManager();
-        Map<String, JsonArray> stacks = new TreeMap<>();
-        for (String directory : DIRECTORIES) {
-            for (Map.Entry<Identifier, List<Resource>> listed : manager.listResourceStacks(directory, id -> true).entrySet()) {
-                JsonArray stack = new JsonArray();
-                for (Resource resource : listed.getValue()) {
-                    JsonObject entry = new JsonObject();
-                    entry.addProperty("pack", resource.sourcePackId());
-                    entry.addProperty("sha256", sha256(resource));
-                    stack.add(entry);
-                }
-                stacks.put(listed.getKey().toString(), stack);
-            }
-        }
-        JsonObject resources = new JsonObject();
-        stacks.forEach(resources::add);
-        root.add("resources", resources);
-        return root;
+        root.add("missing", strings(requested.stream().filter(id -> !selectedIds.contains(id)).toList()));
     }
 
-    /** The lowercase hex SHA-256 of one stacked resource's bytes. */
-    private static String sha256(Resource resource) throws IOException {
+    /**
+     * Builds one resource's stack as the documents write it - each pack supplying the resource, lowest
+     * priority first as the resource manager answers them, with the SHA-256 of what it supplies.
+     *
+     * @param stack the resource's stack, lowest priority first
+     * @return the stack's entries, in the same order
+     * @throws IOException if a stacked resource cannot be read
+     */
+    static JsonArray stack(List<Resource> stack) throws IOException {
+        JsonArray entries = new JsonArray();
+        for (Resource resource : stack) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("pack", resource.sourcePackId());
+            entry.addProperty("sha256", sha256(resource));
+            entries.add(entry);
+        }
+        return entries;
+    }
+
+    /**
+     * Answers the lowercase hex SHA-256 of one stacked resource's bytes.
+     *
+     * @param resource the resource
+     * @return its digest
+     * @throws IOException if the resource cannot be read
+     */
+    static String sha256(Resource resource) throws IOException {
         try (InputStream in = resource.open()) {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(in.readAllBytes()));
         } catch (NoSuchAlgorithmException ex) {

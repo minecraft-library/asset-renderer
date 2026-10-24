@@ -53,6 +53,7 @@
     "SuppressShakingMixin",
     "TexCoordProbeBlendMixin",
     "TexCoordProbeMixin",
+    "TooltipRenderUtilAccessor",
     "TurtleEggBellyMixin",
     "WardenIdleMixin",
     "WitchNoseMixin",

@@ -101,11 +101,12 @@ loom {
             // names it through refharnessModes - so there is no line for it to be missing from.
             property("refharness.tooltipRoster", optionalProperty("refharnessTooltipRoster")
                 ?: rootProject.file("../src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json").canonicalPath)
-            // Pack-source probe: the packs the client selects over vanilla, by file name, and the
-            // folder its own folder source discovers them in. Only PACK_SOURCES may run with packs -
+            // The pack modes: the packs the client selects over vanilla, by file name, and the folder
+            // its own folder source discovers them in. Only a pack mode may run with packs -
             // HarnessMode.resolve refuses a run naming them beside any other mode - and the selection
             // is applied to the pack repository alone, never to the options.txt every run shares.
-            // Driven by renderVanillaPackSources.
+            // Driven by renderVanillaPackSources, renderVanillaPackIcons and
+            // renderVanillaPackTooltipsHypixelSkyblock.
             optionalProperty("refharnessPacks")?.let { property("refharness.packs", it) }
             optionalProperty("refharnessPackDir")?.let { programArgs("--resourcePackDir", it) }
             // How many subjects one client tick renders. A client ticks 20 times a second whatever

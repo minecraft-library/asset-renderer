@@ -199,7 +199,7 @@ Use `-PrefharnessXxx` on the Gradle command line. The run config forwards ninete
 | `refharnessGlintOnly`     | `false`                  | Render only the animated-glint references (the 7 foil items + 4 armor diagnostics); skip the full sweep |
 | `refharnessAnimated`      | `false`                  | Render only `idle/` - one strip per entity with vanilla's own `setupAnim` running. The gait is armed per sweep off `PoseState`, so `-PrefharnessModes=EVERY,ANIMATION,WALK` writes this sub-tree in the same boot as the frozen ones |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
-| `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES` and `PACK_ICONS`; never written to `options.txt` |
+| `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES`, `PACK_ICONS` and `PACK_TOOLTIPS`; never written to `options.txt` |
 | `refharnessPackDir`       | _(unset)_                | The folder those packs are discovered in, handed to the client as `--resourcePackDir`               |
 
 ### System properties
@@ -239,7 +239,7 @@ src/
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS -> their sweeps
+    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
     │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # First settled screen → WorldOpenFlows.createFreshLevel(...)
     │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin

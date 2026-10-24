@@ -130,20 +130,10 @@ public final class PackSourceParity {
         JsonObject dump = JsonParser.parseString(Files.readString(SOURCES)).getAsJsonObject();
         List<String> requested = strings(dump.getAsJsonArray("requested"));
         List<String> directories = strings(dump.getAsJsonArray("directories"));
-        Path packDirectory = Path.of(dump.get("pack_directory").getAsString());
-
-        List<File> packs = new ArrayList<>();
-        for (String id : requested) {
-            if (!id.startsWith(FILE_PREFIX))
-                throw new IllegalStateException(String.format("Requested pack '%s' is not a folder-source id", id));
-            packs.add(packDirectory.resolve(id.substring(FILE_PREFIX.length())).toFile());
-        }
         PackStack stack = PackAcquisition.acquire(ClientAcquisition.acquire(
-            ClientOptions.builder().texturePacks(Concurrent.adoptList(packs)).build()));
+            ClientOptions.builder().texturePacks(Concurrent.adoptList(packFiles(dump))).build()));
 
-        List<String> labels = new ArrayList<>();
-        labels.add(VANILLA);
-        labels.addAll(requested);
+        List<String> labels = labels(dump);
         Map<String, Integer> foreign = new TreeMap<>();
         Map<String, List<Supplied>> client = clientStacks(dump.getAsJsonObject("resources"), Set.copyOf(labels), foreign);
         Map<String, List<Supplied>> renderer = rendererStacks(stack, labels, directories);
@@ -182,6 +172,42 @@ public final class PackSourceParity {
         print("different pack order", comparison.order(), disagreement -> top(disagreement.client()));
         print("same packs, different bytes", comparison.bytes(), disagreement -> top(disagreement.client()));
         System.out.printf("%s -> %s%n", comparison.agrees() ? "AGREE" : "DISAGREE", REPORT.toAbsolutePath().normalize());
+    }
+
+    /**
+     * Maps the packs a pack run's dump names as requested to the files the client's folder source
+     * discovered them as, in request order. The pack-source probe's {@code sources.json} and the
+     * pack-tooltip run's {@code stack.json} each carry the {@code pack_directory} and {@code requested}
+     * members it reads.
+     *
+     * @param dump the pack run's dump
+     * @return the pack files, lowest priority first
+     * @throws IllegalStateException if a requested pack is not a folder-source id
+     */
+    public static @NotNull List<File> packFiles(@NotNull JsonObject dump) {
+        Path directory = Path.of(dump.get("pack_directory").getAsString());
+        List<File> packs = new ArrayList<>();
+        for (String id : strings(dump.getAsJsonArray("requested"))) {
+            if (!id.startsWith(FILE_PREFIX))
+                throw new IllegalStateException(String.format("Requested pack '%s' is not a folder-source id", id));
+            packs.add(directory.resolve(id.substring(FILE_PREFIX.length())).toFile());
+        }
+        return packs;
+    }
+
+    /**
+     * Answers the client's id for each pack of the stack the renderer loads from a pack run's dump,
+     * lowest priority first - the client's built-in vanilla pack, then each pack the dump names as
+     * requested.
+     *
+     * @param dump the pack run's dump
+     * @return the ids, one per pack of the stack {@link #packFiles} stacks over vanilla
+     */
+    public static @NotNull List<String> labels(@NotNull JsonObject dump) {
+        List<String> labels = new ArrayList<>();
+        labels.add(VANILLA);
+        labels.addAll(strings(dump.getAsJsonArray("requested")));
+        return labels;
     }
 
     /**
