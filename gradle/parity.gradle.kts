@@ -668,12 +668,12 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 
 // Every sub-tree the reference tree holds, so a partial run can name what it did NOT refresh.
 //
-// `idle` and `walk` are written in the same boot as the seven above now - the freezes are armed
+// `idle` and `walk` are written in the same boot as every sub-tree above - the freezes are armed
 // per sweep off PoseState rather than read once per JVM. They are in this list because they are in
 // the tree: the reference manifest walks the root for images at any depth, so a sub-tree left out of
 // the list is one every partial run stops naming while the manifest goes on hashing it.
 val referenceSubTrees =
-    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "idle", "walk")
+    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "tooltips", "idle", "walk")
 
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
@@ -1108,16 +1108,17 @@ tasks {
     // probe, which was previously reachable only by cd-ing into the harness.
     registerHarnessRun("renderVanillaReferences", null, "FULL", true,
         listOf("blocks", "items", "entities", "players"),
-        "Runs the harness in FULL mode: blocks, items, entities and the player. Does NOT refresh glint/ or " +
-        "armor/ - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
+        "Runs the harness in FULL mode: blocks, items, entities and the player. Refreshes those four " +
+        "sub-trees and no other - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
 
     registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
-    // forwardsTargets = false on the next three, and the reason is in the sweep rather than in the task:
-    // PlayerSweep.honoursTargetFilter(), ArmorSweep.honoursTargetFilter() and
-    // MenuSweep.honoursTargetFilter() all return false because none of those sweeps' subjects have a
-    // registry id, so a filter would match nothing and the run would write no reference at all.
+    // forwardsTargets = false on the player, armour, menu and tooltip runs, and the reason is in the
+    // sweep rather than in the task: PlayerSweep.honoursTargetFilter(), ArmorSweep.honoursTargetFilter(),
+    // MenuSweep.honoursTargetFilter() and TooltipSweep.honoursTargetFilter() all return false because
+    // none of those sweeps' subjects have a registry id, so a filter would match nothing and the run
+    // would write no reference at all.
     registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", "PLAYERS", false, listOf("players"),
         "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
@@ -1125,8 +1126,13 @@ tasks {
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
     registerHarnessRun("renderVanillaMenuReferences", "refharnessMenusOnly", "MENUS", false, listOf("menus"),
-        "Runs the harness in MENUS mode: references/menus/ only - the eight shipped container screens, " +
+        "Runs the harness in MENUS mode: references/menus/ only - the ten menu subjects, " +
         "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
+
+    registerHarnessRun("renderVanillaTooltipReferences", "refharnessModes=TOOLTIPS", "TOOLTIPS", false,
+        listOf("tooltips"),
+        "Runs the harness in TOOLTIPS mode: references/tooltips/ only - every subject of the tracked " +
+        "tooltip roster drawn through the client's own tooltip call, and its box alone.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
         listOf("idle"),

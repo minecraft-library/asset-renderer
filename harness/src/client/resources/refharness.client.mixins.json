@@ -37,7 +37,7 @@
     "IllagerArmPoseMixin",
     "IronGolemOfferMixin",
     "LlamaModelMixin",
-    "MenuRenderTargetMixin",
+    "GuiRenderTargetMixin",
     "ParrotStandingMixin",
     "PhantomStateMixin",
     "PufferfishStateMixin",

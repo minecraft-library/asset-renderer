@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  *
  * <p>Vanilla exposes neither, because nothing outside a frame is meant to draw the GUI. Every other
  * handle this harness needs off {@code GameRenderer} - the feature dispatcher, the lighting, the game
- * render state - already has a public getter, so this is the whole of what a menu capture adds and it
+ * render state - already has a public getter, so this is the whole of what a GUI capture adds and it
  * reads state rather than changing any.
  */
 @Mixin(GameRenderer.class)

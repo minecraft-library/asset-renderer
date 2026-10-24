@@ -410,7 +410,7 @@ These are message and constructor shapes on throwables. Nothing renders differen
 - **blind** -
 - **source** measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'
 
-The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it. The posed sub-trees are written in the same boot, after the seven frozen ones - HarnessMode.resolve orders BIND before IDLE before WALK - so a change here moves what that one run writes.
+The harness produces the reference tree, so a change to a frame renderer or the bounds walker moves the bytes every sweep compares to - and moves them for sweeps nobody re-ran, which is how stale ground truth was left on disk twice. Only renderVanillaAllReferences refreshes the whole tree, so a partial refresh is the failure mode rather than the fix. The triggers are the harness's SOURCE and the wiring that boots it, never one glob over the tree: the claim is about a render, and a markdown file under harness/ cannot move a reference byte while a rule matching it costs a whole-client re-render. The Java half is derived from the root package's own declaration and the rest is enumerated here - the two resource files that decide which mixins apply and which entrypoints run, and the build wiring, which no annotation can reach. The root build compiles none of those sources itself - the harness is its own Gradle build with its own wrapper - so ./gradlew test passes over a harness that does not compile and the next thing to notice is a client boot. harnessClasses shells to that wrapper and costs seconds, and ./gradlew check depends on it. The posed sub-trees are written in the same boot, after every frozen one - HarnessMode.resolve orders BIND before IDLE before WALK - so a change here moves what that one run writes.
 
 *Probe:* re-render with the change stashed: a reference that moves was stale, and one that does not was not reached
 
@@ -630,17 +630,17 @@ The vocabulary module's build script declares its toolchain and its encoding and
 
 *Probe:* change the toolchain or add a repository and capture any artifact; every stored byte is identical, and no consumer's classpath gains an entry because the build resolves none
 
-## B51 - The menu sweep and its frame renderer reach the menu references and no other sub-tree
+## B51 - The menu sweep reaches the menu references and no other sub-tree
 
 - **mode** demote
-- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/MenuFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/MenuSweep.java`
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/MenuSweep.java`
 - **sees** `sweep.menu`, `manifest.references`
 - **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **source** measured by widening MenuSweep's PANEL_WIDTH by one pixel and re-rendering the WHOLE tree: of the seven sub-trees only menus/ moved, and the other six hashed identically to the run before it - so a sweep's reach really does stop at its own directory rather than merely being written that way. The per-file half is the call graph over that closure, read rather than re-measured once per file
 
-MenuSweep is the one sweep that submits no geometry: it drives the client's own GUI pipeline into an offscreen target and writes menus/. MenuFrameRenderer is reached from it and from nothing else. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.
+MenuSweep is the one sweep whose subjects are container screens: it builds each screen, lays it out at its panel's own size and hands the shared GUI capture both halves of its extract, and writes menus/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, and manifest.references hashes the whole tree, so those two are the whole answer.
 
-*Probe:* widen the panel and re-render the whole tree: menus/ moves and the other six sub-trees hash identically, so every sweep but the menu one is measured against ground truth nobody touched
+*Probe:* widen the panel and re-render the whole tree: menus/ moves and every other sub-tree hashes identically, so every sweep but the menu one is measured against ground truth nobody touched
 
 ## B52 - The block sweep and the types only it reaches write blocks/ and nothing else
 
@@ -760,7 +760,7 @@ The pitch-roll, depth-quantum, pack-source and pack-icon sweeps refresh no refer
 
 EntityAnimationSweep enumerates each entity's default subject, its baby and the posed trait subjects the roster lists, and renders each at every frame of the schedule the roster names for it; AnimatedEntityFrameRenderer arms each frame and unions the bounds across the strip, delegating the draw itself to the shared entity frame renderer, which carries its own wider claim. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and this sweep's own - resolve under that same directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory. Here it is tighter still: renderVanillaAllReferences runs every sweep in one boot, the frozen ones first, so nothing this sweep draws precedes them; the roster it loads at boot is parsed, never drawn; and its own writes - the frames, the schedule sidecar, and the clearing of frames a shorter strip leaves - all land under outputRoot / sweep.outputDir().
 
-*Probe:* change one subject's frames in the roster and re-render the whole tree: idle/ and walk/ change and the seven frozen sub-trees hash identically, because the frozen sweeps run first in that boot and read no roster
+*Probe:* change one subject's frames in the roster and re-render the whole tree: idle/ and walk/ change and every frozen sub-tree hashes identically, because the frozen sweeps run first in that boot and none reads the schedule roster
 
 ## B62 - The pose language decides where every bone of every posed subject goes, so it reaches each artifact that draws one
 
@@ -806,9 +806,45 @@ CitRule and the value predicates under asset/rule/filter are the CIT grammar: th
 - **blind** -
 - **source** measured at the roster, by raising the adult armadillo stride row's walkAnimationSpeed extent in entity_models.json from 0.17268725 to 0.3453745 and running entityScheduleRoster: 1 of 270 roster entries moved, the armadillo's adult walk entry, in its walk_speed alone - its frames, step and walk_rate held, as did both of the armadillo's baby entries - and with the table restored a third run, in a fresh JVM, wrote a roster byte-identical to the first. The half from the roster to the reference tree - which paths under idle/ and walk/ move, and that every path outside them holds - is the capture manifest.references is promoted from, recorded in that promotion's reason
 
-The harness renders idle/ and walk/ at the frames, step, walk speed, walk-clock rate and clock values the roster names, and renders the trait subjects the roster lists. The roster is written by renderer code from the shipped drives in entity_models.json and the poses in entity_poses.json, so an edit to either table or to the writer re-renders those two sub-trees, and the other seven are written by frozen sweeps that read no roster. The two tables and the writer already plan the two animation sweeps through B35 and B32; what this adds is the references those sweeps are measured against. The renderer code an entry resolves through is the reference graph's to answer rather than this list's: manifest.references is rooted at StyleResolution, the resolution the writer and every render share, so an edit to that type, or to a type it reaches that a derived rule covers, plans the references per file.
+The harness renders idle/ and walk/ at the frames, step, walk speed, walk-clock rate and clock values the roster names, and renders the trait subjects the roster lists. The roster is written by renderer code from the shipped drives in entity_models.json and the poses in entity_poses.json, so an edit to either table or to the writer re-renders those two sub-trees, and every other sub-tree is written by a frozen sweep that reads nothing of the schedule roster. The two tables and the writer already plan the two animation sweeps through B35 and B32; what this adds is the references those sweeps are measured against. The renderer code an entry resolves through is the reference graph's to answer rather than this list's: manifest.references is rooted at StyleResolution, the resolution the writer and every render share, so an edit to that type, or to a type it reaches that a derived rule covers, plans the references per file.
 
 *Probe:* change one stride row's walkAnimationSpeed extent in entity_models.json and run entityScheduleRoster: that entity's walk entry is the one roster entry to move; the harness renders walk/ from that entry and records it in walk/schedule.json, which manifest.references digests
+
+## B66 - The tooltip sweep reaches the tooltip references and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/TooltipSweep.java`
+- **sees** `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
+- **source** declared from the write site, the B61 shape: SweepRunner resolves every path this sweep writes as outputRoot / sweep.outputDir(), and the sweep makes no write outside that resolution; the whole-tree render that added tooltips/ to the stored tree added its 28 files and moved no path outside it
+
+TooltipSweep draws every subject of the tracked tooltip roster through the client's own tooltip call, and the same subject's box alone, into the shared GUI capture, and writes tooltips/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. No sweep this store holds reads tooltips/, and manifest.references hashes the whole tree, so that is the whole answer.
+
+*Probe:* move the sweep's fixed origin by one GUI pixel and re-render the whole tree: every tooltips/ file moves and every other sub-tree hashes identically
+
+## B67 - The tooltip roster is what the tooltip references are drawn from, so an edit to it reaches them
+
+- **mode** select
+- **triggers** `src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json`
+- **sees** `manifest.references`
+- **blind** -
+- **source** declared from the read site: TooltipSweep enumerates the file refharness.tooltipRoster names and nothing else, and the harness build sets that property on every run
+
+The harness reads this file by path - the harness build defaults refharness.tooltipRoster to it - and draws every subject it names, and each subject's box alone, into tooltips/, so an edit to it re-renders that sub-tree. It is a resource, which no declaration can reach, so the rule is authored. The harness's own sources reach the same sub-tree through B29 and B66.
+
+*Probe:* change one subject's colour and run renderVanillaTooltipReferences: that subject's full reference moves, and its box-alone twin and every other file hold
+
+## B68 - The shared GUI capture reaches the menu and tooltip references and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/GuiFrameRenderer.java`
+- **sees** `sweep.menu`, `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
+- **source** measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held
+
+GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep and TooltipSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu references are what sweep.menu diffs against, no sweep this store holds reads tooltips/, and manifest.references hashes the whole tree, so those two are the whole answer.
+
+*Probe:* change the capture's clear colour and re-render the whole tree: menus/ and tooltips/ move and every other sub-tree hashes identically
 
 ## Paths that reach nothing
 

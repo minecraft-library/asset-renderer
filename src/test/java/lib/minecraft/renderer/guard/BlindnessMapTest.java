@@ -381,6 +381,9 @@ final class BlindnessMapTest {
     /** A member naming the claim a declaration is about, by its slug or by the type it joins. */
     private static final Pattern NAMES_A_CLAIM = Pattern.compile("\\b(?:claim|as)\\s*=");
 
+    /** A member naming the claim a declaration is about by its slug, capturing the slug. */
+    private static final Pattern DECLARED_CLAIM = Pattern.compile("\\bclaim\\s*=\\s*\"([^\"]+)\"");
+
     /**
      * The stored artifacts whose names identify each renderer that has one.
      *
@@ -1565,6 +1568,38 @@ final class BlindnessMapTest {
             + "gate that silently stopped being consulted. Nothing else here can see it: every "
             + "other check over this list is quantified over the paths it holds and is vacuously "
             + "true of none", homeless, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every claim a declaration names is the claim key of exactly one rule")
+    void everyDeclaredClaimHasOneRule() {
+        Map<String, Integer> keyed = new TreeMap<>();
+        for (JsonObject rule : rules())
+            if (rule.has("claim_key")) keyed.merge(rule.get("claim_key").getAsString(), 1, Integer::sum);
+        Set<String> declared = new TreeSet<>();
+        Map<String, String> unresolved = new TreeMap<>();
+        for (String path : trackedFiles()) {
+            if (!underASourceRoot(path) || !Files.isRegularFile(Path.of(path))) continue;
+            Matcher declaration = DECLARATION_ARGUMENTS.matcher(text(Path.of(path)));
+            while (declaration.find()) {
+                Matcher claim = DECLARED_CLAIM.matcher(declaration.group(1));
+                if (!claim.find()) continue;
+                String key = claim.group(1);
+                declared.add(key);
+                int carriers = keyed.getOrDefault(key, 0);
+                if (carriers != 1) unresolved.put(key, path + " - carried by " + carriers + " rules");
+            }
+        }
+
+        assertThat("no file under a source root declares a claim by its slug, which would leave the "
+            + "check below true of nothing", declared, is(not(empty())));
+        assertThat("claims a declaration names that are the claim_key of no rule, or of more than one. "
+            + "A slug no rule carries is one the generator derives paths for and hands to nobody, so "
+            + "the file's own blind list is never read: the planner reaches the file through whatever "
+            + "wider rule globs it, the trigger regeneration has nothing to move, and every other "
+            + "check here is quantified over rules and so says nothing. A slug two rules carry is one "
+            + "claim whose sees and blind are written twice, with nothing holding the copies equal",
+            unresolved, equalTo(Map.of()));
     }
 
     @Test

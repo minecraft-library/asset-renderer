@@ -164,7 +164,7 @@ with `named` on THIS project.
 
 The [harness] is `harness/`, its own Gradle build with its own `gradlew`. It
 renders every subject through the real Minecraft client at a locked iso pose; those PNGs are the
-byte-stable ground truth the nine sweeps diff against, one sub-tree each under
+byte-stable ground truth the parity sweeps diff against, one sub-tree each under
 `cache/asset-renderer/vanilla/<mc>/references/`. Internals live in
 [harness/CLAUDE.md]. The Java side walks vanilla model bytecode into
 `entity_models.json` and `entity_geometry.json`.
@@ -174,7 +174,7 @@ byte-stable ground truth the nine sweeps diff against, one sub-tree each under
 - **The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge.**
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
-- **`renderVanillaAllReferences` writes the whole tree in ONE boot**, all nine sweeps, `idle/`
+- **`renderVanillaAllReferences` writes the whole tree in ONE boot**, every sweep, `idle/`
   and `walk/` included. Every narrower run still leaves the sub-trees it does not name exactly as
   it found them.
 - Re-rendering refreshes ground truth and does not fix a regression, and only

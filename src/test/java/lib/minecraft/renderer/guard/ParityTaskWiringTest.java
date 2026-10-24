@@ -153,6 +153,26 @@ final class ParityTaskWiringTest {
     /** Where the toolkit lives, whose modules answer which one writes the budget's column. */
     private static final Path TOOLKIT = Path.of("parity/scripts/parity");
 
+    /** The toolkit module whose sub-tree tuple a provenance record counts the reference tree over. */
+    private static final Path PROVENANCE = TOOLKIT.resolve("provenance.py");
+
+    /** The run doc, whose output-directory bullet is where a reader learns what a run writes. */
+    private static final Path RUNNING_DOC = Path.of("docs/harness/Running.md");
+
+    /** The build's reference sub-tree list, capturing its members. */
+    private static final Pattern BUILD_SUB_TREES =
+        Pattern.compile("val referenceSubTrees =\\s*listOf\\(([^)]*)\\)");
+
+    /** The toolkit's reference sub-tree tuple, capturing its members. */
+    private static final Pattern TOOLKIT_SUB_TREES = Pattern.compile("REFERENCE_SUBTREES = \\(([^)]*)\\)");
+
+    /** A harness run whose refreshed sub-trees are a literal list, capturing its name and the list. */
+    private static final Pattern LITERAL_REFRESHES = Pattern.compile(
+        "registerHarnessRun\\(\"([^\"]+)\", (?:null|\"[^\"]+\"), \"[^\"]+\", (?:true|false),\\s*listOf\\(([^)]*)\\)");
+
+    /** The run doc's bullet naming the directories a run writes under the output root. */
+    private static final Pattern OUTPUT_BULLET = Pattern.compile("(?m)^- Output dirs under the output root:.*$");
+
     /** The index-row column the plan's budget sums, which is where an artifact's cost is read. */
     private static final String BUDGET_COLUMN = "last_duration_ms";
 
@@ -1300,6 +1320,67 @@ final class ParityTaskWiringTest {
         assertThat("a declared mode carrying the separator would make a two-run value ambiguous "
                 + "with a one-run value, and the composite would stop being a set of names",
             declared.stream().filter(mode -> mode.contains(MODE_SEPARATOR)).toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the reference sub-trees are one list that every refreshing run and the run docs draw from")
+    void theReferenceSubTreesAreOneList() {
+        List<String> subTrees = quotedMembers(declared(buildFile(), BUILD_SUB_TREES.pattern()));
+        Matcher toolkit = TOOLKIT_SUB_TREES.matcher(read(PROVENANCE));
+
+        assertThat("the build lists no reference sub-tree, which would leave every clause below true of "
+            + "nothing", subTrees, is(not(empty())));
+        assertThat("the toolkit declares no REFERENCE_SUBTREES tuple to hold the build's list to",
+            toolkit.find(), is(true));
+        assertThat("the toolkit's sub-tree tuple against the build's list, in order. The build's is what "
+                + "the whole-tree run refreshes and what a partial run names as left stale; the "
+                + "toolkit's is what a provenance record counts per sub-tree. A sub-tree added to one "
+                + "alone is one a partial run never names, or one every record silently says nothing "
+                + "about, and the two read the same as a sub-tree the tree does not hold",
+            quotedMembers(toolkit.group(1)), equalTo(subTrees));
+
+        Map<String, List<String>> outside = new TreeMap<>();
+        Set<String> narrow = new TreeSet<>();
+        int literal = 0;
+        Matcher runs = LITERAL_REFRESHES.matcher(buildFile());
+        while (runs.find()) {
+            literal++;
+            List<String> refreshed = quotedMembers(runs.group(2));
+            narrow.addAll(refreshed);
+            List<String> unknown = refreshed.stream()
+                .filter(name -> !subTrees.contains(name))
+                .toList();
+            if (!unknown.isEmpty()) outside.put(runs.group(1), unknown);
+        }
+        assertThat("no harness run names the sub-trees it refreshes as a literal list, which would leave "
+            + "the clauses below vacuous", literal, is(greaterThan(0)));
+        assertThat("runs refreshing a sub-tree the list does not name. The whole-tree run refreshes "
+                + "exactly the list, so such a sub-tree is one only a narrow run writes - and one no "
+                + "partial run ever reports as left stale",
+            outside, equalTo(Map.of()));
+        assertThat("sub-trees no run with a literal list refreshes. Each sub-tree has a run that "
+                + "refreshes it without re-rendering the whole tree, so one listed here can be refreshed "
+                + "only by the whole-tree boot, and its narrow run is one the build lost",
+            subTrees.stream().filter(name -> !narrow.contains(name)).toList(), is(empty()));
+
+        Matcher bullet = OUTPUT_BULLET.matcher(read(RUNNING_DOC));
+        assertThat("the run doc carries no output-directory bullet to hold to the list",
+            bullet.find(), is(true));
+        String written = bullet.group();
+        assertThat("sub-trees the run doc's output bullet does not name. It is what a reader learns a "
+                + "run writes from, so a sub-tree missing there is one the tree holds and the doc "
+                + "does not",
+            subTrees.stream().filter(name -> !written.contains("`" + name + "/`")).toList(), is(empty()));
+    }
+
+    /**
+     * Returns the quoted members of a written list, in order.
+     *
+     * @param list the list's text between its brackets
+     * @return the members, unquoted
+     */
+    private static List<String> quotedMembers(String list) {
+        return QUOTED.matcher(list).results().map(hit -> hit.group(1)).toList();
     }
 
     /**

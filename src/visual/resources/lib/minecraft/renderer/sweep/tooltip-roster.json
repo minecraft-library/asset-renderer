@@ -1,0 +1,61 @@
+{
+  "//": "The tooltips the harness draws into references/tooltips/, each line a vanilla text component as an item tooltip carries one, every colour and format spelled out except on the one subject that tests the default. One subject names a tooltip style no pack ships, which the client draws as the missing texture. No line is obfuscated: the client's obfuscation random is unseeded, so such a line would not reproduce.",
+  "format": 1,
+  "subjects": [
+    {"key": "one_line", "lines": [{"text": "Stone", "color": "white"}]},
+    {"key": "narrow", "lines": [{"text": "It", "color": "white"}]},
+    {"key": "two_lines", "lines": [
+      {"text": "Aspect of the End", "color": "white"},
+      {"text": "Teleports you ahead", "color": "gray"}]},
+    {"key": "five_lines", "lines": [
+      {"text": "Ender Pearl", "color": "white"},
+      {"text": "Throw it to teleport", "color": "gray"},
+      {"text": "to where it lands,", "color": "gray"},
+      {"text": "taking some damage", "color": "gray"},
+      {"text": "on the way", "color": "gray"}]},
+    {"key": "long_line", "lines": [
+      {"text": "The Quick Brown Fox Jumps Over The Lazy Dog 0123456789", "color": "white"}]},
+    {"key": "legacy_colours", "lines": [
+      {"text": "black", "color": "black"}, {"text": "dark_blue", "color": "dark_blue"},
+      {"text": "dark_green", "color": "dark_green"}, {"text": "dark_aqua", "color": "dark_aqua"},
+      {"text": "dark_red", "color": "dark_red"}, {"text": "dark_purple", "color": "dark_purple"},
+      {"text": "gold", "color": "gold"}, {"text": "gray", "color": "gray"},
+      {"text": "dark_gray", "color": "dark_gray"}, {"text": "blue", "color": "blue"},
+      {"text": "green", "color": "green"}, {"text": "aqua", "color": "aqua"},
+      {"text": "red", "color": "red"}, {"text": "light_purple", "color": "light_purple"},
+      {"text": "yellow", "color": "yellow"}, {"text": "white", "color": "white"}]},
+    {"key": "hex_colours", "lines": [
+      {"text": "#7F7F7F", "color": "#7F7F7F"}, {"text": "#030303", "color": "#030303"},
+      {"text": "#FF8001", "color": "#FF8001"}, {"text": "#123456", "color": "#123456"}]},
+    {"key": "formats", "lines": [
+      {"text": "Bold", "color": "white", "bold": true},
+      {"text": "Italic", "color": "white", "italic": true},
+      {"text": "Underlined", "color": "white", "underlined": true},
+      {"text": "Strikethrough", "color": "white", "strikethrough": true},
+      {"text": "Bold italic", "color": "white", "bold": true, "italic": true},
+      {"text": "", "color": "white", "extra": [
+        {"text": "Un"}, {"text": "derlined from the third", "underlined": true}]}]},
+    {"key": "mixed_segments", "lines": [
+      {"text": "", "color": "white", "extra": [
+        {"text": "Damage: ", "color": "gray"}, {"text": "+120", "color": "red", "bold": true},
+        {"text": " (+20)", "color": "dark_gray"}]}]},
+    {"key": "shadow_color", "lines": [
+      {"text": "Opaque shadow", "color": "white", "shadow_color": -16776961},
+      {"text": "Translucent shadow", "color": "white", "shadow_color": -2130771968},
+      {"text": "Shadow alpha 19", "color": "white", "shadow_color": 436142080},
+      {"text": "Shadow alpha 1A", "color": "white", "shadow_color": 452919296},
+      {"text": "No shadow", "color": "white", "shadow_color": 0}]},
+    {"key": "item_like", "lines": [
+      {"text": "Aspect of the End", "color": "blue"},
+      {"text": "", "color": "white"},
+      {"text": "", "color": "white", "extra": [{"text": "Damage: ", "color": "gray"}, {"text": "+100", "color": "red"}]},
+      {"text": "", "color": "white", "extra": [{"text": "Strength: ", "color": "gray"}, {"text": "+100", "color": "red"}]},
+      {"text": "", "color": "white", "extra": [{"text": "Intelligence: ", "color": "gray"}, {"text": "+100", "color": "green"}]},
+      {"text": "Teleports you eight blocks", "color": "dark_purple", "italic": true},
+      {"text": "ahead of where you look.", "color": "dark_purple", "italic": true},
+      {"text": "RARE SWORD", "color": "blue", "bold": true}]},
+    {"key": "unstyled", "lines": [{"text": "No colour given"}]},
+    {"key": "width_glyphs", "lines": [{"text": "\"'()*{}", "color": "white"}]},
+    {"key": "one_line", "style": "hypixel_skyblock:legendary", "lines": [{"text": "Stone", "color": "white"}]}
+  ]
+}

@@ -95,6 +95,12 @@ loom {
             // compose with this, so every task that sets one resolves what it always did. The gait
             // is armed per sweep rather than per JVM, which is what makes a shared boot legal at all.
             optionalProperty("refharnessModes")?.let { property("refharness.modes", it) }
+            // The tooltip sweep's roster, by path. Set on every run, so no task can forget it: the
+            // default is the tracked roster under asset-renderer's src/visual/resources, and a run
+            // pointed elsewhere draws that file instead. TOOLTIPS has no boolean of its own - a run
+            // names it through refharnessModes - so there is no line for it to be missing from.
+            property("refharness.tooltipRoster", optionalProperty("refharnessTooltipRoster")
+                ?: rootProject.file("../src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json").canonicalPath)
             // Pack-source probe: the packs the client selects over vanilla, by file name, and the
             // folder its own folder source discovers them in. Only PACK_SOURCES may run with packs -
             // HarnessMode.resolve refuses a run naming them beside any other mode - and the selection

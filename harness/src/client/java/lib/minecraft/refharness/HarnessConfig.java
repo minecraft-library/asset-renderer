@@ -6,6 +6,7 @@ import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.MenuSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
+import lib.minecraft.refharness.sweep.TooltipSweep;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -114,9 +115,9 @@ public final class HarnessConfig {
 
     /**
      * When {@code true}, the harness runs <em>only</em> the {@link MenuSweep} (the shipped container
-     * screens under {@code menus/}), skipping every other sweep. A menu is the one subject drawn
-     * through the client's own GUI pipeline rather than by submitting geometry, so it is the sweep
-     * whose mechanism is worth iterating on alone. Pair with {@code -PrefharnessMenusOnly=true} on
+     * screens under {@code menus/}), skipping every other sweep. A menu is drawn through the
+     * client's own GUI pipeline rather than by submitting geometry, so its mechanism is worth
+     * iterating on alone. Pair with {@code -PrefharnessMenusOnly=true} on
      * {@code renderVanillaMenuReferences}.
      */
     public static final boolean MENUS_ONLY = Boolean.getBoolean("refharness.menusOnly");
@@ -173,6 +174,14 @@ public final class HarnessConfig {
      * {@link HarnessMode#resolve} orders a run so no sweep is handed a mesh a later gait mutated.
      */
     public static final String MODES = System.getProperty("refharness.modes", "");
+
+    /**
+     * The roster the {@link TooltipSweep} draws, by absolute path. The harness build defaults it to
+     * the tracked roster under asset-renderer's {@code src/visual/resources},
+     * {@code lib/minecraft/renderer/sweep/tooltip-roster.json}, so only a launch outside that build
+     * leaves it empty - which the sweep refuses before it draws anything.
+     */
+    public static final String TOOLTIP_ROSTER = System.getProperty("refharness.tooltipRoster", "");
 
     /**
      * How many subjects one client tick renders. Defaults to {@code 8}; it was effectively {@code 1}

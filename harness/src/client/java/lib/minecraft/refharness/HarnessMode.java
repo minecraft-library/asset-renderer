@@ -14,6 +14,7 @@ import lib.minecraft.refharness.sweep.PackSourceSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
 import lib.minecraft.refharness.sweep.ScheduleRoster;
+import lib.minecraft.refharness.sweep.TooltipSweep;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -35,12 +36,14 @@ public enum HarnessMode {
 
     /**
      * The reference sweep proper - blocks, items, entities and the player. Despite the name this is
-     * not the whole reference tree: the glint and armor sweeps are not in it, so a renderer change
-     * this mode covers can still leave those two behind. {@link #EVERY} is the one that covers all of
-     * it.
+     * not the whole reference tree - {@link #EVERY} with the two posed modes is - so a renderer change
+     * this mode covers can still leave every sub-tree it does not write behind.
      */
     FULL,
-    /** Every reference sweep there is, in one run - {@link #FULL}'s four plus glint, armor and menus. */
+    /**
+     * Every frozen reference sweep, in one run - {@link #FULL}'s four plus glint, armor, menus and
+     * tooltips.
+     */
     EVERY,
     /** Only the animated-glint frame sequences. */
     GLINT,
@@ -50,6 +53,11 @@ public enum HarnessMode {
     ARMOR,
     /** Only the container-screen references. */
     MENUS,
+    /**
+     * Only the tooltip references - every subject of asset-renderer's tooltip roster drawn through the
+     * client's own tooltip call, and its box alone.
+     */
+    TOOLTIPS,
     /**
      * Only the animated entity references, with vanilla's own animation running, written to
      * {@code idle/}.
@@ -197,11 +205,12 @@ public enum HarnessMode {
         return switch (this) {
             case FULL -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep());
             case EVERY -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep(),
-                new GlintSweep(), new ArmorSweep(), new MenuSweep());
+                new GlintSweep(), new ArmorSweep(), new MenuSweep(), new TooltipSweep());
             case GLINT -> List.of(new GlintSweep());
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
+            case TOOLTIPS -> List.of(new TooltipSweep());
             case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case WALK -> List.of(new EntityAnimationSweep(Gait.WALK, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case PITCH_ROLL -> List.of(new PitchRollSweep());

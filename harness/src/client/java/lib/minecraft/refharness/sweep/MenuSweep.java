@@ -4,8 +4,11 @@ import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.RefKey;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
-import lib.minecraft.refharness.frame.MenuFrameRenderer;
+import lib.minecraft.refharness.frame.GuiFrameRenderer;
 import lib.minecraft.refharness.mixin.AnvilScreenAccessor;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
@@ -31,9 +34,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Container-screen sweep. Renders each shipped menu through the client's own GUI pipeline, so the
@@ -50,6 +50,9 @@ import lib.minecraft.renderer.parity.Subject;
  * and the one both of asset-renderer's gates compare against. The canvas is the screen's <b>drawn</b>
  * extent rather than its declared one - a chest declares a bottom scanline it never paints - so a
  * subject that agreed everywhere would still carry a row of difference if the declared box were used.
+ *
+ * <p>The capture is the shared {@link GuiFrameRenderer}; laying each screen out at its panel's own
+ * size and extracting both halves of it is the step this sweep hands it.
  */
 @Parity(claim = "harness-menu-sweep", mode = Mode.DEMOTE, subject = Subject.MENU)
 public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
@@ -84,7 +87,7 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
     /** the id every menu here is opened under; nothing reads it, the menus never being synchronised */
     private static final int CONTAINER_ID = 1;
 
-    private final MenuFrameRenderer frameRenderer = new MenuFrameRenderer();
+    private final GuiFrameRenderer capture = new GuiFrameRenderer("menu");
 
     @Override
     public String outputDir() {
@@ -154,7 +157,7 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
      */
     @Override
     public Canvas canvas(SweepContext ctx, MenuSubject subject) {
-        int scale = MenuFrameRenderer.GUI_SCALE;
+        int scale = GuiFrameRenderer.GUI_SCALE;
         return new Canvas(PANEL_WIDTH * scale, subject.height() * scale, Optional.empty());
     }
 
@@ -166,7 +169,20 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
         AbstractContainerScreen<?> screen =
             subject.screen().apply(inventory, Component.literal(subject.name()));
 
-        return frameRenderer.render(ctx.client(), screen, canvas, out, subject.afterInit());
+        return capture.render(ctx.client(), canvas, out, extractor -> {
+            // init sizes the screen to the panel itself, which is what makes leftPos and topPos zero.
+            screen.init(canvas.width() / GuiFrameRenderer.GUI_SCALE, canvas.height() / GuiFrameRenderer.GUI_SCALE);
+
+            // A screen builds its widgets in init, so anything a subject wants to say about one has
+            // to be said here - before the extract reads them and after they exist.
+            subject.afterInit().accept(screen);
+
+            // The panel is the screen's background, and it is the caller that draws one - the two
+            // halves of a container screen's state are extracted through separate entry points and
+            // extractRenderState is only the second of them.
+            screen.extractBackground(extractor, -1, -1, 0.0f);
+            screen.extractRenderState(extractor, -1, -1, 0.0f);
+        });
     }
 
     /**
