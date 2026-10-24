@@ -18,6 +18,7 @@ import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -284,6 +285,25 @@ class TextRendererTest {
         assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(ColorMath.blue(RING_BOTTOM) - 1)));
         assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(ColorMath.blue(RING_TOP))));
         assertThat("border alpha preserved", ColorMath.alpha(px), is(ColorMath.alpha(RING_TOP)));
+    }
+
+    @Test
+    @DisplayName("a tooltip whose widest line ends on a half pixel is sized to the next whole pixel, as the client sizes it from Font#width")
+    void canvasRoundsAHalfPixelLineUp() {
+        float exact = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("+5 ✦ Speed");
+        assertThat("the line ends on half an mcPixel", exact % 1f, is(0.5f));
+
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(LineSegment.builder().segments(Concurrent.newList(TextSegment.literal("+5 ✦ Speed"))).build());
+        TextOptions options = TextOptions.builder()
+            .style(TextOptions.Style.LORE)
+            .lines(lines)
+            .chromeStyle(ChromeStyle.PROCEDURAL)
+            .build();
+        int padMcPx = TooltipChrome.of(ChromeStyle.PROCEDURAL).paddingMcPx(options);
+
+        assertThat("canvas width", render(options).width(),
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * padMcPx + (int) exact + 1)));
     }
 
     @Test

@@ -20,8 +20,8 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Coverage of {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode
- * position handling), the scroll phase / shear math, the surrogate-safe advance measurement, and the
- * per-letter advance-center draw.
+ * position handling), the scroll phase / shear math, the segment's advance and its fractional origin,
+ * the bars and bands over a run ending on half an mcPixel, and the per-letter advance-center draw.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class GradientKitTest {
@@ -183,13 +183,114 @@ class GradientKitTest {
     }
 
     @Test
-    @DisplayName("measureCodepoints walks codepoints, so a surrogate pair is one glyph")
-    void measureCodepointsIsSurrogateSafe() {
+    @DisplayName("a gradient segment's advance walks codepoints and keeps a half pixel")
+    void drawSegmentMeasuresCodepoints() {
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
+        GradientSpec spec = startEnd(0x000000, 0xFFFFFF);
         int astral = 0x1D400; // MATHEMATICAL BOLD CAPITAL A (needs a surrogate pair in UTF-16)
         String pair = new String(Character.toChars(astral));
         assertThat(pair.length(), is(2)); // two UTF-16 code units...
-        assertThat(GradientKit.measureCodepoints(pair, font), is(font.glyph(astral).advanceWidth())); // ...one glyph advance
+        assertThat(advanceOf(pair, spec), is(font.glyph(astral).advanceWidth() / (float) MinecraftFont.MC_PIXEL_SCALE)); // ...one glyph advance
+
+        assertThat("'✦' ends on half an mcPixel", font.metrics().stringAdvanceMcPixels("✦") % 1f, is(0.5f));
+        assertThat(advanceOf("✦", spec), is(font.glyph('✦').advanceWidth() / (float) MinecraftFont.MC_PIXEL_SCALE));
+    }
+
+    @Test
+    @DisplayName("a gradient and its underline drawn half an mcPixel right are the same draw one output pixel right")
+    void halfPixelOriginShiftsOneOutputPixel() {
+        for (int bandPx : new int[] { GradientSpec.PER_LETTER, 1, 8 }) {
+            GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+                .addStop(0x000000).addStop(0xFFFFFF).bandPx(bandPx).build();
+            TextSegment segment = TextSegment.builder().text("MW").underlined(true).gradient(spec).build();
+
+            PixelBuffer whole = PixelBuffer.create(96, 40);
+            whole.fill(0xFF000000);
+            GradientKit.drawSegment(new MinecraftGraphics(whole), segment, spec, "MW", DRAW_COLUMN_MC_PX, 16, 0L);
+            PixelBuffer half = PixelBuffer.create(96, 40);
+            half.fill(0xFF000000);
+            GradientKit.drawSegment(new MinecraftGraphics(half), segment, spec, "MW", DRAW_COLUMN_MC_PX + 0.5f, 16, 0L);
+
+            int differing = 0, painted = 0;
+            for (int y = 0; y < whole.height(); y++)
+                for (int x = 0; x < whole.width() - 1; x++) {
+                    if (half.getPixel(x + 1, y) != whole.getPixel(x, y)) differing++;
+                    if (whole.getPixel(x, y) != 0xFF000000) painted++;
+                }
+
+            assertThat("bandPx " + bandPx + " paints", painted, is(greaterThan(0)));
+            assertThat("bandPx " + bandPx + " pixels that differ one pixel along", differing, is(0));
+        }
+    }
+
+    @Test
+    @DisplayName("a per-letter underline spans the whole advance of a letter ending on a half pixel")
+    void perLetterBarSpansAHalfPixelLetter() {
+        MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
+        assertThat("'✦' ends on half an mcPixel", font.metrics().stringAdvanceMcPixels("✦") % 1f, is(0.5f));
+        GradientSpec spec = startEnd(0x000000, 0xFFFFFF);
+        TextSegment segment = TextSegment.builder().text("✦").underlined(true).gradient(spec).build();
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+
+        PixelBuffer buffer = PixelBuffer.create(48, 40);
+        buffer.fill(0xFF000000);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, 0L);
+
+        // A lone letter samples the gradient's middle; the shadow's bar sits an mcPixel lower and darker.
+        int row = 16 * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
+        int bar = 0xFF000000 | GradientKit.sample(spec, 0.5f);
+        int first = -1, last = -1;
+        for (int x = 0; x < buffer.width(); x++)
+            if (buffer.getPixel(x, row) == bar) {
+                if (first < 0) first = x;
+                last = x;
+            }
+
+        assertThat("the bar opens at the letter's origin", first, is(DRAW_COLUMN_MC_PX * scale));
+        assertThat("and closes on its advance's last pixel", last, is(DRAW_COLUMN_MC_PX * scale + font.glyph('✦').advanceWidth() - 1));
+    }
+
+    @Test
+    @DisplayName("per-pixel bands spread over the whole of a run ending on a half pixel")
+    void perPixelBandsSpanAHalfPixelRun() {
+        MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
+        assertThat("'✦' ends on half an mcPixel", font.metrics().stringAdvanceMcPixels("✦") % 1f, is(0.5f));
+        GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+            .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
+        TextSegment segment = TextSegment.builder().text("✦").gradient(spec).build();
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int baseX = DRAW_COLUMN_MC_PX * scale;
+        int baselineY = 16 * scale;
+
+        PixelBuffer buffer = PixelBuffer.create(48, 40);
+        buffer.fill(0xFF000000);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, 0L, false);
+
+        // The run's last lit column, and the topmost pixel lit in it.
+        int lastX = -1, litY = -1;
+        for (int x = 0; x < buffer.width(); x++)
+            for (int y = 0; y < buffer.height(); y++)
+                if (buffer.getPixel(x, y) != 0xFF000000) {
+                    lastX = x;
+                    litY = y;
+                    break;
+                }
+
+        int band = GradientKit.sample(spec, GradientKit.bandCenterT(lastX - baseX, baselineY - litY, 0f, 1, font.glyph('✦').advanceWidth()));
+        assertThat("the last column's band, normalised over the run's whole width", buffer.getPixel(lastX, litY), is(0xFF000000 | band));
+    }
+
+    /**
+     * Draws a gradient segment and answers the advance it reports.
+     *
+     * @param text the segment's text
+     * @param spec the gradient it carries
+     * @return the advance in mcPixels
+     */
+    private static float advanceOf(String text, GradientSpec spec) {
+        PixelBuffer buffer = PixelBuffer.create(64, 32);
+        TextSegment segment = TextSegment.builder().text(text).gradient(spec).build();
+        return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, text, DRAW_COLUMN_MC_PX, 16, 0L);
     }
 
     @Test

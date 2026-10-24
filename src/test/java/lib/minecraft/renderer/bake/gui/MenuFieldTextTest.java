@@ -1,11 +1,18 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.PixelBuffer;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.engine.frame.FrameLayer;
+import lib.minecraft.renderer.engine.frame.FramePlacement;
+import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,12 +24,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Pins what a screen's text field does with more text than it can hold.
+ * Pins what a screen's text field does with more text than it can hold, and where its caret opens.
  * <p>
  * Both answers are the client's and neither is arithmetic a caller should have to do: text past the
  * field's cap is dropped rather than refused, and text too wide to fit scrolls so its end stays in
  * view. The second is the one that matters for what is drawn - a field shows the end of what was
  * typed into it, so a name is recognised by its tail.
+ * <p>
+ * The caret opens where the client's {@code Font#width} puts the end of the text, which rounds a run
+ * ending on half a Minecraft pixel up to the next whole one.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A text field cuts what it cannot hold and scrolls what it cannot fit")
@@ -110,6 +120,55 @@ class MenuFieldTextTest {
         assertThat("the run fits between the bevels",
             WELL.inset().x() + WELL.innerWidth(),
             is(lessThanOrEqualTo(Window.Extent.of(field.kind()).width() - 2)));
+    }
+
+    @Test
+    @DisplayName("the caret after text ending on a half pixel opens on the next whole pixel, as the client's field places it by Font#width")
+    void caretOpensPastAHalfPixel() {
+        float exact = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("✦");
+        assertThat("the text ends on half an mcPixel", exact % 1f, is(0.5f));
+
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
+        Mark.Placement field = layout.marks().stream()
+            .filter(mark -> mark.kind().textWell().isPresent())
+            .findFirst()
+            .orElseThrow();
+        int textX = field.x() + WELL.inset().x();
+
+        PixelBuffer withCaret = fieldText(layout, "✦", true);
+        PixelBuffer withoutCaret = fieldText(layout, "✦", false);
+
+        assertThat("the caret's first column", firstDifferingColumn(withCaret, withoutCaret),
+            is((textX + (int) exact + 1) * MinecraftFont.MC_PIXEL_SCALE));
+    }
+
+    /**
+     * Draws a field's text the way a menu render places it and reads the placement back.
+     *
+     * @param layout the laid-out panel carrying the field
+     * @param text what the field holds
+     * @param caret whether the caret is drawn
+     * @return the field's text layer
+     */
+    private static PixelBuffer fieldText(MenuLayout layout, String text, boolean caret) {
+        LayerStack<FrameLayer> stack = new LayerStack<>();
+        TextField.placeFieldText(
+            MenuOptions.builder().type(MenuOptions.Type.ANVIL).fieldText(text).caret(caret).build(),
+            layout,
+            stack
+        );
+
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        stack.ordered().getFirst().contribute(placements);
+        return placements.getFirst().source().toPixelBuffer();
+    }
+
+    private static int firstDifferingColumn(PixelBuffer a, PixelBuffer b) {
+        for (int x = 0; x < a.width(); x++)
+            for (int y = 0; y < a.height(); y++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) return x;
+
+        return -1;
     }
 
 }

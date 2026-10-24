@@ -128,7 +128,7 @@ public class ItemStackKit {
         int guiScale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
 
         // Text footprint in native (mcPixel) terms.
-        int textWidthMcPx = TextKit.measureTextMcPixels(text, font);
+        int textWidthMcPx = font.metrics().stringWidthMcPixels(text);
         int ascentMcPx = font.metrics().getAscentMcPixels();
         int descentMcPx = font.metrics().getDescentMcPixels();
 

@@ -3,8 +3,8 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.text.ChatColor;
-import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
@@ -12,9 +12,14 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Random;
 
 /**
- * Static text rendering utilities for styled Minecraft text. Operates through a
- * {@link MinecraftGraphics} that owns the supersampling factor - callers specify glyph origins
- * and decoration anchors in mcPixel space; the graphics applies all coordinate conversions.
+ * Static text rendering utilities for styled Minecraft text, drawn through a
+ * {@link MinecraftGraphics} that owns the supersampling factor.
+ * <p>
+ * Every position is in mcPixels. A line opens on a whole mcPixel and its pen is a {@code float}, as
+ * the client's {@code Font} keeps it, so a run ending on half an mcPixel hands that half to the run
+ * after it; the graphics converts to output pixels where it blits a glyph. The strikethrough and
+ * underline bars, which {@code PixelGraphics#fillRect} lays in output pixels, convert at that write.
+ * A line's width is {@link #measureLineMcPixels}, the client's {@code Font#width}.
  * <p>
  * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
  * obfuscation substitution ({@code §k} - see {@link #substitute}). Shadow, strikethrough, and
@@ -68,7 +73,8 @@ public class TextKit {
 
     /**
      * Draws all segments in a {@link LineSegment} at the given mcPixel origin with shadow and
-     * decoration support. Returns the total advance in mcPixels.
+     * decoration support. A caller wanting the line's width measures it with
+     * {@link #measureLineMcPixels}.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param line the line of styled segments to render
@@ -76,22 +82,21 @@ public class TextKit {
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
      * @param frameSeed the animation frame seed for obfuscation substitution
-     * @return the total advance width of the rendered line in mcPixels
      */
-    public static int drawLine(
+    public static void drawLine(
         @NotNull MinecraftGraphics g,
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
         int defaultArgb,
         long frameSeed
     ) {
-        return drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
     }
 
     /**
      * Draws all segments in a {@link LineSegment}, threading an animation {@code tick} alongside the
-     * obfuscation {@code frameSeed} so gradient segments can scroll. Returns the total
-     * advance in mcPixels.
+     * obfuscation {@code frameSeed} so gradient segments can scroll. A caller wanting the line's
+     * width measures it with {@link #measureLineMcPixels}.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param line the line of styled segments to render
@@ -100,9 +105,8 @@ public class TextKit {
      * @param defaultArgb the fallback color for segments without an explicit color
      * @param frameSeed the animation frame seed for obfuscation substitution
      * @param tick the absolute animation tick driving gradient scroll phase
-     * @return the total advance width of the rendered line in mcPixels
      */
-    public static int drawLine(
+    public static void drawLine(
         @NotNull MinecraftGraphics g,
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
@@ -110,12 +114,16 @@ public class TextKit {
         long frameSeed,
         long tick
     ) {
-        return drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
     }
 
     /**
      * Draws all segments in a {@link LineSegment}, with the drop shadow declinable. Text drawn into a
      * container's chrome carries none, which is what the client's own label draws pass.
+     * <p>
+     * The line opens on a whole mcPixel and each segment starts where the one before it ended, its
+     * fraction kept, as the client's font keeps its pen. A caller wanting the line's width measures
+     * it with {@link #measureLineMcPixels}.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param line the line of styled segments to render
@@ -125,9 +133,8 @@ public class TextKit {
      * @param frameSeed the animation frame seed for obfuscation substitution
      * @param tick the absolute animation tick driving gradient scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
-     * @return the total advance width of the rendered line in mcPixels
      */
-    public static int drawLine(
+    public static void drawLine(
         @NotNull MinecraftGraphics g,
         @NotNull LineSegment line,
         int xMcPx, int yMcPx,
@@ -136,77 +143,31 @@ public class TextKit {
         long tick,
         boolean dropShadow
     ) {
-        int startX = xMcPx;
-        int cursorMcPx = xMcPx;
+        float penMcPx = xMcPx;
         for (TextSegment segment : line.getSegments())
-            cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed, tick, dropShadow);
-        return cursorMcPx - startX;
+            penMcPx += drawSegment(g, segment, penMcPx, yMcPx, defaultArgb, frameSeed, tick, dropShadow);
     }
 
     /**
-     * Draws a single {@link TextSegment} at the given mcPixel origin with shadow,
-     * strikethrough, underline, and obfuscation support.
+     * Draws a single {@link TextSegment} at an mcPixel origin with shadow, strikethrough, underline,
+     * and obfuscation support, answering how far it moves the line's pen. A segment carrying a
+     * {@link TextSegment#getGradient() gradient} routes to {@link GradientKit}; every other segment
+     * takes the solid path.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param segment the styled text segment to render
-     * @param xMcPx the starting cursor X in mcPixels
-     * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color when the segment has no explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
-     * @return the advance width of the rendered segment in mcPixels
-     */
-    public static int drawSegment(
-        @NotNull MinecraftGraphics g,
-        @NotNull TextSegment segment,
-        int xMcPx, int yMcPx,
-        int defaultArgb,
-        long frameSeed
-    ) {
-        return drawSegment(g, segment, xMcPx, yMcPx, defaultArgb, frameSeed, frameSeed);
-    }
-
-    /**
-     * Draws a single {@link TextSegment}, threading an animation {@code tick} for gradient scroll.
-     * A segment carrying a {@link TextSegment#getGradient() gradient} routes to
-     * {@link GradientKit}; every other segment takes the byte-identical solid path.
-     *
-     * @param g the graphics owning the buffer and sampling factor
-     * @param segment the styled text segment to render
-     * @param xMcPx the starting cursor X in mcPixels
-     * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color when the segment has no explicit color
-     * @param frameSeed the animation frame seed for obfuscation substitution
-     * @param tick the absolute animation tick driving gradient scroll phase
-     * @return the advance width of the rendered segment in mcPixels
-     */
-    public static int drawSegment(
-        @NotNull MinecraftGraphics g,
-        @NotNull TextSegment segment,
-        int xMcPx, int yMcPx,
-        int defaultArgb,
-        long frameSeed,
-        long tick
-    ) {
-        return drawSegment(g, segment, xMcPx, yMcPx, defaultArgb, frameSeed, tick, true);
-    }
-
-    /**
-     * Draws a single {@link TextSegment} with the drop shadow declinable.
-     *
-     * @param g the graphics owning the buffer and sampling factor
-     * @param segment the styled text segment to render
-     * @param xMcPx the starting cursor X in mcPixels
+     * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color when the segment has no explicit color
      * @param frameSeed the animation frame seed for obfuscation substitution
      * @param tick the absolute animation tick driving gradient scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
-     * @return the advance width of the rendered segment in mcPixels
+     * @return the advance width of the segment in mcPixels, its fraction kept
      */
-    public static int drawSegment(
+    private static float drawSegment(
         @NotNull MinecraftGraphics g,
         @NotNull TextSegment segment,
-        int xMcPx, int yMcPx,
+        float xMcPx, float yMcPx,
         int defaultArgb,
         long frameSeed,
         long tick,
@@ -226,14 +187,15 @@ public class TextKit {
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
 
-        int textWidthMcPx = measureTextMcPixels(text, font);
-        int textWidthOutPx = textWidthMcPx * pxPerMcPx;
+        float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
 
         // Mark geometry runs in output-pixel coordinates because fillRect (inherited from
-        // PixelGraphics) operates in output-pixel space. The decoration thickness/offset
-        // constants are declared in mcPixels and scaled up here.
-        int xOut = xMcPx * pxPerMcPx;
-        int yOut = yMcPx * pxPerMcPx;
+        // PixelGraphics) operates in output-pixel space, so the origin and the width convert here -
+        // each exactly, every one being a whole number of half mcPixels. The decoration
+        // thickness/offset constants are declared in mcPixels and scaled up here.
+        int xOut = Math.round(xMcPx * pxPerMcPx);
+        int yOut = Math.round(yMcPx * pxPerMcPx);
+        int textWidthOutPx = Math.round(textWidthMcPx * pxPerMcPx);
         int shadowOffsetOut = SHADOW_OFFSET_MCPX * pxPerMcPx;
         int strikeThicknessOut = STRIKETHROUGH_THICKNESS_MCPX * pxPerMcPx;
         int underlineThicknessOut = UNDERLINE_THICKNESS_MCPX * pxPerMcPx;
@@ -264,8 +226,7 @@ public class TextKit {
     }
 
     /**
-     * Draws plain text with a drop shadow at the given mcPixel origin. Returns the advance
-     * width in mcPixels.
+     * Draws plain text with a drop shadow at the given mcPixel origin.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param text the text string to render
@@ -273,16 +234,15 @@ public class TextKit {
      * @param yMcPx the baseline Y in mcPixels
      * @param font the Minecraft font to use
      * @param argb the text color as packed ARGB
-     * @return the advance width of the rendered text in mcPixels
      */
-    public static int drawText(
+    public static void drawText(
         @NotNull MinecraftGraphics g,
         @NotNull String text,
         int xMcPx, int yMcPx,
         @NotNull MinecraftFont font,
         int argb
     ) {
-        if (text.isEmpty()) return 0;
+        if (text.isEmpty()) return;
 
         int shadowArgb = darken(argb);
         g.setFont(font);
@@ -290,72 +250,25 @@ public class TextKit {
         g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
         g.setColor(new java.awt.Color(argb, true));
         g.drawString(text, xMcPx, yMcPx);
-        return measureTextMcPixels(text, font);
     }
 
     // --- measurement ---
 
     /**
-     * Measures the width of a {@link LineSegment} in native output pixels (pre-sampling).
-     * Pure arithmetic over cached glyph advance widths.
+     * Measures a {@link LineSegment}'s width in whole mcPixels, as the client's {@code Font#width}
+     * does - each segment's advance in its own font summed with its fraction kept, then rounded up
+     * once, so a line ending on half an mcPixel is answered the whole mcPixel it reaches into. It is
+     * what a tooltip canvas is sized from, a title is anchored by, and a text field scrolls and
+     * places its caret by.
      *
      * @param line the line to measure
-     * @return the total width in native output pixels
-     */
-    public static int measureLine(@NotNull LineSegment line) {
-        int width = 0;
-
-        for (TextSegment segment : line.getSegments())
-            width += measureSegment(segment);
-
-        return width;
-    }
-
-    /**
-     * Measures the width of a {@link LineSegment} in mcPixels.
-     *
-     * @param line the line to measure
-     * @return the total width in mcPixels
+     * @return the width in whole mcPixels
      */
     public static int measureLineMcPixels(@NotNull LineSegment line) {
-        return measureLine(line) / MinecraftFont.MC_PIXEL_SCALE;
-    }
-
-    /**
-     * Measures the width of a single {@link TextSegment} in native output pixels.
-     *
-     * @param segment the segment to measure
-     * @return the width in native output pixels
-     */
-    public static int measureSegment(@NotNull TextSegment segment) {
-        if (segment.getText().isEmpty()) return 0;
-        return measureText(segment.getText(), MinecraftFont.Vanilla.of(segment.fontStyle()));
-    }
-
-    /**
-     * Measures the width of a plain string in native output pixels (the native-sampling
-     * rasterized width). Pure arithmetic over cached glyph advance widths.
-     *
-     * @param text the text to measure
-     * @param font the font to measure with
-     * @return the width in native output pixels
-     */
-    public static int measureText(@NotNull String text, @NotNull MinecraftFont font) {
-        int width = 0;
-        for (int i = 0; i < text.length(); i++)
-            width += font.glyph(text.charAt(i)).advanceWidth();
-        return width;
-    }
-
-    /**
-     * Measures the width of a plain string in mcPixels.
-     *
-     * @param text the text to measure
-     * @param font the font to measure with
-     * @return the width in mcPixels
-     */
-    public static int measureTextMcPixels(@NotNull String text, @NotNull MinecraftFont font) {
-        return measureText(text, font) / MinecraftFont.MC_PIXEL_SCALE;
+        float widthMcPx = 0;
+        for (TextSegment segment : line.getSegments())
+            widthMcPx += MinecraftFont.Vanilla.of(segment.fontStyle()).metrics().stringAdvanceMcPixels(segment.getText());
+        return (int) Math.ceil(widthMcPx);
     }
 
     // --- color utilities ---

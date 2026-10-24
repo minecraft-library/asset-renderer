@@ -76,10 +76,10 @@ public class TextField {
         int textX = field.get().x() + well.inset().x();
         int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
-        int drawn = shown.isEmpty() ? 0
-            : TextKit.drawLine(g, plain(shown), textX, baseline, well.argb(), 0L, 0L, true);
+        LineSegment text = plain(shown);
+        TextKit.drawLine(g, text, textX, baseline, well.argb(), 0L, 0L, true);
 
-        if (options.isCaret()) drawCaret(g, buffer, typed, textX + drawn, textY, baseline, well);
+        if (options.isCaret()) drawCaret(g, buffer, typed, textX + TextKit.measureLineMcPixels(text), textY, baseline, well);
 
         FramePlacement placement = new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage()));
         stack.append(MenuSlot.TEXT, sink -> sink.add(placement));
