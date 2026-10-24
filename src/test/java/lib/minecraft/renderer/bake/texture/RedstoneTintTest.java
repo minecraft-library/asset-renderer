@@ -8,6 +8,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.content.rule.RuleScanner;
 import lib.minecraft.renderer.fixture.PackFixtures;
@@ -116,7 +117,8 @@ class RedstoneTintTest {
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),
             new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
 
         assertThat("the top pack's power", Tints.redstone(context, 0), equalTo(0xFF222222));
         assertThat("a power only the lower pack writes", Tints.redstone(context, 1), equalTo(RedstoneTint.vanilla(1)));

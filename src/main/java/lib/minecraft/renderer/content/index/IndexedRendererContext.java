@@ -31,12 +31,12 @@ import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.EquipmentModelLoader;
 import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
-import lib.minecraft.renderer.content.pack.ItemsAtlas;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.rule.CitTypes;
@@ -164,8 +164,9 @@ public final class IndexedRendererContext implements RendererContext {
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
+        SpriteAtlas itemsAtlas = SpriteAtlas.load(stack, SpriteAtlas.ITEMS);
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.refuseUnbakeable(
-            ItemModelTreeLoader.load(stack), models, ItemsAtlas.load(stack));
+            ItemModelTreeLoader.load(stack), models, itemsAtlas);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
@@ -213,7 +214,9 @@ public final class IndexedRendererContext implements RendererContext {
             synthesizer,
             equipmentModels,
             groupedBlockIds(blockIndex, blockRows.drawsNothing(), blockTags),
-            groupedItemIds(itemIndex, itemRows.drawsNothing())
+            groupedItemIds(itemIndex, itemRows.drawsNothing()),
+            itemsAtlas,
+            SpriteAtlas.load(stack, SpriteAtlas.BLOCKS)
         );
     }
 
@@ -229,19 +232,26 @@ public final class IndexedRendererContext implements RendererContext {
      */
     private final @NotNull ConcurrentList<String> knownItemIds;
 
+    /** The items atlas, which a texture id is looked up in first. */
+    private final @NotNull SpriteAtlas itemsAtlas;
+
+    /** The blocks atlas, which a texture id the items atlas does not hold is looked up in. */
+    private final @NotNull SpriteAtlas blocksAtlas;
+
     /**
      * {@inheritDoc}
      * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
-     * cache hit; otherwise resolves the id through the pack stack (namespace-first dispatch then the
-     * winning pack's root walk), decodes it once, and caches it - a file that does not decode, whose
-     * sidecar does not parse, or whose animation's frame size does not divide it is remembered as empty.
-     * Only an id the stack does not serve consults the paletted-permutation registry, so a file a pack
-     * ships shadows a permutation under the same id even when the texture cannot be read.
+     * Bare texture ids are namespaced to {@code minecraft:} first, and an id an atlas stitches as a sprite
+     * reads the texture the sprite was stitched from. Returns the memoised buffer on a cache hit;
+     * otherwise resolves the texture through the pack stack (namespace-first dispatch then the winning
+     * pack's root walk), decodes it once, and caches it - a file that does not decode, whose sidecar does
+     * not parse, or whose animation's frame size does not divide it is remembered as empty. Only an id
+     * the stack does not serve consults the paletted-permutation registry, so a file a pack ships shadows
+     * a permutation under the same id even when the texture cannot be read.
      */
     @Override
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
-        ResourceId id = ResourceId.parse(textureId);
+        ResourceId id = textureOf(textureId);
         // Synthesis sits BEHIND resolution: only an id the stack does not serve consults the
         // paletted-permutation registry, so no served-texture path changes. On vanilla the registry
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
@@ -317,15 +327,16 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured sidecar is forwarded - empty where the row captured none or one that does not parse, and
-     * whether or not the image beside it decodes, since the sidecar is a file of its own. A texture
-     * served with no row - a prefix naming a pack, or a paletted permutation - has no sidecar the index
-     * holds and answers empty too, so only an id this context does not serve answers absent.
+     * Bare texture ids are namespaced to {@code minecraft:} first and read through the atlases as
+     * {@link #resolveTexture(String)} reads them, then the texture's index row's captured sidecar is
+     * forwarded - empty where the row captured none or one that does not parse, and whether or not the
+     * image beside it decodes, since the sidecar is a file of its own. A texture served with no row - a
+     * prefix naming a pack, or a paletted permutation - has no sidecar the index holds and answers empty
+     * too, so only an id this context does not serve answers absent.
      */
     @Override
     public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
-        Optional<ResolvedTexture> row = this.stack.indexed(ResourceId.parse(textureId));
+        Optional<ResolvedTexture> row = this.stack.indexed(textureOf(textureId));
         if (row.isPresent()) return row.get().meta().orAbsent(Possible::empty);
         return RendererContext.super.findMeta(textureId);
     }
@@ -339,8 +350,23 @@ public final class IndexedRendererContext implements RendererContext {
      */
     @Override
     public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
-        return this.stack.flipbook(ResourceId.parse(textureId))
+        return this.stack.flipbook(textureOf(textureId))
             .orAbsent(() -> this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty());
+    }
+
+    /**
+     * Answers the texture a texture id reads: the one the items atlas stitches under that sprite id,
+     * else the one the blocks atlas does, else the id itself. Every vanilla sprite is stitched from the
+     * texture of its own id, so on a vanilla stack this answers the id back.
+     *
+     * @param textureId the texture or sprite id, namespaced or bare
+     * @return the texture id to read
+     */
+    private @NotNull ResourceId textureOf(@NotNull String textureId) {
+        String spriteId = ResourceId.parse(textureId).id();
+        return ResourceId.parse(this.itemsAtlas.textureOf(spriteId)
+            .or(() -> this.blocksAtlas.textureOf(spriteId))
+            .orElse(spriteId));
     }
 
     /**

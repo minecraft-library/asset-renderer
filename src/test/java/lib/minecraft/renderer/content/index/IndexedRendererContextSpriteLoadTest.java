@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -158,7 +159,8 @@ class IndexedRendererContextSpriteLoadTest {
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), TextureSynthesizer.EMPTY, Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
     }
 
     @Test

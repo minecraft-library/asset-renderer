@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of the client's bake refusal: an item definition holding a {@code minecraft:model} leaf
  * whose quads draw sprites from more than one atlas draws the missing item model for every stack, as
- * {@link ItemModelTreeLoader#refuseUnbakeable} holds it, and the {@link ItemsAtlas} membership that
+ * {@link ItemModelTreeLoader#refuseUnbakeable} holds it, and the {@link SpriteAtlas} membership that
  * decides which atlas a sprite is in.
  * <p>
  * A fixture pack stitches its own {@code fixture/} textures into the blocks atlas and filters
@@ -101,7 +101,7 @@ class ItemBakeRefusalTest {
             .build();
         stack = PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla()));
         decoded = ItemModelTreeLoader.load(stack);
-        baked = ItemModelTreeLoader.refuseUnbakeable(decoded, ResolvedModels.load(stack), ItemsAtlas.load(stack));
+        baked = ItemModelTreeLoader.refuseUnbakeable(decoded, ResolvedModels.load(stack), SpriteAtlas.load(stack, SpriteAtlas.ITEMS));
     }
 
     @Test
@@ -110,7 +110,7 @@ class ItemBakeRefusalTest {
         PackStack vanilla = PackAcquisition.acquire(new ClientAssets(
             ClientOptions.builder().cacheRoot(work.resolve("cache").toFile()).build(), ClientAssetsExtension.vanilla()));
         Map<String, ItemModelTree> trees = ItemModelTreeLoader.load(vanilla);
-        Map<String, ItemModelTree> refused = ItemModelTreeLoader.refuseUnbakeable(trees, ResolvedModels.load(vanilla), ItemsAtlas.load(vanilla));
+        Map<String, ItemModelTree> refused = ItemModelTreeLoader.refuseUnbakeable(trees, ResolvedModels.load(vanilla), SpriteAtlas.load(vanilla, SpriteAtlas.ITEMS));
 
         assertThat(refused.entrySet().stream().filter(entry -> entry.getValue().isRejected()).map(Map.Entry::getKey).toList(), is(empty()));
     }
@@ -120,15 +120,15 @@ class ItemBakeRefusalTest {
     void itemsAtlasMembership() {
         PackStack vanilla = PackAcquisition.acquire(new ClientAssets(
             ClientOptions.builder().cacheRoot(work.resolve("cache").toFile()).build(), ClientAssetsExtension.vanilla()));
-        ItemsAtlas atlas = ItemsAtlas.load(vanilla);
+        SpriteAtlas atlas =SpriteAtlas.load(vanilla, SpriteAtlas.ITEMS);
 
         assertThat(atlas.contains("minecraft:item/diamond"), is(true));
         assertThat("a bare id reads as a minecraft: one", atlas.contains("item/diamond"), is(true));
         assertThat("a paletted permutation", atlas.contains("minecraft:trims/items/helmet_trim_amethyst"), is(true));
         assertThat(atlas.contains("minecraft:missingno"), is(true));
         assertThat(atlas.contains("minecraft:block/stone"), is(false));
-        assertThat("the fixture's filter takes a sprite back out", ItemsAtlas.load(stack).contains("minecraft:item/emerald"), is(false));
-        assertThat("and leaves the rest", ItemsAtlas.load(stack).contains("minecraft:item/diamond"), is(true));
+        assertThat("the fixture's filter takes a sprite back out", SpriteAtlas.load(stack, SpriteAtlas.ITEMS).contains("minecraft:item/emerald"), is(false));
+        assertThat("and leaves the rest", SpriteAtlas.load(stack, SpriteAtlas.ITEMS).contains("minecraft:item/diamond"), is(true));
     }
 
     @Test

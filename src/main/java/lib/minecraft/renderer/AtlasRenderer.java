@@ -59,8 +59,11 @@ import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
 /**
- * Renders every block and item model exposed by a {@link RendererContext} into a single grid
- * atlas image and a {@link AtlasResult.Sidecar sidecar} describing each tile's coordinates.
+ * Renders every block and item id a {@link RendererContext} knows into a single grid atlas image, each
+ * as its slot icon with no item data, and a {@link AtlasResult.Sidecar sidecar} describing each tile's
+ * coordinates. A branch an item definition picks by a stack's components - a
+ * {@code custom_model_data} threshold, a custom name - is never a tile of its own, as the client holds
+ * no item for it: render the stack through {@link ItemRenderer} to draw one.
  * <p>
  * Implements the same {@link Renderer Renderer&lt;O&gt;} contract as the other top-level
  * renderers: a constructor takes a {@link RendererContext}, the cached {@link ItemRenderer},

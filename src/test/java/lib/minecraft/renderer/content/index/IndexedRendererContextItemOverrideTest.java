@@ -14,6 +14,7 @@ import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.content.rule.CitParser;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -183,7 +184,8 @@ class IndexedRendererContextItemOverrideTest {
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),
             new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
-            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+            SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
     }
 
 }
