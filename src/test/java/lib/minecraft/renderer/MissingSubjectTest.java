@@ -114,7 +114,7 @@ class MissingSubjectTest {
         }
 
         assertThat("the first render's result names the id", drawn[0].substitutions(), contains(Substitution.subject(id)));
-        assertThat(first, containsString("Missing model for '" + id + "' - drawing the missing-model cube"));
+        assertThat(first, containsString("No block or item '" + id + "' - drawing the missing model"));
         assertThat("the second render reports nothing", second, not(containsString(id)));
         assertThat("the second render's result still names the id", again[0].substitutions(),
             contains(Substitution.subject(id)));

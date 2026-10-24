@@ -31,7 +31,7 @@ class SubstitutionsTest {
         String first = errDuring(() -> Substitutions.model(id));
         String second = errDuring(() -> Substitutions.model(id));
 
-        assertThat(first, containsString("Missing model for '" + id + "' - drawing the missing-model cube"));
+        assertThat(first, containsString("No block or item '" + id + "' - drawing the missing model"));
         assertThat(second, is(emptyString()));
     }
 
@@ -55,7 +55,7 @@ class SubstitutionsTest {
         String model = errDuring(() -> Substitutions.model(id));
         String texture = errDuring(() -> Substitutions.texture(id));
 
-        assertThat(model, containsString("Missing model for '" + id + "'"));
+        assertThat(model, containsString("No block or item '" + id + "'"));
         assertThat(texture, containsString("Missing texture '" + id + "'"));
     }
 
@@ -81,7 +81,7 @@ class SubstitutionsTest {
         String subject = errDuring(() -> Substitutions.model(id));
         String leaf = errDuring(() -> Substitutions.leafModel(id, "minecraft:stick"));
 
-        assertThat(subject, containsString("Missing model for '" + id + "'"));
+        assertThat(subject, containsString("No block or item '" + id + "'"));
         assertThat(leaf, containsString("Missing model '" + id + "'"));
     }
 

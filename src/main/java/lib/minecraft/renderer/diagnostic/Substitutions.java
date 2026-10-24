@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * The stderr log of the stand-ins renders draw, each id once for the life of the process; what one
  * render drew is the result it answers. It logs:
  * <ul>
- * <li><b>{@link #model}</b> - the missing-model cube for a subject id nothing resolved for.</li>
+ * <li><b>{@link #model}</b> - the missing model for a subject id that names no block or item.</li>
  * <li><b>{@link #leafModel}</b> - the missing model for a model id an item definition's leaf names and
  * no pack ships.</li>
  * <li><b>{@link #texture}</b> - the checkerboard for a texture id no pack supplied.</li>
@@ -54,7 +54,7 @@ public class Substitutions {
      */
     public static void model(@NotNull String subjectId) {
         if (MODELS.add(subjectId))
-            System.err.printf("Missing model for '%s' - drawing the missing-model cube%n", subjectId);
+            System.err.printf("No block or item '%s' - drawing the missing model%n", subjectId);
     }
 
     /**
