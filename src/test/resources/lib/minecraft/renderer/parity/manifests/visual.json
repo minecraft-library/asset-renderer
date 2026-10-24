@@ -684,47 +684,47 @@
     },
     {
       "path": "lore-tooltip/accessory.png",
-      "sha256": "a954260cbb3e640570f38411d7419ab254c9210b7b0ef5a4fd8a92a60fcd4c6e"
+      "sha256": "226c97be410cd4a4b24e4d607bf3d1a9500663a1462eb78c03a1ab0be173f048"
     },
     {
       "path": "lore-tooltip/gradient_band1.png",
-      "sha256": "97e8fd2f6b8c79a54642d720e67856d2edd26cac749101003b4b6ef998efeff2"
+      "sha256": "b2b63502765e57cff90114cd9eec0f788ac5466f4eab917ec97e94e594392a44"
     },
     {
       "path": "lore-tooltip/gradient_band8.png",
-      "sha256": "31708522d8572c3f6479db85a82f42def0113cb748acb3ad1d8c758e69ce1e43"
+      "sha256": "161c01e576907cb27808ceb48ce5eba097a8371729189280a366b22caede3064"
     },
     {
       "path": "lore-tooltip/gradient_italic_shear.png",
-      "sha256": "7e911acbbd78efc94d6226183acfa391eb888e9d7e5a7e00d4199b5330913154"
+      "sha256": "f41249fed37b9708d1c6134e1e0f999149cdaca122a77ac746268c2b4f473ec0"
     },
     {
       "path": "lore-tooltip/gradient_perletter.png",
-      "sha256": "6d5e3b19201e0162d374e8db5e557db140c0ec07d183e4309693ff0d680394bd"
+      "sha256": "1316e0721ef7531ccb66e45a19886a38e12479fea94c5f90ceb55477af8deb7e"
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "7cd43f7e64ba7de7416bc3fcdfd854c65f0acb07775f8d0cf0e4c09945f6effa"
+      "sha256": "6d9037f4e4d980376ac9d5729cbb6449ac6b2cf1e5f7074acbe87be86bd59769"
     },
     {
       "path": "lore-tooltip/gradient_scroll.webp",
-      "sha256": "1be27c6ff6974f0a4d6f814d8e66353d09b58d90b81c3ee9ee0337144a807e33"
+      "sha256": "3d0aa1d89aa2fb87bdb0389996eaba8c4b990cc98807499c80881205ce042728"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "c4c24e2ea82daababdf8354bb0ec9842d124e2b73aa231209b393d239715c47d"
+      "sha256": "a2794b4659414a16900b1d618fa26b8098249ba6d386143e5b6e47d310dd7ee3"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "a889ca696caa2670d66659c26854cd856f6af16da2e114d99a742987e5aa48c2"
+      "sha256": "208034edabeea3e26d5ede8bd4f8ab77cf5d89298cd247b2e86cef59d93de6c8"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "6a2cf074a12e1a8efb6c422d3165e38d3306829ba0060299cc49415810ba0a71"
+      "sha256": "59158e1ff8045b781e7e50cfb7ef1dd1e00212b014c3be49bc1bb01261fd75ae"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "3adc0a43459774822e5f0114f361d88e3eb0081468c1f8c08027a7180f5134ca"
+      "sha256": "a408cecce662208521d1494a88b8cbefffeefa67ff1c4054f98e4d9324136c8a"
     },
     {
       "path": "menu-render/anvil.png",
@@ -851,11 +851,10 @@
   "key": "path",
   "kind": "manifest",
   "provenance": {
-    "allow_partial": true,
     "artifact": "manifest.visual",
-    "asset_content_digest": "030cf5d680425acf556601d117478f44e57cda93d1e4ae00c16bab9985a03c17",
+    "asset_content_digest": "5a001a30a6e9772f11133eb4a037a83ea452e2a6276332ccd3e6ec28e1603047",
     "asset_dirty": true,
-    "asset_sha": "376ca7d2f91b2d7ca4545302a5a8b380658216fe",
+    "asset_sha": "014a07c343d2260cb43da96d11604ff29d443769",
     "counts": {
       "files": 211
     },
@@ -864,7 +863,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "NineSliceKit blends each sprite texel with the client's TRANSLUCENT op instead of painting it: ten box-alone tooltip rows reach 0 and the other three keep 18 exact-boundary side-ramp pixels (an open question, docs/KnownOpen.md); seven full rows reach 0 and four keep text deltas; the eleven lore-tooltip renders move with the box. The 3 failed rows hold by design",
+    "reason": "75629b3e marks a sprite tooltip PREMULTIPLIED, the convention its blended frames hold, so each encoder writes its see-through chrome's straight colour: the eleven lore-tooltip files move on exactly their partly transparent pixels, each lossless one decoding to the un-premultiply of what it held, and weapon_static.webp keeps the render's mark through the library's StaticImageData",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -878,8 +877,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-24T19:07:45Z",
+    "timestamp": "2026-10-24T20:16:06Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 39982
+    "wall_time_ms": 36334
   }
 }
