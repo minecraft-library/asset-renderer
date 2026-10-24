@@ -708,19 +708,19 @@
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "7bf060e583dea1ea063802916030b8e46d7b6098ee415eb9463c7eb79481ec72"
+      "sha256": "a957ba079d7aa4c4f4958afd324bc8f1278e9fedb791e7cfc855cdadf07f3740"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "14356516bdbc08b5560c005f8dc043bacbecb6baeb8df1c5dcdafeb41bd6259b"
+      "sha256": "d24b0fea0c36836a0d63bbe7e05d9a34d05e7a06b035f6023202869fb969583c"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "c313942a3c61fa4b8fedb0abace591ca3b047b030c7dd4bbefb559c84fbb729b"
+      "sha256": "97c2d5dd96f5dda1091f7744390d61bdfc997a4366d77fcaea5bbb70ee558625"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "b28d01e31e19f502a231225f334e102611f77157eefea82ccc746aefcdc7b336"
+      "sha256": "d3f64411c3044ab6b1a33ec1b10500d946f0f1b6bce3d37e42872b2f940461af"
     },
     {
       "path": "menu-render/anvil.png",
@@ -848,9 +848,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "231b4c8445a7b73ad07bd618f50af5168d74b42ff397b6c3b037c98a220ebfc3",
+    "asset_content_digest": "cfbb25ad9c064830be41059d5fd22d106ded12975aee2c71267577b883186a95",
     "asset_dirty": true,
-    "asset_sha": "5e04b56f6a5d1918fa9cb985475e642cbf1b9b61",
+    "asset_sha": "7f692b6c5e798f442ae083fa6f3f4eaf619bb01b",
     "counts": {
       "files": 210
     },
@@ -859,7 +859,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "Every render is marked premultiplied where it is built (7342ed6a), so each encoded see-through render is written un-premultiplied: the colour drawn rather than one scaled by its alpha twice. Held pixels unchanged - the nine sweeps, the four CRC pins, manifest.player-raw and manifest.references held.",
+    "reason": "TextKit draws on a float Minecraft-pixel pen as the client's Font does, so weapon line 7's 'for' after the 135 output px run moves one output pixel right on every frame; the four lore-tooltip weapon files moved, every other member and artifact held",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -872,8 +872,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-24T05:01:52Z",
+    "timestamp": "2026-10-24T08:36:45Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 35177
+    "wall_time_ms": 34295
   }
 }
