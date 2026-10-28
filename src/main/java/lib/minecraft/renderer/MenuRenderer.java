@@ -10,6 +10,7 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextField;
 import lib.minecraft.renderer.bake.gui.TextKit;
@@ -135,8 +136,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer, icons);
         anyAnimated |= placeSlots(options, layout, stack, itemRenderer, slots);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, slots);
-        anyAnimated |= placeLabels(options, layout, stack);
-        TextField.placeFieldText(options, layout, stack);
+        TextPalette palette = this.context.findTextPalette().orElse(TextPalette.VANILLA);
+        anyAnimated |= placeLabels(options, layout, palette, stack);
+        TextField.placeFieldText(options, layout, palette, stack);
 
         return new MenuResult(composite(layout, stack, anyAnimated, options), chrome.snapshot(), slots, icons);
     }
@@ -220,15 +222,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      *
      * @param options the menu render options
      * @param layout the laid-out panel
+     * @param palette the colours the stack's text shader draws in place of the labels' own
      * @param stack the layer stack to append to
      * @return whether the label layer animates
      */
     static boolean placeLabels(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
+        @NotNull TextPalette palette,
         @NotNull LayerStack<FrameLayer> stack
     ) {
-        Optional<ImageData> labels = labelLayer(options, layout);
+        Optional<ImageData> labels = labelLayer(options, layout, palette);
         if (labels.isEmpty()) return false;
 
         place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels.get()));
@@ -516,9 +520,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      *
      * @param options the menu options, supplying the labels, their colour and the frame rate
      * @param layout the laid-out panel, supplying both anchors
+     * @param palette the colours the stack's text shader draws in place of the labels' own
      * @return the label layer, empty where there is nothing to draw
      */
-    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout, @NotNull TextPalette palette) {
         ConcurrentList<Label> labels = Concurrent.newList();
 
         if (!options.getTitle().isEmpty()) {
@@ -539,7 +544,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         if (!animated) {
             PixelBuffer buffer = PixelBuffer.create(w, h);
-            drawLabels(buffer, labels, argb, 0);
+            drawLabels(buffer, labels, argb, palette, 0);
             return Optional.of(StaticImageData.of(buffer.toBufferedImage()));
         }
 
@@ -548,7 +553,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
-                drawLabels(frameBuffer, labels, argb, f);
+                drawLabels(frameBuffer, labels, argb, palette, f);
                 return frameBuffer;
             }, AlphaMode.PREMULTIPLIED));
     }
@@ -590,11 +595,18 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * <p>
      * Each label is drawn as its index in the list - the title first, the player's label after it -
      * which with the frame seeds its scramble, so two labels of one frame scramble apart.
+     *
+     * @param buffer the buffer the labels are drawn into
+     * @param labels the labels, the title first
+     * @param defaultArgb the colour of a label segment carrying none of its own
+     * @param palette the colours the stack's text shader draws in place of the labels' own
+     * @param frame the animation frame drawn
      */
     private static void drawLabels(
         @NotNull PixelBuffer buffer,
         @NotNull ConcurrentList<Label> labels,
         int defaultArgb,
+        @NotNull TextPalette palette,
         long frame
     ) {
         MinecraftGraphics g = new MinecraftGraphics(buffer);
@@ -603,7 +615,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         for (int i = 0; i < labels.size(); i++) {
             Label label = labels.get(i);
             TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
-                defaultArgb, i, frame, frame, false);
+                defaultArgb, palette, i, frame, frame, false);
         }
     }
 

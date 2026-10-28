@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.guard;
 
 import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
@@ -91,6 +92,8 @@ final class DumpEnumNameTest {
         new ValueSite("root.add(\"color_maps\", CanonicalJson.map(ColorMapLoader.load(stack), "
             + "Enum::name, colorMap -> {", TintSource.class,
             List.of("NONE", "GRASS", "FOLIAGE", "DRY_FOLIAGE", "WATER", "CONSTANT")),
+        new ValueSite("root.addProperty(\"state\", read.getState().name().toLowerCase(Locale.ROOT));", Possible.State.class,
+            List.of("PRESENT", "EMPTY", "ABSENT")),
         new ValueSite("root.addProperty(\"type\", rule.type().name());", CitType.class,
             List.of("ITEM", "ENCHANTMENT", "ARMOR", "ELYTRA")),
         new ValueSite("root.addProperty(\"hand\", rule.hand().name());", Hand.class,

@@ -17,5 +17,7 @@
  * resolving an animation section against the strip it plays over.
  * {@link lib.minecraft.renderer.asset.pack.PalettedPermutationSource PalettedPermutationSource} is one
  * atlas source list's permutation entry, what a sprite no pack ships as a PNG is synthesised from.
+ * {@link lib.minecraft.renderer.asset.pack.TextPalette TextPalette} is the colour swap a pack's text
+ * shader applies to every text vertex, read off the shader by the pack loader.
  */
 package lib.minecraft.renderer.asset.pack;

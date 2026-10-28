@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
@@ -54,11 +55,13 @@ public class TextField {
      *
      * @param options the menu render options, supplying the text and whether a caret is drawn
      * @param layout the laid-out panel, carrying the field among its marks
+     * @param palette the colours the stack's text shader draws in place of the field text's own
      * @param stack the layer stack to append to
      */
     public static void placeFieldText(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
+        @NotNull TextPalette palette,
         @NotNull LayerStack<FrameLayer> stack
     ) {
         Optional<Mark.Placement> field = layout.marks().stream()
@@ -77,9 +80,9 @@ public class TextField {
         int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         LineSegment text = plain(shown);
-        TextKit.drawLine(g, text, textX, baseline, well.argb(), 0, 0L, 0L, true);
+        TextKit.drawLine(g, text, textX, baseline, well.argb(), palette, 0, 0L, 0L, true);
 
-        if (options.isCaret()) drawCaret(g, buffer, typed, textX + TextKit.measureLineMcPixels(text), textY, baseline, well);
+        if (options.isCaret()) drawCaret(g, buffer, typed, textX + TextKit.measureLineMcPixels(text), textY, baseline, well, palette);
 
         FramePlacement placement = new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage()));
         stack.append(MenuSlot.TEXT, sink -> sink.add(placement));
@@ -120,14 +123,15 @@ public class TextField {
      * Vanilla appends an underscore glyph after the text, and stops being able to once the field is
      * full - there is no position past the last character to append at - so at the cap it fills a
      * bar beside it instead. The glyph carries the text's drop shadow and the bar carries none,
-     * being a fill rather than a draw.
+     * being a fill rather than a draw, and keeps the well's own colour, the palette swapping only what
+     * is drawn as text.
      */
     private static void drawCaret(
         @NotNull MinecraftGraphics g, @NotNull PixelBuffer buffer,
-        String typed, int caretX, int textY, int baseline, @NotNull Mark.TextWell well
+        String typed, int caretX, int textY, int baseline, @NotNull Mark.TextWell well, @NotNull TextPalette palette
     ) {
         if (typed.length() < well.maxLength()) {
-            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), 0, 0L, 0L, true);
+            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), palette, 0, 0L, 0L, true);
             return;
         }
 

@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -37,6 +38,10 @@ import java.util.Optional;
  * converting its mcPixel origin once where it writes, since its bands are output pixels. The
  * decoration bars and the per-pixel path write the target directly, assuming a zero graphics
  * translate (tooltip and menu buffers are drawn at their origin).
+ * <p>
+ * Each colour a segment lays down - a letter's or a band's, its shadow's and its bars' - is swapped
+ * through the caller's {@link TextPalette} after the shadow is derived from the unswapped colour, as
+ * {@link TextKit} does for a solid run.
  *
  * @see GradientSpec
  * @see TextKit
@@ -62,6 +67,7 @@ public class GradientKit {
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
+     * @param palette the colours a pack's text shader draws in place of the ones the segment lays down
      * @param tick the absolute animation tick driving scroll phase
      * @return the advance width in mcPixels, its fraction kept
      */
@@ -71,9 +77,10 @@ public class GradientKit {
         @NotNull GradientSpec spec,
         @NotNull String text,
         float xMcPx, float yMcPx,
+        @NotNull TextPalette palette,
         long tick
     ) {
-        return drawSegment(g, segment, spec, text, xMcPx, yMcPx, tick, true);
+        return drawSegment(g, segment, spec, text, xMcPx, yMcPx, palette, tick, true);
     }
 
     /**
@@ -86,6 +93,7 @@ public class GradientKit {
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
+     * @param palette the colours a pack's text shader draws in place of the ones the segment lays down
      * @param tick the absolute animation tick driving scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
      * @return the advance width in mcPixels, its fraction kept
@@ -96,6 +104,7 @@ public class GradientKit {
         @NotNull GradientSpec spec,
         @NotNull String text,
         float xMcPx, float yMcPx,
+        @NotNull TextPalette palette,
         long tick,
         boolean dropShadow
     ) {
@@ -104,9 +113,9 @@ public class GradientKit {
         if (widthMcPx <= 0) return 0;
 
         if (spec.bandPx() == GradientSpec.PER_LETTER)
-            drawPerLetter(g, segment, spec, font, text, widthMcPx, xMcPx, yMcPx, tick, dropShadow);
+            drawPerLetter(g, segment, spec, font, text, widthMcPx, xMcPx, yMcPx, palette, tick, dropShadow);
         else
-            drawPerPixel(g.target(), segment, spec, font, text, widthMcPx, xMcPx, yMcPx, tick, dropShadow);
+            drawPerPixel(g.target(), segment, spec, font, text, widthMcPx, xMcPx, yMcPx, palette, tick, dropShadow);
         return widthMcPx;
     }
 
@@ -164,6 +173,7 @@ public class GradientKit {
         @NotNull String text,
         float widthMcPx,
         float xMcPx, float yMcPx,
+        @NotNull TextPalette palette,
         long tick,
         boolean dropShadow
     ) {
@@ -172,16 +182,16 @@ public class GradientKit {
 
         // Shadow pass (offset +1,+1 mcPx), darkened per-glyph color.
         if (dropShadow)
-            drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx + TextKit.SHADOW_OFFSET_MCPX, yMcPx + TextKit.SHADOW_OFFSET_MCPX, tick, true);
+            drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx + TextKit.SHADOW_OFFSET_MCPX, yMcPx + TextKit.SHADOW_OFFSET_MCPX, palette, tick, true);
 
         // Main pass.
-        drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx, yMcPx, tick, false);
+        drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx, yMcPx, palette, tick, false);
     }
 
     /**
      * Draws one pass of the per-letter path: each letter through the graphics in the color its
      * advance-span center samples - darkened on the shadow pass - with its decoration bars, the pen
-     * keeping each letter's fraction.
+     * keeping each letter's fraction. The palette swaps each letter's colour after it is darkened.
      */
     private static void drawLetterPass(
         @NotNull MinecraftGraphics g,
@@ -191,6 +201,7 @@ public class GradientKit {
         int @NotNull [] codepoints,
         float widthMcPx,
         float xMcPx, float yMcPx,
+        @NotNull TextPalette palette,
         long tick,
         boolean shadow
     ) {
@@ -199,7 +210,7 @@ public class GradientKit {
             String letter = Character.toString(cp);
             float advanceMcPx = font.metrics().stringAdvanceMcPixels(letter);
             int sampled = sample(spec, letterT(penMcPx, advanceMcPx, widthMcPx, spec, tick));
-            int rgb = shadow ? shadowRgb(sampled) : sampled;
+            int rgb = palette.swap(shadow ? shadowRgb(sampled) : sampled);
             g.setColor(new java.awt.Color(rgb));
             g.drawString(letter, xMcPx + penMcPx, yMcPx);
             drawDecorations(g.target(), segment, xMcPx + penMcPx, yMcPx, advanceMcPx, rgb);
@@ -263,8 +274,8 @@ public class GradientKit {
      * guarantee a per-segment scratch gives, without a transparent intermediate that
      * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear; the shadow
      * pass is split out and samples the MAIN letterform position (offset by {@code +delta}) so shadow
-     * bands sit exactly under main bands. The mcPixel origin and width convert to output pixels once,
-     * here, since the bands are output pixels.
+     * bands sit exactly under main bands, darkens the unswapped band colour, then swaps it. The mcPixel
+     * origin and width convert to output pixels once, here, since the bands are output pixels.
      */
     private static void drawPerPixel(
         @NotNull PixelBuffer target,
@@ -274,6 +285,7 @@ public class GradientKit {
         @NotNull String text,
         float widthMcPx,
         float xMcPx, float yMcPx,
+        @NotNull TextPalette palette,
         long tick,
         boolean dropShadow
     ) {
@@ -287,9 +299,10 @@ public class GradientKit {
         int[] codepoints = text.codePoints().toArray();
 
         // Band rgb at an absolute frame pixel, relative to the MAIN letterform.
-        PixelColor main = (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
-        // Shadow samples the main position (offset back by -delta), then darkens.
-        PixelColor shadow = (px, py) -> shadowRgb(main.at(px - delta, py - delta));
+        PixelColor band = (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
+        PixelColor main = (px, py) -> palette.swap(band.at(px, py));
+        // Shadow samples the main position (offset back by -delta), darkens the unswapped band, then swaps it.
+        PixelColor shadow = (px, py) -> palette.swap(shadowRgb(band.at(px - delta, py - delta)));
 
         // Shadow pass (offset +delta), then main pass.
         if (dropShadow) {

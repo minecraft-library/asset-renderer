@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
@@ -222,6 +223,20 @@ public interface RendererContext {
      * @return the ARGB override, or absent when the file read supplies no parseable colour for this key
      */
     default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        return Possible.absent();
+    }
+
+    /**
+     * Looks up the colours this context's text is drawn in, in place of the ones it is given - the table
+     * the text shader of its pack stack holds, which every glyph, shadow and decoration a text kit draws
+     * is swapped through. A stack has one text shader, so the lookup takes no key. The default answers
+     * absent so test stubs do not need to override it.
+     *
+     * @return the palette; empty where the pack whose text shader the stack takes ships one this renderer
+     *     does not read, and absent where no pack above vanilla ships one, vanilla's own program drawing
+     *     every colour as given
+     */
+    default @NotNull Possible<TextPalette> findTextPalette() {
         return Possible.absent();
     }
 
@@ -964,6 +979,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
             return delegate().findColorOverride(key);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Possible<TextPalette> findTextPalette() {
+            return delegate().findTextPalette();
         }
 
         /** {@inheritDoc} */

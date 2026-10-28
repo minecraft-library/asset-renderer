@@ -880,7 +880,7 @@ PackSourceSweep writes the pack-source dump beside the reference tree, a probe n
 
 renderVanillaPackTooltipsHypixelSkyblock hands the harness a folder this script derives: packTooltipPacks copies hypixel-skyblock from the fixture folder and places its core/text.vsh also at core/rendertype_text.vsh, the program the 26.1 client draws text with, so the client runs the pack's colour swap on every glyph, shadow and effect it draws. The pack the run names, the folder it hands over and that derivation are all typed here, so an edit to any of them changes what the client draws while no file the drawings' other rules trigger on changes. The handshake records the folder and the pack's tooltip sweep loads its packs back out of it, so the sweep reads the pack the client drew from, and a capture of the drawings re-runs the derivation through the run's dependency on it. The trigger takes the file whole for B41's reason, and B31 keeps its empty sees list.
 
-*Probe:* drop the shader alias from packTooltipPacks and run renderVanillaPackTooltipsHypixelSkyblock, then tooltipHypixelSkyblockParityVanilla: the full drawings whose text uses a colour the pack swaps go back to vanilla's colours, every box-alone drawing holds, and the sweep's rows for those drawings go back to the pixel counts they held without the alias
+*Probe:* drop the shader alias from packTooltipPacks and run renderVanillaPackTooltipsHypixelSkyblock, then tooltipHypixelSkyblockParityVanilla: the full drawings whose text uses a colour the pack swaps go back to vanilla's colours, every box-alone drawing holds, and the pack's tooltip sweep refuses the configuration before comparing a pixel, the client running vanilla's text shader where the renderer reads the pack's
 
 ## Paths that reach nothing
 

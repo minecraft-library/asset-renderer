@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.shaders.ShaderType;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
 import lib.minecraft.refharness.HarnessConfig;
@@ -25,6 +26,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.metadata.gui.GuiMetadataSection;
@@ -34,6 +36,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Vector2i;
 import org.slf4j.Logger;
@@ -127,10 +130,16 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     private static final String STACK = "stack.json";
 
     /** The schema version of the handshake. */
-    private static final int STACK_FORMAT = 1;
+    private static final int STACK_FORMAT = 2;
 
     /** Where the client's GUI atlas reads a sprite's file from - vanilla's {@code atlases/gui.json} source. */
     private static final FileToIdConverter GUI_SPRITE_FILES = new FileToIdConverter("textures/gui/sprites", ".png");
+
+    /** The directory the client's shader manager lists every program and include under. */
+    private static final String SHADERS = "shaders";
+
+    /** The id the client gives its built-in vanilla pack. */
+    private static final String VANILLA_PACK = "vanilla";
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
@@ -401,7 +410,9 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      * Writes a pack run's handshake beside its drawings: the client's pack selection, and for every
      * tooltip sprite the subjects reach - keyed by the id the client's own tooltip draws, sorted - the
      * file the client's GUI atlas reads it from, the stack of packs supplying that file and the scaling
-     * of the sprite the client stitched.
+     * of the sprite the client stitched. Then the file the client compiles its GUI text pipeline's vertex
+     * shader from with the stack of packs supplying it, and the stack of every shader program and include
+     * a selected pack ships.
      *
      * @param ctx the sweep context
      * @param subjects the enumerated work list
@@ -435,12 +446,41 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
             sources.forEach(chrome::add);
             root.add("chrome_sources", chrome);
 
+            // The client's own statement of which program draws its text: the GUI text pipeline's vertex
+            // shader id, through the conversion its shader manager reads that id's file by.
+            Identifier textShaderFile = ShaderType.VERTEX.idConverter().idToFile(RenderPipelines.GUI_TEXT.getVertexShader());
+            JsonObject textShader = new JsonObject();
+            textShader.addProperty("file", textShaderFile.toString());
+            textShader.add("stack", PackSourceSweep.stack(manager.getResourceStack(textShaderFile)));
+            root.add("text_shader", textShader);
+
+            Map<String, JsonArray> shaders = new TreeMap<>();
+            for (Map.Entry<Identifier, List<Resource>> listed : manager.listResourceStacks(SHADERS, TooltipSweep::isShaderFile).entrySet()) {
+                if (listed.getValue().stream().anyMatch(resource -> !VANILLA_PACK.equals(resource.sourcePackId())))
+                    shaders.put(listed.getKey().toString(), PackSourceSweep.stack(listed.getValue()));
+            }
+            JsonObject shaderSources = new JsonObject();
+            shaders.forEach(shaderSources::add);
+            root.add("shader_sources", shaderSources);
+
             Files.createDirectories(target.getParent());
             Files.writeString(target, GSON.toJson(root));
-            LOG.info("TooltipSweep: {} chrome sprites over {} -> {}", sources.size(), requested, target);
+            LOG.info("TooltipSweep: {} chrome sprites and {} pack shader files over {} -> {}", sources.size(), shaders.size(), requested, target);
         } catch (IOException ex) {
             throw new UncheckedIOException(String.format("The pack-tooltip handshake '%s' could not be written", target), ex);
         }
+    }
+
+    /**
+     * Answers whether a file is one the client's shader manager reads - a vertex or fragment program,
+     * or an include.
+     *
+     * @param id the file
+     * @return whether it ends {@code .vsh}, {@code .fsh} or {@code .glsl}
+     */
+    private static boolean isShaderFile(Identifier id) {
+        String path = id.getPath();
+        return path.endsWith(".vsh") || path.endsWith(".fsh") || path.endsWith(".glsl");
     }
 
     /**

@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
@@ -39,8 +40,9 @@ import java.util.stream.Stream;
  * root walk in which the last existing copy wins.
  *
  * <p>Acquisition assembles the stack without a texture index ({@link #of}); the pipeline scans the
- * stack into an index and re-derives the stack through {@link #withTextureIndex}. Both spellings share
- * the pack list, id map, and namespace union; only the index differs.
+ * stack into an index and re-derives the stack through {@link #withTextureIndex}, and attaches its rules
+ * and its text palette the same way. Every spelling shares the pack list, id map, and namespace union;
+ * only what is attached differs.
  *
  * <p>A winning file is chosen by its existence alone, as vanilla's resource manager chooses one, so a
  * file that cannot be read shadows a lower pack's copy and is served with no pixels. A served texture
@@ -79,6 +81,15 @@ public final class PackStack {
      */
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull RuleSet rules;
+
+    /**
+     * The colours the stack's text is drawn in, in place of the ones it is given - the table the text
+     * shader of the pack drawing its text holds: the 26.1 program where a pack above vanilla ships it,
+     * else the program a newer client runs where one ships that. Empty where that shader is no colour swap
+     * this renderer reads, and absent where no pack above vanilla ships either.
+     */
+    @Getter(style = NamingStyle.FLUENT)
+    private final @NotNull Possible<TextPalette> textPalette;
 
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
@@ -125,7 +136,7 @@ public final class PackStack {
         ConcurrentSet<String> namespaces = ascending.stream()
             .flatMap(pack -> pack.namespaces().stream())
             .collect(Concurrent.toUnmodifiableLinkedSet());
-        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
+        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA), Possible.absent());
     }
 
     /**
@@ -135,7 +146,7 @@ public final class PackStack {
      * @return the indexed stack
      */
     public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, ResolvedTexture> index) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules);
+        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules, this.textPalette);
     }
 
     /**
@@ -145,7 +156,19 @@ public final class PackStack {
      * @return the stack carrying the rules
      */
     public @NotNull PackStack withRules(@NotNull RuleSet rules) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules);
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules, this.textPalette);
+    }
+
+    /**
+     * Returns a copy of this stack carrying the given text palette.
+     *
+     * @param textPalette the colours the stack's text shader draws in place of the ones it is given -
+     *     empty for a shader of another shape than the one read, absent where no pack above vanilla
+     *     ships one
+     * @return the stack carrying the palette
+     */
+    public @NotNull PackStack withTextPalette(@NotNull Possible<TextPalette> textPalette) {
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, this.rules, textPalette);
     }
 
     /**

@@ -8,6 +8,7 @@ import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.NineSliceKit;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
@@ -798,7 +799,7 @@ class TextRendererTest {
             PixelBuffer canvas = PixelBuffer.create(400, 120);
             MinecraftGraphics g = new MinecraftGraphics(canvas);
             for (int i = 0; i < lines.size(); i++)
-                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, 0xFFFFFFFF, i, frame);
+                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, 0xFFFFFFFF, TextPalette.VANILLA, i, frame);
             drawn.add(canvas);
         }
         return drawn;

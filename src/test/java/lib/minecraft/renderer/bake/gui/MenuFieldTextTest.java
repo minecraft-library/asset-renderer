@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
@@ -10,12 +11,18 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,11 +142,41 @@ class MenuFieldTextTest {
             .orElseThrow();
         int textX = field.x() + WELL.inset().x();
 
-        PixelBuffer withCaret = fieldText(layout, "✦", true);
-        PixelBuffer withoutCaret = fieldText(layout, "✦", false);
+        PixelBuffer withCaret = fieldText(layout, "✦", true, TextPalette.VANILLA);
+        PixelBuffer withoutCaret = fieldText(layout, "✦", false, TextPalette.VANILLA);
 
         assertThat("the caret's first column", firstDifferingColumn(withCaret, withoutCaret),
             is((textX + (int) exact + 1) * MinecraftFont.MC_PIXEL_SCALE));
+    }
+
+    @Test
+    @DisplayName("a field's text and its caret glyph draw in the palette's swap of the well colour, and a full field's caret bar keeps the well's own")
+    void fieldTextDrawsInThePalettesSwap() {
+        int wellRgb = WELL.argb() & 0xFFFFFF;
+        int shadowRgb = TextKit.darken(WELL.argb()) & 0xFFFFFF;
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(wellRgb, 0x4CC2FF, shadowRgb, 0x13303F)));
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
+
+        assertThat("a part-filled field with a caret draws its text, the underscore caret and their shadow in the two swaps",
+            opaqueColours(fieldText(layout, "Excalibur", true, palette)), is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F))));
+        assertThat("a full field draws its text in the two swaps and its caret bar in the well's own colour",
+            opaqueColours(fieldText(layout, AT_LENGTH, true, palette)), is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F, WELL.argb()))));
+    }
+
+    /**
+     * Collects every colour a layer holds at a pixel it covers.
+     *
+     * @param layer the layer
+     * @return each distinct colour of a pixel whose alpha is not zero
+     */
+    private static Set<Integer> opaqueColours(PixelBuffer layer) {
+        Set<Integer> colours = new HashSet<>();
+        for (int y = 0; y < layer.height(); y++)
+            for (int x = 0; x < layer.width(); x++)
+                if ((layer.getPixel(x, y) >>> 24) != 0) colours.add(layer.getPixel(x, y));
+
+        return colours;
     }
 
     /**
@@ -148,13 +185,15 @@ class MenuFieldTextTest {
      * @param layout the laid-out panel carrying the field
      * @param text what the field holds
      * @param caret whether the caret is drawn
+     * @param palette the colours the stack's text shader draws in place of the field text's own
      * @return the field's text layer
      */
-    private static PixelBuffer fieldText(MenuLayout layout, String text, boolean caret) {
+    private static PixelBuffer fieldText(MenuLayout layout, String text, boolean caret, TextPalette palette) {
         LayerStack<FrameLayer> stack = new LayerStack<>();
         TextField.placeFieldText(
             MenuOptions.builder().type(MenuOptions.Type.ANVIL).fieldText(text).caret(caret).build(),
             layout,
+            palette,
             stack
         );
 

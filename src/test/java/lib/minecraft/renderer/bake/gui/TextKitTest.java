@@ -4,7 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -18,8 +21,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 
@@ -48,6 +53,11 @@ import static org.hamcrest.Matchers.is;
  * mcPixel, with the shadow and without, over every style, bar, gradient path and scramble a line can
  * carry, the answer is the bounds of the pixels {@link TextKit#drawLine} lays down, and empty exactly
  * where it lays down none - spaces and empty segments included.
+ * <p>
+ * Last, it pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the
+ * colour the palette swaps them for, a gradient run through the line's own palette, the shadow derived
+ * from the unswapped text colour, a colour the palette holds no key for drawn as given, and a swap
+ * keeping the top byte of the colour it is given.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class TextKitTest {
@@ -85,9 +95,9 @@ class TextKitTest {
     void frameRedrawsItsScramble() {
         LineSegment line = line(obfuscated("Hello World"));
         Recording first = new Recording();
-        TextKit.drawLine(first, line, X0, BASE, 0xFFFFFFFF, 0, 7L);
+        TextKit.drawLine(first, line, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 7L);
         Recording second = new Recording();
-        TextKit.drawLine(second, line, X0, BASE, 0xFFFFFFFF, 0, 7L);
+        TextKit.drawLine(second, line, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 7L);
 
         assertThat(second.draws, is(equalTo(first.draws)));
         assertThat("pixels that differ", differing(first.target(), second.target()), is(0));
@@ -150,9 +160,9 @@ class TextKitTest {
         ConcurrentList<Long> moved = Concurrent.newList();
         for (long frame = 0; frame < FRAMES; frame++) {
             Recording here = new Recording();
-            TextKit.drawLine(here, line, X0, BASE, 0xFFFFFFFF, 3, frame);
+            TextKit.drawLine(here, line, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 3, frame);
             Recording there = new Recording();
-            TextKit.drawLine(there, line, SECOND_COLUMN + 0.5f, SECOND_BASE, 0xFFFFFFFF, 3, frame);
+            TextKit.drawLine(there, line, SECOND_COLUMN + 0.5f, SECOND_BASE, 0xFFFFFFFF, TextPalette.VANILLA, 3, frame);
             if (!here.texts().equals(there.texts())) moved.add(frame);
         }
 
@@ -207,9 +217,9 @@ class TextKitTest {
         endsOnAHalfPixel("+50 ✦ Speed ");
 
         PixelBuffer split = PixelBuffer.create(200, 24);
-        TextKit.drawLine(new MinecraftGraphics(split), line(TextSegment.literal("+50 ✦ Speed "), TextSegment.literal("for")), X0, BASE, 0xFFAAAAAA, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(split), line(TextSegment.literal("+50 ✦ Speed "), TextSegment.literal("for")), X0, BASE, 0xFFAAAAAA, TextPalette.VANILLA, 0, 0L);
         PixelBuffer whole = PixelBuffer.create(200, 24);
-        TextKit.drawLine(new MinecraftGraphics(whole), line(TextSegment.literal("+50 ✦ Speed for")), X0, BASE, 0xFFAAAAAA, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(whole), line(TextSegment.literal("+50 ✦ Speed for")), X0, BASE, 0xFFAAAAAA, TextPalette.VANILLA, 0, 0L);
 
         assertThat("pixels that differ", differing(split, whole), is(0));
     }
@@ -240,7 +250,7 @@ class TextKitTest {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
         PixelBuffer buffer = PixelBuffer.create(60, 30);
-        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("✦").underlined(true).build()), X0, BASE, 0xFFFFFFFF, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("✦").underlined(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         // The main pass's underline row - the shadow's sits a pixel lower and in its darker colour.
         int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
@@ -259,7 +269,7 @@ class TextKitTest {
 
         PixelBuffer buffer = PixelBuffer.create(80, 30);
         TextSegment underlined = TextSegment.builder().text("for").underlined(true).build();
-        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("✦"), underlined), X0, BASE, 0xFFFFFFFF, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("✦"), underlined), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
         int[] lit = litColumns(buffer, row, 0xFFFFFFFF);
@@ -278,13 +288,13 @@ class TextKitTest {
 
         PixelBuffer joined = PixelBuffer.create(80, 30);
         joined.fill(0xFF000000);
-        TextKit.drawLine(new MinecraftGraphics(joined), line(TextSegment.literal("✦"), gradient), X0, BASE, 0xFFFFFFFF, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(joined), line(TextSegment.literal("✦"), gradient), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         PixelBuffer apart = PixelBuffer.create(80, 30);
         apart.fill(0xFF000000);
         MinecraftGraphics g = new MinecraftGraphics(apart);
-        TextKit.drawLine(g, line(TextSegment.literal("✦")), X0, BASE, 0xFFFFFFFF, 0, 0L);
-        GradientKit.drawSegment(g, gradient, spec, "M", X0 + starMcPx, BASE, 0L);
+        TextKit.drawLine(g, line(TextSegment.literal("✦")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        GradientKit.drawSegment(g, gradient, spec, "M", X0 + starMcPx, BASE, TextPalette.VANILLA, 0L);
 
         assertThat("pixels that differ", differing(joined, apart), is(0));
     }
@@ -322,7 +332,7 @@ class TextKitTest {
                 for (boolean shadow : new boolean[] { true, false })
                     for (int frame = 0; frame < frames; frame++) {
                         PixelBuffer canvas = PixelBuffer.create(400, 64);
-                        TextKit.drawLine(new MinecraftGraphics(canvas), line, x, BASE, 0xFFFFFFFF, 0, frame, frame, shadow);
+                        TextKit.drawLine(new MinecraftGraphics(canvas), line, x, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, frame, frame, shadow);
                         Rectangle drawn = canvas.opaqueBounds();
                         String drew = drawn.isEmpty() ? "nothing" : described(drawn, 1);
                         String answered = TextKit.inkBounds(line, x, BASE, 0, frame, shadow)
@@ -335,6 +345,96 @@ class TextKitTest {
         }
 
         assertThat("rows whose answer is not what the line lays down", mismatched, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a run draws its glyphs, its shadow and its bars in the colours the palette swaps them for")
+    void runDrawsInThePalettesSwaps() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        TextSegment decorated = TextSegment.builder().text("Gravel").underlined(true).strikethrough(true).build();
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(decorated), X0, BASE, 0xFFAAAAAA, palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
+
+        assertThat("every pixel drawn is the swap of the gray or of its shadow, and both are drawn",
+            opaqueColours(buffer), is(equalTo(Set.of(0xFFA8BFD2, 0xFF2A2F34))));
+        int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
+        assertThat("the underline opens at the run's origin in the gray's swap",
+            litColumns(buffer, row, 0xFFA8BFD2)[0], is(X0 * scale));
+        assertThat("and its shadow copy, one mcPixel lower and right, in the shadow's swap",
+            litColumns(buffer, row + scale, 0xFF2A2F34)[0], is((X0 + TextKit.SHADOW_OFFSET_MCPX) * scale));
+    }
+
+    @Test
+    @DisplayName("the shadow is derived from the text colour, then swapped")
+    void shadowIsDerivedThenSwapped() {
+        PixelBuffer swapsTheText = PixelBuffer.create(120, 40);
+        TextKit.drawLine(new MinecraftGraphics(swapsTheText), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFAAAAAA,
+            palette(Map.of(0xAAAAAA, 0x123456)), 0, 0L);
+        assertThat("a palette swapping the text colour alone leaves its shadow - a shadow of the swap would be 040D15",
+            opaqueColours(swapsTheText), is(equalTo(Set.of(0xFF123456, 0xFF2A2A2A))));
+
+        PixelBuffer swapsTheShadow = PixelBuffer.create(120, 40);
+        TextKit.drawLine(new MinecraftGraphics(swapsTheShadow), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFAAAAAB,
+            palette(Map.of(0x2A2A2A, 0x654321)), 0, 0L);
+        assertThat("a text colour holding no key keeps its colour, and its shadow, which does hold one, is swapped",
+            opaqueColours(swapsTheShadow), is(equalTo(Set.of(0xFFAAAAAB, 0xFF654321))));
+    }
+
+    @Test
+    @DisplayName("a palette swaps no colour it holds no key for")
+    void paletteSwapsNoOtherColour() {
+        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFFFFFFF,
+            palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
+
+        assertThat(opaqueColours(buffer), is(equalTo(Set.of(0xFFFFFFFF, 0xFF3F3F3F))));
+    }
+
+    @Test
+    @DisplayName("a gradient run draws in the colours the line's palette swaps it and its shadow for")
+    void gradientRunDrawsInTheLinesPalette() {
+        GradientSpec gray = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xAAAAAA).addStop(0xAAAAAA).build();
+        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("Gravel").gradient(gray).build()), X0, BASE, 0xFFFFFFFF,
+            palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
+
+        assertThat("every pixel drawn is the swap of the gray or of its shadow, and both are drawn",
+            opaqueColours(buffer), is(equalTo(Set.of(0xFFA8BFD2, 0xFF2A2F34))));
+    }
+
+    @Test
+    @DisplayName("a swap keeps the top byte of the colour it is given")
+    void swapKeepsTheTopByte() {
+        TextPalette gray = palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34));
+
+        assertThat("a translucent colour stays as translucent", gray.swap(0x80AAAAAA), is(0x80A8BFD2));
+        assertThat("a bare rgb stays bare", gray.swap(0x00AAAAAA), is(0x00A8BFD2));
+    }
+
+    /**
+     * Builds a palette holding the given swaps.
+     *
+     * @param swaps each swapped colour's 24-bit rgb and the rgb drawn in its place
+     * @return the palette
+     */
+    private static TextPalette palette(Map<Integer, Integer> swaps) {
+        return new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(swaps));
+    }
+
+    /**
+     * Collects every colour a buffer holds at a pixel it covers.
+     *
+     * @param buffer the buffer
+     * @return each distinct colour of a pixel whose alpha is not zero
+     */
+    private static Set<Integer> opaqueColours(PixelBuffer buffer) {
+        Set<Integer> colours = new HashSet<>();
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
+                if ((buffer.getPixel(x, y) >>> 24) != 0) colours.add(buffer.getPixel(x, y));
+
+        return colours;
     }
 
     /**
@@ -425,7 +525,7 @@ class TextKitTest {
      */
     private static ConcurrentList<Draw> mainPass(LineSegment line, int lineIndex, long frame) {
         Recording g = new Recording();
-        TextKit.drawLine(g, line, X0, BASE, 0xFFFFFFFF, lineIndex, frame);
+        TextKit.drawLine(g, line, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, lineIndex, frame);
         return g.on(BASE);
     }
 

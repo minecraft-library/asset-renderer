@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
@@ -22,9 +23,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -102,6 +105,21 @@ class PackAcquisitionIntegrationTest {
         assertThat(eur.container(), is(instanceOf(PackContainer.Cats.class)));
         assertThat("the pack mcmeta is reachable through the container without extraction",
             eur.container().bytes("pack.mcmeta").isPresent(), is(true));
+
+        // hypixel-skyblock ships its text shader under the newer program's name alone, over a vanilla
+        // that ships its own 26.1 program: the stack reads the pack's eight swaps and their shadows.
+        TextPalette palette = stack.textPalette().get();
+        assertThat(palette.id(), is(new ResourceId("minecraft", "shaders/core/text.vsh")));
+        assertThat(palette.pack(), is(new PackId("hypixel-skyblock")));
+        assertThat(Map.copyOf(palette.swaps()), is(equalTo(Map.ofEntries(
+            Map.entry(0xAA0000, 0xD13228), Map.entry(0x2A0000, 0x340C0A),
+            Map.entry(0xFFAA00, 0xFF9000), Map.entry(0x3F2A00, 0x3F2400),
+            Map.entry(0x0000AA, 0x353FCE), Map.entry(0x00002A, 0x0D0F33),
+            Map.entry(0x5555FF, 0x459BFF), Map.entry(0x15153F, 0x11263F),
+            Map.entry(0xAA00AA, 0xA335EE), Map.entry(0x2A002A, 0x280D3B),
+            Map.entry(0xAAAAAA, 0xA8BFD2), Map.entry(0x2A2A2A, 0x2A2F34),
+            Map.entry(0x555555, 0x707592), Map.entry(0x151515, 0x1C1D24),
+            Map.entry(0xFFFF55, 0xFFDE2F), Map.entry(0x3F3F15, 0x3F370B)))));
     }
 
     @Test

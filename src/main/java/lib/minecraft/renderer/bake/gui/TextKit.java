@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -33,6 +34,11 @@ import java.util.random.RandomGenerator;
  * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
  * obfuscation ({@code §k}). Shadow, strikethrough, and underline offsets match vanilla's pixel-level
  * rendering.
+ * <p>
+ * Every colour a run lays down - a glyph's, its drop shadow's and its strikethrough and underline
+ * bars' - is drawn in the colour the caller's {@link TextPalette} swaps it for, as a pack's text shader
+ * swaps every text vertex colour. The shadow is derived from the text colour first and swapped as a
+ * colour of its own, as the client derives a shadow's vertex colour before its shader runs.
  * <p>
  * An obfuscated run draws, in place of each glyph, a random glyph its font lays out at the same
  * non-bold advance ({@link MinecraftFont#obfuscate(String, RandomGenerator)}), so a non-bold run
@@ -96,6 +102,7 @@ public class TextKit {
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
+     * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
      * @param frame the animation frame drawn
@@ -105,10 +112,11 @@ public class TextKit {
         @NotNull LineSegment line,
         float xMcPx, float yMcPx,
         int defaultArgb,
+        @NotNull TextPalette palette,
         int lineIndex,
         long frame
     ) {
-        drawLine(g, line, xMcPx, yMcPx, defaultArgb, lineIndex, frame, frame);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, palette, lineIndex, frame, frame);
     }
 
     /**
@@ -121,6 +129,7 @@ public class TextKit {
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
+     * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
      * @param frame the animation frame drawn
@@ -131,11 +140,12 @@ public class TextKit {
         @NotNull LineSegment line,
         float xMcPx, float yMcPx,
         int defaultArgb,
+        @NotNull TextPalette palette,
         int lineIndex,
         long frame,
         long tick
     ) {
-        drawLine(g, line, xMcPx, yMcPx, defaultArgb, lineIndex, frame, tick, true);
+        drawLine(g, line, xMcPx, yMcPx, defaultArgb, palette, lineIndex, frame, tick, true);
     }
 
     /**
@@ -152,6 +162,7 @@ public class TextKit {
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color for segments without an explicit color
+     * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
      * @param frame the animation frame drawn
@@ -163,13 +174,14 @@ public class TextKit {
         @NotNull LineSegment line,
         float xMcPx, float yMcPx,
         int defaultArgb,
+        @NotNull TextPalette palette,
         int lineIndex,
         long frame,
         long tick,
         boolean dropShadow
     ) {
         walk(line, xMcPx, lineIndex, frame, (segment, font, text, penMcPx) ->
-            drawSegment(g, segment, font, text, penMcPx, yMcPx, defaultArgb, tick, dropShadow));
+            drawSegment(g, segment, font, text, penMcPx, yMcPx, defaultArgb, palette, tick, dropShadow));
     }
 
     /**
@@ -222,7 +234,7 @@ public class TextKit {
      * Draws a single {@link TextSegment}'s run at an mcPixel origin with shadow, strikethrough and
      * underline support, answering how far it moves the line's pen. A segment carrying a
      * {@link TextSegment#getGradient() gradient} routes to {@link GradientKit}; every other segment
-     * takes the solid path.
+     * takes the solid path. The shadow colour is derived from the text colour before either is swapped.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param segment the styled text segment to render
@@ -231,6 +243,7 @@ public class TextKit {
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
      * @param defaultArgb the fallback color when the segment has no explicit color
+     * @param palette the colours a pack's text shader draws in place of the ones the segment is given
      * @param tick the absolute animation tick driving gradient scroll phase
      * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
      * @return the advance width of the segment in mcPixels, its fraction kept
@@ -242,11 +255,12 @@ public class TextKit {
         @NotNull String text,
         float xMcPx, float yMcPx,
         int defaultArgb,
+        @NotNull TextPalette palette,
         long tick,
         boolean dropShadow
     ) {
         if (segment.getGradient().isPresent())
-            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, tick, dropShadow);
+            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, palette, tick, dropShadow);
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         int color = resolveColor(segment, defaultArgb);
@@ -265,14 +279,14 @@ public class TextKit {
         // Shadow pass
         g.setFont(font);
         if (dropShadow) {
-            g.setColor(new java.awt.Color(shadow, true));
+            g.setColor(new java.awt.Color(palette.swap(shadow), true));
             g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
             for (Rectangle bar : bars)
                 g.fillRect(bar.x + shadowOffsetOut, bar.y + shadowOffsetOut, bar.width, bar.height);
         }
 
         // Main pass
-        g.setColor(new java.awt.Color(color, true));
+        g.setColor(new java.awt.Color(palette.swap(color), true));
         g.drawString(text, xMcPx, yMcPx);
         for (Rectangle bar : bars)
             g.fillRect(bar.x, bar.y, bar.width, bar.height);
@@ -305,7 +319,8 @@ public class TextKit {
     }
 
     /**
-     * Draws plain text with a drop shadow at the given mcPixel origin.
+     * Draws plain text with a drop shadow at the given mcPixel origin, the text and its shadow each in
+     * the colour the palette swaps it for.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param text the text string to render
@@ -313,21 +328,23 @@ public class TextKit {
      * @param yMcPx the baseline Y in mcPixels
      * @param font the Minecraft font to use
      * @param argb the text color as packed ARGB
+     * @param palette the colours a pack's text shader draws in place of the ones the text is given
      */
     public static void drawText(
         @NotNull MinecraftGraphics g,
         @NotNull String text,
         int xMcPx, int yMcPx,
         @NotNull MinecraftFont font,
-        int argb
+        int argb,
+        @NotNull TextPalette palette
     ) {
         if (text.isEmpty()) return;
 
-        int shadowArgb = darken(argb);
+        int shadowArgb = palette.swap(darken(argb));
         g.setFont(font);
         g.setColor(new java.awt.Color(shadowArgb, true));
         g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
-        g.setColor(new java.awt.Color(argb, true));
+        g.setColor(new java.awt.Color(palette.swap(argb), true));
         g.drawString(text, xMcPx, yMcPx);
     }
 

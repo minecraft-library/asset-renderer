@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.Window;
@@ -25,6 +26,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
@@ -33,8 +35,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.awt.Rectangle;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -240,11 +245,78 @@ class MenuRendererGeometryTest {
     }
 
     @Test
+    @DisplayName("a title draws in the colour the stack's text palette swaps its ink for")
+    void aTitleDrawsInThePalettesSwap() {
+        MenuOptions bare = chest(3, true);
+        int argb = bare.getDefaultTitleArgb();
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(argb & 0xFFFFFF, 0x2B5D8A)));
+        PixelBuffer without = render(bare);
+        PixelBuffer with = new MenuRenderer(new Palette(RendererContext.builder().build(), palette))
+            .render(bare.mutate().title("Chest").build())
+            .image().getFrames().getFirst().pixels();
+
+        // The context the menu draws through wraps this one, so the title reaches the palette only
+        // through the wrapper's forward.
+        int differing = 0;
+        for (int y = 0; y < without.height(); y++) {
+            for (int x = 0; x < without.width(); x++) {
+                if (without.getPixel(x, y) == with.getPixel(x, y)) continue;
+                differing++;
+                assertThat("the pixel at " + x + "," + y + " is the title's ink, swapped",
+                    with.getPixel(x, y), is(equalTo((argb & 0xFF000000) | 0x2B5D8A)));
+            }
+        }
+
+        assertThat("a title drew something", differing, is(greaterThan(0)));
+    }
+
+    @Test
+    @DisplayName("a field's text draws in the colours the stack's text palette swaps its ink and its shadow for")
+    void fieldTextDrawsInThePalettesSwaps() {
+        int well = Mark.FIELD.textWell().orElseThrow().argb();
+        // White's shadow, each channel quartered.
+        int shadow = 0x3F3F3F;
+        assertThat("the field draws in white", well, is(equalTo(0xFFFFFFFF)));
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(well & 0xFFFFFF, 0x4CC2FF, shadow, 0x13303F)));
+        MenuRenderer renderer = new MenuRenderer(new Palette(RendererContext.builder().build(), palette));
+        MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.ANVIL).caret(false).build();
+        PixelBuffer without = renderer.render(bare).image().getFrames().getFirst().pixels();
+        PixelBuffer with = renderer.render(bare.mutate().fieldText("Excalibur").build()).image().getFrames().getFirst().pixels();
+
+        // The field's text is a layer of its own over the well, so the pixels the two renders disagree
+        // about are the ones it wrote.
+        Set<Integer> drawn = new HashSet<>();
+        for (int y = 0; y < without.height(); y++)
+            for (int x = 0; x < without.width(); x++)
+                if (without.getPixel(x, y) != with.getPixel(x, y)) drawn.add(with.getPixel(x, y));
+
+        assertThat("the text and its shadow, each in its swap", drawn, is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F))));
+    }
+
+    /**
+     * A context answering one text palette and forwarding every other lookup.
+     *
+     * @param delegate the context every other lookup reaches
+     * @param palette the palette it answers
+     */
+    private record Palette(@NotNull RendererContext delegate, @NotNull TextPalette palette) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<TextPalette> findTextPalette() {
+            return Possible.of(this.palette);
+        }
+
+    }
+
+    @Test
     @DisplayName("two obfuscated labels of one frame draw two scrambles")
     void twoLabelsOfAFrameScrambleApart() {
         MenuOptions options = chest(3, true).mutate().title("§kHello").inventoryTitle("§kHello").build();
         MenuLayout layout = MenuRenderer.layoutOf(options);
-        ImageData labels = MenuRenderer.labelLayer(options, layout).orElseThrow();
+        ImageData labels = MenuRenderer.labelLayer(options, layout, TextPalette.VANILLA).orElseThrow();
 
         // The label layer holds the two labels alone, the title above the player's; a row midway
         // between their anchors parts them, and each is taken from its own first-ink corner.

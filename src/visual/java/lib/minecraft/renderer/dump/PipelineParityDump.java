@@ -25,6 +25,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -805,9 +806,10 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns the miscellaneous section - the loaded tables each too small to own a file. Each is
-     * re-loaded from {@code stack} here (the context exposes no accessor for the raw maps); the loaders
-     * are pure functions of the stack, so this reproduces exactly what the context built from.
+     * Returns the miscellaneous section - the loaded tables each too small to own a file, and the text
+     * palette the stack carries. Each table is re-loaded from {@code stack} here (the context exposes no
+     * accessor for the raw maps); the loaders are pure functions of the stack, so this reproduces
+     * exactly what the context built from.
      *
      * @param stack the resolved pack stack
      * @return the misc section
@@ -859,6 +861,27 @@ public final class PipelineParityDump {
             return entry;
         }));
 
+        root.add("text_palette", textPalette(stack.textPalette()));
+        return root;
+    }
+
+    /**
+     * Returns the stack's text palette in one shape whatever the stack read, as {@link #rules} writes
+     * the colour overrides: the state of the read, and the table read - or, where none was, the one of
+     * the program vanilla draws text with, which swaps nothing.
+     *
+     * @param read the palette the stack holds
+     * @return the palette object - its state, the shader file and pack it was read from, and each
+     *     swapped colour's six-digit hex to the hex drawn in its place
+     */
+    private static @NotNull JsonObject textPalette(@NotNull Possible<TextPalette> read) {
+        TextPalette palette = read.orElse(TextPalette.VANILLA);
+        JsonObject root = new JsonObject();
+        root.addProperty("state", read.getState().name().toLowerCase(Locale.ROOT));
+        root.addProperty("id", palette.id().id());
+        root.addProperty("pack", palette.pack().value());
+        root.add("swaps", CanonicalJson.map(palette.swaps(), key -> String.format("%06X", key),
+            swap -> new JsonPrimitive(String.format("%06X", swap))));
         return root;
     }
 

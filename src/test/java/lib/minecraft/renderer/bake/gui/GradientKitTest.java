@@ -1,8 +1,12 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -11,6 +15,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -172,7 +180,7 @@ class GradientKitTest {
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
             TextSegment segment = TextSegment.builder().text("WWWW").gradient(spec).build();
             int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
-            GradientKit.drawSegment(g, segment, spec, "WWWW", DRAW_COLUMN_MC_PX, 16, 0L);
+            GradientKit.drawSegment(g, segment, spec, "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
 
             int leftMax = maxRed(buffer, baseX, baseX + advW);
             int rightMax = maxRed(buffer, baseX + 3 * advW, baseX + 4 * advW);
@@ -206,10 +214,10 @@ class GradientKitTest {
 
             PixelBuffer whole = PixelBuffer.create(96, 40);
             whole.fill(0xFF000000);
-            GradientKit.drawSegment(new MinecraftGraphics(whole), segment, spec, "MW", DRAW_COLUMN_MC_PX, 16, 0L);
+            GradientKit.drawSegment(new MinecraftGraphics(whole), segment, spec, "MW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
             PixelBuffer half = PixelBuffer.create(96, 40);
             half.fill(0xFF000000);
-            GradientKit.drawSegment(new MinecraftGraphics(half), segment, spec, "MW", DRAW_COLUMN_MC_PX + 0.5f, 16, 0L);
+            GradientKit.drawSegment(new MinecraftGraphics(half), segment, spec, "MW", DRAW_COLUMN_MC_PX + 0.5f, 16, TextPalette.VANILLA, 0L);
 
             int differing = 0, painted = 0;
             for (int y = 0; y < whole.height(); y++)
@@ -234,7 +242,7 @@ class GradientKitTest {
 
         PixelBuffer buffer = PixelBuffer.create(48, 40);
         buffer.fill(0xFF000000);
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, 0L);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
 
         // A lone letter samples the gradient's middle; the shadow's bar sits an mcPixel lower and darker.
         int row = 16 * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
@@ -264,7 +272,7 @@ class GradientKitTest {
 
         PixelBuffer buffer = PixelBuffer.create(48, 40);
         buffer.fill(0xFF000000);
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, 0L, false);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
 
         // The run's last lit column, and the topmost pixel lit in it.
         int lastX = -1, litY = -1;
@@ -290,7 +298,7 @@ class GradientKitTest {
     private static float advanceOf(String text, GradientSpec spec) {
         PixelBuffer buffer = PixelBuffer.create(64, 32);
         TextSegment segment = TextSegment.builder().text(text).gradient(spec).build();
-        return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, text, DRAW_COLUMN_MC_PX, 16, 0L);
+        return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, text, DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
     }
 
     @Test
@@ -310,7 +318,7 @@ class GradientKitTest {
             .gradient(startEnd(0x000000, 0xFFFFFF)) // bandPx 0 = per-letter, black -> white
             .build();
         int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
-        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", DRAW_COLUMN_MC_PX, 16, 0L);
+        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
 
         // Left M samples ~0.25 (gray ~64), right M ~0.75 (gray ~191): left strictly darker.
         int leftMax = maxRed(buffer, baseX, baseX + advM);
@@ -318,6 +326,55 @@ class GradientKitTest {
         assertThat(leftMax, is(lessThan(rightMax)));
         assertThat((double) leftMax, is(closeTo(64, 20)));
         assertThat((double) rightMax, is(closeTo(191, 20)));
+    }
+
+    @Test
+    @DisplayName("a gradient draws each colour it lays down and its shadow in the colours the palette swaps them for, "
+        + "the shadow derived from the unswapped colour")
+    void gradientDrawsInThePalettesSwaps() {
+        TextPalette gray = palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34));
+        GradientSpec perLetter = startEnd(0xAAAAAA, 0xAAAAAA);
+        GradientSpec perPixel = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xAAAAAA).addStop(0xAAAAAA).bandPx(1).build();
+
+        assertThat("per letter, every main pixel and every shadow pixel in its swap",
+            drawnColours(perLetter, gray), is(Set.of(0xFFA8BFD2, 0xFF2A2F34)));
+        assertThat("per letter, the shadow darkens the letter's colour before it is swapped, so a palette swapping the colour alone leaves it",
+            drawnColours(perLetter, palette(Map.of(0xAAAAAA, 0x123456))), is(Set.of(0xFF123456, 0xFF2A2A2A)));
+        assertThat("per pixel, every main pixel and every shadow pixel in its swap",
+            drawnColours(perPixel, gray), is(Set.of(0xFFA8BFD2, 0xFF2A2F34)));
+        assertThat("per pixel, the shadow darkens the band before it is swapped, so a palette swapping the band alone leaves it",
+            drawnColours(perPixel, palette(Map.of(0xAAAAAA, 0x123456))), is(Set.of(0xFF123456, 0xFF2A2A2A)));
+    }
+
+    /**
+     * Builds a palette holding the given swaps.
+     *
+     * @param swaps each swapped colour's 24-bit rgb and the rgb drawn in its place
+     * @return the palette
+     */
+    private static TextPalette palette(Map<Integer, Integer> swaps) {
+        return new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(swaps));
+    }
+
+    /**
+     * Draws a gradient segment with its shadow on a clear canvas and collects the colours it lays down.
+     *
+     * @param spec the gradient
+     * @param palette the palette the segment is drawn through
+     * @return each distinct colour of a pixel whose alpha is not zero
+     */
+    private static Set<Integer> drawnColours(GradientSpec spec, TextPalette palette) {
+        PixelBuffer buffer = PixelBuffer.create(96, 40);
+        TextSegment segment = TextSegment.builder().text("MM").gradient(spec).build();
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "MM", DRAW_COLUMN_MC_PX, 16, palette, 0L);
+
+        Set<Integer> colours = new HashSet<>();
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
+                if ((buffer.getPixel(x, y) >>> 24) != 0) colours.add(buffer.getPixel(x, y));
+
+        return colours;
     }
 
     private static int maxRed(PixelBuffer buffer, int x0, int x1) {

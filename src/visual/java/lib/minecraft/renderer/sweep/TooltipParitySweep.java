@@ -10,9 +10,11 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.DiffType;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
@@ -23,6 +25,8 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
+import lib.minecraft.renderer.content.pack.TextPaletteLoader;
+import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.dump.PackSourceParity;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
@@ -74,12 +78,15 @@ import java.util.TreeMap;
  * <p><b>A pack configuration reads the run's handshake first.</b> The pack run writes
  * {@code stack.json} beside its drawings: the packs the client selected, and for every tooltip sprite
  * its section reaches the pack the client took the sprite's file from, that file's SHA-256 and the
- * scaling of the sprite the client stitched. This side loads the same packs from the same folder in the
- * same order and, before any pixel, resolves the chrome of every style the section names the way the
- * renderer does; a sprite it takes from another pack, with other bytes or another scaling, one it does
- * not resolve and one the client does not draw each refuse the configuration, every mismatch named. A
- * row compared over chrome the two sides resolved differently would measure the resolution rather than
- * the drawing.
+ * scaling of the sprite the client stitched; the file the client compiles its GUI text pipeline's vertex
+ * shader from with the stack of packs supplying it; and the stack of every shader program and include a
+ * selected pack ships. This side loads the same packs from the same folder in the same order and,
+ * before any pixel, resolves the chrome of every style the section names the way the renderer does; a
+ * sprite it takes from another pack, with other bytes or another scaling, one it does not resolve and
+ * one the client does not draw each refuse the configuration, every mismatch named. A palette read from
+ * another text shader than the client runs, or a shader file resolved from another pack or with other
+ * bytes, refuses it too. A row compared over chrome or text colours the two sides resolved differently
+ * would measure the resolution rather than the drawing.
  *
  * <p><b>Each subject is two rows.</b> The full row renders through {@link TextRenderer}, so it measures
  * the renderer whole. The box-alone row, keyed {@code _chrome} as the harness keys its twin, draws the
@@ -118,7 +125,10 @@ public final class TooltipParitySweep {
     private static final @NotNull String HANDSHAKE = "stack.json";
 
     /** The handshake format this reader reads. */
-    private static final int HANDSHAKE_FORMAT = 1;
+    private static final int HANDSHAKE_FORMAT = 2;
+
+    /** The client's id for its built-in vanilla pack. */
+    private static final @NotNull String VANILLA_PACK = "vanilla";
 
     /** The roster the harness draws the references from, a resource beside this class. */
     private static final @NotNull String ROSTER = "tooltip-roster.json";
@@ -329,6 +339,87 @@ public final class TooltipParitySweep {
     }
 
     /**
+     * Compares the text shader the client runs against the one the renderer reads its palette from: a
+     * palette read from another file, or from another pack than the one on top of the client's stack, a
+     * palette read from no pack where a pack supplies the client's program, and a text shader the
+     * renderer could not read.
+     *
+     * @param client the handshake's {@code text_shader} - the {@code file} the client compiles its GUI text
+     *     pipeline's vertex shader from, and the {@code stack} of packs supplying it lowest priority first
+     * @param rendered the renderer's reading - the {@code state} of its palette and, where one was read,
+     *     the {@code file} and the {@code pack} it was read from
+     * @return every mismatch, each naming the client's file; empty when the two sides agree
+     */
+    static @NotNull List<String> textShaderMismatches(@NotNull JsonObject client, @NotNull JsonObject rendered) {
+        String file = client.get("file").getAsString();
+        JsonArray stack = client.getAsJsonArray("stack");
+        if (stack.isEmpty())
+            return List.of(String.format("%s: no pack supplies the client's text shader", file));
+
+        String top = stack.get(stack.size() - 1).getAsJsonObject().get("pack").getAsString();
+        String state = rendered.get("state").getAsString();
+        if (state.equals("absent")) {
+            return top.equals(VANILLA_PACK) ? List.of()
+                : List.of(String.format("%s: the client runs it from %s, and the renderer reads no text shader from a pack", file, top));
+        }
+        if (!state.equals("present")) {
+            return List.of(String.format("%s: the client runs it from %s, and the renderer reads no colour swap from the text shader its stack takes",
+                file, top));
+        }
+
+        List<String> mismatches = new ArrayList<>();
+        String read = rendered.get("file").getAsString();
+        String pack = rendered.get("pack").getAsString();
+        if (!read.equals(file))
+            mismatches.add(String.format("%s: the client runs it, and the renderer reads its palette from %s", file, read));
+        if (!pack.equals(top))
+            mismatches.add(String.format("%s: the client runs it from %s, and the renderer reads its palette from %s", file, top, pack));
+        return mismatches;
+    }
+
+    /**
+     * Compares every shader program and include a pack ships to the client against the renderer's
+     * resolution of the same files, file by file: the pack the client takes each from and its SHA-256
+     * against the renderer's, a file the client resolves from a pack and the renderer from none, a file
+     * no pack supplied to the client, and a file the renderer resolves from a pack that the client does
+     * not list.
+     *
+     * @param client the handshake's {@code shader_sources} - per file the stack of packs supplying it,
+     *     lowest priority first
+     * @param rendered the renderer's resolution of every shader file it takes from a pack above vanilla
+     *     - per file its {@code pack} and {@code sha256}
+     * @return every mismatch, each naming its file, sorted; empty when the two sides agree
+     */
+    static @NotNull List<String> shaderMismatches(@NotNull JsonObject client, @NotNull JsonObject rendered) {
+        List<String> mismatches = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> source : client.entrySet()) {
+            String file = source.getKey();
+            JsonArray stack = source.getValue().getAsJsonArray();
+            if (stack.isEmpty()) {
+                mismatches.add(String.format("%s: no pack supplies the client's copy", file));
+                continue;
+            }
+            JsonElement resolved = rendered.get(file);
+            if (resolved == null) {
+                mismatches.add(String.format("%s: the client takes it from a pack, and the renderer from none above vanilla", file));
+                continue;
+            }
+
+            JsonObject top = stack.get(stack.size() - 1).getAsJsonObject();
+            JsonObject ours = resolved.getAsJsonObject();
+            if (!top.get("pack").equals(ours.get("pack")))
+                mismatches.add(String.format("%s: the client takes it from %s, the renderer from %s", file, top.get("pack"), ours.get("pack")));
+            if (!top.get("sha256").equals(ours.get("sha256")))
+                mismatches.add(String.format("%s: the client's bytes hash %s, the renderer's %s", file, top.get("sha256"), ours.get("sha256")));
+        }
+        for (String file : rendered.keySet()) {
+            if (!client.has(file))
+                mismatches.add(String.format("%s: the renderer takes it from a pack, and the client lists no pack shipping it", file));
+        }
+        return mismatches.stream().sorted().toList();
+    }
+
+    /**
      * Writes a sprite's scaling in the client codec's field names for its type - the type alone for a
      * stretch, its size as well for a tile, and its size, four border sides and inner stretch for a
      * nine-slice - so a stretch's unused size, and the {@code -1} a sprite without a sidecar carries,
@@ -368,8 +459,8 @@ public final class TooltipParitySweep {
      *     keys - then an optional roster key to scope the run to
      * @throws IOException if the roster or the handshake cannot be read, or the report cannot be written
      * @throws IllegalArgumentException if no configuration is given, or the roster has none of that label
-     * @throws IllegalStateException if a pack configuration's chrome resolves differently from the
-     *     client's
+     * @throws IllegalStateException if a pack configuration's chrome or text shader resolves differently
+     *     from the client's
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (args.length == 0) {
@@ -435,25 +526,97 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Holds the renderer's chrome resolution to the client's before any pixel is compared, refusing
-     * the configuration on any mismatch.
+     * Holds the renderer's chrome resolution, the text shader it reads its palette from and the shader
+     * files it resolves from a pack to the client's before any pixel is compared, refusing the
+     * configuration on any mismatch.
      *
      * @param configuration the pack configuration, carrying its handshake
      * @param assets the client assets the renderer was loaded from
      * @param context the context the renderer resolves its chrome through
-     * @throws IllegalStateException if the two sides resolve any chrome sprite differently
+     * @throws IllegalStateException if the two sides resolve any chrome sprite, the text shader or any
+     *     pack-shipped shader file differently
      */
     private static void checkResolution(@NotNull Configuration configuration, @NotNull ClientAssets assets,
                                         @NotNull RendererContext context) {
         JsonObject handshake = configuration.handshake().orElseThrow();
-        JsonObject rendered = rendered(PackAcquisition.acquire(assets), PackSourceParity.labels(handshake), context,
-            configuration.subjects());
-        List<String> mismatches = resolutionMismatches(handshake.getAsJsonObject("chrome_sources"), rendered);
+        PackStack stack = PackAcquisition.acquire(assets);
+        Map<PackId, String> labelOf = labelsOf(stack, PackSourceParity.labels(handshake));
+        JsonObject rendered = rendered(stack, labelOf, context, configuration.subjects());
+        JsonObject shaders = shaderSources(stack, labelOf);
+        JsonObject clientText = handshake.getAsJsonObject("text_shader");
+
+        List<String> mismatches = new ArrayList<>(resolutionMismatches(handshake.getAsJsonObject("chrome_sources"), rendered));
+        mismatches.addAll(textShaderMismatches(clientText, textShader(stack, labelOf)));
+        mismatches.addAll(shaderMismatches(handshake.getAsJsonObject("shader_sources"), shaders));
         if (!mismatches.isEmpty()) {
             throw new IllegalStateException(String.format(
-                "The renderer resolves the chrome of '%s' differently from the client: %s", configuration.label(), mismatches));
+                "The renderer resolves the chrome or the text shader of '%s' differently from the client: %s", configuration.label(), mismatches));
         }
-        System.out.printf("Chrome resolution of '%s' agrees with the client on %d sprites%n", configuration.label(), rendered.size());
+        JsonArray textStack = clientText.getAsJsonArray("stack");
+        System.out.printf("Chrome resolution of '%s' agrees with the client on %d sprites, and its text shader on '%s' from '%s' and %d shader files%n",
+            configuration.label(), rendered.size(), clientText.get("file").getAsString(),
+            textStack.get(textStack.size() - 1).getAsJsonObject().get("pack").getAsString(), shaders.size());
+    }
+
+    /**
+     * Maps each pack of the stack to the client's id for it.
+     *
+     * @param stack the pack stack loaded from the same client assets as the context
+     * @param labels the client's id for each pack of the stack, lowest priority first
+     * @return the client's id for each pack
+     * @throws IllegalStateException if the stack holds another number of packs than there are labels
+     */
+    private static @NotNull Map<PackId, String> labelsOf(@NotNull PackStack stack, @NotNull List<String> labels) {
+        List<ResourcePack> ascending = stack.ascending();
+        if (ascending.size() != labels.size())
+            throw new IllegalStateException(String.format("The renderer stacked %d packs for '%s'", ascending.size(), labels));
+        Map<PackId, String> labelOf = new HashMap<>();
+        for (int i = 0; i < ascending.size(); i++) labelOf.put(ascending.get(i).id(), labels.get(i));
+        return labelOf;
+    }
+
+    /**
+     * Answers the text shader the renderer reads its palette from, as the comparison reads it - the
+     * state of the stack's palette and, where one was read, the file and the client's id for the pack it
+     * was read from.
+     *
+     * @param stack the pack stack
+     * @param labelOf the client's id for each pack of the stack
+     * @return the reading
+     */
+    private static @NotNull JsonObject textShader(@NotNull PackStack stack, @NotNull Map<PackId, String> labelOf) {
+        Possible<TextPalette> palette = stack.textPalette();
+        JsonObject reading = new JsonObject();
+        reading.addProperty("state", palette.getState().name().toLowerCase(Locale.ROOT));
+        palette.ifPresent(read -> {
+            reading.addProperty("file", read.id().id());
+            reading.addProperty("pack", labelOf.get(read.pack()));
+        });
+        return reading;
+    }
+
+    /**
+     * Resolves every shader program and include the renderer takes from a pack above vanilla, and
+     * answers each file with the client's id for that pack and the SHA-256 of its bytes.
+     *
+     * @param stack the pack stack
+     * @param labelOf the client's id for each pack of the stack
+     * @return the resolution, keyed by {@code <namespace>:shaders/<path>} in sorted order
+     */
+    private static @NotNull JsonObject shaderSources(@NotNull PackStack stack, @NotNull Map<PackId, String> labelOf) {
+        SortedMap<String, PackSubtree.Entry> winners = new TreeMap<>();
+        for (PackSubtree.Entry entry : TextPaletteLoader.shaderFiles(stack.ascending()))
+            winners.put(entry.namespace() + ":" + entry.resourcePath(), entry);
+
+        JsonObject sources = new JsonObject();
+        winners.forEach((file, entry) -> {
+            if (entry.pack().id().equals(PackId.VANILLA)) return;
+            JsonObject source = new JsonObject();
+            source.addProperty("pack", labelOf.get(entry.pack().id()));
+            source.addProperty("sha256", ParityJson.sha256(entry.container().bytes(entry.entryPath()).orElseThrow()));
+            sources.add(file, source);
+        });
+        return sources;
     }
 
     /**
@@ -462,21 +625,14 @@ public final class TooltipParitySweep {
      * scaling the chrome hands its kit. A style whose pair the chrome drops contributes nothing.
      *
      * @param stack the pack stack loaded from the same client assets as the context
-     * @param labels the client's id for each pack of the stack, lowest priority first
+     * @param labelOf the client's id for each pack of the stack
      * @param context the context the chrome resolves its sprites through
      * @param subjects the configuration's subjects
      * @return the resolution, keyed by {@code <namespace>:textures/<path>.png} in sorted order
-     * @throws IllegalStateException if the stack holds another number of packs than there are labels,
-     *     or a resolved sprite is one the stack does not supply
+     * @throws IllegalStateException if a resolved sprite is one the stack does not supply
      */
-    private static @NotNull JsonObject rendered(@NotNull PackStack stack, @NotNull List<String> labels,
+    private static @NotNull JsonObject rendered(@NotNull PackStack stack, @NotNull Map<PackId, String> labelOf,
                                                 @NotNull RendererContext context, @NotNull List<Subject> subjects) {
-        List<ResourcePack> ascending = stack.ascending();
-        if (ascending.size() != labels.size())
-            throw new IllegalStateException(String.format("The renderer stacked %d packs for '%s'", ascending.size(), labels));
-        Map<PackId, String> labelOf = new HashMap<>();
-        for (int i = 0; i < ascending.size(); i++) labelOf.put(ascending.get(i).id(), labels.get(i));
-
         SortedMap<String, JsonObject> files = new TreeMap<>();
         for (Optional<ResourceId> style : subjects.stream().map(Subject::style).distinct().toList()) {
             Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(context, style);

@@ -21,7 +21,7 @@ check it against source before honouring one.
 | Touching | Read |
 |---|---|
 | `call/**` - the `*Options` bags, `RenderResult` and the composite results, `LayerSlot`; laying a finished render down (`BlendMode`); `ItemContext` and an item definition's walk; the `vanilla/appearance` vocabulary | [RequestsAndResults](docs/renderer/RequestsAndResults.md) |
-| `content/read` and `filter.block`; the `content/json` value adapters | [PackContent](docs/renderer/PackContent.md) |
+| `content/read` and `filter.block`; the `content/json` value adapters; a pack's text shader, `TextPaletteLoader` and `TextPalette` | [PackContent](docs/renderer/PackContent.md) |
 | A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
 | `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
 | `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |

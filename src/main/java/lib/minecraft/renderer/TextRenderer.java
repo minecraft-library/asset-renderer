@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
@@ -33,7 +34,9 @@ import java.util.Optional;
 
 /**
  * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a bordered
- * background, or plain chat text on a transparent canvas.
+ * background, or plain chat text on a transparent canvas. Its text is drawn in the colours its
+ * context's pack stack swaps them for ({@link RendererContext#findTextPalette}), and every colour as
+ * given where the stack holds no palette or the renderer holds no context.
  * <p>
  * The LORE background and border are contributed by the {@link TooltipChrome} the request's
  * {@linkplain TextOptions#getChromeStyle() chrome style} selects: {@link ChromeStyle#PROCEDURAL} draws
@@ -166,14 +169,16 @@ public final class TextRenderer implements Renderer<TextOptions> {
         AlphaMode alphaMode = isLore && options.getChromeStyle() == ChromeStyle.PROCEDURAL
             ? AlphaMode.STRAIGHT
             : AlphaMode.PREMULTIPLIED;
+        TextPalette palette = this.context.map(context -> context.findTextPalette().orElse(TextPalette.VANILLA))
+            .orElse(TextPalette.VANILLA);
 
         if (!animated)
-            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, box, 0L, 0L).getFirst(), alphaMode);
+            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, box, palette, 0L, 0L).getFirst(), alphaMode);
 
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, box, f, timeline.tickAt(f)).getFirst(), alphaMode);
+            drawSingleFrame(options, chrome, sprites, box, palette, f, timeline.tickAt(f)).getFirst(), alphaMode);
     }
 
     /**
@@ -238,6 +243,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @param sprites the sprite pair resolved for this render, empty unless a sprite chrome resolved one
      * @param box the canvas and the text block's place on it, in mcPixels - the chrome's box for a
      * tooltip, the bounds of what the lines draw for chat
+     * @param palette the colours the context's text shader draws in place of the lines' own
      * @param frameIndex the animation frame drawn, from which {@link TextKit} seeds each line's scramble
      * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
@@ -247,6 +253,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         @NotNull TooltipChrome chrome,
         @NotNull Optional<TooltipChrome.ChromeSprites> sprites,
         @NotNull TooltipChrome.ChromeBox box,
+        @NotNull TextPalette palette,
         long frameIndex,
         long tick
     ) {
@@ -265,7 +272,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             float baselineMcPx = box.textY() + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), box.textX(), baselineMcPx, DEFAULT_COLOR_ARGB, i, frameIndex, tick);
+                TextKit.drawLine(g, options.getLines().get(i), box.textX(), baselineMcPx, DEFAULT_COLOR_ARGB, palette, i, frameIndex, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;

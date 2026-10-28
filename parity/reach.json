@@ -886,6 +886,21 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pack/TextPalette": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.visual",
+        "sweep.block",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/Drawn": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3656,6 +3671,16 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/TextPaletteLoader": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },

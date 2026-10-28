@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.sweep;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -35,6 +36,8 @@ class TooltipParitySweepTest {
     private static final String SPRITE = "minecraft:tooltip/background";
 
     private static final String FILE = "minecraft:textures/gui/sprites/tooltip/background.png";
+
+    private static final String TEXT_SHADER = "minecraft:shaders/core/rendertype_text.vsh";
 
     private static final String NINE_SLICE =
         "{\"type\": \"nine_slice\", \"width\": 100, \"height\": 100, "
@@ -136,6 +139,163 @@ class TooltipParitySweepTest {
             contains(allOf(startsWith(other), containsString("does not draw"))));
     }
 
+    /**
+     * Builds the handshake's {@code text_shader}.
+     *
+     * @param file the file the client compiles its text program from
+     * @param packs the packs supplying it, lowest priority first
+     * @return the client side
+     */
+    private static JsonObject clientText(String file, String... packs) {
+        JsonObject client = new JsonObject();
+        client.addProperty("file", file);
+        JsonArray stack = new JsonArray();
+        for (String pack : packs) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("pack", pack);
+            entry.addProperty("sha256", "a");
+            stack.add(entry);
+        }
+        client.add("stack", stack);
+        return client;
+    }
+
+    /**
+     * Builds the renderer's reading of its text shader.
+     *
+     * @param state the state of the stack's palette
+     * @param file the file it was read from, absent where none was read
+     * @param pack the pack it was read from, absent where none was read
+     * @return the renderer side
+     */
+    private static JsonObject renderedText(String state, String file, String pack) {
+        JsonObject rendered = new JsonObject();
+        rendered.addProperty("state", state);
+        if (file != null) rendered.addProperty("file", file);
+        if (pack != null) rendered.addProperty("pack", pack);
+        return rendered;
+    }
+
+    @Test
+    @DisplayName("a palette read from the client's text shader, from the pack on top of the client's stack, agrees")
+    void textShaderOfTheClientsFileAndPackAgrees() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla", "file/p"),
+            renderedText("present", TEXT_SHADER, "file/p")), is(empty()));
+    }
+
+    @Test
+    @DisplayName("a palette read from another file than the client runs refuses, naming the client's file")
+    void textShaderOfAnotherFileRefuses() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla", "file/p"),
+                renderedText("present", "minecraft:shaders/core/text.vsh", "file/p")),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("text.vsh"))));
+    }
+
+    @Test
+    @DisplayName("a palette read from a pack where the client runs vanilla's program refuses, naming the client's file")
+    void textShaderOverAVanillaTopRefuses() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla"),
+                renderedText("present", TEXT_SHADER, "file/p")),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("file/p"))));
+    }
+
+    @Test
+    @DisplayName("no palette agrees where the client runs vanilla's program, and refuses where it runs a pack's")
+    void absentPaletteAgreesOnlyOverAVanillaTop() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla"),
+            renderedText("absent", null, null)), is(empty()));
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla", "file/p"),
+                renderedText("absent", null, null)),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("reads no text shader"))));
+    }
+
+    @Test
+    @DisplayName("a text shader the renderer could not read refuses, whichever pack the client runs it from")
+    void emptyPaletteRefuses() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla"),
+                renderedText("empty", null, null)),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("no colour swap"))));
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER, "vanilla", "file/p"),
+                renderedText("empty", null, null)),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("no colour swap"))));
+    }
+
+    @Test
+    @DisplayName("a text shader no pack supplies to the client refuses, naming the file")
+    void textShaderNoPackSuppliesRefuses() {
+        assertThat(TooltipParitySweep.textShaderMismatches(clientText(TEXT_SHADER), renderedText("absent", null, null)),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("no pack supplies"))));
+    }
+
+    /**
+     * Builds the handshake's {@code shader_sources} for one file.
+     *
+     * @param file the shader file
+     * @param stack the file's stack, lowest priority first
+     * @return the client side
+     */
+    private static JsonObject clientShaders(String file, String stack) {
+        return JsonParser.parseString("{\"" + file + "\": " + stack + "}").getAsJsonObject();
+    }
+
+    /**
+     * Builds the renderer's resolution of one shader file.
+     *
+     * @param file the shader file
+     * @param pack the pack supplying it
+     * @param sha256 its bytes' digest
+     * @return the renderer side
+     */
+    private static JsonObject renderedShaders(String file, String pack, String sha256) {
+        return JsonParser.parseString("{\"" + file + "\": {\"pack\": \"" + pack + "\", \"sha256\": \"" + sha256 + "\"}}").getAsJsonObject();
+    }
+
+    /** The client side whose one shader file's top pack is the pack at digest {@code b}. */
+    private static JsonObject shaderOverVanilla() {
+        return clientShaders(TEXT_SHADER, "[{\"pack\": \"vanilla\", \"sha256\": \"a\"}, {\"pack\": \"file/p\", \"sha256\": \"b\"}]");
+    }
+
+    @Test
+    @DisplayName("the renderer resolving every pack shader file from the client's top pack with its bytes agrees")
+    void identicalShaderSourcesAgree() {
+        assertThat(TooltipParitySweep.shaderMismatches(shaderOverVanilla(), renderedShaders(TEXT_SHADER, "file/p", "b")),
+            is(empty()));
+    }
+
+    @Test
+    @DisplayName("a shader file of other bytes, or from another pack, refuses, naming the file")
+    void shaderOfOtherBytesOrPackRefuses() {
+        assertThat(TooltipParitySweep.shaderMismatches(shaderOverVanilla(), renderedShaders(TEXT_SHADER, "file/p", "c")),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("bytes hash"))));
+        assertThat(TooltipParitySweep.shaderMismatches(shaderOverVanilla(), renderedShaders(TEXT_SHADER, "file/q", "b")),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("takes it from"))));
+    }
+
+    @Test
+    @DisplayName("a shader file the client takes from a pack and the renderer from none refuses, naming the file")
+    void shaderTheRendererLacksRefuses() {
+        assertThat(TooltipParitySweep.shaderMismatches(shaderOverVanilla(), new JsonObject()),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("from none"))));
+    }
+
+    @Test
+    @DisplayName("a shader file the renderer takes from a pack and the client does not list refuses, naming the file")
+    void shaderTheClientDoesNotListRefuses() {
+        String other = "minecraft:shaders/include/swap.glsl";
+        JsonObject both = renderedShaders(TEXT_SHADER, "file/p", "b");
+        both.add(other, renderedShaders(other, "file/p", "d").get(other));
+
+        assertThat(TooltipParitySweep.shaderMismatches(shaderOverVanilla(), both),
+            contains(allOf(startsWith(other), containsString("lists no pack"))));
+    }
+
+    @Test
+    @DisplayName("a shader file no pack supplied to the client refuses, naming the file")
+    void emptyShaderStackRefuses() {
+        assertThat(TooltipParitySweep.shaderMismatches(clientShaders(TEXT_SHADER, "[]"), new JsonObject()),
+            contains(allOf(startsWith(TEXT_SHADER), containsString("no pack supplies"))));
+    }
+
     @Test
     @DisplayName("a stretch writes its type alone, whatever size it carries")
     void stretchWritesItsTypeAlone() {
@@ -224,11 +384,11 @@ class TooltipParitySweepTest {
         String directory = "\"pack_directory\": \"packs\"";
 
         assertThat(TooltipParitySweep.packFiles(JsonParser.parseString(
-                "{\"format\": 1, " + directory + ", \"requested\": [\"file/p\"]}").getAsJsonObject()).size(), is(1));
+                "{\"format\": 2, " + directory + ", \"requested\": [\"file/p\"]}").getAsJsonObject()).size(), is(1));
         assertThrows(IllegalStateException.class, () -> TooltipParitySweep.packFiles(JsonParser.parseString(
-            "{\"format\": 2, " + directory + ", \"requested\": [\"file/p\"]}").getAsJsonObject()));
+            "{\"format\": 1, " + directory + ", \"requested\": [\"file/p\"]}").getAsJsonObject()));
         assertThrows(IllegalStateException.class, () -> TooltipParitySweep.packFiles(JsonParser.parseString(
-            "{\"format\": 1, " + directory + ", \"requested\": [\"p\"]}").getAsJsonObject()));
+            "{\"format\": 2, " + directory + ", \"requested\": [\"p\"]}").getAsJsonObject()));
     }
 
 }

@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.call.request.ItemContext;
@@ -436,6 +437,12 @@ public final class IndexedRendererContext implements RendererContext {
         // A key the file read holds no parseable colour for is not there, nor is any key where no pack
         // ships a file, which a bare ofOptional would call empty.
         return Possible.ofOptional(this.stack.rules().colors().flatMap(colors -> colors.get(key))).or(Possible::absent);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Possible<TextPalette> findTextPalette() {
+        return this.stack.textPalette();
     }
 
     /**

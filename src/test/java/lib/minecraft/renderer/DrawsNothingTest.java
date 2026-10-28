@@ -9,6 +9,7 @@ import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.AtlasOptions;
@@ -29,6 +30,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -346,6 +348,21 @@ class DrawsNothingTest {
     }
 
     @Test
+    @DisplayName("the stack count draws its digits and their shadow in the colours the stack's text palette swaps white and its shadow for")
+    void theStackCountDrawsInThePalettesSwaps() {
+        ItemOptions counted = item(AIR, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack(AIR, 5))).build();
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(0xFFFFFF, 0x4CC2FF, 0x3F3F3F, 0x13303F)));
+
+        assertThat("over vanilla the count draws white over its shadow and nothing else",
+            colours(RenderDigest.firstFramePixels(new ItemRenderer(vanilla).render(counted).image())),
+            is(Set.of(0xFFFFFFFF, 0xFF3F3F3F)));
+        assertThat("under the palette both are drawn in their swaps",
+            colours(RenderDigest.firstFramePixels(new ItemRenderer(withTextPalette(vanilla, palette)).render(counted).image())),
+            is(Set.of(0xFF4CC2FF, 0xFF13303F)));
+    }
+
+    @Test
     @DisplayName("a CIT model override over a definition rooted at minecraft:empty still draws its model")
     void aCitModelOutranksARootEmptyDefinition() {
         int[] slot = RenderDigest.firstFramePixels(
@@ -498,6 +515,42 @@ class DrawsNothingTest {
             }
 
         };
+    }
+
+    /**
+     * Wraps a context in one answering a text palette and forwarding every other lookup.
+     *
+     * @param over the context every other lookup reaches
+     * @param palette the palette the wrapper answers
+     * @return the wrapping context
+     */
+    private static @NotNull RendererContext withTextPalette(@NotNull RendererContext over, @NotNull TextPalette palette) {
+        return new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return over;
+            }
+
+            @Override
+            public @NotNull Possible<TextPalette> findTextPalette() {
+                return Possible.of(palette);
+            }
+
+        };
+    }
+
+    /**
+     * Collects every colour a frame holds at a pixel it covers.
+     *
+     * @param pixels the frame's packed ARGB pixels
+     * @return each distinct colour of a pixel whose alpha is not zero
+     */
+    private static @NotNull Set<Integer> colours(int @NotNull [] pixels) {
+        return Arrays.stream(pixels)
+            .filter(pixel -> (pixel >>> 24) != 0)
+            .boxed()
+            .collect(Collectors.toSet());
     }
 
     /**

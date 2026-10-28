@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
@@ -109,9 +110,9 @@ public class ItemStackKit {
 
     /**
      * Draws a stack count in the bottom-right corner of a GUI item buffer using the supplied
-     * font, matching vanilla {@code GuiGraphicsExtractor.itemCount}: white with a drop shadow,
-     * right-aligned so the text ends one GUI pixel past the icon's right edge, top of text at
-     * row 9.
+     * font, matching vanilla {@code GuiGraphicsExtractor.itemCount}: white with a drop shadow, each in
+     * the colour the palette swaps it for, right-aligned so the text ends one GUI pixel past the icon's
+     * right edge, top of text at row 9.
      * <p>
      * The text is rasterized at the font's native mcPixel resolution into a scratch buffer,
      * then {@link PixelBuffer#blitScaled} lays that finished scratch into the target at the
@@ -120,8 +121,9 @@ public class ItemStackKit {
      * @param buffer the buffer to draw on - expected to be a multiple of 16 pixels per side
      * @param count the stack count
      * @param font the font to use for the digits
+     * @param palette the colours a pack's text shader draws in place of the count's own
      */
-    public static void drawStackCount(@NotNull PixelBuffer buffer, int count, @NotNull MinecraftFont font) {
+    public static void drawStackCount(@NotNull PixelBuffer buffer, int count, @NotNull MinecraftFont font, @NotNull TextPalette palette) {
         if (count <= 1) return;
 
         String text = Integer.toString(count);
@@ -145,7 +147,7 @@ public class ItemStackKit {
         PixelBuffer scratch = PixelBuffer.create(scratchW, scratchH);
         MinecraftGraphics g = new MinecraftGraphics(scratch);
         // Draw with the cursor offset by leftPadMcPx and the baseline at ascent-from-top.
-        TextKit.drawText(g, text, leftPadMcPx, ascentMcPx, font, ColorMath.WHITE);
+        TextKit.drawText(g, text, leftPadMcPx, ascentMcPx, font, ColorMath.WHITE, palette);
 
         // Vanilla GUI-pixel anchor: text's right edge at STACK_COUNT_RIGHT_GUI, text top at
         // STACK_COUNT_TOP_GUI. Convert to actual buffer pixels via guiScale. The scratch's
