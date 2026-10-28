@@ -46,8 +46,8 @@ Values this store holds, one file each.
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.tooltip` | `sweeps/tooltip.json` | 28 | sum 46.3451 | `1a4b12763a8351201a83724ea5e3721e133662f1` | yes |
-| `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 9.6962 | `1a4b12763a8351201a83724ea5e3721e133662f1` | yes |
+| `sweep.tooltip` | `sweeps/tooltip.json` | 28 | sum 78.3011 | `87d824360b24b2d7b66b5475438a23dc0da74745` | yes |
+| `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 11.0608 | `87d824360b24b2d7b66b5475438a23dc0da74745` | yes |
 
 ## Pointers
 

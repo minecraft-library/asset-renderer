@@ -309,10 +309,10 @@
       "entries": 28,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4198,
-      "promoted_at": "1a4b12763a8351201a83724ea5e3721e133662f1",
-      "sha256": "ded04ea7a245cf1ce12e303868bf48d426fbd0c1de68726c67de9d1ec59cad02",
-      "sum": "46.3451"
+      "last_duration_ms": 3741,
+      "promoted_at": "87d824360b24b2d7b66b5475438a23dc0da74745",
+      "sha256": "d21397c9adaa0f5ce4294865c00e3e87b3de9402f281685f4431feba50741410",
+      "sum": "78.3011"
     },
     "sweep.tooltip-hypixel-skyblock": {
       "baselined": true,
@@ -320,10 +320,10 @@
       "entries": 44,
       "file": "sweeps/tooltip-hypixel-skyblock.json",
       "kind": "sweep-table",
-      "last_duration_ms": 5433,
-      "promoted_at": "1a4b12763a8351201a83724ea5e3721e133662f1",
-      "sha256": "d04f82f986a0bb48cc4e3ef62388b5e880473c3089bc6caf4a5940d43b0cbb10",
-      "sum": "9.6962"
+      "last_duration_ms": 5066,
+      "promoted_at": "87d824360b24b2d7b66b5475438a23dc0da74745",
+      "sha256": "85885f4075c919d9cfefbbd7fb38bece23be24b5d4ea4a57edcd630432bcea36",
+      "sum": "11.0608"
     }
   },
   "external": {
