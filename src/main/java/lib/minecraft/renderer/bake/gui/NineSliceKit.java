@@ -11,6 +11,8 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
+
 /**
  * Blits a {@code gui.scaling}-governed sprite (stretch, tile, nine_slice) into a destination rect.
  * <p>
@@ -73,6 +75,73 @@ public class NineSliceKit {
                 if (ColorMath.alpha(argb) != 0) dest.setPixel(dx, dy, ColorMath.blend(argb, dest.getPixel(dx, dy), BlendMode.NORMAL));
             }
         }
+    }
+
+    /**
+     * Answers the bounds of every pixel {@link #draw} would lay down for {@code sprite} over a
+     * {@code w x h} rect, without drawing it - the same slice maps, and each sampled texel whose alpha
+     * survives the multiplier.
+     * <p>
+     * The bounds are rect-local and unclipped, and equal {@link PixelBuffer#opaqueBounds()} of the sprite
+     * drawn at the origin of a clear canvas the rect's size, so a caller sizes its canvas to the first
+     * pixel the sprite draws before drawing it. A sprite that draws nothing answers a zero-size rectangle,
+     * as {@code opaqueBounds()} answers for a fully transparent buffer.
+     *
+     * @param sprite the sprite texture (authored at 1:1 GUI px)
+     * @param scaling the {@code gui.scaling} sidecar; {@code stretch} when a pack ships no mcmeta
+     * @param w the rect width in output px
+     * @param h the rect height in output px
+     * @param pxScale the output px per sprite px ({@code MinecraftFont.MC_PIXEL_SCALE} = 2 for text chrome)
+     * @param alphaMul the per-texel alpha multiplier {@link #draw} would apply
+     * @return the bounds of the pixels drawn, from the rect's origin in output px, or a zero-size
+     * rectangle when the sprite draws nothing over the rect
+     */
+    public static @NotNull Rectangle extent(
+        @NotNull PixelBuffer sprite,
+        @NotNull MCMeta.GuiScaling scaling,
+        int w, int h,
+        int pxScale, float alphaMul
+    ) {
+        if (w <= 0 || h <= 0 || pxScale <= 0 || sprite.width() <= 0 || sprite.height() <= 0)
+            return new Rectangle(0, 0, 0, 0);
+
+        PixelBuffer src = nominalize(sprite, scaling);
+        int[] sxByLocal = axisMap(scaling, true, src.width(), w, pxScale);
+        int[] syByLocal = axisMap(scaling, false, src.height(), h, pxScale);
+
+        boolean[] sampledColumn = new boolean[src.width()];
+        boolean[] sampledRow = new boolean[src.height()];
+        for (int sx : sxByLocal) sampledColumn[sx] = true;
+        for (int sy : syByLocal) sampledRow[sy] = true;
+
+        // A texel is drawn wherever its column and its row are both sampled, so a sampled column holding
+        // a drawn texel in any sampled row reaches every destination column that maps onto it.
+        boolean[] drawnColumn = new boolean[src.width()];
+        boolean[] drawnRow = new boolean[src.height()];
+        for (int sy = 0; sy < src.height(); sy++) {
+            if (!sampledRow[sy]) continue;
+            for (int sx = 0; sx < src.width(); sx++) {
+                if (!sampledColumn[sx] || ColorMath.alpha(multiply(src.getPixel(sx, sy), alphaMul)) == 0) continue;
+                drawnColumn[sx] = true;
+                drawnRow[sy] = true;
+            }
+        }
+
+        int left = -1;
+        int right = -1;
+        for (int local = 0; local < w; local++) {
+            if (!drawnColumn[sxByLocal[local]]) continue;
+            if (left < 0) left = local;
+            right = local + 1;
+        }
+        int top = -1;
+        int bottom = -1;
+        for (int local = 0; local < h; local++) {
+            if (!drawnRow[syByLocal[local]]) continue;
+            if (top < 0) top = local;
+            bottom = local + 1;
+        }
+        return left < 0 || top < 0 ? new Rectangle(0, 0, 0, 0) : new Rectangle(left, top, right - left, bottom - top);
     }
 
     /**

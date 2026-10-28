@@ -27,10 +27,14 @@ import static org.hamcrest.Matchers.not;
  * the canvas, alpha multiplier included, plus the pure-algorithm cases (stretch, tile, nominal
  * downsample, degenerate-rect clamp) on synthetic sprites so they run without the client jar.
  * <p>
- * The real-sprite rect overhangs the canvas by 16 output px a side - the 8 outer texels both sprites
- * leave transparent, at {@code PX_SCALE} - so the kit's clip to the destination bounds drops exactly
- * that border and the visible box lands flush with the canvas edge. These cases are what pins that
- * clip.
+ * The real-sprite cases blit over the rect the tooltip chrome hands the kit for vanilla's pair: the
+ * client's rect, overhanging the canvas by 16 output px a side - the 8 outer texels both sprites leave
+ * transparent, at {@code PX_SCALE} - so the kit's clip to the destination bounds drops exactly that
+ * border and the box lands flush with the canvas edge. These cases are what pins that clip.
+ * <p>
+ * The extent cases hold the kit's two answers to one another: {@link NineSliceKit#extent} against
+ * {@link PixelBuffer#opaqueBounds()} of what {@link NineSliceKit#draw} lays down on a clear canvas the
+ * rect's size, over the real sprites and over a synthetic sprite in every scaling mode.
  * <p>
  * The real-sprite cases pin the bytes the kit's blend leaves on a clear canvas: each translucent texel
  * keeps its alpha and has its colour scaled by it, as the client's framebuffer holds it. The synthetic
@@ -46,10 +50,11 @@ class NineSliceKitTest {
 
     private static final int PX_SCALE = 2;
 
-    // The overhanging blit geometry: a fresh canvas of canvasW x canvasH output px, with both sprites
-    // drawn over a rect overhanging it 16 output px each side - the 8 outer texels both sprites leave
-    // transparent, at PX_SCALE - so the clip drops exactly that border, the background fill lands
-    // flush to the canvas edge and the frame ring 1 mcPx inside it.
+    // The overhanging blit geometry, the tooltip chrome's own for vanilla's pair: a fresh canvas of
+    // canvasW x canvasH output px, with both sprites drawn over the client's rect overhanging it 16
+    // output px each side - the 8 outer texels both sprites leave transparent, at PX_SCALE - so the clip
+    // drops exactly that border, the background fill lands flush to the canvas edge and the frame ring
+    // 1 mcPx inside it.
     private static final int CANVAS_W = 80;
     private static final int CANVAS_H = 40;
     private static final int INFLATE = 16;
@@ -139,6 +144,80 @@ class NineSliceKitTest {
         // 0x50 (80) * 0.5 = 40 = 0x28, then the halved 285000FF texel blends onto the clear canvas:
         // 0x50 * 40/255 rounds to 0x0D and 0xFF * 40/255 to 0x28.
         assertThat("halved ring texel blended", canvas.getPixel(CANVAS_W / 2, 2), is(0x280D0028));
+    }
+
+    @Test
+    @DisplayName("the extent of the real sprites is the bounds of what they draw, at every rect and multiplier")
+    void extentIsWhatTheRealSpritesDraw() {
+        assumeSprites();
+        int[][] rects = {{32, 32}, {80, 40}, {330, 170}};
+        float[] multipliers = {1.0f, 0.5f, 0.0f};
+        for (String name : new String[]{"background.png", "frame.png"}) {
+            PixelBuffer sprite = load(name);
+            MCMeta.GuiScaling gui = scaling(name + ".mcmeta");
+            for (int[] rect : rects)
+                for (float mul : multipliers)
+                    assertExtentIsDrawn(name, sprite, gui, rect[0], rect[1], PX_SCALE, mul);
+        }
+    }
+
+    @Test
+    @DisplayName("the extent is the bounds of what the kit draws in every scaling mode, a nominal size and a texel the multiplier clears")
+    void extentIsWhatEveryScalingDraws() {
+        PixelBuffer inner = opaqueSquare(10, 2, 7);
+        MCMeta.GuiScaling.Border none = new MCMeta.GuiScaling.Border(0, 0, 0, 0);
+        assertExtentIsDrawn("stretch", inner,
+            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, none, false), 37, 23, PX_SCALE, 1.0f);
+        assertExtentIsDrawn("tile", inner,
+            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.TILE, 10, 10, none, false), 50, 30, PX_SCALE, 1.0f);
+        assertExtentIsDrawn("nine_slice border 3 stretch_inner", inner,
+            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(3, 3, 3, 3), true),
+            41, 29, PX_SCALE, 1.0f);
+        assertExtentIsDrawn("20x20 declared 10x10", opaqueSquare(20, 4, 15),
+            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, 10, 10, none, false), 37, 23, PX_SCALE, 1.0f);
+
+        // An alpha-80 texel at the corner scales to alpha 0.4 at 0.005, which rounds to 0 and is
+        // discarded, while the opaque texels keep alpha 1.
+        PixelBuffer faint = opaqueSquare(10, 2, 7);
+        faint.setPixel(0, 0, 0x50FFFFFF);
+        assertExtentIsDrawn("alpha-80 texel cleared by the multiplier", faint,
+            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, none, false), 37, 23, PX_SCALE, 0.005f);
+    }
+
+    /**
+     * Asserts that {@link NineSliceKit#extent} answers {@link PixelBuffer#opaqueBounds()} of the sprite
+     * drawn at the origin of a clear canvas the rect's size.
+     *
+     * @param label the sprite's name in the assertion
+     * @param sprite the sprite
+     * @param gui the sprite's scaling
+     * @param w the rect width in output px
+     * @param h the rect height in output px
+     * @param pxScale the output px per sprite px
+     * @param mul the alpha multiplier
+     */
+    private static void assertExtentIsDrawn(String label, PixelBuffer sprite, MCMeta.GuiScaling gui, int w, int h, int pxScale, float mul) {
+        PixelBuffer canvas = PixelBuffer.create(w, h);
+        NineSliceKit.draw(canvas, sprite, gui, 0, 0, w, h, pxScale, mul);
+        assertThat(String.format("extent of %s over %dx%d at multiplier %s", label, w, h, mul),
+            NineSliceKit.extent(sprite, gui, w, h, pxScale, mul), is(canvas.opaqueBounds()));
+    }
+
+    /**
+     * Builds a square sprite, transparent but for an opaque white square over the given texel span on
+     * both axes.
+     *
+     * @param size the sprite's width and height in texels
+     * @param first the first opaque texel on each axis
+     * @param last the last opaque texel on each axis
+     * @return the sprite
+     */
+    private static PixelBuffer opaqueSquare(int size, int first, int last) {
+        PixelBuffer sprite = PixelBuffer.create(size, size);
+        for (int y = first; y <= last; y++)
+            for (int x = first; x <= last; x++)
+                sprite.setPixel(x, y, 0xFFFFFFFF);
+        return sprite;
     }
 
     @Test

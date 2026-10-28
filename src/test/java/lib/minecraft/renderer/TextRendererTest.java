@@ -8,6 +8,7 @@ import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.bake.gui.NineSliceKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.ItemContext;
@@ -27,12 +28,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.imageio.ImageIO;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static lib.minecraft.renderer.fixture.TooltipFixtures.BG_META;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
@@ -56,10 +60,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * between them.
  * <p>
  * {@link ChromeStyle#SPRITE}'s cases pin the bytes its blended nine-slice pair leaves, the client's
- * framebuffer bytes - the notched corners and open ring corners, the transparent margin round the box
- * and the canvas the client's whole sprite rect sizes, and the alpha multipliers applied to each texel
- * before it blends, each drawn from a context seeded with the real background and frame sprites -
- * along with a styled pair reached end to end through an item's {@code minecraft:tooltip_style}
+ * framebuffer bytes - the notched corners and open ring corners, the canvas drawn to the box's first
+ * pixel, vanilla's box over vanilla's sprites and a wider or uneven pack box whole, a stretched pack box
+ * whose edges fall inside a Minecraft pixel whole on a canvas rounded out to whole Minecraft pixels, and
+ * a canvas the alpha overrides empty of a sprite, and the alpha multipliers applied to each texel before
+ * it blends, each drawn from a context seeded with the real background and frame sprites or a synthetic
+ * pair - along with a styled pair reached end to end through an item's {@code minecraft:tooltip_style}
  * component, and the raise a renderer holding no context gives the arm. The cases needing the real
  * sprites off the offline extraction skip per method rather than per class, so the procedural pins
  * still run on a host without it.
@@ -93,17 +99,11 @@ class TextRendererTest {
     /** {@link #RING_BOTTOM} blended over {@link #BLENDED_FILL} */
     private static final int BLENDED_RING_BOTTOM = 0xF5170032;
 
-    /** Output row of the ring's top stroke from the box's edge - the stroke is 1 mcPixel thick, inset 1 mcPixel from the edge */
+    /** Output row of the ring's top stroke from the canvas edge, which is the box's - the stroke is 1 mcPixel thick, inset 1 mcPixel from the edge */
     private static final int RING_TOP_ROW = 2;
 
-    /** Output rows from the box's bottom edge the ring's bottom stroke sits at */
+    /** Output rows from the canvas's bottom edge, which is the box's, the ring's bottom stroke sits at */
     private static final int RING_BOTTOM_ROW_FROM_END = 3;
-
-    /**
-     * Output px from a sprite tooltip's canvas edge to vanilla's visible box - the background sprite's
-     * 8 transparent outer texels, at 2 output px each
-     */
-    private static final int VANILLA_BOX_INSET = 16;
 
     /** The margin the client blits both tooltip sprites at round the text, in mcPixels - {@code extractTooltipBackground}'s {@code x - 3 - 9} */
     private static final int CLIENT_MARGIN_MCPX = 12;
@@ -175,6 +175,77 @@ class TextRendererTest {
     }
 
     /**
+     * Seeds a context with a synthetic pair at the default pair's ids: a 100 x 100 background holding
+     * vanilla's fill texel over the given texel rect and transparent round it, under the given sidecar,
+     * and a fully transparent frame.
+     *
+     * @param backgroundMeta the background's sidecar
+     * @param firstColumn the background's first opaque texel column
+     * @param lastColumn the background's last opaque texel column
+     * @param firstRow the background's first opaque texel row
+     * @param lastRow the background's last opaque texel row
+     * @return the context a sprite render resolves the synthetic pair through
+     */
+    private static RendererContext syntheticContext(MCMeta backgroundMeta, int firstColumn, int lastColumn, int firstRow, int lastRow) {
+        PixelBuffer background = PixelBuffer.create(100, 100);
+        for (int y = firstRow; y <= lastRow; y++)
+            for (int x = firstColumn; x <= lastColumn; x++)
+                background.setPixel(x, y, BACKGROUND_FILL);
+
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put("minecraft:gui/sprites/tooltip/background", background);
+        tex.put("minecraft:gui/sprites/tooltip/frame", PixelBuffer.create(100, 100));
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put("minecraft:gui/sprites/tooltip/background", backgroundMeta);
+        metas.put("minecraft:gui/sprites/tooltip/frame", FRAME_META);
+        return stubContext(tex, metas);
+    }
+
+    /**
+     * Finds the first canvas column holding a pixel other than the given colour - over a box of one flat
+     * fill, the text's first column.
+     *
+     * @param buf the rendered tooltip
+     * @param argb the colour every pixel of the box but the text's holds
+     * @return the first column holding another colour, or {@code -1} when none does
+     */
+    private static int firstColumnOtherThan(PixelBuffer buf, int argb) {
+        for (int x = 0; x < buf.width(); x++)
+            for (int y = 0; y < buf.height(); y++)
+                if (buf.getPixel(x, y) != argb) return x;
+        return -1;
+    }
+
+    /**
+     * Finds the first canvas row holding a pixel other than the given colour - over a box of one flat
+     * fill, the text's first row.
+     *
+     * @param buf the rendered tooltip
+     * @param argb the colour every pixel of the box but the text's holds
+     * @return the first row holding another colour, or {@code -1} when none does
+     */
+    private static int firstRowOtherThan(PixelBuffer buf, int argb) {
+        for (int y = 0; y < buf.height(); y++)
+            for (int x = 0; x < buf.width(); x++)
+                if (buf.getPixel(x, y) != argb) return y;
+        return -1;
+    }
+
+    /**
+     * Counts the pixels of a buffer holding a non-zero alpha.
+     *
+     * @param buf the buffer
+     * @return the count of pixels drawn
+     */
+    private static int drawnPixels(PixelBuffer buf) {
+        int drawn = 0;
+        for (int y = 0; y < buf.height(); y++)
+            for (int x = 0; x < buf.width(); x++)
+                if (ColorMath.alpha(buf.getPixel(x, y)) != 0) drawn++;
+        return drawn;
+    }
+
+    /**
      * Builds a one-line LORE tooltip, left unbuilt so each case names its own chrome.
      *
      * @return the partly built text options
@@ -236,25 +307,25 @@ class TextRendererTest {
     }
 
     /**
-     * Samples a sprite tooltip's ring top stroke at the canvas mid-column, its row counted from the box
-     * inside the margin.
+     * Samples a sprite tooltip's ring top stroke at the canvas mid-column, its row counted from the
+     * canvas edge, which is the box's.
      *
      * @param buf the rendered sprite tooltip
      * @return the sampled pixel
      */
     private static int ringTop(PixelBuffer buf) {
-        return buf.getPixel(buf.width() / 2, VANILLA_BOX_INSET + RING_TOP_ROW);
+        return buf.getPixel(buf.width() / 2, RING_TOP_ROW);
     }
 
     /**
      * Samples a sprite tooltip's ring bottom stroke at the canvas mid-column, its row counted from the
-     * box inside the margin.
+     * canvas's bottom edge, which is the box's.
      *
      * @param buf the rendered sprite tooltip
      * @return the sampled pixel
      */
     private static int ringBottom(PixelBuffer buf) {
-        return buf.getPixel(buf.width() / 2, buf.height() - VANILLA_BOX_INSET - RING_BOTTOM_ROW_FROM_END);
+        return buf.getPixel(buf.width() / 2, buf.height() - RING_BOTTOM_ROW_FROM_END);
     }
 
     @Test
@@ -331,33 +402,25 @@ class TextRendererTest {
             .lines(lines)
             .chromeStyle(ChromeStyle.PROCEDURAL)
             .build();
-        int padMcPx = TooltipChrome.of(ChromeStyle.PROCEDURAL).paddingMcPx(options);
+        int padMcPx = options.getPadding();
 
         assertThat("canvas width", render(options).width(),
             is(MinecraftFont.MC_PIXEL_SCALE * (2 * padMcPx + (int) exact + 1)));
     }
 
     @Test
-    @DisplayName("sprite background: a transparent margin of 16 px round the box, the box's corners notched, its fill flush to the box edge")
+    @DisplayName("sprite background: drawn to its first pixel - no transparent margin, the box's corners notched, its fill flush to the canvas edge")
     void notchedCornerAndFlushFill() {
         assumeSprites();
         PixelBuffer buf = renderSprite(loreBuilder());
-        int boxRight = buf.width() - VANILLA_BOX_INSET;
-        int boxBottom = buf.height() - VANILLA_BOX_INSET;
+        int w = buf.width();
+        int h = buf.height();
 
-        int drawnInMargin = 0;
-        for (int y = 0; y < buf.height(); y++) {
-            for (int x = 0; x < buf.width(); x++) {
-                boolean inBox = x >= VANILLA_BOX_INSET && x < boxRight && y >= VANILLA_BOX_INSET && y < boxBottom;
-                if (!inBox && buf.getPixel(x, y) != 0x00000000) drawnInMargin++;
-            }
-        }
-
-        assertThat("pixels drawn in the margin round the box", drawnInMargin, is(0));
-        assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(VANILLA_BOX_INSET, VANILLA_BOX_INSET)), is(0));
-        assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(boxRight - 1, boxBottom - 1)), is(0));
-        assertThat("fill flush top edge", buf.getPixel(buf.width() / 2, VANILLA_BOX_INSET), is(BLENDED_FILL));
-        assertThat("fill flush left edge", buf.getPixel(VANILLA_BOX_INSET, buf.height() / 2), is(BLENDED_FILL));
+        assertThat("bounds of the pixels drawn", buf.opaqueBounds(), is(new Rectangle(0, 0, w, h)));
+        assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(0, 0)), is(0));
+        assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(w - 1, h - 1)), is(0));
+        assertThat("fill flush top edge", buf.getPixel(w / 2, 0), is(BLENDED_FILL));
+        assertThat("fill flush left edge", buf.getPixel(0, h / 2), is(BLENDED_FILL));
     }
 
     @Test
@@ -372,20 +435,95 @@ class TextRendererTest {
         // through there - unlike PROCEDURAL, whose top/bottom strokes span the full width and paint the
         // ring corner purple.
         assertThat("open ring corner shows background fill",
-            buf.getPixel(VANILLA_BOX_INSET + RING_TOP_ROW, VANILLA_BOX_INSET + RING_TOP_ROW), is(BLENDED_FILL));
+            buf.getPixel(RING_TOP_ROW, RING_TOP_ROW), is(BLENDED_FILL));
     }
 
     @Test
-    @DisplayName("a sprite tooltip's canvas is the rect the client hands both sprites, the text plus 12 mcPixels a side")
-    void canvasIsTheClientsSpriteRect() {
+    @DisplayName("a sprite tooltip's canvas is vanilla's box - the client's sprite rect less the transparent texels round the background sprite")
+    void canvasIsVanillasBox() throws IOException {
         assumeSprites();
+        int inset = sprite("background.png").opaqueBounds().x;
         float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
         PixelBuffer buf = renderSprite(loreBuilder());
 
         assertThat("canvas width", buf.width(),
-            is(MinecraftFont.MC_PIXEL_SCALE * (2 * CLIENT_MARGIN_MCPX + (int) Math.ceil(advance))));
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * (CLIENT_MARGIN_MCPX - inset) + (int) Math.ceil(advance))));
         assertThat("canvas height", buf.height(),
-            is(MinecraftFont.MC_PIXEL_SCALE * (2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX)));
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * (CLIENT_MARGIN_MCPX - inset) + ONE_LINE_HEIGHT_MCPX)));
+    }
+
+    @Test
+    @DisplayName("an uneven pack box is drawn whole, each side ending where its sprite does, and the text keeps its place against the box")
+    void anUnevenPackBoxIsDrawnWholeAndTheTextKeepsItsPlace() {
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        // Transparent 4 texels on the left, 2 on the right, 6 above and 8 below; the symmetric box is
+        // transparent 8 on every side.
+        PixelBuffer uneven = render(new TextRenderer(syntheticContext(BG_META, 4, 97, 6, 91)), loreBuilder().chromeStyle(ChromeStyle.SPRITE).build());
+        PixelBuffer even = render(new TextRenderer(syntheticContext(BG_META, 8, 91, 8, 91)), loreBuilder().chromeStyle(ChromeStyle.SPRITE).build());
+
+        assertThat("canvas width", uneven.width(),
+            is(MinecraftFont.MC_PIXEL_SCALE * (8 + (int) Math.ceil(advance) + 10)));
+        assertThat("canvas height", uneven.height(), is(MinecraftFont.MC_PIXEL_SCALE * (6 + ONE_LINE_HEIGHT_MCPX + 4)));
+        assertThat("bounds of the pixels drawn", uneven.opaqueBounds(), is(new Rectangle(0, 0, uneven.width(), uneven.height())));
+        // The text sits at the client's content origin relative to the sprite rect, so it is 4 mcPixels
+        // further from the canvas's left edge and 2 further from its top where the box is.
+        assertThat("first text column against the symmetric box's", firstColumnOtherThan(uneven, BLENDED_FILL),
+            is(firstColumnOtherThan(even, BLENDED_FILL) + 4 * MinecraftFont.MC_PIXEL_SCALE));
+        assertThat("first text row against the symmetric box's", firstRowOtherThan(uneven, BLENDED_FILL),
+            is(firstRowOtherThan(even, BLENDED_FILL) + 2 * MinecraftFont.MC_PIXEL_SCALE));
+    }
+
+    @Test
+    @DisplayName("a stretched pack box whose edges fall inside a Minecraft pixel is drawn whole, on a canvas rounded out to whole Minecraft pixels")
+    void aStretchedPackBoxIsDrawnWholeOnACanvasRoundedOut() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        int rectW = scale * (2 * CLIENT_MARGIN_MCPX + (int) Math.ceil(advance));
+        int rectH = scale * (2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX);
+        // Transparent 5 texels a side and stretched over the client's rect, the box starts and ends on an
+        // odd output px on both axes - inside a Minecraft pixel rather than on its edge.
+        MCMeta stretch = guiMeta(new MCMeta.GuiScaling(
+            MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false));
+        RendererContext context = syntheticContext(stretch, 5, 94, 5, 94);
+        TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty()).orElseThrow();
+        PixelBuffer clientRect = PixelBuffer.create(rectW, rectH);
+        NineSliceKit.draw(clientRect, sprites.background(), sprites.backgroundScaling(), 0, 0, rectW, rectH, scale, 1.0f);
+        Rectangle box = clientRect.opaqueBounds();
+        assertThat("the box's left, right, top and bottom edge, each an odd output px",
+            List.of(box.x % scale, (box.x + box.width) % scale, box.y % scale, (box.y + box.height) % scale),
+            is(List.of(1, 1, 1, 1)));
+
+        PixelBuffer buf = render(new TextRenderer(context), loreBuilder().chromeStyle(ChromeStyle.SPRITE).build());
+
+        assertThat("canvas width", buf.width(),
+            is(scale * (Math.ceilDiv(box.x + box.width, scale) - Math.floorDiv(box.x, scale))));
+        assertThat("canvas height", buf.height(),
+            is(scale * (Math.ceilDiv(box.y + box.height, scale) - Math.floorDiv(box.y, scale))));
+        assertThat("pixels drawn, against the box over the client's rect", drawnPixels(buf), is(drawnPixels(clientRect)));
+    }
+
+    @Test
+    @DisplayName("a background the request's alpha clears draws nothing, so the canvas ends at the frame's first pixel")
+    void aClearedBackgroundTakesTheCanvasToTheFrame() throws IOException {
+        assumeSprites();
+        int frameInset = sprite("frame.png").opaqueBounds().x;
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(0));
+
+        assertThat("canvas width", buf.width(),
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * (CLIENT_MARGIN_MCPX - frameInset) + (int) Math.ceil(advance))));
+        assertThat("bounds of the pixels drawn", buf.opaqueBounds(), is(new Rectangle(0, 0, buf.width(), buf.height())));
+    }
+
+    @Test
+    @DisplayName("a sprite chrome whose alphas clear both sprites leaves the canvas the text block, never cutting the text")
+    void aChromeDrawingNothingLeavesTheTextBlock() {
+        assumeSprites();
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(0).borderAlpha(0));
+
+        assertThat("canvas width", buf.width(), is(MinecraftFont.MC_PIXEL_SCALE * (int) Math.ceil(advance)));
+        assertThat("canvas height", buf.height(), is(MinecraftFont.MC_PIXEL_SCALE * ONE_LINE_HEIGHT_MCPX));
     }
 
     @Test
@@ -396,7 +534,7 @@ class TextRendererTest {
         // 78100010 texel blends onto the clear canvas: 0x10 * 120/255 rounds to 0x08.
         PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(120));
 
-        assertThat("halved background texel blended", buf.getPixel(buf.width() / 2, VANILLA_BOX_INSET), is(0x78080008));
+        assertThat("halved background texel blended", buf.getPixel(buf.width() / 2, 0), is(0x78080008));
     }
 
     @Test
@@ -472,7 +610,7 @@ class TextRendererTest {
         assertHeldIn(still, AlphaMode.PREMULTIPLIED);
         // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
         // reads un-premultiplies it back to the background sprite's texel.
-        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, VANILLA_BOX_INSET), is(BACKGROUND_FILL));
+        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
         assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
         assertHeldIn(animated, AlphaMode.PREMULTIPLIED);
     }

@@ -9,7 +9,6 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -39,6 +38,7 @@ import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -88,12 +88,10 @@ import java.util.TreeMap;
  * renderer's font would have given. A mover in a box-alone row is the box; one in the full row alone is
  * the text.
  *
- * <p><b>The cut follows the chrome.</b> The reference is the whole sprite rect and the renderer's canvas
- * is the text padded by what its chrome answers, so the reference is cut by the difference on every
- * side, the padding being the production chrome's own answer rather than a number restated here. A
- * chrome padding by the client's whole margin cuts nothing. What the cut drops of the client's drawing
- * is the {@code clipped_pixels} column. After the cut the two canvases must be equal, and a size that
- * disagrees is the finding rather than something to align away, so its row fails.
+ * <p><b>Both sides end at their first pixel.</b> The reference is the whole sprite rect, so the sweep
+ * takes it to the bounds of every pixel the client drew; the renderer's canvas ends at the first pixel
+ * its chrome draws. The two must be equal, and a size that disagrees is the finding rather than
+ * something to align away, so its row fails.
  *
  * <p><b>The byte gate.</b> Both sides are read as held - the reference through {@link ImageIO}, which
  * keeps the stored framebuffer bytes, and the render through its own pixel buffer whatever the image's
@@ -102,7 +100,7 @@ import java.util.TreeMap;
  *
  * <p>Output: one folder per row under {@code cache/visual/tooltip-parity-vanilla/}, or
  * {@code cache/visual/tooltip-<label>-parity-vanilla/} for a pack configuration, holding
- * {@code vanilla.png} (the reference region compared), {@code java.png}, {@code diff.png} and
+ * {@code vanilla.png} (the reference taken to its first pixel), {@code java.png}, {@code diff.png} and
  * {@code diff_panel.png}, plus a top-level {@code parity-report.tsv}.
  *
  * <p>Usage: {@code TooltipParitySweep <vanilla | pack label> [tooltipId]} - {@code ./gradlew
@@ -424,13 +422,13 @@ public final class TooltipParitySweep {
                 r.subject(), SweepReport.delta(r.meanDelta()), SweepReport.status(r.meanDelta()),
                 SweepReport.pixels(r.meanDelta(), r.differingPixels()),
                 SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
-                SweepReport.pixels(r.meanDelta(), r.rawDifferingPixels()), Long.toString(r.clippedPixels()),
+                SweepReport.pixels(r.meanDelta(), r.rawDifferingPixels()),
                 Integer.toString(r.javaW()), Integer.toString(r.javaH()),
                 Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
         }
         SweepReport.write(configuration.report(), SweepReport.KEY_COLUMN
             + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
-            + "\traw_differing_pixels\tclipped_pixels\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
+            + "\traw_differing_pixels\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
         SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         System.out.printf("Wrote %s (%d rows)%n", configuration.report(), rows.size());
         System.out.println("Note: direct diff at a shared canvas - a size mismatch is the finding, not something to align away.");
@@ -556,12 +554,12 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Renders one row - the subject whole through the Java pipeline, or its box alone - cuts the
-     * reference to the renderer's canvas, diffs the two, writes the per-row PNGs and returns the
-     * comparison {@link Row}.
+     * Renders one row - the subject whole through the Java pipeline, or its box alone - takes the
+     * reference to its first pixel, diffs the two, writes the per-row PNGs and returns the comparison
+     * {@link Row}.
      *
-     * <p>A failed row keeps the facts it has: the reference's size and what the cut drops whenever the
-     * reference was read, and the renderer's canvas whenever one was drawn.
+     * <p>A failed row keeps the facts it has: the reference's first-pixel bounds whenever the reference
+     * was read, and the renderer's canvas whenever one was drawn.
      *
      * @param configuration the configuration, which names the references and the output
      * @param subject the roster subject
@@ -576,7 +574,6 @@ public final class TooltipParitySweep {
             + subject.style().map(id -> "~style=" + id.namespace() + "__" + id.name()).orElse("");
         Path subjectDir = configuration.output().resolve(stem);
         int scale = MinecraftFont.MC_PIXEL_SCALE;
-        long clipped = 0;
         int javaW = 0;
         int javaH = 0;
         int vanillaW = 0;
@@ -587,28 +584,20 @@ public final class TooltipParitySweep {
             BufferedImage reference = ImageIO.read(vanillaPng.toFile());
             if (reference == null) {
                 System.err.printf("       %-50s vanilla PNG unreadable: %s%n", stem, vanillaPng);
-                return Row.failed(stem, clipped, javaW, javaH, vanillaW, vanillaH);
+                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
             }
-            vanillaW = reference.getWidth();
-            vanillaH = reference.getHeight();
 
-            // The cut, per side, in Minecraft pixels until the pixel edge: the client's margin less
-            // what the renderer's chrome pads the text by.
-            int padMcPx = TooltipChrome.of(subject.options().getChromeStyle()).paddingMcPx(subject.options());
-            int cut = (CLIENT_MARGIN_MCPX - padMcPx) * scale;
+            // The reference is the whole sprite rect; the region compared is every pixel the client drew.
             PixelBuffer whole = PixelBuffer.wrap(reference);
-            for (int y = 0; y < vanillaH; y++) {
-                for (int x = 0; x < vanillaW; x++) {
-                    boolean kept = x >= cut && x < vanillaW - cut && y >= cut && y < vanillaH - cut;
-                    if (!kept && ColorMath.alpha(whole.getPixel(x, y)) > 0) clipped++;
-                }
-            }
-            PixelBuffer vanillaPB = whole.crop(cut, cut, vanillaW - 2 * cut, vanillaH - 2 * cut);
+            Rectangle drawn = whole.opaqueBounds();
+            vanillaW = drawn.width;
+            vanillaH = drawn.height;
+            PixelBuffer vanillaPB = whole.crop(drawn.x, drawn.y, drawn.width, drawn.height);
             BufferedImage vanillaImg = vanillaPB.toBufferedImage();
 
             PixelBuffer javaPB = boxAlone
                 ? drawBoxAlone(context, subject.options(),
-                    vanillaW / scale - 2 * CLIENT_MARGIN_MCPX, vanillaH / scale - 2 * CLIENT_MARGIN_MCPX)
+                    reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX)
                 : javaRenderer.render(subject.options()).image().toPixelBuffer();
             BufferedImage javaImg = javaPB.toBufferedImage();
             javaW = javaImg.getWidth();
@@ -617,10 +606,10 @@ public final class TooltipParitySweep {
             ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
             ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
 
-            if (vanillaImg.getWidth() != javaW || vanillaImg.getHeight() != javaH) {
-                System.err.printf("       %-50s canvas %dx%d against vanilla's %dx%d after the cut - not comparable%n",
-                    stem, javaW, javaH, vanillaImg.getWidth(), vanillaImg.getHeight());
-                return Row.failed(stem, clipped, javaW, javaH, vanillaW, vanillaH);
+            if (vanillaW != javaW || vanillaH != javaH) {
+                System.err.printf("       %-50s canvas %dx%d against the client's %dx%d to its first pixel - not comparable%n",
+                    stem, javaW, javaH, vanillaW, vanillaH);
+                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
             }
 
             ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",
@@ -629,22 +618,22 @@ public final class TooltipParitySweep {
                 new File(subjectDir.toFile(), "diff_panel.png"));
 
             ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaImg, javaImg);
-            System.out.printf("  %-50s mean delta %.2f  diff-px %d  raw-px %d  java-cov %.1f%%  vanilla-cov %.1f%%  clipped %d%n",
+            System.out.printf("  %-50s mean delta %.2f  diff-px %d  raw-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%n",
                 stem, stats.meanDelta(), stats.differingPixels(), stats.rawDifferingPixels(),
-                stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, clipped);
+                stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);
             return new Row(stem, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(),
-                stats.rawDifferingPixels(), clipped, javaW, javaH, vanillaW, vanillaH);
+                stats.rawDifferingPixels(), javaW, javaH, vanillaW, vanillaH);
         } catch (Exception ex) {
             System.err.printf("       %-50s FAILED: %s%n", stem, ex.getMessage());
-            return Row.failed(stem, clipped, javaW, javaH, vanillaW, vanillaH);
+            return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
         }
     }
 
     /**
      * Draws a subject's box alone for the client's content size, through the calls
-     * {@link TextRenderer} makes for its own canvas: the chrome the options name contributes its
-     * layers for a box framing that content, folded onto a transparent canvas the chrome's padding
-     * wider on every side.
+     * {@link TextRenderer} makes for its own canvas: the chrome the options name lays out its box for
+     * that content and contributes its layers, folded onto the canvas the chrome lays out for that
+     * content.
      *
      * @param context the context the chrome's sprites resolve through - the configuration's assets
      * @param options the subject's options, which name the chrome and its tooltip style
@@ -655,15 +644,13 @@ public final class TooltipParitySweep {
     private static @NotNull PixelBuffer drawBoxAlone(@NotNull RendererContext context, @NotNull TextOptions options,
                                                      int contentWMcPx, int contentHMcPx) {
         TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
-        int padMcPx = chrome.paddingMcPx(options);
+        Optional<TooltipChrome.ChromeSprites> sprites = TooltipChrome.ChromeSprites.resolve(context, options.getTooltipStyle());
+        TooltipChrome.ChromeBox box = chrome.box(contentWMcPx, contentHMcPx, sprites, options);
         int scale = MinecraftFont.MC_PIXEL_SCALE;
-        int w = (contentWMcPx + 2 * padMcPx) * scale;
-        int h = (contentHMcPx + 2 * padMcPx) * scale;
 
         LayerStack<ImageLayer> stack = new LayerStack<>();
-        chrome.contribute(stack, new TooltipChrome.ChromeBox(w, h, scale),
-            TooltipChrome.ChromeSprites.resolve(context, options.getTooltipStyle()), options);
-        PixelBuffer buffer = PixelBuffer.create(w, h);
+        chrome.contribute(stack, box, sprites, options);
+        PixelBuffer buffer = PixelBuffer.create(box.width() * scale, box.height() * scale);
         Layers.foldInto(stack, options.getLayerDecorator(), buffer);
         return buffer;
     }
@@ -677,29 +664,29 @@ public final class TooltipParitySweep {
      * @param javaCoverage the fraction of the renderer's pixels with non-zero alpha
      * @param vanillaCoverage the fraction of the compared reference pixels with non-zero alpha
      * @param rawDifferingPixels the count of pixels whose packed ARGB differ
-     * @param clippedPixels the count of reference pixels with non-zero alpha the cut drops
      * @param javaW the renderer's canvas width in output px, 0 when nothing was drawn
      * @param javaH the renderer's canvas height in output px, 0 when nothing was drawn
-     * @param vanillaW the whole reference's width in output px, before the cut
-     * @param vanillaH the whole reference's height in output px, before the cut
+     * @param vanillaW the reference's first-pixel bounds width in output px, the region compared, 0 when
+     *     it was not read
+     * @param vanillaH the reference's first-pixel bounds height in output px, the region compared, 0 when
+     *     it was not read
      */
     private record Row(@NotNull String subject, double meanDelta, long differingPixels, double javaCoverage,
-                       double vanillaCoverage, long rawDifferingPixels, long clippedPixels,
+                       double vanillaCoverage, long rawDifferingPixels,
                        int javaW, int javaH, int vanillaW, int vanillaH) {
 
         /**
          * Builds a row whose comparison did not happen, keeping the facts it has.
          *
          * @param subject the row's reference stem
-         * @param clippedPixels the count of reference pixels the cut drops, 0 when the reference was not read
          * @param javaW the renderer's canvas width, 0 when nothing was drawn
          * @param javaH the renderer's canvas height, 0 when nothing was drawn
-         * @param vanillaW the whole reference's width, 0 when it was not read
-         * @param vanillaH the whole reference's height, 0 when it was not read
+         * @param vanillaW the reference's first-pixel bounds width, 0 when it was not read
+         * @param vanillaH the reference's first-pixel bounds height, 0 when it was not read
          * @return the failed row
          */
-        static @NotNull Row failed(@NotNull String subject, long clippedPixels, int javaW, int javaH, int vanillaW, int vanillaH) {
-            return new Row(subject, Double.POSITIVE_INFINITY, -1, 0, 0, -1, clippedPixels, javaW, javaH, vanillaW, vanillaH);
+        static @NotNull Row failed(@NotNull String subject, int javaW, int javaH, int vanillaW, int vanillaH) {
+            return new Row(subject, Double.POSITIVE_INFINITY, -1, 0, 0, -1, javaW, javaH, vanillaW, vanillaH);
         }
 
     }

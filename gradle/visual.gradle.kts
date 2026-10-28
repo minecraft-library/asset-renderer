@@ -269,7 +269,7 @@ register<JavaExec>("menuParityVanilla") {
 }
 
 register<JavaExec>("tooltipParityVanilla") {
-    description = "Per-subject tooltip parity report comparing Java TextRenderer against the vanilla-reference-harness tooltip references at cache/.../references/tooltips/, every subject of the tracked roster whole and as its box alone. Each reference is the box's whole sprite rect, cut to the renderer's canvas by the chrome's own padding, so this is a direct diff rather than a bbox-aligned one. Writes per-subject diff panels and a TSV to cache/visual/tooltip-parity-vanilla/. Run renderVanillaTooltipReferences first. -PtooltipId=one_line"
+    description = "Per-subject tooltip parity report comparing Java TextRenderer against the vanilla-reference-harness tooltip references at cache/.../references/tooltips/, every subject of the tracked roster whole and as its box alone. Each reference is the box's whole sprite rect, taken to its own first pixel and compared with the renderer's canvas as drawn, so this is a direct diff rather than a bbox-aligned one; a size that disagrees fails the row. Writes per-subject diff panels and a TSV to cache/visual/tooltip-parity-vanilla/. Run renderVanillaTooltipReferences first. -PtooltipId=one_line"
     group = "visual"
     mainClass.set("lib.minecraft.renderer.sweep.TooltipParitySweep")
     classpath = sourceSets["visual"].runtimeClasspath

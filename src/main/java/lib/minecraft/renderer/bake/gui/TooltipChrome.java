@@ -22,10 +22,18 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * Tooltip chrome - contributes the BACKGROUND and BORDER layers around the text box.
+ * Tooltip chrome - lays out the box round a text block and contributes the BACKGROUND and BORDER layers
+ * over it.
+ * <p>
+ * A chrome first lays out its {@link ChromeBox} round the text ({@link #box}) - the canvas and the text
+ * block's place on it, in Minecraft pixels - then contributes its layers over that canvas
+ * ({@link #contribute}). The sprite variant's canvas ends at the first pixel its sprites draw; the
+ * procedural variant pads the text by the request's padding.
  * <p>
  * The chrome owns only {@link TextSlot#BACKGROUND} and {@link TextSlot#BORDER}; the {@link TextSlot#TEXT}
  * slot stays owned by the text renderer, so both {@link Vanilla} variants slot into the same
@@ -53,21 +61,28 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
     }
 
     /**
-     * The canvas-edge-to-glyph padding this chrome wants, in mcPixels.
+     * Lays out the box this chrome draws round a text block - the canvas, ending at the first pixel the
+     * chrome draws and never cutting the text, and the text block's place on it.
      *
-     * @param options the render options, for chromes whose padding is caller-overridable
-     * @return the padding in mcPixels
+     * @param textWidthMcPx the text block's width in mcPixels
+     * @param textHeightMcPx the text block's height in mcPixels
+     * @param sprites the resolved chrome sprites + scaling sidecars, empty for context-free renders
+     * @param options the render options (padding, alpha overrides)
+     * @return the canvas and the text block's place on it, in mcPixels
+     * @throws RenderException if the chrome draws sprites and none were resolved
      */
-    int paddingMcPx(@NotNull TextOptions options);
+    @NotNull ChromeBox box(int textWidthMcPx, int textHeightMcPx, @NotNull Optional<ChromeSprites> sprites,
+                           @NotNull TextOptions options);
 
     /**
-     * Contributes the chrome layers into the text layer stack. The TEXT slot stays owned by the text
-     * renderer; the chrome only fills BACKGROUND and BORDER.
+     * Contributes the chrome layers into the text layer stack, over the canvas {@link #box} laid out.
+     * The TEXT slot stays owned by the text renderer; the chrome only fills BACKGROUND and BORDER.
      *
      * @param stack the frame's layer stack (TextSlot-keyed)
-     * @param box the canvas geometry - width/height in output px plus the mcPixel scale
+     * @param box the box {@link #box} laid out - the canvas and the text block's place on it
      * @param sprites the resolved chrome sprites + scaling sidecars, empty for context-free renders
      * @param options the render options (alpha overrides, style)
+     * @throws RenderException if the chrome draws sprites and none were resolved
      */
     void contribute(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                     @NotNull Optional<ChromeSprites> sprites, @NotNull TextOptions options);
@@ -87,13 +102,12 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         PROCEDURAL;
 
         /**
-         * The sprite chrome's fixed canvas-edge-to-glyph padding, in mcPixels - the margin the client
-         * reserves round the text for both tooltip sprites,
+         * The margin the client blits both tooltip sprites over round the text, in mcPixels -
          * {@code TooltipRenderUtil.extractTooltipBackground} blitting them at {@code x - 3 - 9} over
-         * {@code w + 24}. The canvas is then the whole rect both sprites are drawn over, so a pack's box
-         * drawn wider than vanilla's falls inside it.
+         * {@code w + 24}. Both sprites are nine-sliced over that whole rect, so a pack's box drawn wider
+         * than vanilla's is never cut, and the canvas holds only what they draw over it.
          */
-        private static final int SPRITE_PADDING_MCPX = 12;
+        private static final int SPRITE_MARGIN_MCPX = 12;
 
         /**
          * Vanilla tooltip background RGB - full ARGB {@code 0xF0100010}; the alpha {@code 0xF0} comes from
@@ -113,8 +127,12 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
 
         /** {@inheritDoc} */
         @Override
-        public int paddingMcPx(@NotNull TextOptions options) {
-            return this == SPRITE ? SPRITE_PADDING_MCPX : options.getPadding();
+        public @NotNull ChromeBox box(int textWidthMcPx, int textHeightMcPx, @NotNull Optional<ChromeSprites> sprites,
+                                     @NotNull TextOptions options) {
+            return switch (this) {
+                case PROCEDURAL -> proceduralBox(textWidthMcPx, textHeightMcPx, options);
+                case SPRITE -> spriteBox(textWidthMcPx, textHeightMcPx, required(sprites), options);
+            };
         }
 
         /** {@inheritDoc} */
@@ -122,39 +140,125 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         public void contribute(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                @NotNull Optional<ChromeSprites> sprites, @NotNull TextOptions options) {
             switch (this) {
-                case PROCEDURAL -> contributeProcedural(stack, box, options);
-                case SPRITE -> contributeSprite(stack, box, sprites, options);
+                case PROCEDURAL -> contributeProcedural(stack, options);
+                case SPRITE -> contributeSprite(stack, box, required(sprites), options);
             }
+        }
+
+        /**
+         * Lays out the procedural chrome's box: the text padded by the request's padding on every side,
+         * which its fill paints to the edge.
+         *
+         * @param textW the text block's width in mcPixels
+         * @param textH the text block's height in mcPixels
+         * @param options the render options carrying the padding
+         * @return the padded canvas with the text block inset by the padding
+         */
+        private static @NotNull ChromeBox proceduralBox(int textW, int textH, @NotNull TextOptions options) {
+            int padding = options.getPadding();
+            return new ChromeBox(textW + 2 * padding, textH + 2 * padding, padding, padding, textW, textH);
+        }
+
+        /**
+         * Lays out the sprite chrome's box: the bounds each sprite draws over the rect the client hands
+         * them, the text plus {@link #SPRITE_MARGIN_MCPX} a side, rounded out to whole mcPixels and joined
+         * with the text block, so the canvas ends at the first pixel either sprite draws and never cuts the
+         * text. A sprite the request's alpha clears draws nothing and does not count.
+         *
+         * @param textW the text block's width in mcPixels
+         * @param textH the text block's height in mcPixels
+         * @param sprites the resolved sprite pair
+         * @param options the render options carrying the alpha overrides
+         * @return the canvas the sprites draw to, with the text block at the client's content origin
+         * relative to both sprites
+         */
+        private static @NotNull ChromeBox spriteBox(int textW, int textH, @NotNull ChromeSprites sprites, @NotNull TextOptions options) {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            int rectW = (textW + 2 * SPRITE_MARGIN_MCPX) * scale;
+            int rectH = (textH + 2 * SPRITE_MARGIN_MCPX) * scale;
+            int left = SPRITE_MARGIN_MCPX;
+            int top = SPRITE_MARGIN_MCPX;
+            int right = SPRITE_MARGIN_MCPX + textW;
+            int bottom = SPRITE_MARGIN_MCPX + textH;
+            List<Rectangle> drawn = List.of(
+                NineSliceKit.extent(sprites.background(), sprites.backgroundScaling(), rectW, rectH, scale, backgroundMultiplier(options)),
+                NineSliceKit.extent(sprites.frame(), sprites.frameScaling(), rectW, rectH, scale, borderMultiplier(options)));
+            for (Rectangle bounds : drawn) {
+                if (bounds.isEmpty()) continue;
+                left = Math.min(left, Math.floorDiv(bounds.x, scale));
+                top = Math.min(top, Math.floorDiv(bounds.y, scale));
+                right = Math.max(right, Math.ceilDiv(bounds.x + bounds.width, scale));
+                bottom = Math.max(bottom, Math.ceilDiv(bounds.y + bounds.height, scale));
+            }
+            return new ChromeBox(right - left, bottom - top, SPRITE_MARGIN_MCPX - left, SPRITE_MARGIN_MCPX - top, textW, textH);
         }
 
         /**
          * The legacy procedural chrome: a full-canvas background fill and the per-row gradient ring, with
          * both alphas taken straight from the options - byte-identical to the pre-sprite renderer.
          */
-        private static void contributeProcedural(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box, @NotNull TextOptions options) {
+        private static void contributeProcedural(@NotNull LayerStack<ImageLayer> stack, @NotNull TextOptions options) {
             int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
             stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, box.width(), box.height(), borderAlpha));
+            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, frame.width(), frame.height(), borderAlpha));
         }
 
         /**
-         * The sprite chrome: nine-slice the {@code tooltip/background} then {@code tooltip/frame} sprites
-         * over the whole canvas, which is the rect the client hands both sprites. The option alphas
-         * become multipliers on each texel's alpha relative to the baked sprite alphas (240 / 80),
-         * applied before the texel blends, so default options draw the sprites as authored and a lowered
-         * alpha fades them proportionally.
+         * The sprite chrome: nine-slices the {@code tooltip/background} then {@code tooltip/frame} sprites
+         * over the rect the client hands them - the text plus {@link #SPRITE_MARGIN_MCPX} a side, placed
+         * round the box's text block - and the canvas holds what they draw. The option alphas become
+         * multipliers on each texel's alpha relative to the baked sprite alphas (240 / 80), applied before
+         * the texel blends, so default options draw the sprites as authored and a lowered alpha fades them
+         * proportionally.
          */
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
-                                             @NotNull Optional<ChromeSprites> maybeSprites, @NotNull TextOptions options) {
-            ChromeSprites sprites = maybeSprites.orElseThrow(() -> new RenderException(
-                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext whose pack stack resolves the pair"));
-            float bgMul = options.getBackgroundAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BG_ALPHA;
-            float borderMul = options.getBorderAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BORDER_ALPHA;
+                                             @NotNull ChromeSprites sprites, @NotNull TextOptions options) {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            int x = (box.textX() - SPRITE_MARGIN_MCPX) * scale;
+            int y = (box.textY() - SPRITE_MARGIN_MCPX) * scale;
+            int w = (box.textWidth() + 2 * SPRITE_MARGIN_MCPX) * scale;
+            int h = (box.textHeight() + 2 * SPRITE_MARGIN_MCPX) * scale;
+            float bgMul = backgroundMultiplier(options);
+            float borderMul = borderMultiplier(options);
             stack.append(TextSlot.BACKGROUND, frame -> NineSliceKit.draw(frame, sprites.background(), sprites.backgroundScaling(),
-                0, 0, box.width(), box.height(), box.pxScale(), bgMul));
+                x, y, w, h, scale, bgMul));
             stack.append(TextSlot.BORDER, frame -> NineSliceKit.draw(frame, sprites.frame(), sprites.frameScaling(),
-                0, 0, box.width(), box.height(), box.pxScale(), borderMul));
+                x, y, w, h, scale, borderMul));
+        }
+
+        /**
+         * Answers the sprite pair a sprite chrome draws.
+         *
+         * @param sprites the pair resolved for the render
+         * @return the pair
+         * @throws RenderException if the render resolved no pair
+         */
+        private static @NotNull ChromeSprites required(@NotNull Optional<ChromeSprites> sprites) {
+            return sprites.orElseThrow(() -> new RenderException(
+                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext whose pack stack resolves the pair"));
+        }
+
+        /**
+         * Answers the multiplier on each background texel's alpha - the request's background alpha
+         * relative to the background sprite's baked {@link TextOptions#VANILLA_TOOLTIP_BG_ALPHA}.
+         *
+         * @param options the render options
+         * @return the background multiplier, {@code 1.0} at the default alpha
+         */
+        private static float backgroundMultiplier(@NotNull TextOptions options) {
+            return options.getBackgroundAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BG_ALPHA;
+        }
+
+        /**
+         * Answers the multiplier on each frame texel's alpha - the request's border alpha relative to the
+         * frame sprite's baked {@link TextOptions#VANILLA_TOOLTIP_BORDER_ALPHA}.
+         *
+         * @param options the render options
+         * @return the border multiplier, {@code 1.0} at the default alpha
+         */
+        private static float borderMultiplier(@NotNull TextOptions options) {
+            return options.getBorderAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BORDER_ALPHA;
         }
 
         /**
@@ -222,13 +326,17 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
     }
 
     /**
-     * The canvas geometry handed to {@link #contribute}: the output-pixel dimensions and the mcPixel scale.
+     * The canvas a text block is drawn on and the block's place on it - the box a chrome lays out round
+     * the text, or the bare block for text drawn with no chrome.
      *
-     * @param width the canvas width in output px
-     * @param height the canvas height in output px
-     * @param pxScale the output px per mcPixel ({@code MinecraftFont.MC_PIXEL_SCALE})
+     * @param width the canvas width in mcPixels
+     * @param height the canvas height in mcPixels
+     * @param textX the text block's left edge on the canvas, in mcPixels
+     * @param textY the text block's top edge on the canvas, in mcPixels
+     * @param textWidth the text block's width in mcPixels
+     * @param textHeight the text block's height in mcPixels
      */
-    record ChromeBox(int width, int height, int pxScale) {}
+    record ChromeBox(int width, int height, int textX, int textY, int textWidth, int textHeight) {}
 
     /**
      * A resolved chrome sprite pair plus each sprite's scaling metadata, resolved once per render by the

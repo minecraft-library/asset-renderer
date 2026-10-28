@@ -2,8 +2,8 @@
 
 Load when touching `Projection`, `engine/light` - `LightingFrame`, `Shading` - the entity and player
 lighting fold, a renderer's `Placement`, `Rasterizer.rasterizeFitted` and `prepareFit`, the entity
-canvas pass and its family-fit pre-pass, or a bounds walk. Indexed from
-[`CLAUDE.md`](../../CLAUDE.md).
+canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's
+included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
@@ -57,6 +57,11 @@ entry rather than the entity's.
   256 px/block, and a baby or a small stand 16. The strip is a canvas convention both sides share, as
   the even width is, and it is kept: the renderer's `EntityGeometryKit.contributeFaceAlphaTight` and
   the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
+- **A canvas sized to its subject ends at the subject's first pixel**, with no fixed transparent
+  margin even where the client reserves one: an entity's `UNION_BOUNDS` canvas at its silhouette,
+  which the bounds walk measures, and a tooltip's at what its chrome draws over the client's sprite
+  rect, which `NineSliceKit.extent` answers before the draw. `GROUP_BOUNDS`, the family fit, sizes a
+  member to its group instead, and a fixed-scale or caller-sized canvas is neither.
 
 ## Decisions that stay closed
 

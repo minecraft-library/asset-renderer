@@ -44,10 +44,11 @@ import java.util.Optional;
  * per render through the context it was constructed with; a lore render asking for the sprite chrome
  * raises a {@link RenderException} when the renderer holds no context or the context's pack stack does
  * not resolve the pair, so a renderer built without one draws chat text and the procedural chrome. The
- * renderer owns only the glyph rows and the canvas sizing. A sprite tooltip's canvas is the rect the
- * client hands both sprites, the text plus 12 Minecraft pixels a side, so a pack whose box reaches past
- * vanilla's is drawn whole and vanilla's own box sits inside a transparent margin; the procedural chrome
- * pads the text by the request's {@linkplain TextOptions#getPadding() padding}.
+ * renderer owns only the glyph rows and the text block's measure. A tooltip's canvas is the box its
+ * chrome lays out: the sprite chrome nine-slices both sprites over the rect the client hands them, the
+ * text plus 12 Minecraft pixels a side, and the canvas ends at the first pixel they draw, never cutting
+ * the text - vanilla's own box, the text plus 4 a side, or a pack's wider box whole; the procedural
+ * chrome pads the text by the request's {@linkplain TextOptions#getPadding() padding}.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
@@ -137,17 +138,17 @@ public final class TextRenderer implements Renderer<TextOptions> {
         Optional<TooltipChrome.ChromeSprites> sprites = isLore && options.getChromeStyle() == ChromeStyle.SPRITE
             ? this.context.flatMap(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
             : Optional.empty();
-        int padMcPx = isLore ? chrome.paddingMcPx(options) : 0;
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
-        int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
+        int textWMcPx = measureWidthMcPixels(options);
 
-        // Canvas height measures from the top padding to the last glyph's descender plus
-        // bottom padding - NOT a full LINE_HEIGHT past the last baseline. Symmetric padding
-        // matches in-game vanilla rendering.
+        // The text block runs from the first line's top to the last glyph's descender - NOT a full
+        // LINE_HEIGHT past the last baseline.
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         int descentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getDescentMcPixels();
-        int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
-        int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
+        int textHMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx + loreGapMcPx;
+        TooltipChrome.ChromeBox box = isLore
+            ? chrome.box(textWMcPx, textHMcPx, sprites, options)
+            : new TooltipChrome.ChromeBox(textWMcPx, textHMcPx, 0, 0, textWMcPx, textHMcPx);
 
         // The code-drawn box paints its colours as given, so a frame holding it is straight; the sprite box
         // and the glyphs blend onto the transparent canvas, so every other frame is held premultiplied.
@@ -156,20 +157,20 @@ public final class TextRenderer implements Renderer<TextOptions> {
             : AlphaMode.PREMULTIPLIED;
 
         if (!animated)
-            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst(), alphaMode);
+            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, box, 0L, 0L).getFirst(), alphaMode);
 
         int ticksPerFrame = ticksPerFrame(options);
         int frameCount = animationFrameCount(options, ticksPerFrame);
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst(), alphaMode);
+            drawSingleFrame(options, chrome, sprites, box, f, timeline.tickAt(f)).getFirst(), alphaMode);
     }
 
     /**
-     * Draws one frame at the given mcPixel canvas dimensions. Composes an ordered
-     * {@link LayerStack} of the tooltip background + gradient border (LORE style only) and the
-     * glyph rows, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
+     * Draws one frame on the given box. Composes an ordered {@link LayerStack} of the tooltip
+     * background + gradient border (LORE style only) and the glyph rows, the first line at the box's
+     * text origin, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
      * before flattening onto a single buffer. {@link TextKit} seeds each line's obfuscation scramble
      * from the {@code frameIndex} and the line's origin, so each animation frame shows a fresh
      * scramble.
@@ -177,8 +178,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @param options the text render options
      * @param chrome the tooltip chrome the request's style selects
      * @param sprites the sprite pair resolved for this render, empty unless a sprite chrome resolved one
-     * @param canvasWMcPx the canvas width in mcPixels
-     * @param canvasHMcPx the canvas height in mcPixels
+     * @param box the canvas and the text block's place on it, in mcPixels - the chrome's box for a
+     * tooltip, the bare text block for chat
      * @param frameIndex the animation frame drawn, from which {@link TextKit} seeds each line's scramble
      * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
@@ -187,32 +188,25 @@ public final class TextRenderer implements Renderer<TextOptions> {
         @NotNull TextOptions options,
         @NotNull TooltipChrome chrome,
         @NotNull Optional<TooltipChrome.ChromeSprites> sprites,
-        int canvasWMcPx,
-        int canvasHMcPx,
+        @NotNull TooltipChrome.ChromeBox box,
         long frameIndex,
         long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        int padMcPx = isLore ? chrome.paddingMcPx(options) : 0;
-
-        int w = canvasWMcPx * MinecraftFont.MC_PIXEL_SCALE;
-        int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
-        PixelBuffer buffer = PixelBuffer.create(w, h);
+        PixelBuffer buffer = PixelBuffer.create(box.width() * MinecraftFont.MC_PIXEL_SCALE, box.height() * MinecraftFont.MC_PIXEL_SCALE);
 
         // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the
         // background + border (LORE only), then the renderer appends the glyph rows. Callers can splice
         // passes via TextOptions.layerDecorator. The obfuscation animation stays the renderer's per-frame
         // loop - the TEXT layer captures the frame index.
         LayerStack<ImageLayer> stack = new LayerStack<>();
-        if (isLore) {
-            TooltipChrome.ChromeBox box = new TooltipChrome.ChromeBox(w, h, MinecraftFont.MC_PIXEL_SCALE);
+        if (isLore)
             chrome.contribute(stack, box, sprites, options);
-        }
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
-            int baselineMcPx = padMcPx + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+            int baselineMcPx = box.textY() + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameIndex, tick);
+                TextKit.drawLine(g, options.getLines().get(i), box.textX(), baselineMcPx, DEFAULT_COLOR_ARGB, frameIndex, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;
