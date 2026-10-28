@@ -2,9 +2,15 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.result.Substitution;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.SubstitutionCollector;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -18,15 +24,15 @@ import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The {@code minecraft:tooltip_style} resolution surface that decides which sprite pair
  * {@link TooltipChrome.Vanilla#SPRITE} is drawn with - reading the style off an item's component,
  * mapping a style onto its background and frame pair, falling to the default pair for an item with no
- * style, dropping a styled pair whose sprites are missing, and flattening an animated sprite to its
- * tick-0 frame.
+ * style, drawing the missing texture for each sprite of a style no pack ships, or one that cannot be
+ * read, stretched, and flattening an animated sprite to its tick-0 frame.
  * <p>
  * Nothing here renders: each case reads an item's component or resolves against a stub context seeded
  * with stand-in sprites, so the class needs neither the font atlas nor the offline extraction.
@@ -69,21 +75,62 @@ class TooltipChromeTest {
         metas.put("hypixel_skyblock:gui/sprites/tooltip/rare_background", BG_META);
         metas.put("hypixel_skyblock:gui/sprites/tooltip/rare_frame", FRAME_META);
 
-        Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolveForItem(
             stubContext(tex, metas), itemWithStyle("hypixel_skyblock:rare"));
 
-        assertTrue(resolved.isPresent(), "styled pair resolves");
-        assertThat(resolved.get().backgroundId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_background")));
-        assertThat(resolved.get().frameId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_frame")));
+        assertThat(resolved.backgroundId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_background")));
+        assertThat(resolved.frameId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_frame")));
     }
 
     @Test
-    @DisplayName("resolveForItem DROPs (empty) when the styled sprites are missing")
-    void resolveForItemMissingStyleDrops() {
-        // stub supplies nothing -> the styled pair is unresolved -> DROP + diagnostic, no fallback.
-        Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
+    @DisplayName("resolveForItem answers the missing texture, stretched, for each sprite of a style no pack ships")
+    void resolveForItemMissingStyleIsTheMissingTexture() {
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolveForItem(
             stubContext(new HashMap<>(), new HashMap<>()), itemWithStyle("hypixel_skyblock:missing"));
-        assertThat(resolved, is(Optional.empty()));
+
+        assertThat(resolved.backgroundId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/missing_background")));
+        assertThat(resolved.frameId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/missing_frame")));
+        assertThat("background is the missing texture", MissingSprite.isSprite(resolved.background()), is(true));
+        assertThat("frame is the missing texture", MissingSprite.isSprite(resolved.frame()), is(true));
+        assertThat("background stretches", resolved.backgroundScaling().type(), is(MCMeta.GuiScaling.Type.STRETCH));
+        assertThat("frame stretches", resolved.frameScaling().type(), is(MCMeta.GuiScaling.Type.STRETCH));
+    }
+
+    @Test
+    @DisplayName("a sprite a pack ships that cannot be read is the missing texture, stretched whatever its sidecar declares, and is reported unreadable")
+    void anUnreadableSpriteIsTheMissingTextureStretchedOverItsSidecar() {
+        String backgroundId = "minecraft:gui/sprites/tooltip/background";
+        String frameId = "minecraft:gui/sprites/tooltip/frame";
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put(frameId, solid(0xFF445566));
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put(backgroundId, BG_META);
+        metas.put(frameId, FRAME_META);
+        RendererContext stub = stubContext(tex, metas);
+        // A file a pack ships that cannot be read answers no pixels and keeps the sidecar it ships.
+        RendererContext unreadable = new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return stub;
+            }
+
+            @Override
+            public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
+                return textureId.equals(backgroundId) ? Possible.empty() : stub.resolveTexture(textureId);
+            }
+        };
+        SubstitutionCollector collector = new SubstitutionCollector();
+
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolve(unreadable.collecting(collector), Optional.empty());
+
+        assertThat("the shipped sidecar nine-slices", BG_META.gui().orElseThrow().type(), is(MCMeta.GuiScaling.Type.NINE_SLICE));
+        assertThat("background is the missing texture", MissingSprite.isSprite(resolved.background()), is(true));
+        assertThat("background stretches over its sidecar", resolved.backgroundScaling().type(), is(MCMeta.GuiScaling.Type.STRETCH));
+        assertThat("frame is the pack's", MissingSprite.isSprite(resolved.frame()), is(false));
+        assertThat("frame takes its sidecar's scaling", resolved.frameScaling(), is(FRAME_META.gui().orElseThrow()));
+        assertThat("the background reported unreadable", collector.snapshot(),
+            contains(Substitution.texture(backgroundId, Possible.State.EMPTY)));
     }
 
     @Test
@@ -93,11 +140,10 @@ class TooltipChromeTest {
         tex.put("minecraft:gui/sprites/tooltip/background", solid(0xFF112233));
         tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
 
-        Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolveForItem(
             stubContext(tex, new HashMap<>()), ItemContext.ofItem("minecraft:stone"));
 
-        assertTrue(resolved.isPresent(), "default pair resolves");
-        assertThat(resolved.get().backgroundId(), is(new ResourceId("minecraft", "gui/sprites/tooltip/background")));
+        assertThat(resolved.backgroundId(), is(new ResourceId("minecraft", "gui/sprites/tooltip/background")));
     }
 
     @Test
@@ -115,11 +161,10 @@ class TooltipChromeTest {
         Map<String, MCMeta.Animation> anims = new HashMap<>();
         anims.put("minecraft:gui/sprites/tooltip/background", new MCMeta.Animation(1, false, -1, -1, Concurrent.newList()));
 
-        Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolve(
             stubContext(tex, new HashMap<>(), anims), Optional.empty());
 
-        assertTrue(resolved.isPresent(), "pair resolves");
-        PixelBuffer bg = resolved.get().background();
+        PixelBuffer bg = resolved.background();
         assertThat("flattened to one frame height", bg.height(), is(4));
         assertThat("frame 0 pixel is red", bg.getPixel(0, 0), is(0xFFFF0000));
     }

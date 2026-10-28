@@ -11,7 +11,6 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.option.WebPWriteOptions;
 import lib.minecraft.renderer.TextRenderer;
-import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
@@ -28,7 +27,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 /**
  * Diagnostic task that renders Hypixel SkyBlock-style lore tooltips end to end through
@@ -122,11 +120,6 @@ public final class LoreTooltipDriver {
             return;
         }
         RendererContext context = RendererContext.load(result);
-        if (TooltipChrome.ChromeSprites.resolve(context, Optional.empty()).isEmpty()) {
-            System.err.println("Default tooltip chrome sprites did not resolve; aborting");
-            System.exit(1);
-            return;
-        }
 
         // Accessory is static - writes a single PNG.
         renderStatic("accessory", ACCESSORY_LEGACY, context);

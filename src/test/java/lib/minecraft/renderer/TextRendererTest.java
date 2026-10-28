@@ -7,6 +7,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.NineSliceKit;
@@ -15,8 +16,11 @@ import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.TextOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
@@ -51,12 +55,12 @@ import static lib.minecraft.renderer.fixture.TooltipFixtures.guiMeta;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pixel pins for {@link TextRenderer}'s {@code LORE}-style tooltip chrome, both of its arms drawn
@@ -74,9 +78,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * a canvas the alpha overrides empty of a sprite, and the alpha multipliers applied to each texel before
  * it blends, each drawn from a context seeded with the real background and frame sprites or a synthetic
  * pair - along with a styled pair reached end to end through an item's {@code minecraft:tooltip_style}
- * component, and the raise a renderer holding no context gives the arm. The cases needing the real
- * sprites off the offline extraction skip per method rather than per class, so the procedural pins
- * still run on a host without it.
+ * component, a style no pack ships drawn as the missing texture over the client's whole sprite rect and
+ * named in the result as a stand-in for each sprite it replaces, and the raise a renderer holding no
+ * context gives the arm. The cases needing the real sprites off the offline extraction skip per method
+ * rather than per class, so the procedural pins still run on a host without it.
  * <p>
  * Each image is also pinned to the mark its frames are held in - {@link AlphaMode#STRAIGHT} for the
  * code-drawn box, which paints its colours as given, and {@link AlphaMode#PREMULTIPLIED} for a sprite
@@ -505,7 +510,7 @@ class TextRendererTest {
         MCMeta stretch = guiMeta(new MCMeta.GuiScaling(
             MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false));
         RendererContext context = syntheticContext(stretch, 5, 94, 5, 94);
-        TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty()).orElseThrow();
+        TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty());
         PixelBuffer clientRect = PixelBuffer.create(rectW, rectH);
         NineSliceKit.draw(clientRect, sprites.background(), sprites.backgroundScaling(), 0, 0, rectW, rectH, scale, 1.0f);
         Rectangle box = clientRect.opaqueBounds();
@@ -559,9 +564,55 @@ class TextRendererTest {
 
     @Test
     @DisplayName("SPRITE chrome on a renderer holding no context throws rather than silently falling back")
-    void missingSpritesThrows() {
+    void aSpriteChromeWithoutAContextThrows() {
         TextOptions options = loreBuilder().chromeStyle(ChromeStyle.SPRITE).build();
-        assertThrows(RenderException.class, () -> new TextRenderer().render(options));
+        RenderException thrown = assertThrows(RenderException.class, () -> new TextRenderer().render(options));
+        assertThat(thrown.getMessage(),
+            is("Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext"));
+    }
+
+    @Test
+    @DisplayName("a style no pack ships draws the missing texture stretched over the client's whole sprite rect, and the result names both sprites as stand-ins")
+    void aStyleNoPackShipsDrawsTheMissingTextureOverTheWholeRect() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        RenderResult result = new TextRenderer(stubContext(Map.of(), Map.of())).render(loreBuilder()
+            .chromeStyle(ChromeStyle.SPRITE)
+            .tooltipStyle(Optional.of(new ResourceId("fixture", "absent")))
+            .build());
+        PixelBuffer buf = result.image().getFrames().getFirst().pixels();
+        int w = buf.width();
+        int h = buf.height();
+
+        assertThat("both sprites named as stand-ins", result.substitutions(), contains(
+            Substitution.texture("fixture:gui/sprites/tooltip/absent_background", Possible.State.ABSENT),
+            Substitution.texture("fixture:gui/sprites/tooltip/absent_frame", Possible.State.ABSENT)));
+        assertThat("canvas width, the client's whole rect", w, is(scale * (2 * CLIENT_MARGIN_MCPX + (int) Math.ceil(advance))));
+        assertThat("canvas height, the client's whole rect", h, is(scale * (2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX)));
+        // Stretched once over the whole rect, the checker's quadrant edges fall at its middle; a tiled or
+        // nine-sliced checker breaks at least one of these.
+        assertThat("the checker's quadrants, along the top row and at the bottom corners",
+            List.of(buf.getPixel(0, 0), buf.getPixel(w / 2 - 1, 0), buf.getPixel(w / 2, 0), buf.getPixel(w - 1, 0),
+                buf.getPixel(0, h - 1), buf.getPixel(w - 1, h - 1)),
+            is(List.of(MissingSprite.BLACK_ARGB, MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB,
+                MissingSprite.MAGENTA_ARGB, MissingSprite.MAGENTA_ARGB, MissingSprite.BLACK_ARGB)));
+    }
+
+    @Test
+    @DisplayName("each sprite no pack ships is replaced on its own")
+    void aSpriteNoPackShipsIsDrawnAndRecordedAlone() {
+        PixelBuffer frame = PixelBuffer.create(20, 20);
+        frame.fill(0xFF445566);
+        RenderResult result = new TextRenderer(stubContext(Map.of("fixture:gui/sprites/tooltip/half_frame", frame), Map.of()))
+            .render(loreBuilder()
+                .chromeStyle(ChromeStyle.SPRITE)
+                .tooltipStyle(Optional.of(new ResourceId("fixture", "half")))
+                .build());
+        PixelBuffer buf = result.image().getFrames().getFirst().pixels();
+
+        assertThat("only the background named as a stand-in", result.substitutions(),
+            contains(Substitution.texture("fixture:gui/sprites/tooltip/half_background", Possible.State.ABSENT)));
+        assertThat("the pack's frame drawn over the stand-in", buf.getPixel(0, 0), is(0xFF445566));
     }
 
     @Test
@@ -580,7 +631,6 @@ class TextRendererTest {
 
         ItemContext item = itemWithStyle("fixture:gold");
         RendererContext context = stubContext(tex, metas);
-        assertTrue(TooltipChrome.ChromeSprites.resolveForItem(context, item).isPresent(), "styled fixture sprites resolve");
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder().segments(Concurrent.newList(TextSegment.builder().text("Styled Tooltip").build())).build());

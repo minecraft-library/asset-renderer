@@ -15,6 +15,7 @@ import lib.minecraft.renderer.call.slot.TextSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -228,7 +229,9 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         }
 
         /**
-         * Answers the sprite pair a sprite chrome draws.
+         * Answers the sprite pair a sprite chrome draws. Only a render holding no context resolves none:
+         * a context resolves a pair for every style, a sprite no pack supplies standing in as the missing
+         * texture.
          *
          * @param sprites the pair resolved for the render
          * @return the pair
@@ -236,7 +239,7 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          */
         private static @NotNull ChromeSprites required(@NotNull Optional<ChromeSprites> sprites) {
             return sprites.orElseThrow(() -> new RenderException(
-                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext whose pack stack resolves the pair"));
+                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext"));
         }
 
         /**
@@ -345,10 +348,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
      * text renderer through the {@code RendererContext} it holds (the sidecar travels with the texture).
      *
      * @param backgroundId the background sprite texture id
-     * @param background the decoded background sprite
+     * @param background the decoded background sprite, or the missing texture
      * @param backgroundScaling the background sprite's {@code gui.scaling} sidecar
      * @param frameId the frame sprite texture id
-     * @param frame the decoded frame sprite
+     * @param frame the decoded frame sprite, or the missing texture
      * @param frameScaling the frame sprite's {@code gui.scaling} sidecar
      */
     record ChromeSprites(@NotNull ResourceId backgroundId, @NotNull PixelBuffer background,
@@ -357,90 +360,78 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
                          @NotNull MCMeta.GuiScaling frameScaling) {
 
         /**
-         * The {@code gui.scaling} a pack-overridden sprite without an mcmeta inherits - the spec default
-         * of {@code stretch}, NOT vanilla's nine_slice (the sidecar travels with the winning texture).
+         * The {@code gui.scaling} a sprite with no {@code gui} section draws with - the spec default of
+         * {@code stretch}, NOT vanilla's nine_slice: a pack sprite shipped without one (the sidecar
+         * travels with the winning texture), and the missing texture.
          */
         private static final @NotNull MCMeta.GuiScaling STRETCH_DEFAULT = new MCMeta.GuiScaling(
             MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
 
         /**
          * Resolves the tooltip sprite pair for an optional style key through the pack stack, pairing each
-         * decoded sprite with its {@code gui.scaling} sidecar (the sidecar travels with the winning
-         * texture; a sprite shipped without one inherits {@code stretch}).
+         * sprite with the {@code gui.scaling} it draws with.
          *
          * <p>An empty style resolves the default {@code minecraft:tooltip/background} +
          * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
-         * component, 24w36a). When either sprite is missing or unreadable the pair DROPS - empty with a
-         * loud diagnostic and no fallback to the default pair (deviates from the client, which
-         * falls back, because a headless render with an explicit style key is an authored input).
+         * component, 24w36a). Each sprite is read through the context's
+         * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no selected
+         * pack ships, or one that cannot be read - an image over the decode budget included - is the
+         * missing texture, which the wrapper reports through the context as a stand-in, as the client's
+         * atlas answers its missing sprite for any GUI sprite it does not hold. Each sprite is read on its
+         * own, so where one of the pair is the missing texture the pack's other sprite is still drawn.
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
          * @param style the tooltip style key, empty for the default pair
-         * @return the resolved sprite pair, or empty when either sprite is missing or cannot be read
+         * @return the resolved sprite pair, the missing texture standing in for a sprite no pack supplies
          */
-        public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
+        public static @NotNull ChromeSprites resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
+            RendererContext textures = context.withMissingTexture();
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
             // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
             // strip and sampling it here is the same operations in the same order, spelled twice.
-            Possible<PixelBuffer> background =
-                Flipbook.atTick(context.resolveTexture(backgroundId.id()), context.findFlipbook(backgroundId.id()), 0);
-            Possible<PixelBuffer> frame =
-                Flipbook.atTick(context.resolveTexture(frameId.id()), context.findFlipbook(frameId.id()), 0);
-            if (background.isEmpty() || frame.isEmpty()) {
-                System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
-                    style.map(key -> "style '" + key + "'").orElse("default"),
-                    backgroundId, stateMark(background), frameId, stateMark(frame));
-                return Optional.empty();
-            }
-            return Optional.of(new ChromeSprites(
-                backgroundId, background.get(), scaling(context, backgroundId),
-                frameId, frame.get(), scaling(context, frameId)));
+            PixelBuffer background =
+                Flipbook.atTick(textures.resolveTexture(backgroundId.id()), textures.findFlipbook(backgroundId.id()), 0).get();
+            PixelBuffer frame =
+                Flipbook.atTick(textures.resolveTexture(frameId.id()), textures.findFlipbook(frameId.id()), 0).get();
+            return new ChromeSprites(
+                backgroundId, background, scaling(context, backgroundId, background),
+                frameId, frame, scaling(context, frameId, frame));
         }
 
         /**
-         * The {@code gui.scaling} a resolved sprite's sidecar declares, or {@link #STRETCH_DEFAULT} where
-         * the sprite ships no sidecar or one declaring no scaling.
+         * Answers the {@code gui.scaling} a sprite draws with - the one a sprite read from a pack carries in
+         * its sidecar, or {@link #STRETCH_DEFAULT} where it declares none. The missing texture carries none
+         * and stretches, as the client's missing sprite does whatever sidecar an unreadable file ships,
+         * so the sidecar of the id it stands in for is never read.
          *
          * @param context the renderer context the sidecar is read through
          * @param spriteId the sprite's id
+         * @param sprite the pixels drawn for the sprite
          * @return the sprite's scaling
          */
-        private static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId) {
+        private static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId,
+                                                          @NotNull PixelBuffer sprite) {
+            if (MissingSprite.isSprite(sprite)) return STRETCH_DEFAULT;
             return context.findMeta(spriteId.id())
                 .flatMap(meta -> Possible.ofOptional(meta.gui()))
                 .orElse(STRETCH_DEFAULT);
         }
 
         /**
-         * The diagnostic's mark for one sprite - nothing for a resolved one, and its state for one that is
-         * not.
-         *
-         * @param sprite the sprite's lookup answer
-         * @return the mark appended to the sprite's id
-         */
-        private static @NotNull String stateMark(@NotNull Possible<PixelBuffer> sprite) {
-            return switch (sprite.getState()) {
-                case PRESENT -> "";
-                case EMPTY -> " UNREADABLE";
-                case ABSENT -> " MISSING";
-            };
-        }
-
-        /**
          * Resolves the sprite pair for an item, reading its {@code minecraft:tooltip_style} component off
          * the render-time {@link ItemContext} and feeding the style key into {@link #resolve}. An item
-         * carrying no style resolves the default pair; an item carrying a style whose sprites are missing
-         * DROPs (empty + diagnostic). Pack-content-gated - vanilla items ship no
+         * carrying no style resolves the default pair; an item carrying a style whose sprites no pack
+         * ships draws the missing texture for each of them. Pack-content-gated - vanilla items ship no
          * {@code tooltip_style} in the default render paths, so this returns the default pair for them.
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
          * @param item the render-time item context carrying the component surface
-         * @return the resolved sprite pair, or empty when the item's style sprites are missing
+         * @return the resolved sprite pair, the missing texture standing in for a sprite no pack supplies
          */
-        public static @NotNull Optional<ChromeSprites> resolveForItem(@NotNull RendererContext context, @NotNull ItemContext item) {
+        public static @NotNull ChromeSprites resolveForItem(@NotNull RendererContext context, @NotNull ItemContext item) {
             return resolve(context, styleOf(item));
         }
 

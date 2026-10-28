@@ -18,10 +18,13 @@ import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
@@ -61,6 +64,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Per-subject tooltip parity report comparing {@link TextRenderer} against the
@@ -82,7 +86,7 @@ import java.util.TreeMap;
  * shader from with the stack of packs supplying it; and the stack of every shader program and include a
  * selected pack ships. This side loads the same packs from the same folder in the same order and,
  * before any pixel, resolves the chrome of every style the section names the way the renderer does; a
- * sprite it takes from another pack, with other bytes or another scaling, one it does not resolve and
+ * sprite it takes from another pack, with other bytes or another scaling, one no pack supplies to it and
  * one the client does not draw each refuse the configuration, every mismatch named. A palette read from
  * another text shader than the client runs, or a shader file resolved from another pack or with other
  * bytes, refuses it too. A row compared over chrome or text colours the two sides resolved differently
@@ -93,7 +97,8 @@ import java.util.TreeMap;
  * production chrome for the CLIENT's box - the content size read off the reference - through the same
  * calls {@code TextRenderer} makes, so it measures whether the chrome draws that box whatever width the
  * renderer's font would have given. A mover in a box-alone row is the box; one in the full row alone is
- * the text.
+ * the text. Each row names the stand-ins its render drew in {@code stand_ins} - the result's for the
+ * full row, the box's own for the box-alone row - so a row whose chrome is the missing texture says so.
  *
  * <p><b>Both sides end at their first pixel.</b> The reference is the whole sprite rect, so the sweep
  * takes it to the bounds of every pixel the client drew; the renderer's canvas ends at the first pixel
@@ -515,11 +520,11 @@ public final class TooltipParitySweep {
                 SweepReport.ratio(r.javaCoverage()), SweepReport.ratio(r.vanillaCoverage()),
                 SweepReport.pixels(r.meanDelta(), r.rawDifferingPixels()),
                 Integer.toString(r.javaW()), Integer.toString(r.javaH()),
-                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH())));
+                Integer.toString(r.vanillaW()), Integer.toString(r.vanillaH()), r.standIns()));
         }
         SweepReport.write(configuration.report(), SweepReport.KEY_COLUMN
             + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage"
-            + "\traw_differing_pixels\tjava_w\tjava_h\tvanilla_w\tvanilla_h", lines);
+            + "\traw_differing_pixels\tjava_w\tjava_h\tvanilla_w\tvanilla_h\tstand_ins", lines);
         SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         System.out.printf("Wrote %s (%d rows)%n", configuration.report(), rows.size());
         System.out.println("Note: direct diff at a shared canvas - a size mismatch is the finding, not something to align away.");
@@ -622,22 +627,21 @@ public final class TooltipParitySweep {
     /**
      * Resolves the chrome of every style the subjects name the way {@link TextRenderer} does, and
      * answers each sprite's file with the pack that supplies it, the SHA-256 of its bytes and the
-     * scaling the chrome hands its kit. A style whose pair the chrome drops contributes nothing.
+     * scaling the chrome hands its kit.
      *
      * @param stack the pack stack loaded from the same client assets as the context
      * @param labelOf the client's id for each pack of the stack
      * @param context the context the chrome resolves its sprites through
      * @param subjects the configuration's subjects
      * @return the resolution, keyed by {@code <namespace>:textures/<path>.png} in sorted order
-     * @throws IllegalStateException if a resolved sprite is one the stack does not supply
+     * @throws IllegalStateException if the chrome draws the missing texture for a sprite the stack does
+     *     not supply
      */
     private static @NotNull JsonObject rendered(@NotNull PackStack stack, @NotNull Map<PackId, String> labelOf,
                                                 @NotNull RendererContext context, @NotNull List<Subject> subjects) {
         SortedMap<String, JsonObject> files = new TreeMap<>();
         for (Optional<ResourceId> style : subjects.stream().map(Subject::style).distinct().toList()) {
-            Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(context, style);
-            if (resolved.isEmpty()) continue;
-            TooltipChrome.ChromeSprites sprites = resolved.get();
+            TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, style);
             files.put(file(sprites.backgroundId()), sprite(stack, labelOf, sprites.backgroundId(), sprites.backgroundScaling()));
             files.put(file(sprites.frameId()), sprite(stack, labelOf, sprites.frameId(), sprites.frameScaling()));
         }
@@ -715,7 +719,7 @@ public final class TooltipParitySweep {
      * {@link Row}.
      *
      * <p>A failed row keeps the facts it has: the reference's first-pixel bounds whenever the reference
-     * was read, and the renderer's canvas whenever one was drawn.
+     * was read, and the renderer's canvas and the stand-ins it drew whenever one was drawn.
      *
      * @param configuration the configuration, which names the references and the output
      * @param subject the roster subject
@@ -734,13 +738,14 @@ public final class TooltipParitySweep {
         int javaH = 0;
         int vanillaW = 0;
         int vanillaH = 0;
+        String standIns = "";
         try {
             Files.createDirectories(subjectDir);
             Path vanillaPng = configuration.references().resolve(stem + ".png");
             BufferedImage reference = ImageIO.read(vanillaPng.toFile());
             if (reference == null) {
                 System.err.printf("       %-50s vanilla PNG unreadable: %s%n", stem, vanillaPng);
-                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
+                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
             // The reference is the whole sprite rect; the region compared is every pixel the client drew.
@@ -751,10 +756,17 @@ public final class TooltipParitySweep {
             PixelBuffer vanillaPB = whole.crop(drawn.x, drawn.y, drawn.width, drawn.height);
             BufferedImage vanillaImg = vanillaPB.toBufferedImage();
 
-            PixelBuffer javaPB = boxAlone
-                ? drawBoxAlone(context, subject.options(),
-                    reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX)
-                : javaRenderer.render(subject.options()).image().toPixelBuffer();
+            PixelBuffer javaPB;
+            if (boxAlone) {
+                SubstitutionCollector collector = new SubstitutionCollector();
+                javaPB = drawBoxAlone(context.collecting(collector), subject.options(),
+                    reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX);
+                standIns = standIns(collector.snapshot());
+            } else {
+                RenderResult result = javaRenderer.render(subject.options());
+                javaPB = result.image().toPixelBuffer();
+                standIns = standIns(result.substitutions());
+            }
             BufferedImage javaImg = javaPB.toBufferedImage();
             javaW = javaImg.getWidth();
             javaH = javaImg.getHeight();
@@ -765,7 +777,7 @@ public final class TooltipParitySweep {
             if (vanillaW != javaW || vanillaH != javaH) {
                 System.err.printf("       %-50s canvas %dx%d against the client's %dx%d to its first pixel - not comparable%n",
                     stem, javaW, javaH, vanillaW, vanillaH);
-                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
+                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
             ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",
@@ -778,11 +790,26 @@ public final class TooltipParitySweep {
                 stem, stats.meanDelta(), stats.differingPixels(), stats.rawDifferingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);
             return new Row(stem, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(),
-                stats.rawDifferingPixels(), javaW, javaH, vanillaW, vanillaH);
+                stats.rawDifferingPixels(), javaW, javaH, vanillaW, vanillaH, standIns);
         } catch (Exception ex) {
             System.err.printf("       %-50s FAILED: %s%n", stem, ex.getMessage());
-            return Row.failed(stem, javaW, javaH, vanillaW, vanillaH);
+            return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
         }
+    }
+
+    /**
+     * Spells the stand-ins a row's render drew as its {@code stand_ins} cell: each one's kind, state and
+     * id, then the item that named it where there is one, space-separated, the stand-ins joined by
+     * {@code "; "} in the order they arrive.
+     *
+     * @param substitutions the stand-ins the render drew, distinct and in their natural order
+     * @return the cell, empty where the render drew none
+     */
+    private static @NotNull String standIns(@NotNull List<Substitution> substitutions) {
+        return substitutions.stream()
+            .map(substitution -> substitution.kind() + " " + substitution.state() + " " + substitution.id()
+                + substitution.namedBy().map(item -> " " + item).orElse(""))
+            .collect(Collectors.joining("; "));
     }
 
     /**
@@ -791,7 +818,8 @@ public final class TooltipParitySweep {
      * that content and contributes its layers, folded onto the canvas the chrome lays out for that
      * content.
      *
-     * @param context the context the chrome's sprites resolve through - the configuration's assets
+     * @param context the context the chrome's sprites resolve through - the configuration's assets -
+     *     which records every stand-in the chrome draws
      * @param options the subject's options, which name the chrome and its tooltip style
      * @param contentWMcPx the client's content width, in Minecraft pixels
      * @param contentHMcPx the client's content height, in Minecraft pixels
@@ -800,7 +828,7 @@ public final class TooltipParitySweep {
     private static @NotNull PixelBuffer drawBoxAlone(@NotNull RendererContext context, @NotNull TextOptions options,
                                                      int contentWMcPx, int contentHMcPx) {
         TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
-        Optional<TooltipChrome.ChromeSprites> sprites = TooltipChrome.ChromeSprites.resolve(context, options.getTooltipStyle());
+        Optional<TooltipChrome.ChromeSprites> sprites = Optional.of(TooltipChrome.ChromeSprites.resolve(context, options.getTooltipStyle()));
         TooltipChrome.ChromeBox box = chrome.box(contentWMcPx, contentHMcPx, sprites, options);
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
@@ -826,10 +854,12 @@ public final class TooltipParitySweep {
      *     it was not read
      * @param vanillaH the reference's first-pixel bounds height in output px, the region compared, 0 when
      *     it was not read
+     * @param standIns the stand-ins the render drew, each its kind, state and id, then the item that named
+     *     it where there is one, joined by {@code "; "}; empty where it drew none or nothing was drawn
      */
     private record Row(@NotNull String subject, double meanDelta, long differingPixels, double javaCoverage,
                        double vanillaCoverage, long rawDifferingPixels,
-                       int javaW, int javaH, int vanillaW, int vanillaH) {
+                       int javaW, int javaH, int vanillaW, int vanillaH, @NotNull String standIns) {
 
         /**
          * Builds a row whose comparison did not happen, keeping the facts it has.
@@ -839,10 +869,12 @@ public final class TooltipParitySweep {
          * @param javaH the renderer's canvas height, 0 when nothing was drawn
          * @param vanillaW the reference's first-pixel bounds width, 0 when it was not read
          * @param vanillaH the reference's first-pixel bounds height, 0 when it was not read
+         * @param standIns the stand-ins the render drew, empty where it drew none or nothing was drawn
          * @return the failed row
          */
-        static @NotNull Row failed(@NotNull String subject, int javaW, int javaH, int vanillaW, int vanillaH) {
-            return new Row(subject, Double.POSITIVE_INFINITY, -1, 0, 0, -1, javaW, javaH, vanillaW, vanillaH);
+        static @NotNull Row failed(@NotNull String subject, int javaW, int javaH, int vanillaW, int vanillaH,
+                                   @NotNull String standIns) {
+            return new Row(subject, Double.POSITIVE_INFINITY, -1, 0, 0, -1, javaW, javaH, vanillaW, vanillaH, standIns);
         }
 
     }

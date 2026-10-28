@@ -3349,7 +3349,9 @@
     "lib/minecraft/renderer/content/index/SubstitutionCollector": {
       "artifacts": [
         "manifest.visual",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },

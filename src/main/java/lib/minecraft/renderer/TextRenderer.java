@@ -49,17 +49,20 @@ import java.util.Optional;
  * {@code tooltip/background} and {@code tooltip/frame} sprites, or the pair the request's
  * {@linkplain TextOptions#getTooltipStyle() tooltip style} names. The renderer resolves that pair once
  * per render through the context it was constructed with; a lore render asking for the sprite chrome
- * raises a {@link RenderException} when the renderer holds no context or the context's pack stack does
- * not resolve the pair, so a renderer built without one draws chat text and the procedural chrome. The
- * renderer owns only the glyph rows and the text block's measure. A tooltip's canvas is the box its
- * chrome lays out: the sprite chrome nine-slices both sprites over the rect the client hands them, the
- * text plus 12 Minecraft pixels a side, and the canvas ends at the first pixel they draw, never cutting
- * the text - vanilla's own box, the text plus 4 a side, or a pack's wider box whole; the procedural
- * chrome pads the text by the request's {@linkplain TextOptions#getPadding() padding}. Chat text's
- * canvas ends at the first pixel its lines draw over every frame, which {@link TextKit#inkBounds}
- * answers before any frame is drawn. A canvas holding no pixel answers the empty 1x1 image: chat text
- * drawing nothing, or a tooltip box of no width, which lines that advance nothing make where the
- * procedural chrome pads them by 0 or the request's alphas clear both sprites.
+ * raises a {@link RenderException} only when the renderer holds no context, so a renderer built without
+ * one draws chat text and the procedural chrome. A sprite of the pair no selected pack ships, or one
+ * that cannot be read, draws as the missing texture stretched over the client's whole sprite rect, as
+ * the client draws its missing sprite, and is named in the result as a stand-in. The renderer owns
+ * only the glyph rows and the text block's measure. A tooltip's canvas is the box its chrome lays out:
+ * the sprite chrome nine-slices both sprites over the rect the client hands them, the text plus 12
+ * Minecraft pixels a side, and the canvas ends at the first pixel they draw, never cutting the text -
+ * vanilla's own box, the text plus 4 a side, a pack's wider box whole, or the whole rect, the text
+ * plus 12 a side, where a sprite is the missing texture; the procedural chrome pads the text by the
+ * request's {@linkplain TextOptions#getPadding() padding}. Chat text's canvas ends at the first pixel
+ * its lines draw over every frame, which {@link TextKit#inkBounds} answers before any frame is drawn. A
+ * canvas holding no pixel answers the empty 1x1 image: chat text drawing nothing, or a tooltip box of
+ * no width, which lines that advance nothing make where the procedural chrome pads them by 0 or the
+ * request's alphas clear both sprites.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
@@ -154,7 +157,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int frameCount = animated ? animationFrameCount(options, ticksPerFrame) : 1;
         TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
         Optional<TooltipChrome.ChromeSprites> sprites = isLore && options.getChromeStyle() == ChromeStyle.SPRITE
-            ? this.context.flatMap(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
+            ? this.context.map(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
             : Optional.empty();
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
         int textWMcPx = measureWidthMcPixels(options);
