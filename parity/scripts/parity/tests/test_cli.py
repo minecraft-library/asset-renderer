@@ -2509,6 +2509,30 @@ class RegisteringWhatTheVerdictFound(unittest.TestCase):
         self._run("expect", "--from-verdict", "--reason", "why")
         self.assertEqual(self._run("compare")[0], cli.OK)
 
+    def test_a_field_landing_on_an_empty_cell_is_registered_and_turns_the_compare_green(self):
+        """A column the row's render drew nothing into lands empty, and its registration names that.
+
+        The verdict writes ``to: ""`` for it, which the next compare refused as a registration
+        naming no value - exit 5, so a row landing on an empty cell could never be registered and
+        its gate never went GREEN.
+        """
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000",
+                              "stand_ins": ""}]})
+        capture.index(self.root)
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+        self.assertEqual(self._run("expect", "--from-verdict", "--reason", "why")[0], cli.OK)
+        self.assertEqual(self._expected()["movers"],
+                         [{"artifact": "sweep.entity", "key": "minecraft__cow",
+                           "reason": "why", "to": ""}])
+        code, _, err = self._run("compare")
+        self.assertEqual(code, cli.OK, err)
+        mover, = read_json(self.root / store.RUN_DIR / "compare.json")["artifacts"][0]["movers"]
+        self.assertEqual(mover["fields"], {"stand_ins": [None, ""]})
+        self.assertTrue(mover["expected"])
+
     def test_a_reason_is_owed_however_the_registration_was_written(self):
         self._run("compare")
         code, _, err = self._run("expect", "--from-verdict")
