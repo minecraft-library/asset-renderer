@@ -44,7 +44,10 @@ import java.util.Optional;
  * per render through the context it was constructed with; a lore render asking for the sprite chrome
  * raises a {@link RenderException} when the renderer holds no context or the context's pack stack does
  * not resolve the pair, so a renderer built without one draws chat text and the procedural chrome. The
- * renderer owns only the glyph rows and the canvas sizing.
+ * renderer owns only the glyph rows and the canvas sizing. A sprite tooltip's canvas is the rect the
+ * client hands both sprites, the text plus 12 Minecraft pixels a side, so a pack whose box reaches past
+ * vanilla's is drawn whole and vanilla's own box sits inside a transparent margin; the procedural chrome
+ * pads the text by the request's {@linkplain TextOptions#getPadding() padding}.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a

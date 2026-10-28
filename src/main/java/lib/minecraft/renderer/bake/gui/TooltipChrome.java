@@ -87,17 +87,13 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         PROCEDURAL;
 
         /**
-         * The sprite chrome's fixed canvas-edge-to-glyph padding, in mcPixels (vanilla's effective 4).
+         * The sprite chrome's fixed canvas-edge-to-glyph padding, in mcPixels - the margin the client
+         * reserves round the text for both tooltip sprites,
+         * {@code TooltipRenderUtil.extractTooltipBackground} blitting them at {@code x - 3 - 9} over
+         * {@code w + 24}. The canvas is then the whole rect both sprites are drawn over, so a pack's box
+         * drawn wider than vanilla's falls inside it.
          */
-        private static final int SPRITE_PADDING_MCPX = 4;
-
-        /**
-         * The mcPixel inflation the vanilla client applies around the content box before blitting both
-         * tooltip sprites, from {@code TooltipRenderUtil.renderTooltipBackground} ({@code x - 3 - 9}): the
-         * sprites' transparent margins bleed off-canvas so the background fill lands flush to the canvas
-         * edge and the frame ring one mcPixel inside it.
-         */
-        private static final int VANILLA_CONTENT_INFLATE_MCPX = 12;
+        private static final int SPRITE_PADDING_MCPX = 12;
 
         /**
          * Vanilla tooltip background RGB - full ARGB {@code 0xF0100010}; the alpha {@code 0xF0} comes from
@@ -144,10 +140,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
 
         /**
          * The sprite chrome: nine-slice the {@code tooltip/background} then {@code tooltip/frame} sprites
-         * over the content box inflated by the vanilla margin, so their transparent margins bleed
-         * off-canvas. The option alphas become multipliers on each texel's alpha relative to the baked
-         * sprite alphas (240 / 80), applied before the texel blends, so default options draw the sprites
-         * as authored and a lowered alpha fades them proportionally.
+         * over the whole canvas, which is the rect the client hands both sprites. The option alphas
+         * become multipliers on each texel's alpha relative to the baked sprite alphas (240 / 80),
+         * applied before the texel blends, so default options draw the sprites as authored and a lowered
+         * alpha fades them proportionally.
          */
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                              @NotNull Optional<ChromeSprites> maybeSprites, @NotNull TextOptions options) {
@@ -155,23 +151,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
                 "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext whose pack stack resolves the pair"));
             float bgMul = options.getBackgroundAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BG_ALPHA;
             float borderMul = options.getBorderAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BORDER_ALPHA;
-            stack.append(TextSlot.BACKGROUND, frame -> blitSprite(frame, box, sprites.background(), sprites.backgroundScaling(), bgMul));
-            stack.append(TextSlot.BORDER, frame -> blitSprite(frame, box, sprites.frame(), sprites.frameScaling(), borderMul));
-        }
-
-        /**
-         * Nine-slices one chrome sprite over the vanilla-inflated content rect.
-         */
-        private static void blitSprite(@NotNull PixelBuffer frame, @NotNull ChromeBox box,
-                                       @NotNull PixelBuffer sprite, @NotNull MCMeta.GuiScaling scaling, float alphaMul) {
-            int px = box.pxScale();
-            int padPx = SPRITE_PADDING_MCPX * px;
-            int inflate = VANILLA_CONTENT_INFLATE_MCPX * px;
-            int blitX = padPx - inflate;
-            int blitY = padPx - inflate;
-            int blitW = box.width() - 2 * padPx + 2 * inflate;
-            int blitH = box.height() - 2 * padPx + 2 * inflate;
-            NineSliceKit.draw(frame, sprite, scaling, blitX, blitY, blitW, blitH, px, alphaMul);
+            stack.append(TextSlot.BACKGROUND, frame -> NineSliceKit.draw(frame, sprites.background(), sprites.backgroundScaling(),
+                0, 0, box.width(), box.height(), box.pxScale(), bgMul));
+            stack.append(TextSlot.BORDER, frame -> NineSliceKit.draw(frame, sprites.frame(), sprites.frameScaling(),
+                0, 0, box.width(), box.height(), box.pxScale(), borderMul));
         }
 
         /**

@@ -33,12 +33,12 @@ import java.util.Optional;
 /**
  * Diagnostic task that renders Hypixel SkyBlock-style lore tooltips end to end through
  * {@link TextRenderer}, so the sprite-backed nine-slice chrome (notched background corners, open
- * gradient-ring corners, 80-row stretched gradient, padding 4), stat rows, obfuscated footer, and
- * codec wrapping can all be eyeballed against real content. The chrome resolves the vanilla
- * {@code tooltip/background} + {@code tooltip/frame} sprites through a real pack-stack context
- * ({@link ChromeStyle#SPRITE}). This is a <b>functional / visual</b> tool ("does it
- * render"), and every file it writes is a member of the parity store's {@code manifest.visual},
- * compared byte for byte against its promoted baseline.
+ * gradient-ring corners, 80-row stretched gradient, the client's whole sprite rect, the text plus 12
+ * Minecraft pixels a side), stat rows, obfuscated footer, and codec wrapping can all be eyeballed
+ * against real content. The chrome resolves the vanilla {@code tooltip/background} +
+ * {@code tooltip/frame} sprites through a real pack-stack context ({@link ChromeStyle#SPRITE}). This
+ * is a <b>functional / visual</b> tool ("does it render"), and every file it writes is a member of
+ * the parity store's {@code manifest.visual}, compared byte for byte against its promoted baseline.
  * <p>
  * Seven tooltips render. Two come from legacy strings: an {@link #ACCESSORY_LEGACY accessory}
  * (static, one PNG) and a {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes

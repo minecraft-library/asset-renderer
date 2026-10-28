@@ -23,9 +23,14 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for {@link NineSliceKit}, exercising the three scaling modes against the real 26.1
- * tooltip sprites (background border 9 / frame border 10 + stretch_inner) at the exact blit geometry
- * the tooltip chrome uses, alpha multiplier included, plus the pure-algorithm cases (stretch, tile,
- * nominal downsample, degenerate-rect clamp) on synthetic sprites so they run without the client jar.
+ * tooltip sprites (background border 9 / frame border 10 + stretch_inner) over a rect that overhangs
+ * the canvas, alpha multiplier included, plus the pure-algorithm cases (stretch, tile, nominal
+ * downsample, degenerate-rect clamp) on synthetic sprites so they run without the client jar.
+ * <p>
+ * The real-sprite rect overhangs the canvas by 16 output px a side - the 8 outer texels both sprites
+ * leave transparent, at {@code PX_SCALE} - so the kit's clip to the destination bounds drops exactly
+ * that border and the visible box lands flush with the canvas edge. These cases are what pins that
+ * clip.
  * <p>
  * The real-sprite cases pin the bytes the kit's blend leaves on a clear canvas: each translucent texel
  * keeps its alpha and has its colour scaled by it, as the client's framebuffer holds it. The synthetic
@@ -41,9 +46,9 @@ class NineSliceKitTest {
 
     private static final int PX_SCALE = 2;
 
-    // The tooltip chrome blit geometry: a fresh canvas of canvasW x canvasH output px, with both
-    // sprites drawn over the canvas inflated 16 output px each side (content box + vanilla's 12 mcPx
-    // inflate, minus the 4 mcPx sprite padding, all scaled by PX_SCALE) so the background fill lands
+    // The overhanging blit geometry: a fresh canvas of canvasW x canvasH output px, with both sprites
+    // drawn over a rect overhanging it 16 output px each side - the 8 outer texels both sprites leave
+    // transparent, at PX_SCALE - so the clip drops exactly that border, the background fill lands
     // flush to the canvas edge and the frame ring 1 mcPx inside it.
     private static final int CANVAS_W = 80;
     private static final int CANVAS_H = 40;
