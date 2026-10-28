@@ -95,8 +95,8 @@ Against the 26.1 client's tooltip references, with the sprites blended as the cl
 this is all the tooltip sweep's box-alone rows still differ by: 18 pixels, one ramp level each, every
 one on the frame's side ramp at an exact-boundary row and none near a corner. `hex_colours_chrome`
 differs by 1 (80 centre sprite px over 88 output px, row 9), `item_like_chrome` by 16 (80 over 168,
-rows 14, 56, 98, 140 and 161) and `narrow_chrome` by 1 (80 over 24, row 5), and the full rows of the
-first two carry the same pixels. At each the renderer already shows the next ramp texel - `F5220058`
+rows 14, 56, 98, 140 and 161) and `narrow_chrome` by 1 (80 over 24, row 5), and the full rows carry
+the same pixels. At each the renderer already shows the next ramp texel - `F5220058`
 where the client still shows `F5230058`, at `item_like_chrome` row 14. Not every exact-boundary row
 differs: five of the eight at `item_like_chrome` do, rows 98 and 140 on the left side only. At
 `hex_colours_chrome` row 9 the client's two output columns of one Minecraft pixel disagree with each
