@@ -88,8 +88,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * frame of the render pixel for pixel, so the canvas holds every pixel the text draws and no other and
  * the text sits where its own ink puts it - across descenders, leading and trailing spaces, bars, an
  * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled, a line naming no
- * colour, which draws in the renderer's default grey, and a run whose shadow colour the client's text
- * shader discards, which lays its glyphs alone.
+ * colour, which draws white, as the client draws a chat line, and a run whose shadow colour the
+ * client's text shader discards, which lays its glyphs alone.
  * <p>
  * A render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated: chat
  * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, and a sprite box
@@ -646,10 +646,10 @@ class TextRendererTest {
     @Test
     @DisplayName("a chat image is its text cut to the first pixel it draws, over every frame")
     void aChatImageIsItsTextCutToTheFirstPixelItDraws() {
-        // A line naming no colour is drawn in the renderer's default, vanilla's grey; every other line
-        // names its own.
+        // A line naming no colour is drawn white, as the client draws a chat line; every other line names
+        // its own.
         Map<String, TextOptions> corpus = new LinkedHashMap<>();
-        corpus.put("no colour", chat("Grey").build());
+        corpus.put("no colour", chat("No colour").build());
         corpus.put("no capital", chat("&facemnorsuvwxz").build());
         corpus.put("descenders", chat("&fgpqy").build());
         corpus.put("leading spaces", chat("&f  Lead").build());
@@ -802,7 +802,7 @@ class TextRendererTest {
     /**
      * Draws chat lines as the renderer lays them out, on a clear canvas with room on every side: each
      * line at the same margin, its baseline an ascent and its line pitch down from the block's top,
-     * numbered as it is drawn, a run naming no colour in vanilla's grey, shadow on, once per frame.
+     * numbered as it is drawn, a run naming no colour in white, shadow on, once per frame.
      *
      * @param lines the lines to draw
      * @param frames how many frames to draw
@@ -816,7 +816,7 @@ class TextRendererTest {
             PixelBuffer canvas = PixelBuffer.create(400, 120);
             MinecraftGraphics g = new MinecraftGraphics(canvas);
             for (int i = 0; i < lines.size(); i++)
-                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, ChatColor.Legacy.GRAY.rgb(), TextPalette.VANILLA, i, frame);
+                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, ColorMath.WHITE, TextPalette.VANILLA, i, frame);
             drawn.add(canvas);
         }
         return drawn;

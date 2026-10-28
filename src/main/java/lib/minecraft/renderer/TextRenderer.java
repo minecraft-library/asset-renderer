@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
@@ -21,7 +22,6 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -36,7 +36,10 @@ import java.util.Optional;
  * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a bordered
  * background, or plain chat text on a transparent canvas. Its text is drawn in the colours its
  * context's pack stack swaps them for ({@link RendererContext#findTextPalette}), and every colour as
- * given where the stack holds no palette or the renderer holds no context.
+ * given where the stack holds no palette or the renderer holds no context. Every line is drawn in
+ * opaque white, the colour the client draws a tooltip line and a chat line in, so a segment naming no
+ * colour draws white, any shadow it derives a quarter as bright, and one naming a colour draws that
+ * colour opaque.
  * <p>
  * The LORE background and border are contributed by the {@link TooltipChrome} the request's
  * {@linkplain TextOptions#getChromeStyle() chrome style} selects: {@link ChromeStyle#PROCEDURAL} draws
@@ -88,9 +91,12 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static final int LORE_GAP_MCPX = 2;
 
     /**
-     * Default glyph colour for text segments that carry no explicit colour - vanilla lore grey.
+     * The colour every line is drawn in - opaque white, as the client draws a tooltip line
+     * ({@code ClientTextTooltip} passes {@code -1}) and a chat line ({@code ARGB.white} at full opacity).
+     * A segment naming no colour draws in it, and one naming a colour draws its red, green and blue in
+     * this colour's alpha.
      */
-    private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
+    private static final int DEFAULT_COLOR_ARGB = ColorMath.WHITE;
 
     /**
      * The context a {@link ChromeStyle#SPRITE} render resolves its sprite pair through, empty for a
