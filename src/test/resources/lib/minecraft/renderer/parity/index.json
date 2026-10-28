@@ -315,9 +315,15 @@
       "sum": "78.3011"
     },
     "sweep.tooltip-hypixel-skyblock": {
-      "baselined": false,
+      "baselined": true,
       "determinism_floor": 2,
-      "kind": "sweep-table"
+      "entries": 44,
+      "file": "sweeps/tooltip-hypixel-skyblock.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 4617,
+      "promoted_at": "ea48fb32d2382994448097c13ccd71c22e1fdd46",
+      "sha256": "6f62f82fe47b6ba98fafea4cfe37fdcf0a4e670f62957bb10dd7278e234c4c30",
+      "sum": "12.7413"
     }
   },
   "external": {
