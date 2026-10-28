@@ -27,7 +27,7 @@ Values this store holds, one file each.
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 9804 | 9804 entries | `fba522bb206e605e001a436c98d96d4bc7df9324` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `2709b7979f04e4f578f1c1b28b89a8fb2e0ad11c` | yes |
+| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `7f5d254270499a5b45585d3920c6218d118b1167` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
