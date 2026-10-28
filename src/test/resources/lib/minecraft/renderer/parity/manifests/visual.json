@@ -684,47 +684,47 @@
     },
     {
       "path": "lore-tooltip/accessory.png",
-      "sha256": "226c97be410cd4a4b24e4d607bf3d1a9500663a1462eb78c03a1ab0be173f048"
+      "sha256": "ddcbd9cdc7e6272d93d070500d196e439ece21fe503902e01bd07f2885de9e99"
     },
     {
       "path": "lore-tooltip/gradient_band1.png",
-      "sha256": "b2b63502765e57cff90114cd9eec0f788ac5466f4eab917ec97e94e594392a44"
+      "sha256": "daa860ac25afb73af43be399448dfa4caa929bea8794f6d80cb329db72d0dfad"
     },
     {
       "path": "lore-tooltip/gradient_band8.png",
-      "sha256": "161c01e576907cb27808ceb48ce5eba097a8371729189280a366b22caede3064"
+      "sha256": "bfd875773b323c37596b019f3ee0ea6b2e5a5c3af5687c0e5039608e8fa91f32"
     },
     {
       "path": "lore-tooltip/gradient_italic_shear.png",
-      "sha256": "f41249fed37b9708d1c6134e1e0f999149cdaca122a77ac746268c2b4f473ec0"
+      "sha256": "4da5ca16d4a6f8c02f12eb8c8301e5ff35edb35a712d6df376306a159999a922"
     },
     {
       "path": "lore-tooltip/gradient_perletter.png",
-      "sha256": "1316e0721ef7531ccb66e45a19886a38e12479fea94c5f90ceb55477af8deb7e"
+      "sha256": "73e629b33f77a8931596d247ca3ce95368085ed52d4665819ddb79f0b31c97d4"
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "6d9037f4e4d980376ac9d5729cbb6449ac6b2cf1e5f7074acbe87be86bd59769"
+      "sha256": "9d50bc2b5b6c20a2c8ce8675286bd56b9b71c61be2f5bd900495c494c7cb9040"
     },
     {
       "path": "lore-tooltip/gradient_scroll.webp",
-      "sha256": "3d0aa1d89aa2fb87bdb0389996eaba8c4b990cc98807499c80881205ce042728"
+      "sha256": "b9588e61d66aea73b25ef64f4d8813c10b3efb86788afaa15258da95abb0946f"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "a2794b4659414a16900b1d618fa26b8098249ba6d386143e5b6e47d310dd7ee3"
+      "sha256": "0ffaad27f88f2e84cb9e02cdedd8eb6ebf670daa97fdf5ea388c5cdb1dba8709"
     },
     {
       "path": "lore-tooltip/weapon.webp",
-      "sha256": "208034edabeea3e26d5ede8bd4f8ab77cf5d89298cd247b2e86cef59d93de6c8"
+      "sha256": "00183beb2f360c03afc38f4a6d7ec64a0817ae55f583c1fc25e30d1423f1f783"
     },
     {
       "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "59158e1ff8045b781e7e50cfb7ef1dd1e00212b014c3be49bc1bb01261fd75ae"
+      "sha256": "296feaebf3e06284306ff52a56019e0c85a9af696860209786c69da1faa79a00"
     },
     {
       "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "a408cecce662208521d1494a88b8cbefffeefa67ff1c4054f98e4d9324136c8a"
+      "sha256": "e42e55d1bb0cbb4ceae07767ff48be1e8617735153fa1695d20f2a5e408d873a"
     },
     {
       "path": "menu-render/anvil.png",
@@ -852,9 +852,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "5a001a30a6e9772f11133eb4a037a83ea452e2a6276332ccd3e6ec28e1603047",
-    "asset_dirty": true,
-    "asset_sha": "014a07c343d2260cb43da96d11604ff29d443769",
+    "asset_content_digest": "4fdc2955cc06a6c0896a47b8f944c97f8d883f421e273d73f0035a7bcbfb337c",
+    "asset_dirty": false,
+    "asset_sha": "2709b7979f04e4f578f1c1b28b89a8fb2e0ad11c",
     "counts": {
       "files": 211
     },
@@ -863,7 +863,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "75629b3e marks a sprite tooltip PREMULTIPLIED, the convention its blended frames hold, so each encoder writes its see-through chrome's straight colour: the eleven lore-tooltip files move on exactly their partly transparent pixels, each lossless one decoding to the un-premultiply of what it held, and weapon_static.webp keeps the render's mark through the library's StaticImageData",
+    "reason": "fec2e66d pads a sprite tooltip by the client's whole 12 Minecraft-pixel margin, so the eleven lore-tooltip renders grow 32 px per axis: each static render is the old one 16 px in inside a fully clear margin, and the weapon renders also re-scramble their obfuscated footer, each line's stream being seeded by its origin. The same digests in two captures, the gate's and this one on the clean tree.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -877,8 +877,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-24T20:16:06Z",
+    "timestamp": "2026-10-28T05:43:21Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 36334
+    "wall_time_ms": 50658
   }
 }
