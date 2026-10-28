@@ -58,9 +58,9 @@
       "entries": 44,
       "file": "manifests/pack-tooltips.json",
       "kind": "manifest",
-      "last_duration_ms": 21401,
-      "promoted_at": "ddf3c278a76c6069362f668c9e36a48f6876a417",
-      "sha256": "0bdba9fe9f55b8493e4887a7c48ab52be8ec83b2fe7994ba94a4b769f4c285e9"
+      "last_duration_ms": 22698,
+      "promoted_at": "5f2174f3c4e0f23707ff31931da0659c7b298b4e",
+      "sha256": "e07ccab0704140e59615c13b69b3d8242228b9194cdcbd91b745280402251051"
     },
     "manifest.player-raw": {
       "baselined": true,
@@ -320,10 +320,10 @@
       "entries": 44,
       "file": "sweeps/tooltip-hypixel-skyblock.json",
       "kind": "sweep-table",
-      "last_duration_ms": 5270,
-      "promoted_at": "61c4112cfd6ffbeaed4a5227d21b7a0a1fd35c7b",
-      "sha256": "66105c5c95af7d2eaf2dc9dcc5f8e70052190eb591a628c88efb6871031db53b",
-      "sum": "11.0608"
+      "last_duration_ms": 5130,
+      "promoted_at": "5f2174f3c4e0f23707ff31931da0659c7b298b4e",
+      "sha256": "a26e4e1a5626e7fc71c6b8445f4c0ffa1df5d7219336beec9651d64c607fc5c3",
+      "sum": "52.3139"
     }
   },
   "external": {

@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.tooltip-hypixel-skyblock",
-    "asset_content_digest": "3c21104eb4ab15989fee9537513284b045b71d30541ceddaac633fc93ba9b2be",
-    "asset_dirty": false,
-    "asset_sha": "61c4112cfd6ffbeaed4a5227d21b7a0a1fd35c7b",
+    "asset_content_digest": "fe1dc74ef950b59a7ea9fb7ecf1855511c58dfd1fe0f8deb555334ddaa5fa701",
+    "asset_dirty": true,
+    "asset_sha": "5f2174f3c4e0f23707ff31931da0659c7b298b4e",
     "counts": {
       "failed": 0,
       "rows": 44
@@ -16,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "PACK_TOOLTIPS",
     "parity_class": "moving",
     "producer": "tooltipHypixelSkyblockParityVanilla",
-    "reason": "499a59c6 sizes a tooltip's text block by its widest line with no 16 Minecraft-pixel minimum, so sweep.tooltip-hypixel-skyblock's narrow row and its legendary form move from failed to ok: 48x48 each against the client's 48x48, differing by 0 pixels, coverage 1.0000. No row of the sweep fails now. Captured on the clean tree at 61c4112c.",
+    "reason": "6b1dd11a draws the hypixel-skyblock tooltips from a copy of the pack whose text shader also sits at 26.1's shader name, so the real client runs the pack's colour swap. 7 of the 44 drawings move by exactly the swap of 8 colours and their shadows - legacy_colours holds FF9000 on 208 pixels and FFAA00 on none - and two fresh boots drew the same 44 files. The sweep's same 7 rows move by those pixels, sum 11.0608 to 52.3139, no row failed: the renderer does not apply the pack's palette yet.",
     "reference_artifact": "manifest.pack-tooltips",
     "reference_counts": {
       "armor": 7,
@@ -32,19 +33,19 @@
       "tooltips": 28,
       "walk": 4896
     },
-    "reference_manifest_digest": "3042c508f2852c7423eb60060c5e1f93253d4363217fe5fdfb10cee9d60f76a9",
-    "timestamp": "2026-10-28T10:38:32Z",
+    "reference_manifest_digest": "60e95f8b7b18a26c4b2749c095cf53e10d21b592809ddaa1947b45e235ed9cad",
+    "timestamp": "2026-10-28T11:50:28Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 5270
+    "wall_time_ms": 5130
   },
   "rows": [
     {
-      "differing_pixels": "0",
+      "differing_pixels": "4864",
       "java_coverage": "1.0000",
       "java_h": "132",
       "java_w": "230",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "6.6403",
+      "raw_differing_pixels": "4864",
       "status": "ok",
       "subject": "five_lines",
       "vanilla_coverage": "1.0000",
@@ -78,12 +79,12 @@
       "vanilla_w": "230"
     },
     {
-      "differing_pixels": "0",
+      "differing_pixels": "4864",
       "java_coverage": "1.0000",
       "java_h": "132",
       "java_w": "230",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "6.6403",
+      "raw_differing_pixels": "4864",
       "status": "ok",
       "subject": "five_lines~style=hypixel_skyblock__ultimate",
       "vanilla_coverage": "1.0000",
@@ -91,12 +92,12 @@
       "vanilla_w": "230"
     },
     {
-      "differing_pixels": "3018",
+      "differing_pixels": "10244",
       "java_coverage": "1.0000",
       "java_h": "192",
       "java_w": "302",
-      "mean_argb_delta": "11.0608",
-      "raw_differing_pixels": "3018",
+      "mean_argb_delta": "19.6987",
+      "raw_differing_pixels": "10244",
       "status": "ok",
       "subject": "item_like",
       "vanilla_coverage": "1.0000",
@@ -117,12 +118,12 @@
       "vanilla_w": "302"
     },
     {
-      "differing_pixels": "0",
+      "differing_pixels": "4852",
       "java_coverage": "1.0000",
       "java_h": "352",
       "java_w": "156",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "6.3167",
+      "raw_differing_pixels": "4852",
       "status": "ok",
       "subject": "legacy_colours",
       "vanilla_coverage": "1.0000",
@@ -169,12 +170,12 @@
       "vanilla_w": "634"
     },
     {
-      "differing_pixels": "0",
+      "differing_pixels": "1096",
       "java_coverage": "1.0000",
       "java_h": "48",
       "java_w": "232",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "5.5151",
+      "raw_differing_pixels": "1096",
       "status": "ok",
       "subject": "mixed_segments",
       "vanilla_coverage": "1.0000",
@@ -559,12 +560,12 @@
       "vanilla_w": "88"
     },
     {
-      "differing_pixels": "0",
+      "differing_pixels": "1580",
       "java_coverage": "1.0000",
       "java_h": "72",
       "java_w": "242",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "3.7514",
+      "raw_differing_pixels": "1580",
       "status": "ok",
       "subject": "two_lines",
       "vanilla_coverage": "1.0000",
@@ -598,12 +599,12 @@
       "vanilla_w": "242"
     },
     {
-      "differing_pixels": "0",
+      "differing_pixels": "1580",
       "java_coverage": "1.0000",
       "java_h": "72",
       "java_w": "242",
-      "mean_argb_delta": "0.0000",
-      "raw_differing_pixels": "0",
+      "mean_argb_delta": "3.7514",
+      "raw_differing_pixels": "1580",
       "status": "ok",
       "subject": "two_lines~style=hypixel_skyblock__ultimate",
       "vanilla_coverage": "1.0000",
@@ -613,15 +614,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 43,
-      "<0.50": 43,
-      "<0.75": 43,
-      "<1.00": 43,
+      "<0.25": 37,
+      "<0.50": 37,
+      "<0.75": 37,
+      "<1.00": 37,
       "failed": 0,
       "total": 44
     },
     "failed": 0,
     "rows": 44,
-    "sum": "11.0608"
+    "sum": "52.3139"
   }
 }

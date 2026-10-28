@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "hypixel-skyblock/five_lines.png",
-      "sha256": "c00e617ef9b52710b18877271cd5f1b95503940a29f7e81543430afe780a2612"
+      "sha256": "4c68661966ce43eadd65144e23005f270486d330a0ff71fefa188fd98079b1d8"
     },
     {
       "path": "hypixel-skyblock/five_lines_chrome.png",
@@ -16,11 +16,11 @@
     },
     {
       "path": "hypixel-skyblock/five_lines~style=hypixel_skyblock__ultimate.png",
-      "sha256": "de6aee538a8d3b376109f3d1aefd777a57643da59a9337d2b35d6d4afa52f49a"
+      "sha256": "5aaea96604f8270aacfb8a1d8684740e1c01216a40f78632b7906b5d6363a39f"
     },
     {
       "path": "hypixel-skyblock/item_like.png",
-      "sha256": "0de8819c57163c9651b2b0671515b0aa73c548dbdb99aa0a832525451390f83e"
+      "sha256": "a78ac6f0f4384e324c8c217a78d9a87994a460ea9791be52f000dda86b4da36d"
     },
     {
       "path": "hypixel-skyblock/item_like_chrome.png",
@@ -28,7 +28,7 @@
     },
     {
       "path": "hypixel-skyblock/legacy_colours.png",
-      "sha256": "60b14f35d532c0a273227ec0878edf8feed0c2dbafefde8139b538f1db5f70c0"
+      "sha256": "f4bff651bf17adad2cfaa9f6774dde110ee8f1ee9fa72dc08e3912842829ff09"
     },
     {
       "path": "hypixel-skyblock/legacy_colours_chrome.png",
@@ -44,7 +44,7 @@
     },
     {
       "path": "hypixel-skyblock/mixed_segments.png",
-      "sha256": "9835e8b514723d945bcb3d1b02e09b36a4d1dcc5a58125d7acf97b7fbe01411d"
+      "sha256": "2f777041cb3d7ddaa4efe0bf0cbebd1c2ca03564cff8eef04919e6bcf91145af"
     },
     {
       "path": "hypixel-skyblock/mixed_segments_chrome.png",
@@ -164,7 +164,7 @@
     },
     {
       "path": "hypixel-skyblock/two_lines.png",
-      "sha256": "9ba6792b91d6056a2c96ac50bad934ad5cc41f68d109e8543b1d4655d6ec1a48"
+      "sha256": "d840873358a69d354fa001d4eb515ef917a2566bb61a6546afdd19ecacdb88f7"
     },
     {
       "path": "hypixel-skyblock/two_lines_chrome.png",
@@ -176,7 +176,7 @@
     },
     {
       "path": "hypixel-skyblock/two_lines~style=hypixel_skyblock__ultimate.png",
-      "sha256": "20ede2234437f227bfc5e159b86cf5d3d1f784fe22259cdebc07ae434c0f418b"
+      "sha256": "3741881574e632745d2d6abda4b53785fc3bb83f52c4632352ab95d520846ee8"
     }
   ],
   "format": 1,
@@ -184,9 +184,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.pack-tooltips",
-    "asset_content_digest": "9967bcebdf94e44b655afdbeda1f783696bc523ebca8a11aa080ca05e3e4f1e5",
+    "asset_content_digest": "fe1dc74ef950b59a7ea9fb7ecf1855511c58dfd1fe0f8deb555334ddaa5fa701",
     "asset_dirty": true,
-    "asset_sha": "ddf3c278a76c6069362f668c9e36a48f6876a417",
+    "asset_sha": "5f2174f3c4e0f23707ff31931da0659c7b298b4e",
     "counts": {
       "files": 44
     },
@@ -194,9 +194,9 @@
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "PACK_TOOLTIPS",
-    "parity_class": "shaped",
+    "parity_class": "moving",
     "producer": "renderVanillaPackTooltipsHypixelSkyblock",
-    "reason": "The client's tooltip drawings under hypixel-skyblock: the tooltip roster's section for that pack, each subject whole and as its box alone, drawn beside the reference tree by the pack-tooltip run over the pack fixture - 44 files. Two boots into two roots agreed on every file, as five boots had before. The handshake beside them is no member: it carries the pack folder's absolute path and the harness's module list, and the sweep's resolution check holds it.",
+    "reason": "6b1dd11a draws the hypixel-skyblock tooltips from a copy of the pack whose text shader also sits at 26.1's shader name, so the real client runs the pack's colour swap. 7 of the 44 drawings move by exactly the swap of 8 colours and their shadows - legacy_colours holds FF9000 on 208 pixels and FFAA00 on none - and two fresh boots drew the same 44 files. The sweep's same 7 rows move by those pixels, sum 11.0608 to 52.3139, no row failed: the renderer does not apply the pack's palette yet.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -210,8 +210,8 @@
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/pack-tooltips",
-    "timestamp": "2026-10-28T04:29:35Z",
+    "timestamp": "2026-10-28T11:50:27Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 21401
+    "wall_time_ms": 22698
   }
 }
