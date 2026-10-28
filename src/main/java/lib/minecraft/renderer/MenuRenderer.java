@@ -513,7 +513,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Builds the label layer for a menu - the container's own title, and the player's label where the
      * player section is drawn. When a label carries an obfuscated segment ({@code §k}) the layer is
-     * animated over one second of unique frames; otherwise it is a single frame.
+     * animated over one second of unique frames; otherwise it is a single frame. Either is held
+     * premultiplied, as text laid on a clear buffer is.
      * <p>
      * Empty where a menu has no label to draw at all, which is what keeps a caller who asked for no
      * title from paying for a whole transparent canvas per frame.
@@ -545,7 +546,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         if (!animated) {
             PixelBuffer buffer = PixelBuffer.create(w, h);
             drawLabels(buffer, labels, argb, palette, 0);
-            return Optional.of(StaticImageData.of(buffer.toBufferedImage()));
+            return Optional.of(Timeline.still(buffer));
         }
 
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the

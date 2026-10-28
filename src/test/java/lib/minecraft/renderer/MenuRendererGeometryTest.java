@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
@@ -542,6 +543,28 @@ class MenuRendererGeometryTest {
                 if (rendered.getPixel(x, y) == shadowOfDefault) found++;
 
         assertThat("pixels of the title's shadow colour", found, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("a still label layer is held premultiplied, as the animated one is")
+    void aStillLabelLayerIsHeldPremultiplied() {
+        MenuOptions options = chest(3, true).mutate().title("Chest").build();
+        ImageData labels = MenuRenderer.labelLayer(options, MenuRenderer.layoutOf(options), TextPalette.VANILLA).orElseThrow();
+        PixelBuffer layer = labels.toPixelBuffer();
+
+        int above = 0;
+        for (int y = 0; y < layer.height(); y++) {
+            for (int x = 0; x < layer.width(); x++) {
+                int argb = layer.getPixel(x, y);
+                int alpha = argb >>> 24;
+                if (((argb >> 16) & 0xFF) > alpha || ((argb >> 8) & 0xFF) > alpha || (argb & 0xFF) > alpha)
+                    above++;
+            }
+        }
+
+        assertThat("the layer is a single frame", labels.isAnimated(), is(false));
+        assertThat("the layer's mark", labels.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("pixels with a colour channel above their alpha", above, is(equalTo(0)));
     }
 
     @Test
