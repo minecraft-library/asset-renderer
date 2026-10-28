@@ -7,9 +7,9 @@
   "provenance": {
     "allow_partial": true,
     "artifact": "sweep.tooltip",
-    "asset_content_digest": "473d87883b4afef7220bed7eb542f7799d347f0f16c07f93762c0118d3a60bdf",
+    "asset_content_digest": "17481accd1f959aa56d16cc87f4c31657132630903ec82e90c731538ca7d6af1",
     "asset_dirty": true,
-    "asset_sha": "72dc3201edce4713dacc69abbc8a2112373b7079",
+    "asset_sha": "597744ba794d6eb632c13b7ee6b263f967ccd59a",
     "counts": {
       "failed": 2,
       "rows": 28
@@ -19,7 +19,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "tooltipParityVanilla",
-    "reason": "499a59c6 sizes a tooltip's text block by its widest line with no 16 Minecraft-pixel minimum, so narrow moves from failed to ok: 32x32 against the client's 32x32, differing by the one frame-ramp pixel its box-alone twin holds, at (29, 5). Every other row held. The two legendary rows fail as before, on a style vanilla does not ship.",
+    "reason": "9b0c5b03 draws a text run's shadow in its shadow colour as the client derives it, so the shadow_color row moves from 2772 differing pixels (mean 18.5400) to 0 against the client's 218x116. Every other row held; the two legendary rows fail as before, on a style vanilla does not ship.",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -34,9 +34,9 @@
       "walk": 4896
     },
     "reference_manifest_digest": "305af6675c708abd1de3c0598a94cc78d6720af9e4f87a6e82ee029dc147cfd8",
-    "timestamp": "2026-10-28T10:31:59Z",
+    "timestamp": "2026-10-28T19:13:51Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 3829
+    "wall_time_ms": 4702
   },
   "rows": [
     {
@@ -300,12 +300,12 @@
       "vanilla_w": "104"
     },
     {
-      "differing_pixels": "2772",
+      "differing_pixels": "0",
       "java_coverage": "0.9994",
       "java_h": "116",
       "java_w": "218",
-      "mean_argb_delta": "18.5400",
-      "raw_differing_pixels": "2772",
+      "mean_argb_delta": "0.0000",
+      "raw_differing_pixels": "0",
       "status": "ok",
       "subject": "shadow_color",
       "vanilla_coverage": "0.9994",
@@ -406,15 +406,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 22,
-      "<0.50": 22,
-      "<0.75": 22,
-      "<1.00": 22,
+      "<0.25": 23,
+      "<0.50": 23,
+      "<0.75": 23,
+      "<1.00": 23,
       "failed": 2,
       "total": 28
     },
     "failed": 2,
     "rows": 28,
-    "sum": "78.3021"
+    "sum": "59.7621"
   }
 }
