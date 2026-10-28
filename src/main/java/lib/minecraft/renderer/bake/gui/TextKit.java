@@ -26,10 +26,16 @@ import java.util.random.RandomGenerator;
  * Every position is in mcPixels. A line opens where its caller places it, on a fraction of an
  * mcPixel where asked, as the client's {@code Font} draws from a {@code float}, and its pen is a
  * {@code float} as the client keeps it, so a run ending on half an mcPixel hands that half to the run
- * after it; the graphics converts to output pixels where it blits a glyph. The strikethrough and
- * underline bars, which {@code PixelGraphics#fillRect} lays in output pixels, convert at that write.
- * A line's width is {@link #measureLineMcPixels}, the client's {@code Font#width}, and what it lays
- * down is {@link #inkBounds}, answered from glyph data before the line is drawn.
+ * after it. The strikethrough and underline bars are in mcPixels too, and the graphics converts to
+ * output pixels where it lays a glyph or a bar. A line's width is {@link #measureLineMcPixels}, the
+ * client's {@code Font#width}, and what it lays down is {@link #inkBounds}, answered from glyph data
+ * before the line is drawn.
+ * <p>
+ * A run is laid as the client lays text - each pixel in its colour's alpha, none the client's text
+ * shader would discard, blended over the canvas - and all of that is the graphics', through
+ * {@link MinecraftGraphics#drawString(String, float, float)} for the glyphs and
+ * {@link MinecraftGraphics#fillEffect(float, float, float, float)} for the bars, so the kit never
+ * blends.
  * <p>
  * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
  * obfuscation ({@code §k}). Shadow, strikethrough, and underline offsets match vanilla's pixel-level
@@ -262,59 +268,51 @@ public class TextKit {
         if (segment.getGradient().isPresent())
             return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, palette, tick, dropShadow);
 
-        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
 
         float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
-
-        // Mark geometry runs in output-pixel coordinates because fillRect (inherited from
-        // PixelGraphics) operates in output-pixel space, so the origin and the width convert here -
-        // each exactly, every one being a whole number of half mcPixels.
-        int xOut = Math.round(xMcPx * pxPerMcPx);
-        int yOut = Math.round(yMcPx * pxPerMcPx);
-        int shadowOffsetOut = SHADOW_OFFSET_MCPX * pxPerMcPx;
-        List<Rectangle> bars = decorations(segment, xOut, yOut, Math.round(textWidthMcPx * pxPerMcPx));
+        List<Rectangle2D.Float> bars = decorations(segment, xMcPx, yMcPx, textWidthMcPx);
 
         // Shadow pass
         g.setFont(font);
         if (dropShadow) {
             g.setColor(new java.awt.Color(palette.swap(shadow), true));
             g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
-            for (Rectangle bar : bars)
-                g.fillRect(bar.x + shadowOffsetOut, bar.y + shadowOffsetOut, bar.width, bar.height);
+            for (Rectangle2D.Float bar : bars)
+                g.fillEffect(bar.x + SHADOW_OFFSET_MCPX, bar.y + SHADOW_OFFSET_MCPX, bar.width, bar.height);
         }
 
         // Main pass
         g.setColor(new java.awt.Color(palette.swap(color), true));
         g.drawString(text, xMcPx, yMcPx);
-        for (Rectangle bar : bars)
-            g.fillRect(bar.x, bar.y, bar.width, bar.height);
+        for (Rectangle2D.Float bar : bars)
+            g.fillEffect(bar.x, bar.y, bar.width, bar.height);
 
         return textWidthMcPx;
     }
 
     /**
-     * Answers the strikethrough and underline bars a solid run carries, in output pixels and in the
-     * order they are drawn - the strikethrough from one output pixel left of the run and as wide as
-     * it, vanilla's {@code x - 1}, and the underline from the run's start and one output pixel wider.
-     * The draw fills them and {@link #inkBounds} reads them. The thickness and offset constants are
-     * declared in mcPixels and scaled up here.
+     * Answers the strikethrough and underline bars a solid run carries, in mcPixels and in the order
+     * they are drawn - the strikethrough from one output pixel left of the run and as wide as it,
+     * vanilla's {@code x - 1}, and the underline from the run's start and one output pixel wider. The
+     * draw lays them through {@link MinecraftGraphics#fillEffect(float, float, float, float)} and
+     * {@link #inkBounds} reads them. Each edge sits a whole number of output pixels from the run's
+     * origin, so a bar lands on the output pixels the origin's own rounding puts the run on.
      *
      * @param segment the segment, supplying which bars its run carries
-     * @param xOut the run's start X in output pixels
-     * @param baselineOut the run's baseline Y in output pixels
-     * @param widthOut the run's width in output pixels
+     * @param xMcPx the run's start X in mcPixels
+     * @param baselineMcPx the run's baseline Y in mcPixels
+     * @param widthMcPx the run's width in mcPixels
      * @return the bars the run carries, in draw order
      */
-    private static @NotNull List<Rectangle> decorations(@NotNull TextSegment segment, int xOut, int baselineOut, int widthOut) {
-        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
-        int leftPadOut = 1;
-        List<Rectangle> bars = new ArrayList<>(2);
+    private static @NotNull List<Rectangle2D.Float> decorations(@NotNull TextSegment segment, float xMcPx, float baselineMcPx, float widthMcPx) {
+        float padMcPx = 1f / MinecraftFont.MC_PIXEL_SCALE;
+        List<Rectangle2D.Float> bars = new ArrayList<>(2);
         if (segment.isStrikethrough())
-            bars.add(new Rectangle(xOut - leftPadOut, baselineOut + STRIKETHROUGH_OFFSET_MCPX * pxPerMcPx, widthOut, STRIKETHROUGH_THICKNESS_MCPX * pxPerMcPx));
+            bars.add(new Rectangle2D.Float(xMcPx - padMcPx, baselineMcPx + STRIKETHROUGH_OFFSET_MCPX, widthMcPx, STRIKETHROUGH_THICKNESS_MCPX));
         if (segment.isUnderlined())
-            bars.add(new Rectangle(xOut, baselineOut + UNDERLINE_OFFSET_MCPX * pxPerMcPx, widthOut + leftPadOut, UNDERLINE_THICKNESS_MCPX * pxPerMcPx));
+            bars.add(new Rectangle2D.Float(xMcPx, baselineMcPx + UNDERLINE_OFFSET_MCPX, widthMcPx + padMcPx, UNDERLINE_THICKNESS_MCPX));
         return bars;
     }
 
@@ -376,12 +374,18 @@ public class TextKit {
      * as the text library answers the pixels a run draws ({@link MinecraftGlyphVector#getVisualBounds()}),
      * with its bars, and a gradient run's as {@link GradientKit} answers them - each again at the
      * shadow's offset when the shadow is drawn. A glyph that draws no pixel, such as a space, counts
-     * for nothing. The bars are counted as an opaque colour lays them down, which is the colour every
-     * glyph is laid down in.
+     * for nothing.
+     * <p>
+     * A solid run's pass whose colour the client's text shader discards whole - alpha
+     * {@link MinecraftGraphics#DISCARD_ALPHA} or less - lays nothing and counts for nothing. In any
+     * colour above that a vanilla glyph lays every pixel the library answers, its texels being opaque
+     * or clear, and a bar lays all of its own. A gradient run is laid opaque, so it always counts.
      *
      * @param line the line to measure
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color for segments without an explicit color, as {@link #drawLine}
+     * takes it
      * @param lineIndex the line's number among the lines drawn together
      * @param frame the animation frame drawn
      * @param dropShadow whether the offset shadow pass is drawn
@@ -390,25 +394,30 @@ public class TextKit {
     public static @NotNull Optional<Rectangle2D> inkBounds(
         @NotNull LineSegment line,
         float xMcPx, float yMcPx,
+        int defaultArgb,
         int lineIndex,
         long frame,
         boolean dropShadow
     ) {
         List<Rectangle2D> drawn = new ArrayList<>();
         walk(line, xMcPx, lineIndex, frame, (segment, font, text, penMcPx) ->
-            segmentInk(segment, font, text, penMcPx, yMcPx, dropShadow, drawn));
+            segmentInk(segment, font, text, penMcPx, yMcPx, defaultArgb, dropShadow, drawn));
         return drawn.stream().reduce(Rectangle2D::createUnion);
     }
 
     /**
      * Collects what one segment's run lays down at its pen, as {@link #drawSegment} draws it, and
-     * answers how far it moves the line's pen.
+     * answers how far it moves the line's pen. A solid run's colour and its shadow's are resolved as
+     * the draw resolves them, and a pass is counted only where its colour clears
+     * {@link MinecraftGraphics#DISCARD_ALPHA}. The run is read from the output pixel its origin rounds
+     * to, which is where the graphics lays its glyphs and its bars.
      *
      * @param segment the styled text segment
      * @param font the segment's font
      * @param text the segment's text, substituted where the segment is obfuscated
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the fallback color when the segment has no explicit color
      * @param dropShadow whether the offset shadow pass is drawn
      * @param drawn the rectangles laid down so far, in mcPixels, which this run's rectangles join
      * @return the advance width of the segment in mcPixels, its fraction kept
@@ -418,6 +427,7 @@ public class TextKit {
         @NotNull MinecraftFont font,
         @NotNull String text,
         float xMcPx, float yMcPx,
+        int defaultArgb,
         boolean dropShadow,
         @NotNull List<Rectangle2D> drawn
     ) {
@@ -427,37 +437,62 @@ public class TextKit {
             return textWidthMcPx;
         }
 
+        int color = resolveColor(segment, defaultArgb);
+        boolean main = ColorMath.alpha(color) > MinecraftGraphics.DISCARD_ALPHA;
+        boolean shadow = dropShadow && ColorMath.alpha(shadowColor(segment, color)) > MinecraftGraphics.DISCARD_ALPHA;
+
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         int xOut = Math.round(xMcPx * pxPerMcPx);
         int yOut = Math.round(yMcPx * pxPerMcPx);
         Rectangle glyphs = font.layout(text).getVisualBounds().getBounds();
         glyphs.translate(xOut, yOut);
-        addInk(drawn, glyphs, dropShadow);
-        for (Rectangle bar : decorations(segment, xOut, yOut, Math.round(textWidthMcPx * pxPerMcPx)))
-            addInk(drawn, bar, dropShadow);
+        addInk(drawn, mcPixels(glyphs), main, shadow);
+        for (Rectangle2D.Float bar : decorations(segment, xOut / (float) pxPerMcPx, yOut / (float) pxPerMcPx, textWidthMcPx))
+            addInk(drawn, bar, main, shadow);
         return textWidthMcPx;
     }
 
     /**
-     * Adds a rectangle a run lays down to {@code drawn}, converting it from output pixels to mcPixels
-     * where it reads it, with its copy at the shadow's offset when the shadow is drawn. An empty one
-     * lays down nothing and is skipped.
+     * Adds a rectangle a run lays down on both of its passes to {@code drawn}, converting it from
+     * output pixels to mcPixels where it reads it, with its copy at the shadow's offset when the
+     * shadow is drawn. An empty one lays down nothing and is skipped.
      *
      * @param drawn the rectangles laid down so far, in mcPixels
      * @param outPx the rectangle the run lays down, in output pixels
      * @param dropShadow whether the offset shadow pass lays it down again
      */
     static void addInk(@NotNull List<Rectangle2D> drawn, @NotNull Rectangle outPx, boolean dropShadow) {
-        if (outPx.isEmpty()) return;
+        addInk(drawn, mcPixels(outPx), true, dropShadow);
+    }
 
+    /**
+     * Adds a rectangle a run lays down to {@code drawn} on each pass that lays it - where it is on the
+     * main pass, at the shadow's offset on the shadow pass. An empty one lays down nothing and is
+     * skipped.
+     *
+     * @param drawn the rectangles laid down so far, in mcPixels
+     * @param mcPx the rectangle the run lays down, in mcPixels
+     * @param main whether the main pass lays it down
+     * @param shadow whether the offset shadow pass lays it down
+     */
+    private static void addInk(@NotNull List<Rectangle2D> drawn, @NotNull Rectangle2D.Float mcPx, boolean main, boolean shadow) {
+        if (mcPx.isEmpty()) return;
+
+        if (main)
+            drawn.add(mcPx);
+        if (shadow)
+            drawn.add(new Rectangle2D.Float(mcPx.x + SHADOW_OFFSET_MCPX, mcPx.y + SHADOW_OFFSET_MCPX, mcPx.width, mcPx.height));
+    }
+
+    /**
+     * Converts a rectangle in output pixels to mcPixels.
+     *
+     * @param outPx the rectangle in output pixels
+     * @return the same rectangle in mcPixels
+     */
+    private static @NotNull Rectangle2D.Float mcPixels(@NotNull Rectangle outPx) {
         float pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
-        float x = outPx.x / pxPerMcPx;
-        float y = outPx.y / pxPerMcPx;
-        float width = outPx.width / pxPerMcPx;
-        float height = outPx.height / pxPerMcPx;
-        drawn.add(new Rectangle2D.Float(x, y, width, height));
-        if (dropShadow)
-            drawn.add(new Rectangle2D.Float(x + SHADOW_OFFSET_MCPX, y + SHADOW_OFFSET_MCPX, width, height));
+        return new Rectangle2D.Float(outPx.x / pxPerMcPx, outPx.y / pxPerMcPx, outPx.width / pxPerMcPx, outPx.height / pxPerMcPx);
     }
 
     // --- color utilities ---

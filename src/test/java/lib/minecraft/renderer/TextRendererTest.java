@@ -21,6 +21,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -85,7 +87,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
  * frame of the render pixel for pixel, so the canvas holds every pixel the text draws and no other and
  * the text sits where its own ink puts it - across descenders, leading and trailing spaces, bars, an
- * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled.
+ * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled, a line naming no
+ * colour, which draws in the renderer's default grey, and a run in a colour the client's text shader
+ * discards, which lays its shadow alone.
  * <p>
  * A render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated: chat
  * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, and a sprite box
@@ -642,8 +646,10 @@ class TextRendererTest {
     @Test
     @DisplayName("a chat image is its text cut to the first pixel it draws, over every frame")
     void aChatImageIsItsTextCutToTheFirstPixelItDraws() {
-        // Every line names its colour, so the renderer's default colour does not enter.
+        // A line naming no colour is drawn in the renderer's default, vanilla's grey; every other line
+        // names its own.
         Map<String, TextOptions> corpus = new LinkedHashMap<>();
+        corpus.put("no colour", chat("Grey").build());
         corpus.put("no capital", chat("&facemnorsuvwxz").build());
         corpus.put("descenders", chat("&fgpqy").build());
         corpus.put("leading spaces", chat("&f  Lead").build());
@@ -658,6 +664,16 @@ class TextRendererTest {
         // Over two frames a scramble's bounds fall short of the extremes its picks can reach, so the
         // canvas follows the glyphs each line's own number picks.
         corpus.put("two obfuscated lines", chat("&f&kHello", "&f&l&kab").frameCount(2).build());
+        // A run in a colour the client's text shader discards lays no pixel of its own, while the
+        // shadow its colour derives, an opaque 3F3F3F, lays whole - so the canvas is the shadow's ink.
+        TextSegment faint = TextSegment.builder()
+            .text("Faint")
+            .color(ChatColor.builder().color(new Color(255, 255, 255, 25)).build())
+            .build();
+        corpus.put("a run in a colour the text shader discards", TextOptions.builder()
+            .style(TextOptions.Style.CHAT)
+            .lines(Concurrent.newList(LineSegment.builder().segments(Concurrent.newList(faint)).build()))
+            .build());
 
         ConcurrentList<String> mismatched = Concurrent.newList();
         for (Map.Entry<String, TextOptions> row : corpus.entrySet()) {
@@ -785,7 +801,7 @@ class TextRendererTest {
     /**
      * Draws chat lines as the renderer lays them out, on a clear canvas with room on every side: each
      * line at the same margin, its baseline an ascent and its line pitch down from the block's top,
-     * numbered as it is drawn, shadow on, once per frame.
+     * numbered as it is drawn, a run naming no colour in vanilla's grey, shadow on, once per frame.
      *
      * @param lines the lines to draw
      * @param frames how many frames to draw
@@ -799,7 +815,7 @@ class TextRendererTest {
             PixelBuffer canvas = PixelBuffer.create(400, 120);
             MinecraftGraphics g = new MinecraftGraphics(canvas);
             for (int i = 0; i < lines.size(); i++)
-                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, 0xFFFFFFFF, TextPalette.VANILLA, i, frame);
+                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, ChatColor.Legacy.GRAY.rgb(), TextPalette.VANILLA, i, frame);
             drawn.add(canvas);
         }
         return drawn;

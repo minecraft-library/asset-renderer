@@ -49,15 +49,20 @@ import static org.hamcrest.Matchers.is;
  * walking codepoints. The default fonts reach a half mcPixel through one glyph, {@code ✦}, so every
  * fixture that needs one first asserts its run ends there.
  * <p>
- * And it pins {@link TextKit#inkBounds} against the draw it answers for: at a whole and a half
- * mcPixel, with the shadow and without, over every style, bar, gradient path and scramble a line can
- * carry, the answer is the bounds of the pixels {@link TextKit#drawLine} lays down, and empty exactly
- * where it lays down none - spaces and empty segments included.
+ * And it pins {@link TextKit#inkBounds} against the draw it answers for: at a whole, a half and a
+ * quarter mcPixel, with the shadow and without, over every style, bar, gradient path and scramble a
+ * line can carry, the answer is the bounds of the pixels {@link TextKit#drawLine} lays down, and empty
+ * exactly where it lays down none - spaces and empty segments included. It holds in an opaque colour,
+ * in the faintest colour the client's text shader keeps, and in one it discards, where a solid run
+ * lays nothing.
  * <p>
- * Last, it pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the
- * colour the palette swaps them for, a gradient run through the line's own palette, the shadow derived
- * from the unswapped text colour, a colour the palette holds no key for drawn as given, and a swap
- * keeping the top byte of the colour it is given.
+ * It pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the colour
+ * the palette swaps them for, a gradient run through the line's own palette, the shadow derived from
+ * the unswapped text colour, a colour the palette holds no key for drawn as given, and a swap keeping
+ * the top byte of the colour it is given.
+ * <p>
+ * Last, it pins a see-through run's bars laid as the client lays them, blended over the canvas in the
+ * colour's alpha rather than overwriting it, and laid not at all in a colour the text shader discards.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class TextKitTest {
@@ -300,7 +305,7 @@ class TextKitTest {
     }
 
     @Test
-    @DisplayName("what a line lays down is answered before it is drawn, at a whole or a half pixel, with the shadow or without")
+    @DisplayName("what a line lays down is answered before it is drawn, at a whole, a half or a quarter pixel, with the shadow or without, in a colour the text shader keeps or discards")
     void inkBoundsIsWhatDrawLineLaysDown() {
         GradientSpec perLetter = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0x000000).addStop(0xFFFFFF).build();
         GradientSpec banded = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
@@ -324,24 +329,28 @@ class TextKitTest {
         corpus.put("per-letter gradient", line(TextSegment.builder().text("Gradient").gradient(perLetter).strikethrough(true).underlined(true).build()));
         corpus.put("banded gradient", line(TextSegment.builder().text("Gradient").gradient(banded).strikethrough(true).underlined(true).build()));
 
+        // Opaque; the faintest alpha the client's text shader keeps, 26 of 255; and the strongest it
+        // discards, 25. A solid run in the last lays nothing, its shadow keeping the alpha too.
+        int[] colours = { 0xFFFFFFFF, 0x1AFFFFFF, 0x19FFFFFF };
         ConcurrentList<String> mismatched = Concurrent.newList();
         for (Map.Entry<String, LineSegment> row : corpus.entrySet()) {
             LineSegment line = row.getValue();
             int frames = line.getSegments().stream().anyMatch(TextSegment::isObfuscated) ? 8 : 1;
-            for (float x : new float[] { X0, X0 + 0.5f })
-                for (boolean shadow : new boolean[] { true, false })
-                    for (int frame = 0; frame < frames; frame++) {
-                        PixelBuffer canvas = PixelBuffer.create(400, 64);
-                        TextKit.drawLine(new MinecraftGraphics(canvas), line, x, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, frame, frame, shadow);
-                        Rectangle drawn = canvas.opaqueBounds();
-                        String drew = drawn.isEmpty() ? "nothing" : described(drawn, 1);
-                        String answered = TextKit.inkBounds(line, x, BASE, 0, frame, shadow)
-                            .map(bounds -> described(bounds, MinecraftFont.MC_PIXEL_SCALE))
-                            .orElse("nothing");
-                        if (!answered.equals(drew))
-                            mismatched.add(String.format("%s at %s %s the shadow, frame %d: answered %s, drew %s",
-                                row.getKey(), x, shadow ? "with" : "without", frame, answered, drew));
-                    }
+            for (int argb : colours)
+                for (float x : new float[] { X0, X0 + 0.5f, X0 + 0.25f })
+                    for (boolean shadow : new boolean[] { true, false })
+                        for (int frame = 0; frame < frames; frame++) {
+                            PixelBuffer canvas = PixelBuffer.create(400, 64);
+                            TextKit.drawLine(new MinecraftGraphics(canvas), line, x, BASE, argb, TextPalette.VANILLA, 0, frame, frame, shadow);
+                            Rectangle drawn = canvas.opaqueBounds();
+                            String drew = drawn.isEmpty() ? "nothing" : described(drawn, 1);
+                            String answered = TextKit.inkBounds(line, x, BASE, argb, 0, frame, shadow)
+                                .map(bounds -> described(bounds, MinecraftFont.MC_PIXEL_SCALE))
+                                .orElse("nothing");
+                            if (!answered.equals(drew))
+                                mismatched.add(String.format("%s in %08X at %s %s the shadow, frame %d: answered %s, drew %s",
+                                    row.getKey(), argb, x, shadow ? "with" : "without", frame, answered, drew));
+                        }
         }
 
         assertThat("rows whose answer is not what the line lays down", mismatched, is(empty()));
@@ -362,6 +371,35 @@ class TextKitTest {
             litColumns(buffer, row, 0xFFA8BFD2)[0], is(X0 * scale));
         assertThat("and its shadow copy, one mcPixel lower and right, in the shadow's swap",
             litColumns(buffer, row + scale, 0xFF2A2F34)[0], is((X0 + TextKit.SHADOW_OFFSET_MCPX) * scale));
+    }
+
+    @Test
+    @DisplayName("a see-through run's bars blend over the canvas as the client lays them, and a colour the text shader discards lays none")
+    void aSeeThroughBarIsLaidAsTheClientLaysIt() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        // The sprite tooltip's fill as its canvas holds it, premultiplied.
+        int fill = 0xF00F000F;
+        LineSegment decorated = line(TextSegment.builder().text("Red").underlined(true).strikethrough(true).build());
+
+        PixelBuffer buffer = PixelBuffer.create(80, 40);
+        buffer.fill(fill);
+        TextKit.drawLine(new MinecraftGraphics(buffer), decorated, X0, BASE, 0x80FF0000, TextPalette.VANILLA, 0, 0L);
+
+        // The client's translucent blend lays 0x80FF0000 over the fill as (135,0,7) at 248, and the
+        // shadow's 0x803F0000 as (39,0,7) at 248; an overwrite would leave each colour as given.
+        int underline = (BASE + TextKit.UNDERLINE_OFFSET_MCPX) * scale;
+        int strikethrough = (BASE + TextKit.STRIKETHROUGH_OFFSET_MCPX) * scale;
+        int shadowOffset = TextKit.SHADOW_OFFSET_MCPX * scale;
+        assertThat("the underline, inside its bar", buffer.getPixel(X0 * scale + 1, underline), is(0xF8870007));
+        assertThat("the strikethrough's pad pixel, left of the run", buffer.getPixel(X0 * scale - 1, strikethrough), is(0xF8870007));
+        assertThat("the shadow's underline, one mcPixel lower and right",
+            buffer.getPixel(X0 * scale + shadowOffset + 1, underline + shadowOffset), is(0xF8270007));
+
+        PixelBuffer discarded = PixelBuffer.create(80, 40);
+        discarded.fill(fill);
+        TextKit.drawLine(new MinecraftGraphics(discarded), decorated, X0, BASE, 0x19FF0000, TextPalette.VANILLA, 0, 0L);
+        assertThat("a colour the text shader discards leaves every pixel the fill",
+            opaqueColours(discarded), is(equalTo(Set.of(fill))));
     }
 
     @Test

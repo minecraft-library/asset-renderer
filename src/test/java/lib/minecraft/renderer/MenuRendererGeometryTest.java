@@ -546,6 +546,41 @@ class MenuRendererGeometryTest {
     }
 
     @Test
+    @DisplayName("a see-through title and its underline blend over the panel as the client lays text")
+    void aSeeThroughTitleBlendsOverThePanel() {
+        MenuOptions bare = chest(3, false);
+        PixelBuffer without = render(bare);
+        PixelBuffer plain = render(bare.mutate().title("Chest").build());
+        PixelBuffer underlined = render(bare.mutate().title("§nChest").build());
+        PixelBuffer seeThrough = render(bare.mutate().title("§nChest").defaultTitleArgb(0x80404040).build());
+
+        // The opaque renders tell the title's glyph pixels from its underline's. Laid on the clear label
+        // layer, 0x80404040 is held as 80202020, and that over the panel's C6C6C6 shows 838383 - a glyph
+        // pixel and a bar pixel alike. A glyph laid opaque would show 404040, and an overwritten bar
+        // A3A3A3.
+        int glyphs = 0;
+        int bar = 0;
+        ConcurrentList<String> wrong = Concurrent.newList();
+        for (int y = 0; y < without.height(); y++) {
+            for (int x = 0; x < without.width(); x++) {
+                boolean glyph = plain.getPixel(x, y) != without.getPixel(x, y);
+                if (!glyph && underlined.getPixel(x, y) == without.getPixel(x, y)) continue;
+
+                if (glyph)
+                    glyphs++;
+                else
+                    bar++;
+                if (seeThrough.getPixel(x, y) != 0xFF838383)
+                    wrong.add(String.format("%s pixel at %d,%d: %08X", glyph ? "glyph" : "underline", x, y, seeThrough.getPixel(x, y)));
+            }
+        }
+
+        assertThat("the title drew glyphs", glyphs, is(greaterThan(0)));
+        assertThat("and an underline", bar, is(greaterThan(0)));
+        assertThat("title pixels that are not the client's blend over the panel", wrong, is(empty()));
+    }
+
+    @Test
     @DisplayName("a still label layer is held premultiplied, as the animated one is")
     void aStillLabelLayerIsHeldPremultiplied() {
         MenuOptions options = chest(3, true).mutate().title("Chest").build();

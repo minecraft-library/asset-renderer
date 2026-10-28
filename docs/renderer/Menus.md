@@ -32,6 +32,12 @@ chrome exact rather than resampled.
   them.
 - `MinecraftFontMetrics.getAscent()` answers **output** pixels where `TextKit.drawLine` takes
   Minecraft ones. Use `getAscentMcPixels()`; never divide at a call site.
+- **Text is laid by minecraft-text as the client lays it, and `TextKit` never blends.** Each glyph and
+  bar pixel takes its colour's alpha, none at alpha 25 or less is laid, as the client's text shader
+  discards below 0.1, and the rest blend `NORMAL` over the canvas. `TextKit` hands the graphics
+  Minecraft-pixel geometry and nothing else: a strikethrough or underline bar goes through
+  `MinecraftGraphics#fillEffect`, never the inherited `fillRect`, which works in output pixels and
+  overwrites what it covers.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
   ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves

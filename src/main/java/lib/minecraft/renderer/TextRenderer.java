@@ -208,7 +208,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             LineSegment line = lines.get(i);
             int frames = line.getSegments().stream().anyMatch(TextSegment::isObfuscated) ? frameCount : 1;
             for (int frame = 0; frame < frames; frame++)
-                drawn = union(drawn, TextKit.inkBounds(line, 0, ascentMcPx + i * LINE_HEIGHT_MCPX, i, frame, true));
+                drawn = union(drawn, TextKit.inkBounds(line, 0, ascentMcPx + i * LINE_HEIGHT_MCPX, DEFAULT_COLOR_ARGB, i, frame, true));
         }
 
         return drawn
