@@ -77,7 +77,7 @@ public class TextField {
         int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         LineSegment text = plain(shown);
-        TextKit.drawLine(g, text, textX, baseline, well.argb(), 0L, 0L, true);
+        TextKit.drawLine(g, text, textX, baseline, well.argb(), 0, 0L, 0L, true);
 
         if (options.isCaret()) drawCaret(g, buffer, typed, textX + TextKit.measureLineMcPixels(text), textY, baseline, well);
 
@@ -127,7 +127,7 @@ public class TextField {
         String typed, int caretX, int textY, int baseline, @NotNull Mark.TextWell well
     ) {
         if (typed.length() < well.maxLength()) {
-            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), 0L, 0L, true);
+            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), 0, 0L, 0L, true);
             return;
         }
 

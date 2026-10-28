@@ -544,7 +544,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
-        // frame index being what TextKit seeds each label's scramble from.
+        // frame index and each label's number being what TextKit seeds that label's scramble from.
         return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
@@ -587,6 +587,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * An anchor is the top of a glyph cell, which the vanilla font opens a capital on, and the draw
      * takes the baseline an ascent below it. The ascent is asked for in Minecraft pixels, because the
      * metrics answer in output ones by default and the draw is in Minecraft ones.
+     * <p>
+     * Each label is drawn as its index in the list - the title first, the player's label after it -
+     * which with the frame seeds its scramble, so two labels of one frame scramble apart.
      */
     private static void drawLabels(
         @NotNull PixelBuffer buffer,
@@ -597,9 +600,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
 
-        for (Label label : labels)
+        for (int i = 0; i < labels.size(); i++) {
+            Label label = labels.get(i);
             TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
-                defaultArgb, frame, frame, false);
+                defaultArgb, i, frame, frame, false);
+        }
     }
 
 }

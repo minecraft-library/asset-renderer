@@ -25,7 +25,7 @@ check it against source before honouring one.
 | A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
 | `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
 | `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |
-| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
+| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's and chat text's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
 | Depth in `engine/raster` - `DepthMath`, the snapped depth plane, coplanar ties, draw order, the sort, the fill rule | [Depth](docs/renderer/Depth.md) |
 | The texel fetch - `RasterMath.texelOf`, `faceTexel`, `lastTexel`, a pass's wrap; the corner snap's grid and tie rule; the GPU's own coordinate | [TexelFetch](docs/renderer/TexelFetch.md), [TexCoordProbe](docs/renderer/TexCoordProbe.md) |
 | `bake/armor` - `Shell`, `ShellIndex`, the armour kits, `WornBox`, the wings; `ArmorSlot` and `ArmorForm` | [Armour](docs/renderer/Armour.md) |

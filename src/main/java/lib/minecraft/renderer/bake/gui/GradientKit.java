@@ -8,11 +8,16 @@ import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGlyph;
+import lib.minecraft.text.font.MinecraftGlyphVector;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.Rectangle;
+import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Static gradient-text rendering utilities - the compose-side realization of {@link GradientSpec}.
@@ -105,6 +110,45 @@ public class GradientKit {
         return widthMcPx;
     }
 
+    /**
+     * Answers what {@link #drawSegment} lays down for a gradient segment's (already
+     * obfuscation-substituted) {@code text} at the given mcPixel origin, before it is drawn - the
+     * bounds of every pixel it draws, in mcPixels. Empty where the text's width is not positive, which
+     * the draw skips; otherwise the pixels the text library answers the run's glyphs draw
+     * ({@link MinecraftGlyphVector#getVisualBounds()}), since both paths place a glyph where
+     * {@link MinecraftGraphics#drawString(String, float, float)} does, with the bars over the run's
+     * width, each again at the shadow's offset when the shadow is drawn. Neither the colour nor the
+     * scroll moves a pixel's place, so the tick does not enter.
+     *
+     * @param segment the styled segment (supplies font style + decorations)
+     * @param text the segment text after obfuscation substitution
+     * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
+     * @param yMcPx the baseline Y in mcPixels
+     * @param dropShadow whether the offset shadow pass is drawn
+     * @return the bounds of what the segment draws in mcPixels, empty where it draws nothing
+     */
+    static @NotNull Optional<Rectangle2D> inkBounds(
+        @NotNull TextSegment segment,
+        @NotNull String text,
+        float xMcPx, float yMcPx,
+        boolean dropShadow
+    ) {
+        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
+        float widthMcPx = font.metrics().stringAdvanceMcPixels(text);
+        if (widthMcPx <= 0) return Optional.empty();
+
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int xOut = Math.round(xMcPx * scale);
+        int baselineOut = Math.round(yMcPx * scale);
+        List<Rectangle2D> drawn = new ArrayList<>();
+        Rectangle glyphs = font.layout(text).getVisualBounds().getBounds();
+        glyphs.translate(xOut, baselineOut);
+        TextKit.addInk(drawn, glyphs, dropShadow);
+        for (Rectangle bar : bars(segment, xOut, baselineOut, Math.round(widthMcPx * scale)))
+            TextKit.addInk(drawn, bar, dropShadow);
+        return drawn.stream().reduce(Rectangle2D::createUnion);
+    }
+
     // --- per-letter fidelity (bandPx == 0) ---
 
     /**
@@ -183,10 +227,29 @@ public class GradientKit {
         int baselineY = Math.round(baselineMcPx * scale);
         int advanceOut = Math.round(advanceMcPx * scale);
         int argb = 0xFF000000 | (rgb & 0xFFFFFF);
+        for (Rectangle bar : bars(segment, cursorX, baselineY, advanceOut))
+            fillClamped(target, bar.x, bar.y, bar.width, bar.height, argb);
+    }
+
+    /**
+     * Answers the strikethrough and underline bars over a span of a gradient run, in output pixels and
+     * in the order they are drawn - each from the span's start and as wide as it, with no pad. Both
+     * draw paths fill them glyph by glyph and {@link #inkBounds} reads them over the whole run.
+     *
+     * @param segment the segment, supplying which bars it carries
+     * @param xOut the span's start X in output pixels
+     * @param baselineOut the baseline Y in output pixels
+     * @param widthOut the span's width in output pixels
+     * @return the bars the span carries, in draw order
+     */
+    private static @NotNull List<Rectangle> bars(@NotNull TextSegment segment, int xOut, int baselineOut, int widthOut) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        List<Rectangle> bars = new ArrayList<>(2);
         if (segment.isStrikethrough())
-            fillClamped(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, argb);
+            bars.add(new Rectangle(xOut, baselineOut + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, widthOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale));
         if (segment.isUnderlined())
-            fillClamped(target, cursorX, baselineY + TextKit.UNDERLINE_OFFSET_MCPX * scale, advanceOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale, argb);
+            bars.add(new Rectangle(xOut, baselineOut + TextKit.UNDERLINE_OFFSET_MCPX * scale, widthOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale));
+        return bars;
     }
 
     // --- per-pixel fidelity (bandPx >= 1) ---
@@ -307,11 +370,8 @@ public class GradientKit {
      * decorations follow the per-pixel gradient.
      */
     private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull TextSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
-        int scale = MinecraftFont.MC_PIXEL_SCALE;
-        if (segment.isStrikethrough())
-            fillMasked(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, color);
-        if (segment.isUnderlined())
-            fillMasked(target, cursorX, baselineY + TextKit.UNDERLINE_OFFSET_MCPX * scale, advanceOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale, color);
+        for (Rectangle bar : bars(segment, cursorX, baselineY, advanceOut))
+            fillMasked(target, bar.x, bar.y, bar.width, bar.height, color);
     }
 
     private static void fillMasked(@NotNull PixelBuffer target, int x, int y, int w, int h, @NotNull PixelColor color) {

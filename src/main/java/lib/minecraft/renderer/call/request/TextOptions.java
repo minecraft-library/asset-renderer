@@ -21,8 +21,10 @@ import java.util.function.UnaryOperator;
  * text ({@link Style#CHAT}).
  *
  * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
- * glyph rows alone. When any {@link #getLines() line} carries obfuscated text the renderer emits an
- * animated image of {@link #getFrameCount() frameCount} frames at {@link #getFramesPerSecond() fps}.
+ * glyph rows alone, on a canvas ending at the first pixel they draw. When any {@link #getLines() line}
+ * carries obfuscated text the renderer emits an animated image of {@link #getFrameCount() frameCount}
+ * frames at {@link #getFramesPerSecond() fps}, except that chat text drawing nothing is the still,
+ * empty 1x1 image, obfuscated or not.
  *
  * @see lib.minecraft.renderer.TextRenderer
  */
@@ -143,7 +145,8 @@ public class TextOptions implements RenderOptions {
     public enum Style {
 
         /**
-         * Plain text on a transparent background with uniform line spacing.
+         * Plain text on a transparent canvas that ends at the first pixel it draws, with uniform line
+         * spacing.
          */
         CHAT,
 

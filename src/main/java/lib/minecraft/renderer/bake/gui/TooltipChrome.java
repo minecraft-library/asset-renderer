@@ -68,7 +68,7 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
      * @param textHeightMcPx the text block's height in mcPixels
      * @param sprites the resolved chrome sprites + scaling sidecars, empty for context-free renders
      * @param options the render options (padding, alpha overrides)
-     * @return the canvas and the text block's place on it, in mcPixels
+     * @return the canvas and the text block's place on it, in whole mcPixels
      * @throws RenderException if the chrome draws sprites and none were resolved
      */
     @NotNull ChromeBox box(int textWidthMcPx, int textHeightMcPx, @NotNull Optional<ChromeSprites> sprites,
@@ -215,10 +215,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                              @NotNull ChromeSprites sprites, @NotNull TextOptions options) {
             int scale = MinecraftFont.MC_PIXEL_SCALE;
-            int x = (box.textX() - SPRITE_MARGIN_MCPX) * scale;
-            int y = (box.textY() - SPRITE_MARGIN_MCPX) * scale;
-            int w = (box.textWidth() + 2 * SPRITE_MARGIN_MCPX) * scale;
-            int h = (box.textHeight() + 2 * SPRITE_MARGIN_MCPX) * scale;
+            int x = Math.round((box.textX() - SPRITE_MARGIN_MCPX) * scale);
+            int y = Math.round((box.textY() - SPRITE_MARGIN_MCPX) * scale);
+            int w = Math.round((box.textWidth() + 2 * SPRITE_MARGIN_MCPX) * scale);
+            int h = Math.round((box.textHeight() + 2 * SPRITE_MARGIN_MCPX) * scale);
             float bgMul = backgroundMultiplier(options);
             float borderMul = borderMultiplier(options);
             stack.append(TextSlot.BACKGROUND, frame -> NineSliceKit.draw(frame, sprites.background(), sprites.backgroundScaling(),
@@ -327,7 +327,9 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
 
     /**
      * The canvas a text block is drawn on and the block's place on it - the box a chrome lays out round
-     * the text, or the bare block for text drawn with no chrome.
+     * the text, or the bounds of what the lines draw for text drawn with no chrome. Every value is in
+     * Minecraft pixels as a {@code float}, as the client's {@code Font} places text, and is fractional
+     * where the canvas edge falls inside a Minecraft pixel, as a chat render's can.
      *
      * @param width the canvas width in mcPixels
      * @param height the canvas height in mcPixels
@@ -336,7 +338,7 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
      * @param textWidth the text block's width in mcPixels
      * @param textHeight the text block's height in mcPixels
      */
-    record ChromeBox(int width, int height, int textX, int textY, int textWidth, int textHeight) {}
+    record ChromeBox(float width, float height, float textX, float textY, float textWidth, float textHeight) {}
 
     /**
      * A resolved chrome sprite pair plus each sprite's scaling metadata, resolved once per render by the

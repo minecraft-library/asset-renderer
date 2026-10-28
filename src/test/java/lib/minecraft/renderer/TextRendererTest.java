@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.NineSliceKit;
+import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.ItemContext;
@@ -22,6 +23,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftGraphics;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +48,7 @@ import static lib.minecraft.renderer.fixture.TooltipFixtures.guiMeta;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -74,6 +79,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * code-drawn box, which paints its colours as given, and {@link AlphaMode#PREMULTIPLIED} for a sprite
  * tooltip, chat text and a render of no line - and a premultiplied one to holding no colour channel
  * above its alpha, since a premultiplied channel is the straight one scaled by that alpha.
+ * <p>
+ * {@link TextOptions.Style#CHAT} text is pinned to the pixels it draws: drawn with room on every side
+ * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
+ * frame of the render pixel for pixel, so the canvas holds every pixel the text draws and no other and
+ * the text sits where its own ink puts it - across descenders, leading and trailing spaces, bars, an
+ * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled. Text drawing
+ * nothing is the empty 1x1 image, still even where it is obfuscated.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -621,6 +633,144 @@ class TextRendererTest {
         TextRenderer renderer = new TextRenderer();
         assertHeldIn(renderer.render(loreBuilder().style(TextOptions.Style.CHAT).build()).image(), AlphaMode.PREMULTIPLIED);
         assertHeldIn(renderer.render(TextOptions.defaults()).image(), AlphaMode.PREMULTIPLIED);
+    }
+
+    @Test
+    @DisplayName("a chat image is its text cut to the first pixel it draws, over every frame")
+    void aChatImageIsItsTextCutToTheFirstPixelItDraws() {
+        // Every line names its colour, so the renderer's default colour does not enter.
+        Map<String, TextOptions> corpus = new LinkedHashMap<>();
+        corpus.put("no capital", chat("&facemnorsuvwxz").build());
+        corpus.put("descenders", chat("&fgpqy").build());
+        corpus.put("leading spaces", chat("&f  Lead").build());
+        corpus.put("trailing spaces", chat("&fTrail   ").build());
+        corpus.put("underlined", chat("&f&nUnderlined").build());
+        corpus.put("struck", chat("&f&mStruck").build());
+        corpus.put("italic", chat("&f&oItalic text").build());
+        corpus.put("a half-pixel glyph", chat("&f+5 ✦ Speed").build());
+        corpus.put("obfuscated", chat("&f&kHello").build());
+        corpus.put("bold obfuscated", chat("&f&l&kab &r&fBold").build());
+        corpus.put("two lines", chat("&f  first", "&fsecond line").build());
+        // Over two frames a scramble's bounds fall short of the extremes its picks can reach, so the
+        // canvas follows the glyphs each line's own number picks.
+        corpus.put("two obfuscated lines", chat("&f&kHello", "&f&l&kab").frameCount(2).build());
+
+        ConcurrentList<String> mismatched = Concurrent.newList();
+        for (Map.Entry<String, TextOptions> row : corpus.entrySet()) {
+            TextOptions options = row.getValue();
+            ConcurrentList<LineSegment> lines = options.getLines();
+            ConcurrentList<ImageFrame> frames = new TextRenderer().render(options).image().getFrames();
+
+            int frameCount = lines.stream().anyMatch(line -> line.getSegments().stream().anyMatch(TextSegment::isObfuscated))
+                ? options.getFrameCount()
+                : 1;
+            if (frames.size() != frameCount) {
+                mismatched.add(row.getKey() + ": " + frames.size() + " frames where the text draws " + frameCount);
+                continue;
+            }
+
+            List<PixelBuffer> drawn = drawnWithRoom(lines, frameCount);
+            Rectangle cut = drawn.getFirst().opaqueBounds();
+            for (PixelBuffer frame : drawn)
+                cut = cut.union(frame.opaqueBounds());
+
+            Rectangle inked = frames.getFirst().pixels().opaqueBounds();
+            for (int f = 0; f < frameCount; f++) {
+                PixelBuffer rendered = frames.get(f).pixels();
+                PixelBuffer expected = drawn.get(f).crop(cut.x, cut.y, cut.width, cut.height);
+                inked = inked.union(rendered.opaqueBounds());
+                if (rendered.width() != expected.width() || rendered.height() != expected.height())
+                    mismatched.add(String.format("%s, frame %d: a %dx%d canvas where the text draws %dx%d",
+                        row.getKey(), f, rendered.width(), rendered.height(), expected.width(), expected.height()));
+                else if (differing(rendered, expected) > 0)
+                    mismatched.add(String.format("%s, frame %d: %d pixels differ from the text cut to its first pixel",
+                        row.getKey(), f, differing(rendered, expected)));
+            }
+
+            PixelBuffer canvas = frames.getFirst().pixels();
+            if (!inked.equals(new Rectangle(0, 0, canvas.width(), canvas.height())))
+                mismatched.add(row.getKey() + ": the frames ink " + inked + " of a " + canvas.width() + "x" + canvas.height() + " canvas");
+        }
+
+        assertThat("chat renders that are not their text cut to its first pixel", mismatched, is(empty()));
+    }
+
+    @Test
+    @DisplayName("chat text drawing nothing is the empty 1x1 image, still even where it is obfuscated")
+    void chatTextDrawingNothingIsTheEmptyImage() {
+        Map<String, ConcurrentList<LineSegment>> corpus = new LinkedHashMap<>();
+        corpus.put("spaces", Concurrent.newList(TextSegment.fromLegacy("   ", '&')));
+        corpus.put("one empty segment", Concurrent.newList(
+            LineSegment.builder().segments(Concurrent.newList(TextSegment.literal(""))).build()));
+        corpus.put("obfuscated spaces", Concurrent.newList(TextSegment.fromLegacy("&k   ", '&')));
+        corpus.put("two lines of spaces", Concurrent.newList(TextSegment.fromLegacy("  ", '&'), TextSegment.fromLegacy("   ", '&')));
+
+        ConcurrentList<String> drawn = Concurrent.newList();
+        for (Map.Entry<String, ConcurrentList<LineSegment>> row : corpus.entrySet()) {
+            ImageData image = new TextRenderer().render(TextOptions.builder()
+                .style(TextOptions.Style.CHAT)
+                .lines(row.getValue())
+                .build()).image();
+            PixelBuffer pixels = image.getFrames().getFirst().pixels();
+            boolean empty = !image.isAnimated() && pixels.width() == 1 && pixels.height() == 1
+                && ColorMath.alpha(pixels.getPixel(0, 0)) == 0;
+            if (!empty)
+                drawn.add(String.format("%s: %s %dx%d", row.getKey(), image.isAnimated() ? "animated" : "still", pixels.width(), pixels.height()));
+        }
+
+        assertThat("text drawing nothing that is not the empty image", drawn, is(empty()));
+    }
+
+    /**
+     * Builds chat options of one line per legacy string, left unbuilt so a case can name its own frame
+     * count.
+     *
+     * @param legacy each line's text in {@code &} codes
+     * @return the partly built text options
+     */
+    private static TextOptions.Builder chat(String... legacy) {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        for (String line : legacy)
+            lines.add(TextSegment.fromLegacy(line, '&'));
+        return TextOptions.builder().style(TextOptions.Style.CHAT).lines(lines);
+    }
+
+    /**
+     * Draws chat lines as the renderer lays them out, on a clear canvas with room on every side: each
+     * line at the same margin, its baseline an ascent and its line pitch down from the block's top,
+     * numbered as it is drawn, shadow on, once per frame.
+     *
+     * @param lines the lines to draw
+     * @param frames how many frames to draw
+     * @return each frame drawn
+     */
+    private static List<PixelBuffer> drawnWithRoom(ConcurrentList<LineSegment> lines, int frames) {
+        int marginMcPx = 10;
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        List<PixelBuffer> drawn = new ArrayList<>();
+        for (int frame = 0; frame < frames; frame++) {
+            PixelBuffer canvas = PixelBuffer.create(400, 120);
+            MinecraftGraphics g = new MinecraftGraphics(canvas);
+            for (int i = 0; i < lines.size(); i++)
+                TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, 0xFFFFFFFF, i, frame);
+            drawn.add(canvas);
+        }
+        return drawn;
+    }
+
+    /**
+     * Counts the pixels two buffers of one size disagree about.
+     *
+     * @param a the first buffer
+     * @param b the second buffer
+     * @return how many pixels differ
+     */
+    private static int differing(PixelBuffer a, PixelBuffer b) {
+        int count = 0;
+        for (int y = 0; y < a.height(); y++)
+            for (int x = 0; x < a.width(); x++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) count++;
+        return count;
     }
 
     /**

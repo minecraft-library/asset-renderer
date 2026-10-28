@@ -650,7 +650,7 @@ public final class TooltipParitySweep {
 
         LayerStack<ImageLayer> stack = new LayerStack<>();
         chrome.contribute(stack, box, sprites, options);
-        PixelBuffer buffer = PixelBuffer.create(box.width() * scale, box.height() * scale);
+        PixelBuffer buffer = PixelBuffer.create(Math.round(box.width() * scale), Math.round(box.height() * scale));
         Layers.foldInto(stack, options.getLayerDecorator(), buffer);
         return buffer;
     }

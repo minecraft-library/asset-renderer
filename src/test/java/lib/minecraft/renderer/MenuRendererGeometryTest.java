@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.awt.Rectangle;
 import java.util.List;
 import java.util.Optional;
 
@@ -235,6 +237,55 @@ class MenuRendererGeometryTest {
         }
 
         assertThat("a title drew something", differing, is(greaterThan(0)));
+    }
+
+    @Test
+    @DisplayName("two obfuscated labels of one frame draw two scrambles")
+    void twoLabelsOfAFrameScrambleApart() {
+        MenuOptions options = chest(3, true).mutate().title("§kHello").inventoryTitle("§kHello").build();
+        MenuLayout layout = MenuRenderer.layoutOf(options);
+        ImageData labels = MenuRenderer.labelLayer(options, layout).orElseThrow();
+
+        // The label layer holds the two labels alone, the title above the player's; a row midway
+        // between their anchors parts them, and each is taken from its own first-ink corner.
+        int parting = (anchorOf(layout, options.getTitle()).y() + layout.inventoryAnchor().orElseThrow().y()) / 2 * SCALE;
+        ConcurrentList<Integer> alike = Concurrent.newList();
+        for (int f = 0; f < labels.getFrames().size(); f++) {
+            PixelBuffer frame = labels.getFrames().get(f).pixels();
+            PixelBuffer title = inkOf(frame.crop(0, 0, frame.width(), parting));
+            PixelBuffer player = inkOf(frame.crop(0, parting, frame.width(), frame.height() - parting));
+            if (samePixels(title, player)) alike.add(f);
+        }
+
+        assertThat("the obfuscated labels animate", labels.getFrames().size(), is(greaterThan(1)));
+        assertThat("frames whose two labels draw one scramble", alike, is(empty()));
+    }
+
+    /**
+     * Cuts a buffer to the first pixel it inks on every side.
+     *
+     * @param buffer the buffer holding one label
+     * @return the label's ink
+     */
+    private static PixelBuffer inkOf(PixelBuffer buffer) {
+        Rectangle ink = buffer.opaqueBounds();
+        assertThat("a label drew something", ink.isEmpty(), is(false));
+        return buffer.crop(ink.x, ink.y, ink.width, ink.height);
+    }
+
+    /**
+     * Answers whether two buffers are one size and hold the same pixels.
+     *
+     * @param a the first buffer
+     * @param b the second buffer
+     * @return whether they hold the same pixels
+     */
+    private static boolean samePixels(PixelBuffer a, PixelBuffer b) {
+        if (a.width() != b.width() || a.height() != b.height()) return false;
+        for (int y = 0; y < a.height(); y++)
+            for (int x = 0; x < a.width(); x++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) return false;
+        return true;
     }
 
     /** Where a title of the given text starts, measured the way the renderer measures it. */
