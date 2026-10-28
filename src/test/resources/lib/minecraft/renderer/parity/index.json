@@ -53,9 +53,14 @@
       "sha256": "0fc8b77ece6f222d03f053ae0b376ea36312cbe6021b6e0d9954b8774d00940a"
     },
     "manifest.pack-tooltips": {
-      "baselined": false,
+      "baselined": true,
       "determinism_floor": 2,
-      "kind": "manifest"
+      "entries": 44,
+      "file": "manifests/pack-tooltips.json",
+      "kind": "manifest",
+      "last_duration_ms": 21401,
+      "promoted_at": "ddf3c278a76c6069362f668c9e36a48f6876a417",
+      "sha256": "0bdba9fe9f55b8493e4887a7c48ab52be8ec83b2fe7994ba94a4b769f4c285e9"
     },
     "manifest.player-raw": {
       "baselined": true,

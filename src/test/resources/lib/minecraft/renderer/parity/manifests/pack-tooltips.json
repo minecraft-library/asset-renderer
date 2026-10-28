@@ -1,0 +1,217 @@
+{
+  "//": "parity.manifest.pack-tooltips · regen: ./gradlew parityCapture -Partifacts=manifest.pack-tooltips",
+  "artifact": "manifest.pack-tooltips",
+  "files": [
+    {
+      "path": "hypixel-skyblock/five_lines.png",
+      "sha256": "c00e617ef9b52710b18877271cd5f1b95503940a29f7e81543430afe780a2612"
+    },
+    {
+      "path": "hypixel-skyblock/five_lines_chrome.png",
+      "sha256": "e838b1fa49d414a953399af0ee8d6db43bfe0f42df41829887c4b254c7134f16"
+    },
+    {
+      "path": "hypixel-skyblock/five_lines_chrome~style=hypixel_skyblock__ultimate.png",
+      "sha256": "67f2e1ee29f2b33029fadc7469e5b8efc7d02d3c93fdb8b81e2c54829d4e44f0"
+    },
+    {
+      "path": "hypixel-skyblock/five_lines~style=hypixel_skyblock__ultimate.png",
+      "sha256": "de6aee538a8d3b376109f3d1aefd777a57643da59a9337d2b35d6d4afa52f49a"
+    },
+    {
+      "path": "hypixel-skyblock/item_like.png",
+      "sha256": "0de8819c57163c9651b2b0671515b0aa73c548dbdb99aa0a832525451390f83e"
+    },
+    {
+      "path": "hypixel-skyblock/item_like_chrome.png",
+      "sha256": "4bec53a3529bf4f8fd7b22d30f8bc46454dc1e7fb5c00b7136712936815fab4b"
+    },
+    {
+      "path": "hypixel-skyblock/legacy_colours.png",
+      "sha256": "60b14f35d532c0a273227ec0878edf8feed0c2dbafefde8139b538f1db5f70c0"
+    },
+    {
+      "path": "hypixel-skyblock/legacy_colours_chrome.png",
+      "sha256": "0f1bf4ca4aeb81e4c6eeba6c94adb238ea3aac4472eeccfa2ed68ba6655d6795"
+    },
+    {
+      "path": "hypixel-skyblock/long_line.png",
+      "sha256": "aea83cfa251069839a91fcb9754bee2457951cdf68862bab42bdc08b3a4d8931"
+    },
+    {
+      "path": "hypixel-skyblock/long_line_chrome.png",
+      "sha256": "e2345d979d626ecb0fcd99aa1a8cc986fd31fd4904e37d9e2e685a4d9c257f7a"
+    },
+    {
+      "path": "hypixel-skyblock/mixed_segments.png",
+      "sha256": "9835e8b514723d945bcb3d1b02e09b36a4d1dcc5a58125d7acf97b7fbe01411d"
+    },
+    {
+      "path": "hypixel-skyblock/mixed_segments_chrome.png",
+      "sha256": "4ce9fe7dc70a594ba73b47aee4c4859cf60380b833647af024d75a2739e90c3e"
+    },
+    {
+      "path": "hypixel-skyblock/narrow.png",
+      "sha256": "b2e401bbb346833b41cc1dd8f36151c35de4277f2c336a7d58f55322396d2b12"
+    },
+    {
+      "path": "hypixel-skyblock/narrow_chrome.png",
+      "sha256": "40436204e062946a3393042999dcb46381f6db1bd471b5450b6964867f9c080a"
+    },
+    {
+      "path": "hypixel-skyblock/narrow_chrome~style=hypixel_skyblock__legendary.png",
+      "sha256": "b26796d612b0153872609fdbcc9a0b22a60cb5684a825ae3c9331911fa195210"
+    },
+    {
+      "path": "hypixel-skyblock/narrow~style=hypixel_skyblock__legendary.png",
+      "sha256": "2a0acedba53528ac1e438fe85e0d689ce3d24b62566f16f3a738d4ca0d5072eb"
+    },
+    {
+      "path": "hypixel-skyblock/one_line.png",
+      "sha256": "9eea3c4c0f71c81dd5f17f8395862d887404429cf448c85502a4b884d148e620"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome.png",
+      "sha256": "5199c54f7c7dd23fadb2cc3735f147da1cdf2080235d56a0e94dc4723ad3d4fd"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__admin.png",
+      "sha256": "0593a62a28aadccbc1fbfd8c427f70e3904182c224f54d13e3aaf3a5b3681d3e"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__common.png",
+      "sha256": "9f93b49089f5bc3cc7df1f2ad06d5c6f7380765fc40ceb9d3ff7f1ac622db7e1"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__epic.png",
+      "sha256": "19d672dc647d6e7c8dc04697c105be983a5a30967d9dbc2a2f163733a3ad31c2"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__legendary.png",
+      "sha256": "d53f3fe6eb30c31ddf4ad9a3dcc78710c8c511745a0ee9c244c1db9e1b8dfe4d"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__mythic.png",
+      "sha256": "1395a5cdd9b1b36783bc65d5d1cbb9d9cac921600f19092ca27afb27e54f26d1"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__rare.png",
+      "sha256": "32d34ddcb14bb0d34f37b9dfb9715f64717ee59f43b5f7d3185c78c1ac84e301"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__special.png",
+      "sha256": "3e58c795be285d3698eba19830a95ddf7a822f127b645de34e470fd7a3bb4dda"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__supreme.png",
+      "sha256": "7a47b898cd05a1821da925862f989c1af948aad963d89dfbb6763d6965c2d1e6"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__ultimate.png",
+      "sha256": "06d8943d89fc25a81144600c1903b01c04a01164168029e342966ba6a9001498"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__uncommon.png",
+      "sha256": "9474ed17fa81cd0ca88fca385b89900562475a8a8fc089d999399ed05b55b01c"
+    },
+    {
+      "path": "hypixel-skyblock/one_line_chrome~style=hypixel_skyblock__very_special.png",
+      "sha256": "06d8943d89fc25a81144600c1903b01c04a01164168029e342966ba6a9001498"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__admin.png",
+      "sha256": "a00e84fb9515a1ed4abefd9503ac86c30c737ce718d9a5ad0ca3b7d3c8e30d2a"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__common.png",
+      "sha256": "c0dd38f961de49fca0664f100550f857aaefbc11fdafa4bccf7541dd7aaa75f7"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__epic.png",
+      "sha256": "f854408cc7393e970dcefb384e752bd971a217c75bb9e5a15ec71b15e4cb778a"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__legendary.png",
+      "sha256": "7090c7b45e82b2be24585f25428f311cfea6470a312b3815bee3645877ca1b49"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__mythic.png",
+      "sha256": "21239321bf9a7f6525bac54ac2f68f7fb8f2d6fab74a0321c4b71c6a454be82f"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__rare.png",
+      "sha256": "e325747bc4a7aefb77a92695abeeed02ea14c872ea88db3e059d1b52be6c5c8e"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__special.png",
+      "sha256": "d5acc21a252b1f8da7b5aa5e2f69687ffa79ed020d3f65a37d0040d85a0d945c"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__supreme.png",
+      "sha256": "b6e0ca4998212558f272ab43428f6947c01e8d511a9ddfbac76b5b92b27eb1df"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__ultimate.png",
+      "sha256": "d6ebbeb08a1650065673c30d70b250706cc85de1681fc8c16574b79924fa6929"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__uncommon.png",
+      "sha256": "54a7629c5f27aef8bf2cf6aea337b3fe58b6e7977211e4c23f39fc03ba7cbf91"
+    },
+    {
+      "path": "hypixel-skyblock/one_line~style=hypixel_skyblock__very_special.png",
+      "sha256": "d6ebbeb08a1650065673c30d70b250706cc85de1681fc8c16574b79924fa6929"
+    },
+    {
+      "path": "hypixel-skyblock/two_lines.png",
+      "sha256": "9ba6792b91d6056a2c96ac50bad934ad5cc41f68d109e8543b1d4655d6ec1a48"
+    },
+    {
+      "path": "hypixel-skyblock/two_lines_chrome.png",
+      "sha256": "973b1792aa0982fecd4be4d2e534f2bd14bac3c401cd47a112846a3385308efa"
+    },
+    {
+      "path": "hypixel-skyblock/two_lines_chrome~style=hypixel_skyblock__ultimate.png",
+      "sha256": "44b363426006c2784e6aa5df5e47e8e8c3fba62d34e8783190eb016a3e72b7d7"
+    },
+    {
+      "path": "hypixel-skyblock/two_lines~style=hypixel_skyblock__ultimate.png",
+      "sha256": "20ede2234437f227bfc5e159b86cf5d3d1f784fe22259cdebc07ae434c0f418b"
+    }
+  ],
+  "format": 1,
+  "key": "path",
+  "kind": "manifest",
+  "provenance": {
+    "artifact": "manifest.pack-tooltips",
+    "asset_content_digest": "9967bcebdf94e44b655afdbeda1f783696bc523ebca8a11aa080ca05e3e4f1e5",
+    "asset_dirty": true,
+    "asset_sha": "ddf3c278a76c6069362f668c9e36a48f6876a417",
+    "counts": {
+      "files": 44
+    },
+    "determinism_runs": 2,
+    "flags": {},
+    "mc_version": "26.1.2",
+    "mode": "PACK_TOOLTIPS",
+    "parity_class": "shaped",
+    "producer": "renderVanillaPackTooltipsHypixelSkyblock",
+    "reason": "The client's tooltip drawings under hypixel-skyblock: the tooltip roster's section for that pack, each subject whole and as its box alone, drawn beside the reference tree by the pack-tooltip run over the pack fixture - 44 files. Two boots into two roots agreed on every file, as five boots had before. The handshake beside them is no member: it carries the pack folder's absolute path and the harness's module list, and the sweep's resolution check holds it.",
+    "reference_counts": {
+      "armor": 7,
+      "blocks": 1096,
+      "entities": 406,
+      "glint": 330,
+      "idle": 2547,
+      "items": 479,
+      "menus": 10,
+      "players": 2,
+      "tooltips": 28,
+      "walk": 4896
+    },
+    "root": "cache/asset-renderer/vanilla/26.1/pack-tooltips",
+    "timestamp": "2026-10-28T04:29:35Z",
+    "tool_version": "1.0.0",
+    "wall_time_ms": 21401
+  }
+}

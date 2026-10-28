@@ -46,7 +46,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 28 | 3821 ms | yes |
 | `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | - | - | - | **no** |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9804 | 126121 ms | yes |
-| `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | - | - | - | **no** |
+| `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 21401 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 211 | 36334 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 8238 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 6150 ms | yes |
