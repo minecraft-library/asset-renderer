@@ -75,8 +75,9 @@ stack.
   every screen and tooltip paints, are no text vertex.
 - **Gradients swap per colour laid down.** A per-letter gradient swaps each letter's colour and its
   shadow's; a per-pixel one swaps each band's colour and its shadow's, the shadow darkened from the
-  unswapped band. A gradient has no client twin, so this is the reading that agrees with the client
-  wherever one exists.
+  unswapped band. A shadow colour a gradient run names is swapped as a solid run's is, being that
+  pass's vertex colour. A gradient has no client twin, so this is the reading that agrees with the
+  client wherever one exists.
 
 ## Decisions that stay closed
 

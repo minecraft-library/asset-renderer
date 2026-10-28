@@ -58,7 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * exactly where it lays down none - spaces and empty segments included. It holds in an opaque colour,
  * in the faintest colour the client's text shader keeps, and in one it discards, where a solid run
  * lays nothing, and for a run naming its own shadow colour - opaque, see-through, one the shader
- * discards and none - which draws its shadow where the derived one is declined.
+ * discards and none - which draws its shadow where the derived one is declined, a gradient run on
+ * either path among them, drawn opaque whatever the line colour.
  * <p>
  * It pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the colour
  * the palette swaps them for, a gradient run through the line's own palette, the shadow derived from
@@ -70,7 +71,9 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * a see-through line colour's and floored, so a product at the text shader's cut lays nothing; and a
  * run naming a colour draws it in the line colour's alpha, its derived shadow with it. A run whose
  * shadow is none - naming no shadow colour with the derived shadow declined, or naming {@code 0} - is
- * handed to the graphics once, with no shadow pass, as the client emits no shadow quad for it.
+ * handed to the graphics once, with no shadow pass, as the client emits no shadow quad for it. The
+ * gate holds on either gradient path too: a per-letter run is handed over once a pass, and a banded
+ * run, which tints its own pixels, is handed over only for a shadow pass in a colour it names.
  * <p>
  * Last, it pins a see-through run's bars laid as the client lays them, blended over the canvas in the
  * colour's alpha rather than overwriting it, and laid not at all in a colour the text shader discards.
@@ -346,6 +349,15 @@ class TextKitTest {
         corpus.put("a see-through shadow colour", line(shadowed("Shadowed", 0x80FF0000)));
         corpus.put("a shadow colour the shader discards", line(shadowed("Shadowed", 0x19FF0000)));
         corpus.put("a shadow colour of none", line(shadowed("Shadowed", 0)));
+        // A gradient run is drawn opaque whatever the line colour, so a shadow colour it names is drawn
+        // as given: laid at 80, discarded at 19, none at 0, and drawn where the derived shadow is
+        // declined. One path a row, so a shadow missing on one is not hidden under the other's.
+        for (int shadowArgb : new int[] { 0xFF0000FF, 0x80FF0000, 0x19FF0000, 0 }) {
+            corpus.put(String.format("a per-letter gradient naming shadow colour %08X", shadowArgb),
+                line(shadowed(gradient("Gradient", perLetter).strikethrough(true).underlined(true), shadowArgb)));
+            corpus.put(String.format("a banded gradient naming shadow colour %08X", shadowArgb),
+                line(shadowed(gradient("Gradient", banded).strikethrough(true).underlined(true), shadowArgb)));
+        }
 
         // Opaque; the faintest alpha the client's text shader keeps, 26 of 255; and the strongest it
         // discards, 25. A solid run in the last lays nothing, its shadow keeping the alpha too.
@@ -457,16 +469,32 @@ class TextKitTest {
     }
 
     @Test
-    @DisplayName("a run whose shadow is none is drawn without a shadow pass, and one naming a shadow colour with one where the derived shadow is declined")
+    @DisplayName("a run whose shadow is none is drawn without a shadow pass, and one naming a shadow colour with one where the derived shadow is declined, on either gradient path too")
     void aRunWhoseShadowIsNoneDrawsNoShadowPass() {
+        GradientSpec perLetter = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xFFFFFF).addStop(0xFFFFFF).build();
+        GradientSpec banded = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xFFFFFF).addStop(0xFFFFFF).bandPx(1).build();
+
         // A pass at alpha 0 lays no pixel, so the passes are counted where the graphics is handed them.
+        // A banded run tints its own pixels, so only a shadow pass in a colour it names reaches it.
         assertAll(
             () -> assertThat("a run naming no shadow colour, the derived shadow declined, draws its main pass alone",
                 passes(TextSegment.literal("!"), false), is(1)),
             () -> assertThat("a run naming a shadow colour, the derived shadow declined, draws a shadow pass and its main pass",
                 passes(shadowed("!", 0x80FF0000), false), is(2)),
             () -> assertThat("a run naming a shadow colour of 0, the derived shadow asked for, draws its main pass alone",
-                passes(shadowed("!", 0), true), is(1))
+                passes(shadowed("!", 0), true), is(1)),
+            () -> assertThat("a per-letter gradient run naming no shadow colour, the derived shadow declined, draws its main pass alone",
+                passes(gradient("!", perLetter).build(), false), is(1)),
+            () -> assertThat("a per-letter gradient run naming a shadow colour, the derived shadow declined, draws a shadow pass and its main pass",
+                passes(shadowed(gradient("!", perLetter), 0x80FF0000), false), is(2)),
+            () -> assertThat("a per-letter gradient run naming a shadow colour of 0, the derived shadow asked for, draws its main pass alone",
+                passes(shadowed(gradient("!", perLetter), 0), true), is(1)),
+            () -> assertThat("a banded gradient run naming no shadow colour, the derived shadow asked for, hands the graphics neither of its own passes",
+                passes(gradient("!", banded).build(), true), is(0)),
+            () -> assertThat("a banded gradient run naming a shadow colour, the derived shadow declined, hands the graphics its shadow pass",
+                passes(shadowed(gradient("!", banded), 0x80FF0000), false), is(1)),
+            () -> assertThat("a banded gradient run naming a shadow colour of 0, the derived shadow asked for, draws no shadow pass",
+                passes(shadowed(gradient("!", banded), 0), true), is(0))
         );
     }
 
@@ -600,7 +628,31 @@ class TextKitTest {
      * @return the run
      */
     private static TextSegment shadowed(String text, int argb) {
-        return TextSegment.builder().text(text).shadowColor(ChatColor.builder().color(new Color(argb, true)).build()).build();
+        return shadowed(TextSegment.builder().text(text), argb);
+    }
+
+    /**
+     * Finishes a run naming its own shadow colour, as the text library reads a component's
+     * {@code shadow_color}.
+     *
+     * @param run the run's builder
+     * @param argb the shadow colour as packed ARGB, its alpha included
+     * @return the run
+     */
+    private static TextSegment shadowed(TextSegment.Builder run, int argb) {
+        return run.shadowColor(ChatColor.builder().color(new Color(argb, true)).build()).build();
+    }
+
+    /**
+     * Starts a run carrying a gradient, which names its own shadow colour through
+     * {@link #shadowed(TextSegment.Builder, int)} or names none when built as it is.
+     *
+     * @param text the run's text
+     * @param spec the gradient the run is drawn in
+     * @return the run's builder
+     */
+    private static TextSegment.Builder gradient(String text, GradientSpec spec) {
+        return TextSegment.builder().text(text).gradient(spec);
     }
 
     /**

@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -15,8 +16,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 
+import java.awt.Color;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,11 +30,15 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
  * Coverage of {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode
  * position handling), the scroll phase / shear math, the segment's advance and its fractional origin,
- * the bars and bands over a run ending on half an mcPixel, and the per-letter advance-center draw.
+ * the bars and bands over a run ending on half an mcPixel on either path, and the per-letter
+ * advance-center draw. A run naming its own shadow colour draws its shadow and its bars' shadow in it
+ * on either path, where the derived shadow is declined too, and none for {@code 0} or for a colour the
+ * text shader discards.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class GradientKitTest {
@@ -232,30 +241,42 @@ class GradientKitTest {
     }
 
     @Test
-    @DisplayName("a per-letter underline spans the whole advance of a letter ending on a half pixel")
+    @DisplayName("a gradient underline spans the whole advance of a letter ending on a half pixel, per letter and per pixel")
     void perLetterBarSpansAHalfPixelLetter() {
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         assertThat("'✦' ends on half an mcPixel", font.metrics().stringAdvanceMcPixels("✦") % 1f, is(0.5f));
         GradientSpec spec = startEnd(0x000000, 0xFFFFFF);
-        TextSegment segment = TextSegment.builder().text("✦").underlined(true).gradient(spec).build();
+        // A flat gradient makes a banded bar one colour, so its columns can be found as a letter's are.
+        GradientSpec flat = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xAAAAAA).addStop(0xAAAAAA).bandPx(1).build();
         int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int row = 16 * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
+        int opens = DRAW_COLUMN_MC_PX * scale;
+        int closes = opens + font.glyph('✦').advanceWidth() - 1;
 
+        // A lone letter samples the gradient's middle; the shadow's bar sits an mcPixel lower and darker.
+        int[] perLetter = litColumns(underlinedStar(spec), row, 0xFF000000 | GradientKit.sample(spec, 0.5f));
+        int[] perPixel = litColumns(underlinedStar(flat), row, 0xFFAAAAAA);
+
+        assertAll(
+            () -> assertThat("per letter, the bar opens at the letter's origin", perLetter[0], is(opens)),
+            () -> assertThat("per letter, the bar closes on its advance's last pixel", perLetter[1], is(closes)),
+            () -> assertThat("per pixel, the bar opens at the letter's origin", perPixel[0], is(opens)),
+            () -> assertThat("per pixel, the bar closes on its advance's last pixel", perPixel[1], is(closes))
+        );
+    }
+
+    /**
+     * Draws an underlined {@code ✦} carrying a gradient, with its shadow, over an opaque black buffer.
+     *
+     * @param spec the gradient the letter is drawn in
+     * @return the buffer drawn on
+     */
+    private static PixelBuffer underlinedStar(GradientSpec spec) {
+        TextSegment segment = TextSegment.builder().text("✦").underlined(true).gradient(spec).build();
         PixelBuffer buffer = PixelBuffer.create(48, 40);
         buffer.fill(0xFF000000);
         GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
-
-        // A lone letter samples the gradient's middle; the shadow's bar sits an mcPixel lower and darker.
-        int row = 16 * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
-        int bar = 0xFF000000 | GradientKit.sample(spec, 0.5f);
-        int first = -1, last = -1;
-        for (int x = 0; x < buffer.width(); x++)
-            if (buffer.getPixel(x, row) == bar) {
-                if (first < 0) first = x;
-                last = x;
-            }
-
-        assertThat("the bar opens at the letter's origin", first, is(DRAW_COLUMN_MC_PX * scale));
-        assertThat("and closes on its advance's last pixel", last, is(DRAW_COLUMN_MC_PX * scale + font.glyph('✦').advanceWidth() - 1));
+        return buffer;
     }
 
     @Test
@@ -346,6 +367,38 @@ class GradientKitTest {
             drawnColours(perPixel, palette(Map.of(0xAAAAAA, 0x123456))), is(Set.of(0xFF123456, 0xFF2A2A2A)));
     }
 
+    @Test
+    @DisplayName("a gradient run draws a shadow colour it names on either path - where the derived shadow is declined, "
+        + "nothing for 0 or for a colour the text shader discards - and its bars' shadow in it too")
+    void aShadowColourIsDrawnOnEitherPath() {
+        // The sprite tooltip's fill as its canvas holds it, premultiplied. The client's translucent
+        // blend lays 80FF0000 over it as F8870007.
+        int fill = 0xF00F000F;
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int shadowRow = (16 + TextKit.UNDERLINE_OFFSET_MCPX + TextKit.SHADOW_OFFSET_MCPX) * scale;
+        int shadowOpens = (DRAW_COLUMN_MC_PX + TextKit.SHADOW_OFFSET_MCPX) * scale;
+        int shadowCloses = shadowOpens + MinecraftFont.Vanilla.REGULAR.glyph('!').advanceWidth() - 1;
+
+        List<Executable> cases = new ArrayList<>();
+        for (int bandPx : new int[] { GradientSpec.PER_LETTER, 1 }) {
+            String path = bandPx == GradientSpec.PER_LETTER ? "per letter" : "per pixel";
+            GradientSpec white = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xFFFFFF).addStop(0xFFFFFF).bandPx(bandPx).build();
+            cases.add(() -> assertThat(path + ", a see-through shadow colour is drawn where the derived shadow is declined, 80FF0000 over the fill",
+                colours(drawnOver(fill, shadowed(gradient(white), 0x80FF0000), false)), is(Set.of(fill, 0xFFFFFFFF, 0xF8870007))));
+            cases.add(() -> assertThat(path + ", an opaque shadow colour is drawn in place of the derived shadow",
+                colours(drawnOver(fill, shadowed(gradient(white), 0xFF0000FF), true)), is(Set.of(fill, 0xFFFFFFFF, 0xFF0000FF))));
+            cases.add(() -> assertThat(path + ", a shadow colour at alpha 25 lays nothing, as the text shader discards it",
+                colours(drawnOver(fill, shadowed(gradient(white), 0x19FF0000), true)), is(Set.of(fill, 0xFFFFFFFF))));
+            cases.add(() -> assertThat(path + ", a shadow colour of 0 draws no shadow",
+                colours(drawnOver(fill, shadowed(gradient(white), 0), true)), is(Set.of(fill, 0xFFFFFFFF))));
+            cases.add(() -> assertThat(path + ", the underline's shadow is drawn in the shadow colour, under the whole of the letter's advance",
+                litColumns(drawnOver(fill, shadowed(gradient(white).underlined(true), 0x80FF0000), false), shadowRow, 0xF8870007),
+                is(new int[] { shadowOpens, shadowCloses })));
+        }
+
+        assertAll(cases);
+    }
+
     /**
      * Builds a palette holding the given swaps.
      *
@@ -375,6 +428,78 @@ class GradientKitTest {
                 if ((buffer.getPixel(x, y) >>> 24) != 0) colours.add(buffer.getPixel(x, y));
 
         return colours;
+    }
+
+    /**
+     * Starts a run of {@code !} carrying a gradient. A {@code !} is one Minecraft pixel wide, so its
+     * shadow, one Minecraft pixel right, never lands under its glyph, and each pass lays one colour.
+     *
+     * @param spec the gradient the run is drawn in
+     * @return the run's builder
+     */
+    private static TextSegment.Builder gradient(GradientSpec spec) {
+        return TextSegment.builder().text("!").gradient(spec);
+    }
+
+    /**
+     * Finishes a run naming its own shadow colour, as the text library reads a component's
+     * {@code shadow_color}.
+     *
+     * @param run the run's builder
+     * @param argb the shadow colour as packed ARGB, its alpha included
+     * @return the run
+     */
+    private static TextSegment shadowed(TextSegment.Builder run, int argb) {
+        return run.shadowColor(ChatColor.builder().color(new Color(argb, true)).build()).build();
+    }
+
+    /**
+     * Draws a run carrying a gradient over a filled buffer.
+     *
+     * @param fill the colour the buffer is filled with
+     * @param segment the run
+     * @param dropShadow whether the shadow a run derives from its colour is asked for
+     * @return the buffer drawn on
+     */
+    private static PixelBuffer drawnOver(int fill, TextSegment segment, boolean dropShadow) {
+        PixelBuffer buffer = PixelBuffer.create(40, 40);
+        buffer.fill(fill);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, segment.getGradient().orElseThrow(), segment.getText(),
+            DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, dropShadow);
+        return buffer;
+    }
+
+    /**
+     * Collects every colour a buffer holds.
+     *
+     * @param buffer the buffer
+     * @return each distinct colour it holds
+     */
+    private static Set<Integer> colours(PixelBuffer buffer) {
+        Set<Integer> colours = new HashSet<>();
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
+                colours.add(buffer.getPixel(x, y));
+
+        return colours;
+    }
+
+    /**
+     * Finds the first and last column of a row holding exactly one colour.
+     *
+     * @param buffer the buffer to read
+     * @param row the row to read
+     * @param argb the colour to find
+     * @return the first and last column holding it, {@code -1} for both where none does
+     */
+    private static int[] litColumns(PixelBuffer buffer, int row, int argb) {
+        int first = -1, last = -1;
+        for (int x = 0; x < buffer.width(); x++)
+            if (buffer.getPixel(x, row) == argb) {
+                if (first < 0) first = x;
+                last = x;
+            }
+        return new int[] { first, last };
     }
 
     private static int maxRed(PixelBuffer buffer, int x0, int x1) {

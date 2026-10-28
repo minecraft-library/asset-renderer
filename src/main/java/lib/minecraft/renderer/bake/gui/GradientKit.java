@@ -19,6 +19,7 @@ import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Static gradient-text rendering utilities - the compose-side realization of {@link GradientSpec}.
@@ -32,12 +33,23 @@ import java.util.Optional;
  * and {@code NORMAL}-blended, exactly as {@code MinecraftGraphics.blitGlyph} does for a solid tint -
  * so a degenerate single-color gradient matches the solid path pixel for pixel.
  * <p>
- * Positions are in mcPixels, a segment's origin fractional where it follows another. The
- * per-letter path draws each letter through the graphics in its own color, so the graphics
- * converts to output pixels where it blits. The per-pixel path tints each glyph pixel itself,
- * converting its mcPixel origin once where it writes, since its bands are output pixels. The
- * decoration bars and the per-pixel path write the target directly, assuming a zero graphics
- * translate (tooltip and menu buffers are drawn at their origin).
+ * Positions and the strikethrough and underline bars are in mcPixels, a segment's origin fractional
+ * where it follows another. The per-letter path draws each letter and its bars through the graphics
+ * in the letter's own colour ({@link MinecraftGraphics#drawString(String, float, float)},
+ * {@link MinecraftGraphics#fillEffect(float, float, float, float)}), so the graphics converts to
+ * output pixels where it lays them. The per-pixel path changes colour inside a letter, which the text
+ * library has no draw for, so it tints each glyph and bar pixel itself, converting where it writes as
+ * the graphics converts - each glyph at its origin plus its pen rounded once, each bar edge rounded
+ * once - its bands being output pixels as {@link GradientSpec#bandPx()} defines them. Those writes go
+ * to the target at a zero graphics translate (tooltip and menu buffers are drawn at their origin).
+ * <p>
+ * A run's shadow is derived as the client's font derives a glyph's, from the colour the letter is
+ * drawn in ({@link TextKit#shadowColor(TextSegment, int, boolean)}). Where the segment names its own
+ * shadow colour, that one colour is drawn over the run, laid through the graphics on either path so
+ * its alpha and the text shader's cut hold, drawn whether or not the caller asks for a shadow and not
+ * drawn for a shadow colour of {@code 0}; otherwise the shadow is each letter's or band's colour at a
+ * quarter, drawn where the caller asks for one. Every letter and band is drawn opaque: a gradient
+ * names red, green and blue alone, and the colour a line is drawn in reaches no gradient pixel.
  * <p>
  * Each colour a segment lays down - a letter's or a band's, its shadow's and its bars' - is swapped
  * through the caller's {@link TextPalette} after the shadow is derived from the unswapped colour, as
@@ -48,11 +60,6 @@ import java.util.Optional;
  */
 @UtilityClass
 public class GradientKit {
-
-    /**
-     * Per-channel low-bit-clear + right-shift-2 vanilla shadow formula {@code (rgb & 0xFCFCFC) >> 2}.
-     */
-    private static final int SHADOW_RGB_MASK = 0xFCFCFC;
 
     // --- entry ---
 
@@ -84,8 +91,9 @@ public class GradientKit {
     }
 
     /**
-     * Draws a gradient segment with the drop shadow declinable, so a gradient title declines one
-     * where a plain title does rather than keeping a shadow the caller asked to be rid of.
+     * Draws a gradient segment with the shadow a run derives from its colour declinable, so a gradient
+     * title declines one where a plain title does; a segment naming its own shadow colour draws it
+     * regardless, as the client's font does.
      *
      * @param g the graphics whose target buffer receives the glyphs
      * @param segment the styled segment (supplies font style + decorations + italic)
@@ -95,7 +103,8 @@ public class GradientKit {
      * @param yMcPx the baseline Y in mcPixels
      * @param palette the colours a pack's text shader draws in place of the ones the segment lays down
      * @param tick the absolute animation tick driving scroll phase
-     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @param dropShadow whether the shadow a run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      * @return the advance width in mcPixels, its fraction kept
      */
     static float drawSegment(
@@ -115,7 +124,7 @@ public class GradientKit {
         if (spec.bandPx() == GradientSpec.PER_LETTER)
             drawPerLetter(g, segment, spec, font, text, widthMcPx, xMcPx, yMcPx, palette, tick, dropShadow);
         else
-            drawPerPixel(g.target(), segment, spec, font, text, widthMcPx, xMcPx, yMcPx, palette, tick, dropShadow);
+            drawPerPixel(g, segment, spec, font, text, widthMcPx, xMcPx, yMcPx, palette, tick, dropShadow);
         return widthMcPx;
     }
 
@@ -126,14 +135,17 @@ public class GradientKit {
      * the draw skips; otherwise the pixels the text library answers the run's glyphs draw
      * ({@link MinecraftGlyphVector#getVisualBounds()}), since both paths place a glyph where
      * {@link MinecraftGraphics#drawString(String, float, float)} does, with the bars over the run's
-     * width, each again at the shadow's offset when the shadow is drawn. Neither the colour nor the
-     * scroll moves a pixel's place, so the tick does not enter.
+     * width, each again at the shadow's offset where the shadow pass lays - a shadow colour the
+     * segment names, above the text shader's cut, or the run's derived shadow where the caller asks for
+     * one. The run is read from the output pixel its origin rounds to, as {@link TextKit} reads a solid
+     * run. Neither the colour nor the scroll moves a pixel's place, so the tick does not enter.
      *
      * @param segment the styled segment (supplies font style + decorations)
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
-     * @param dropShadow whether the offset shadow pass is drawn
+     * @param dropShadow whether the shadow a run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      * @return the bounds of what the segment draws in mcPixels, empty where it draws nothing
      */
     static @NotNull Optional<Rectangle2D> inkBounds(
@@ -146,15 +158,17 @@ public class GradientKit {
         float widthMcPx = font.metrics().stringAdvanceMcPixels(text);
         if (widthMcPx <= 0) return Optional.empty();
 
+        // Every letter and band is laid opaque, so the derivation answers one alpha for the whole run.
+        boolean shadow = ColorMath.alpha(TextKit.shadowColor(segment, ColorMath.WHITE, dropShadow)) > MinecraftGraphics.DISCARD_ALPHA;
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int xOut = Math.round(xMcPx * scale);
         int baselineOut = Math.round(yMcPx * scale);
         List<Rectangle2D> drawn = new ArrayList<>();
         Rectangle glyphs = font.layout(text).getVisualBounds().getBounds();
         glyphs.translate(xOut, baselineOut);
-        TextKit.addInk(drawn, glyphs, dropShadow);
-        for (Rectangle bar : bars(segment, xOut, baselineOut, Math.round(widthMcPx * scale)))
-            TextKit.addInk(drawn, bar, dropShadow);
+        TextKit.addInk(drawn, TextKit.mcPixels(glyphs), true, shadow);
+        for (Rectangle2D.Float bar : bars(segment, xOut / (float) scale, baselineOut / (float) scale, widthMcPx))
+            TextKit.addInk(drawn, bar, true, shadow);
         return drawn.stream().reduce(Rectangle2D::createUnion);
     }
 
@@ -163,7 +177,23 @@ public class GradientKit {
     /**
      * Per-letter path: each glyph samples ONE color at its advance-span center; two-phase (all
      * shadows, then all mains) so adjacent glyph bitmaps overlap as in the solid path.
-     * Decorations follow the gradient, colored per glyph.
+     * Decorations follow the gradient, colored per glyph. Each letter's shadow is derived from its
+     * colour as {@link TextKit#shadowColor(TextSegment, int, boolean)} derives a glyph's - the
+     * segment's own shadow colour where it names one.
+     *
+     * @param g the graphics the letters and their bars are laid through
+     * @param segment the styled segment, supplying which bars each letter carries and any shadow colour
+     * it names
+     * @param spec the gradient spec
+     * @param font the segment's font
+     * @param text the segment text after obfuscation substitution
+     * @param widthMcPx the run's width in mcPixels
+     * @param xMcPx the run's origin X in mcPixels
+     * @param yMcPx the run's baseline Y in mcPixels
+     * @param palette the colours a pack's text shader draws in place of the ones the run lays down
+     * @param tick the absolute animation tick driving scroll phase
+     * @param dropShadow whether the shadow a run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      */
     private static void drawPerLetter(
         @NotNull MinecraftGraphics g,
@@ -180,18 +210,32 @@ public class GradientKit {
         int[] codepoints = text.codePoints().toArray();
         g.setFont(font);
 
-        // Shadow pass (offset +1,+1 mcPx), darkened per-glyph color.
-        if (dropShadow)
-            drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx + TextKit.SHADOW_OFFSET_MCPX, yMcPx + TextKit.SHADOW_OFFSET_MCPX, palette, tick, true);
+        // Shadow pass (offset +1,+1 mcPx), each letter's shadow derived from its colour.
+        drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx + TextKit.SHADOW_OFFSET_MCPX, yMcPx + TextKit.SHADOW_OFFSET_MCPX, palette, tick,
+            argb -> TextKit.shadowColor(segment, argb, dropShadow));
 
         // Main pass.
-        drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx, yMcPx, palette, tick, false);
+        drawLetterPass(g, segment, spec, font, codepoints, widthMcPx, xMcPx, yMcPx, palette, tick, IntUnaryOperator.identity());
     }
 
     /**
-     * Draws one pass of the per-letter path: each letter through the graphics in the color its
-     * advance-span center samples - darkened on the shadow pass - with its decoration bars, the pen
-     * keeping each letter's fraction. The palette swaps each letter's colour after it is darkened.
+     * Draws one pass of the per-letter path: each letter through the graphics, with its decoration
+     * bars, in the colour {@code pass} answers for the colour its advance-span center samples, the pen
+     * keeping each letter's fraction. A letter whose colour is {@code 0} is not drawn, as the client
+     * emits no quad for it. The palette swaps each letter's colour after the pass derives it.
+     *
+     * @param g the graphics the letters and their bars are laid through
+     * @param segment the styled segment, supplying which bars each letter carries
+     * @param spec the gradient spec
+     * @param font the segment's font
+     * @param codepoints the segment text's codepoints after obfuscation substitution
+     * @param widthMcPx the run's width in mcPixels
+     * @param xMcPx the pass's origin X in mcPixels
+     * @param yMcPx the pass's baseline Y in mcPixels
+     * @param palette the colours a pack's text shader draws in place of the ones the pass lays down
+     * @param tick the absolute animation tick driving scroll phase
+     * @param pass answers the colour this pass draws a letter in from the opaque colour the letter is
+     * drawn in, {@code 0} where it draws none
      */
     private static void drawLetterPass(
         @NotNull MinecraftGraphics g,
@@ -203,17 +247,19 @@ public class GradientKit {
         float xMcPx, float yMcPx,
         @NotNull TextPalette palette,
         long tick,
-        boolean shadow
+        @NotNull IntUnaryOperator pass
     ) {
         float penMcPx = 0;
         for (int cp : codepoints) {
             String letter = Character.toString(cp);
             float advanceMcPx = font.metrics().stringAdvanceMcPixels(letter);
-            int sampled = sample(spec, letterT(penMcPx, advanceMcPx, widthMcPx, spec, tick));
-            int rgb = palette.swap(shadow ? shadowRgb(sampled) : sampled);
-            g.setColor(new java.awt.Color(rgb));
-            g.drawString(letter, xMcPx + penMcPx, yMcPx);
-            drawDecorations(g.target(), segment, xMcPx + penMcPx, yMcPx, advanceMcPx, rgb);
+            int argb = pass.applyAsInt(ColorMath.withAlpha(sample(spec, letterT(penMcPx, advanceMcPx, widthMcPx, spec, tick)), 0xFF));
+            if (argb != 0) {
+                g.setColor(new java.awt.Color(palette.swap(argb), true));
+                g.drawString(letter, xMcPx + penMcPx, yMcPx);
+                for (Rectangle2D.Float bar : bars(segment, xMcPx + penMcPx, yMcPx, advanceMcPx))
+                    g.fillEffect(bar.x, bar.y, bar.width, bar.height);
+            }
             penMcPx += advanceMcPx;
         }
     }
@@ -228,38 +274,23 @@ public class GradientKit {
     }
 
     /**
-     * Draws the strikethrough / underline bars for one glyph's advance span in {@code rgb}, so
-     * decorations follow the gradient per letter. The mcPixel span converts to output pixels here,
-     * where the bars are written.
-     */
-    private static void drawDecorations(@NotNull PixelBuffer target, @NotNull TextSegment segment, float xMcPx, float baselineMcPx, float advanceMcPx, int rgb) {
-        int scale = MinecraftFont.MC_PIXEL_SCALE;
-        int cursorX = Math.round(xMcPx * scale);
-        int baselineY = Math.round(baselineMcPx * scale);
-        int advanceOut = Math.round(advanceMcPx * scale);
-        int argb = 0xFF000000 | (rgb & 0xFFFFFF);
-        for (Rectangle bar : bars(segment, cursorX, baselineY, advanceOut))
-            fillClamped(target, bar.x, bar.y, bar.width, bar.height, argb);
-    }
-
-    /**
-     * Answers the strikethrough and underline bars over a span of a gradient run, in output pixels and
-     * in the order they are drawn - each from the span's start and as wide as it, with no pad. Both
-     * draw paths fill them glyph by glyph and {@link #inkBounds} reads them over the whole run.
+     * Answers the strikethrough and underline bars over a span of a gradient run, in mcPixels and in
+     * the order they are drawn - each from the span's start and as wide as it, with no pad. The
+     * per-letter path lays them through {@link MinecraftGraphics#fillEffect(float, float, float, float)},
+     * the per-pixel path converts them where it writes, and {@link #inkBounds} reads them.
      *
      * @param segment the segment, supplying which bars it carries
-     * @param xOut the span's start X in output pixels
-     * @param baselineOut the baseline Y in output pixels
-     * @param widthOut the span's width in output pixels
+     * @param xMcPx the span's start X in mcPixels
+     * @param baselineMcPx the baseline Y in mcPixels
+     * @param widthMcPx the span's width in mcPixels
      * @return the bars the span carries, in draw order
      */
-    private static @NotNull List<Rectangle> bars(@NotNull TextSegment segment, int xOut, int baselineOut, int widthOut) {
-        int scale = MinecraftFont.MC_PIXEL_SCALE;
-        List<Rectangle> bars = new ArrayList<>(2);
+    private static @NotNull List<Rectangle2D.Float> bars(@NotNull TextSegment segment, float xMcPx, float baselineMcPx, float widthMcPx) {
+        List<Rectangle2D.Float> bars = new ArrayList<>(2);
         if (segment.isStrikethrough())
-            bars.add(new Rectangle(xOut, baselineOut + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, widthOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale));
+            bars.add(new Rectangle2D.Float(xMcPx, baselineMcPx + TextKit.STRIKETHROUGH_OFFSET_MCPX, widthMcPx, TextKit.STRIKETHROUGH_THICKNESS_MCPX));
         if (segment.isUnderlined())
-            bars.add(new Rectangle(xOut, baselineOut + TextKit.UNDERLINE_OFFSET_MCPX * scale, widthOut, TextKit.UNDERLINE_THICKNESS_MCPX * scale));
+            bars.add(new Rectangle2D.Float(xMcPx, baselineMcPx + TextKit.UNDERLINE_OFFSET_MCPX, widthMcPx, TextKit.UNDERLINE_THICKNESS_MCPX));
         return bars;
     }
 
@@ -272,13 +303,32 @@ public class GradientKit {
      * tinted by its band color and {@code NORMAL}-blended onto the frame, confining the multiply to
      * the glyph mask so neighbours, descenders' background, and chrome are never touched (the same
      * guarantee a per-segment scratch gives, without a transparent intermediate that
-     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear; the shadow
-     * pass is split out and samples the MAIN letterform position (offset by {@code +delta}) so shadow
-     * bands sit exactly under main bands, darkens the unswapped band colour, then swaps it. The mcPixel
-     * origin and width convert to output pixels once, here, since the bands are output pixels.
+     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear, and are output pixels
+     * measured from the run's origin rounded once, here.
+     * <p>
+     * The shadow pass is the segment's own shadow colour where it names one - one colour over the run,
+     * laid through the graphics letter by letter as the per-letter path lays its shadow. Otherwise,
+     * where the caller asks for one, it is each band's colour at a quarter, sampled at the MAIN
+     * letterform position (offset back by {@code delta}) so shadow bands sit exactly under main bands,
+     * darkened unswapped and then swapped.
+     *
+     * @param g the graphics a named shadow colour is laid through, its target the buffer the banded
+     * passes are written to
+     * @param segment the styled segment, supplying which bars the run carries, its slant and any shadow
+     * colour it names
+     * @param spec the gradient spec
+     * @param font the segment's font
+     * @param text the segment text after obfuscation substitution
+     * @param widthMcPx the run's width in mcPixels
+     * @param xMcPx the run's origin X in mcPixels
+     * @param yMcPx the run's baseline Y in mcPixels
+     * @param palette the colours a pack's text shader draws in place of the ones the run lays down
+     * @param tick the absolute animation tick driving scroll phase
+     * @param dropShadow whether the shadow a run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      */
     private static void drawPerPixel(
-        @NotNull PixelBuffer target,
+        @NotNull MinecraftGraphics g,
         @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
         @NotNull MinecraftFont font,
@@ -296,32 +346,25 @@ public class GradientKit {
         int delta = TextKit.SHADOW_OFFSET_MCPX * scale;
         int bandPx = spec.bandPx();
         float shear = resolveShear(spec, segment.isItalic());
-        int[] codepoints = text.codePoints().toArray();
+        float shadowX = xMcPx + TextKit.SHADOW_OFFSET_MCPX;
+        float shadowY = yMcPx + TextKit.SHADOW_OFFSET_MCPX;
 
         // Band rgb at an absolute frame pixel, relative to the MAIN letterform.
         PixelColor band = (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
         PixelColor main = (px, py) -> palette.swap(band.at(px, py));
-        // Shadow samples the main position (offset back by -delta), darkens the unswapped band, then swaps it.
-        PixelColor shadow = (px, py) -> palette.swap(shadowRgb(band.at(px - delta, py - delta)));
 
-        // Shadow pass (offset +delta), then main pass.
-        if (dropShadow) {
-            int cursor = 0;
-            for (int cp : codepoints) {
-                MinecraftGlyph glyph = font.glyph(cp);
-                blitGlyphMasked(target, glyph, baseX + delta + cursor, baselineY + delta, shadow);
-                fillDecorationsMasked(target, segment, baseX + delta + cursor, baselineY + delta, glyph.advanceWidth(), shadow);
-                cursor += glyph.advanceWidth();
-            }
+        // Shadow pass (offset +1,+1 mcPx), then main pass.
+        if (segment.getShadowColor().isPresent()) {
+            g.setFont(font);
+            drawLetterPass(g, segment, spec, font, text.codePoints().toArray(), widthMcPx, shadowX, shadowY, palette, tick,
+                argb -> TextKit.shadowColor(segment, argb, dropShadow));
+        } else if (dropShadow) {
+            // Samples the main position (offset back by -delta), darkens the unswapped band, then swaps it.
+            drawPixelPass(g.target(), segment, font, text, widthMcPx, shadowX, shadowY,
+                (px, py) -> palette.swap(TextKit.darken(band.at(px - delta, py - delta))));
         }
 
-        int cursor = 0;
-        for (int cp : codepoints) {
-            MinecraftGlyph glyph = font.glyph(cp);
-            blitGlyphMasked(target, glyph, baseX + cursor, baselineY, main);
-            fillDecorationsMasked(target, segment, baseX + cursor, baselineY, glyph.advanceWidth(), main);
-            cursor += glyph.advanceWidth();
-        }
+        drawPixelPass(g.target(), segment, font, text, widthMcPx, xMcPx, yMcPx, main);
     }
 
     /**
@@ -353,6 +396,39 @@ public class GradientKit {
     }
 
     /**
+     * Draws one pass of the per-pixel path at an mcPixel origin: each glyph placed by its font's walk
+     * at the origin plus its pen, rounded once, as
+     * {@link MinecraftGraphics#drawString(String, float, float)} places it, then the run's bars,
+     * converted the same way. Every glyph and bar pixel is tinted by {@code color} and
+     * {@code NORMAL}-blended onto {@code target}, at a zero graphics translate.
+     *
+     * @param target the buffer the pass is written to
+     * @param segment the styled segment, supplying which bars the run carries
+     * @param font the segment's font
+     * @param text the segment text after obfuscation substitution
+     * @param widthMcPx the run's width in mcPixels
+     * @param xMcPx the pass's origin X in mcPixels
+     * @param yMcPx the pass's baseline Y in mcPixels
+     * @param color the colour each pixel is tinted, by its frame position
+     */
+    private static void drawPixelPass(
+        @NotNull PixelBuffer target,
+        @NotNull TextSegment segment,
+        @NotNull MinecraftFont font,
+        @NotNull String text,
+        float widthMcPx,
+        float xMcPx, float yMcPx,
+        @NotNull PixelColor color
+    ) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        double originX = (double) xMcPx * scale;
+        int baselineY = (int) Math.round((double) yMcPx * scale);
+        font.walk(text, (glyph, penX) -> blitGlyphMasked(target, glyph, (int) Math.round(originX + penX), baselineY, color));
+        for (Rectangle2D.Float bar : bars(segment, xMcPx, yMcPx, widthMcPx))
+            fillMasked(target, bar, color);
+    }
+
+    /**
      * Blits a glyph's alpha mask, tinting each pixel by {@code color} at its frame position and
      * {@code NORMAL}-blending onto {@code target}.
      */
@@ -379,19 +455,24 @@ public class GradientKit {
     }
 
     /**
-     * Draws a glyph's strikethrough / underline bars, each pixel tinted by {@code color} so
-     * decorations follow the per-pixel gradient.
+     * Fills a strikethrough or underline bar given in mcPixels, each pixel tinted opaque by
+     * {@code color} at its frame position so decorations follow the per-pixel gradient, and
+     * {@code NORMAL}-blended onto {@code target}. Each edge is converted to output pixels and rounded
+     * half up once, as {@link MinecraftGraphics#fillEffect(float, float, float, float)} converts it,
+     * and the bar is clamped to the target.
+     *
+     * @param target the buffer the bar is written to
+     * @param bar the bar in mcPixels
+     * @param color the colour each pixel is tinted, by its frame position
      */
-    private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull TextSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
-        for (Rectangle bar : bars(segment, cursorX, baselineY, advanceOut))
-            fillMasked(target, bar.x, bar.y, bar.width, bar.height, color);
-    }
-
-    private static void fillMasked(@NotNull PixelBuffer target, int x, int y, int w, int h, @NotNull PixelColor color) {
-        int x0 = Math.max(0, x);
-        int y0 = Math.max(0, y);
-        int x1 = Math.min(target.width(), x + w);
-        int y1 = Math.min(target.height(), y + h);
+    private static void fillMasked(@NotNull PixelBuffer target, @NotNull Rectangle2D.Float bar, @NotNull PixelColor color) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        double left = (double) bar.x * scale;
+        double top = (double) bar.y * scale;
+        int x0 = Math.max(0, (int) Math.round(left));
+        int y0 = Math.max(0, (int) Math.round(top));
+        int x1 = Math.min(target.width(), (int) Math.round(left + (double) bar.width * scale));
+        int y1 = Math.min(target.height(), (int) Math.round(top + (double) bar.height * scale));
         for (int py = y0; py < y1; py++)
             for (int px = x0; px < x1; px++) {
                 int argb = 0xFF000000 | (color.at(px, py) & 0xFFFFFF);
@@ -513,25 +594,6 @@ public class GradientKit {
      */
     static float frac(float x) {
         return x - (float) Math.floor(x);
-    }
-
-    // --- bar fill and shadow color ---
-
-    /**
-     * Fills a rect clamped to the target bounds (decoration bars are already in output px).
-     */
-    private static void fillClamped(@NotNull PixelBuffer target, int x, int y, int w, int h, int argb) {
-        int x0 = Math.max(0, x);
-        int y0 = Math.max(0, y);
-        int x1 = Math.min(target.width(), x + w);
-        int y1 = Math.min(target.height(), y + h);
-        for (int py = y0; py < y1; py++)
-            for (int px = x0; px < x1; px++)
-                target.setPixel(px, py, ColorMath.blend(argb, target.getPixel(px, py), BlendMode.NORMAL));
-    }
-
-    private static int shadowRgb(int rgb) {
-        return (rgb & SHADOW_RGB_MASK) >> 2;
     }
 
 }

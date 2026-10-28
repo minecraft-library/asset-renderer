@@ -44,7 +44,10 @@ chrome exact rather than resampled.
   whether or not the caller asks for a shadow; otherwise it is the text colour at a quarter, drawn
   where the caller asks for one. A shadow colour of `0` draws no shadow pass, as the client emits no
   shadow quad for it, and the library's cut lays nothing of any other at alpha 25 or less. A gradient
-  run keeps `GradientKit`'s own colours and band shadow.
+  run derives its shadow by the same rule from the colour each letter is drawn in, so a shadow colour
+  it names is drawn as a solid run's is, through the graphics. Its letters and bands are opaque, and a
+  banded run's are tinted pixel by pixel by `GradientKit` itself, since minecraft-text lays no colour
+  per pixel.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
   ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves

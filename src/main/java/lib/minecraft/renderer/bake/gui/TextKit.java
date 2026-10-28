@@ -46,8 +46,8 @@ import java.util.random.RandomGenerator;
  * colour the line is drawn in, and one naming none draws that colour. Its shadow is the segment's
  * shadow colour where it names one, that colour's alpha scaled by a see-through text colour's, and is
  * drawn whether or not the caller asks for a shadow; otherwise it is the text colour at a quarter, drawn
- * where the caller asks for one. A gradient run is drawn in {@link GradientKit}'s own colours and band
- * shadow.
+ * where the caller asks for one. A gradient run is drawn opaque in {@link GradientKit}'s colours, and
+ * its shadow is derived by the same rule from the colour each letter is drawn in.
  * <p>
  * Every colour a run lays down - a glyph's, its drop shadow's and its strikethrough and underline
  * bars' - is drawn in the colour the caller's {@link TextPalette} swaps it for, as a pack's text shader
@@ -397,7 +397,8 @@ public class TextKit {
      * A solid run's pass whose colour the client's text shader discards whole - alpha
      * {@link MinecraftGraphics#DISCARD_ALPHA} or less - lays nothing and counts for nothing. In any
      * colour above that a vanilla glyph lays every pixel the library answers, its texels being opaque
-     * or clear, and a bar lays all of its own. A gradient run is laid opaque, so it always counts.
+     * or clear, and a bar lays all of its own. A gradient run's letters and bands are laid opaque, so
+     * they always count, and its shadow counts where its shadow colour clears that cut.
      *
      * @param line the line to measure
      * @param xMcPx the starting cursor X in mcPixels
@@ -473,19 +474,6 @@ public class TextKit {
     }
 
     /**
-     * Adds a rectangle a run lays down on both of its passes to {@code drawn}, converting it from
-     * output pixels to mcPixels where it reads it, with its copy at the shadow's offset when the
-     * shadow is drawn. An empty one lays down nothing and is skipped.
-     *
-     * @param drawn the rectangles laid down so far, in mcPixels
-     * @param outPx the rectangle the run lays down, in output pixels
-     * @param dropShadow whether the offset shadow pass lays it down again
-     */
-    static void addInk(@NotNull List<Rectangle2D> drawn, @NotNull Rectangle outPx, boolean dropShadow) {
-        addInk(drawn, mcPixels(outPx), true, dropShadow);
-    }
-
-    /**
      * Adds a rectangle a run lays down to {@code drawn} on each pass that lays it - where it is on the
      * main pass, at the shadow's offset on the shadow pass. An empty one lays down nothing and is
      * skipped.
@@ -495,7 +483,7 @@ public class TextKit {
      * @param main whether the main pass lays it down
      * @param shadow whether the offset shadow pass lays it down
      */
-    private static void addInk(@NotNull List<Rectangle2D> drawn, @NotNull Rectangle2D.Float mcPx, boolean main, boolean shadow) {
+    static void addInk(@NotNull List<Rectangle2D> drawn, @NotNull Rectangle2D.Float mcPx, boolean main, boolean shadow) {
         if (mcPx.isEmpty()) return;
 
         if (main)
@@ -510,7 +498,7 @@ public class TextKit {
      * @param outPx the rectangle in output pixels
      * @return the same rectangle in mcPixels
      */
-    private static @NotNull Rectangle2D.Float mcPixels(@NotNull Rectangle outPx) {
+    static @NotNull Rectangle2D.Float mcPixels(@NotNull Rectangle outPx) {
         float pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         return new Rectangle2D.Float(outPx.x / pxPerMcPx, outPx.y / pxPerMcPx, outPx.width / pxPerMcPx, outPx.height / pxPerMcPx);
     }
