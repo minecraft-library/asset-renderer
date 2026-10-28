@@ -84,8 +84,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
  * frame of the render pixel for pixel, so the canvas holds every pixel the text draws and no other and
  * the text sits where its own ink puts it - across descenders, leading and trailing spaces, bars, an
- * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled. Text drawing
- * nothing is the empty 1x1 image, still even where it is obfuscated.
+ * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled.
+ * <p>
+ * A render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated: chat
+ * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, and a sprite box
+ * whose alphas clear both sprites round one.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -696,29 +699,59 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("chat text drawing nothing is the empty 1x1 image, still even where it is obfuscated")
-    void chatTextDrawingNothingIsTheEmptyImage() {
-        Map<String, ConcurrentList<LineSegment>> corpus = new LinkedHashMap<>();
-        corpus.put("spaces", Concurrent.newList(TextSegment.fromLegacy("   ", '&')));
-        corpus.put("one empty segment", Concurrent.newList(
-            LineSegment.builder().segments(Concurrent.newList(TextSegment.literal(""))).build()));
-        corpus.put("obfuscated spaces", Concurrent.newList(TextSegment.fromLegacy("&k   ", '&')));
-        corpus.put("two lines of spaces", Concurrent.newList(TextSegment.fromLegacy("  ", '&'), TextSegment.fromLegacy("   ", '&')));
+    @DisplayName("a render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated")
+    void aCanvasHoldingNoPixelIsTheEmptyImage() {
+        Map<String, TextOptions> corpus = new LinkedHashMap<>();
+        corpus.put("spaces", chat("   ").build());
+        corpus.put("one empty segment", TextOptions.builder()
+            .style(TextOptions.Style.CHAT)
+            .lines(Concurrent.newList(LineSegment.builder().segments(Concurrent.newList(TextSegment.literal(""))).build()))
+            .build());
+        corpus.put("obfuscated spaces", chat("&k   ").build());
+        corpus.put("two lines of spaces", chat("  ", "   ").build());
+        corpus.put("code-drawn box at padding 0: an empty line",
+            lore(TextSegment.literal("")).chromeStyle(ChromeStyle.PROCEDURAL).padding(0).build());
+        corpus.put("code-drawn box at padding 0: a tab",
+            lore(TextSegment.literal("\t")).chromeStyle(ChromeStyle.PROCEDURAL).padding(0).build());
+        corpus.put("code-drawn box at padding 0: a tab obfuscated",
+            lore(TextSegment.builder().text("\t").obfuscated(true).build()).chromeStyle(ChromeStyle.PROCEDURAL).padding(0).build());
+        corpus.put("sprite box whose alphas clear both sprites: an empty line",
+            lore(TextSegment.literal("")).chromeStyle(ChromeStyle.SPRITE).backgroundAlpha(0).borderAlpha(0).build());
 
-        ConcurrentList<String> drawn = Concurrent.newList();
-        for (Map.Entry<String, ConcurrentList<LineSegment>> row : corpus.entrySet()) {
-            ImageData image = new TextRenderer().render(TextOptions.builder()
-                .style(TextOptions.Style.CHAT)
-                .lines(row.getValue())
-                .build()).image();
+        // A renderer holding a context draws chat text and the code-drawn box as one holding none does,
+        // and the sprite row resolves its pair through it. Both sprites hold a texel over every texel -
+        // vanilla's fill and the ring's top - so each draws pixels until the request's alpha clears it.
+        PixelBuffer background = PixelBuffer.create(100, 100);
+        background.fill(BACKGROUND_FILL);
+        PixelBuffer frame = PixelBuffer.create(100, 100);
+        frame.fill(RING_TOP);
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put("minecraft:gui/sprites/tooltip/background", background);
+        tex.put("minecraft:gui/sprites/tooltip/frame", frame);
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put("minecraft:gui/sprites/tooltip/background", BG_META);
+        metas.put("minecraft:gui/sprites/tooltip/frame", FRAME_META);
+        TextRenderer renderer = new TextRenderer(stubContext(tex, metas));
+        ConcurrentList<String> mismatched = Concurrent.newList();
+        for (Map.Entry<String, TextOptions> row : corpus.entrySet()) {
+            TextOptions options = row.getValue();
+            if (options.getStyle() == TextOptions.Style.LORE) {
+                int widest = options.getLines().stream().mapToInt(TextKit::measureLineMcPixels).max().orElse(0);
+                if (widest != 0) {
+                    mismatched.add(row.getKey() + ": its lines measure " + widest + " Minecraft pixels, not 0");
+                    continue;
+                }
+            }
+
+            ImageData image = renderer.render(options).image();
             PixelBuffer pixels = image.getFrames().getFirst().pixels();
             boolean empty = !image.isAnimated() && pixels.width() == 1 && pixels.height() == 1
                 && ColorMath.alpha(pixels.getPixel(0, 0)) == 0;
             if (!empty)
-                drawn.add(String.format("%s: %s %dx%d", row.getKey(), image.isAnimated() ? "animated" : "still", pixels.width(), pixels.height()));
+                mismatched.add(String.format("%s: %s %dx%d", row.getKey(), image.isAnimated() ? "animated" : "still", pixels.width(), pixels.height()));
         }
 
-        assertThat("text drawing nothing that is not the empty image", drawn, is(empty()));
+        assertThat("renders whose canvas holds no pixel that are not the empty image", mismatched, is(empty()));
     }
 
     /**
@@ -733,6 +766,19 @@ class TextRendererTest {
         for (String line : legacy)
             lines.add(TextSegment.fromLegacy(line, '&'));
         return TextOptions.builder().style(TextOptions.Style.CHAT).lines(lines);
+    }
+
+    /**
+     * Builds LORE options of one line holding the given segment, left unbuilt so a case names its own
+     * chrome.
+     *
+     * @param segment the line's only segment
+     * @return the partly built text options
+     */
+    private static TextOptions.Builder lore(TextSegment segment) {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(LineSegment.builder().segments(Concurrent.newList(segment)).build());
+        return TextOptions.builder().style(TextOptions.Style.LORE).lines(lines);
     }
 
     /**

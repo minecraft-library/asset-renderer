@@ -23,7 +23,8 @@ import java.util.function.UnaryOperator;
  * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
  * glyph rows alone, on a canvas ending at the first pixel they draw. When any {@link #getLines() line}
  * carries obfuscated text the renderer emits an animated image of {@link #getFrameCount() frameCount}
- * frames at {@link #getFramesPerSecond() fps}, except that chat text drawing nothing is the still,
+ * frames at {@link #getFramesPerSecond() fps}, except that a render whose canvas holds no pixel - chat
+ * text drawing nothing, or a tooltip box of no width round lines that advance nothing - is the still,
  * empty 1x1 image, obfuscated or not.
  *
  * @see lib.minecraft.renderer.TextRenderer

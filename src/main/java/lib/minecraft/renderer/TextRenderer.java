@@ -51,19 +51,21 @@ import java.util.Optional;
  * the text - vanilla's own box, the text plus 4 a side, or a pack's wider box whole; the procedural
  * chrome pads the text by the request's {@linkplain TextOptions#getPadding() padding}. Chat text's
  * canvas ends at the first pixel its lines draw over every frame, which {@link TextKit#inkBounds}
- * answers before any frame is drawn, and text drawing nothing answers the empty 1x1 image.
+ * answers before any frame is drawn. A canvas holding no pixel answers the empty 1x1 image: chat text
+ * drawing nothing, or a tooltip box of no width, which lines that advance nothing make where the
+ * procedural chrome pads them by 0 or the request's alphas clear both sprites.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
- * fresh {@link TextKit} obfuscation substitution - except chat text drawing nothing, which is the
+ * fresh {@link TextKit} obfuscation substitution - except a canvas holding no pixel, which is the
  * still, empty 1x1 image, obfuscated or not.
  * <p>
  * The image is held in the convention its frames are drawn in. The sprite box and the glyphs blend
- * onto the transparent canvas, so a {@link ChromeStyle#SPRITE} tooltip, chat text and a render of no
- * line answer {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
+ * onto the transparent canvas, so a {@link ChromeStyle#SPRITE} tooltip, chat text and the empty image
+ * answer {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
  * copy that edits made through it do not reach, and an encoder writes each see-through pixel's
  * straight colour. The {@link ChromeStyle#PROCEDURAL} box paints its colours as given, so a
- * procedural tooltip answers {@link AlphaMode#STRAIGHT}. A
+ * procedural tooltip drawing a box answers {@link AlphaMode#STRAIGHT}. A
  * {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes its colour in the
  * convention the image answers.
  */
@@ -130,7 +132,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * context.
      *
      * @param options the text render options
-     * @return the rendered text, empty where the options hold no line or their lines draw nothing
+     * @return the rendered text, empty where the options hold no line or the canvas laid out for them
+     * holds no pixel
      */
     @NotNull ImageData draw(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
@@ -346,14 +349,17 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     /**
-     * Measures the text block a tooltip's chrome lays out round: the widest line in mcPixels, clamped
-     * to a minimum of 16 mcPixels so short strings still produce a non-degenerate box.
+     * Measures the text block's width: its widest line in whole mcPixels, as the client sizes a tooltip
+     * from the widest of its lines' {@code Font#width}. Lines that advance nothing measure 0.
+     *
+     * @param options the text render options
+     * @return the widest line's width in whole mcPixels
      */
     private static int measureWidthMcPixels(@NotNull TextOptions options) {
         int max = 0;
         for (LineSegment line : options.getLines())
             max = Math.max(max, TextKit.measureLineMcPixels(line));
-        return Math.max(16, max);
+        return max;
     }
 
 }
