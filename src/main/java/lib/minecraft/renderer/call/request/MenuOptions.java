@@ -90,8 +90,8 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull String inventoryTitle = "Inventory";
 
     /**
-     * ARGB both labels are drawn in where a segment names no colour of its own. The default is what
-     * vanilla draws a container's labels in.
+     * ARGB both labels are drawn in: a segment naming no colour draws in it, and one naming a colour
+     * draws that colour in its alpha. The default is what vanilla draws a container's labels in.
      */
     private final int defaultTitleArgb = 0xFF404040;
 

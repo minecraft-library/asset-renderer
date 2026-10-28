@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
@@ -33,6 +35,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
  * Coverage of what {@link TextKit} draws for obfuscated ({@code §k}) text: a run keeps its width on
@@ -54,12 +57,20 @@ import static org.hamcrest.Matchers.is;
  * line can carry, the answer is the bounds of the pixels {@link TextKit#drawLine} lays down, and empty
  * exactly where it lays down none - spaces and empty segments included. It holds in an opaque colour,
  * in the faintest colour the client's text shader keeps, and in one it discards, where a solid run
- * lays nothing.
+ * lays nothing, and for a run naming its own shadow colour - opaque, see-through, one the shader
+ * discards and none - which draws its shadow where the derived one is declined.
  * <p>
  * It pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the colour
  * the palette swaps them for, a gradient run through the line's own palette, the shadow derived from
  * the unswapped text colour, a colour the palette holds no key for drawn as given, and a swap keeping
  * the top byte of the colour it is given.
+ * <p>
+ * It pins the colours a run is drawn in as the client's font derives them: a run naming a shadow
+ * colour draws its shadow in it, where the caller declines the derived shadow too, its alpha scaled by
+ * a see-through line colour's and floored, so a product at the text shader's cut lays nothing; and a
+ * run naming a colour draws it in the line colour's alpha, its derived shadow with it. A run whose
+ * shadow is none - naming no shadow colour with the derived shadow declined, or naming {@code 0} - is
+ * handed to the graphics once, with no shadow pass, as the client emits no shadow quad for it.
  * <p>
  * Last, it pins a see-through run's bars laid as the client lays them, blended over the canvas in the
  * colour's alpha rather than overwriting it, and laid not at all in a colour the text shader discards.
@@ -328,6 +339,13 @@ class TextKitTest {
         corpus.put("bold obfuscated", line(TextSegment.builder().text("ab cd").bold(true).obfuscated(true).build(), TextSegment.literal("|")));
         corpus.put("per-letter gradient", line(TextSegment.builder().text("Gradient").gradient(perLetter).strikethrough(true).underlined(true).build()));
         corpus.put("banded gradient", line(TextSegment.builder().text("Gradient").gradient(banded).strikethrough(true).underlined(true).build()));
+        // Each drawn with the shadow declined as well as asked for, and under a see-through line the
+        // shadow colour's alpha is scaled by the line's: 26 of 128 floors to 13 and is discarded, 26 of
+        // 255 is 26 and kept, and 25 of 255 is 25 and discarded.
+        corpus.put("a shadow colour", line(shadowed("Shadowed", 0xFF0000FF)));
+        corpus.put("a see-through shadow colour", line(shadowed("Shadowed", 0x80FF0000)));
+        corpus.put("a shadow colour the shader discards", line(shadowed("Shadowed", 0x19FF0000)));
+        corpus.put("a shadow colour of none", line(shadowed("Shadowed", 0)));
 
         // Opaque; the faintest alpha the client's text shader keeps, 26 of 255; and the strongest it
         // discards, 25. A solid run in the last lays nothing, its shadow keeping the alpha too.
@@ -419,6 +437,40 @@ class TextKitTest {
     }
 
     @Test
+    @DisplayName("a run's shadow is its shadow colour, scaled by a see-through line's alpha and drawn where the derived shadow is declined, and a coloured run keeps the line's alpha")
+    void aRunIsDrawnInTheColoursTheClientDerives() {
+        // The sprite tooltip's fill as its canvas holds it, premultiplied. Each colour below is what
+        // the client's translucent blend lays over it.
+        int fill = 0xF00F000F;
+
+        assertAll(
+            () -> assertThat("a shadow colour is drawn where the caller declines the derived shadow, 80FF0000 over the fill",
+                laidOver(fill, shadowed("!", 0x80FF0000), 0xFFFFFFFF, false), is(equalTo(Set.of(fill, 0xFFFFFFFF, 0xF8870007)))),
+            () -> assertThat("a see-through line scales the shadow colour's alpha, 128 of 128 flooring to 64 - the line's 80FFFFFF and 40FF0000 over the fill",
+                laidOver(fill, shadowed("!", 0x80FF0000), 0x80FFFFFF, true), is(equalTo(Set.of(fill, 0xF8878087, 0xF44B000B)))),
+            () -> assertThat("27 of 241 floors to 25, which the text shader discards, where rounding half up would lay 26 - the line's 1BFFFFFF alone over the fill",
+                laidOver(fill, shadowed("!", 0xF10000FF), 0x1BFFFFFF, true), is(equalTo(Set.of(fill, 0xF2281B28)))),
+            () -> assertThat("a run naming a colour keeps the line's alpha and derives its shadow from that, 80FF5555 and 803F1515 over the fill",
+                laidOver(fill, TextSegment.builder().text("!").color(ChatColor.Legacy.RED).build(), 0x80FFFFFF, true),
+                is(equalTo(Set.of(fill, 0xF8872B32, 0xF8270B12))))
+        );
+    }
+
+    @Test
+    @DisplayName("a run whose shadow is none is drawn without a shadow pass, and one naming a shadow colour with one where the derived shadow is declined")
+    void aRunWhoseShadowIsNoneDrawsNoShadowPass() {
+        // A pass at alpha 0 lays no pixel, so the passes are counted where the graphics is handed them.
+        assertAll(
+            () -> assertThat("a run naming no shadow colour, the derived shadow declined, draws its main pass alone",
+                passes(TextSegment.literal("!"), false), is(1)),
+            () -> assertThat("a run naming a shadow colour, the derived shadow declined, draws a shadow pass and its main pass",
+                passes(shadowed("!", 0x80FF0000), false), is(2)),
+            () -> assertThat("a run naming a shadow colour of 0, the derived shadow asked for, draws its main pass alone",
+                passes(shadowed("!", 0), true), is(1))
+        );
+    }
+
+    @Test
     @DisplayName("a palette swaps no colour it holds no key for")
     void paletteSwapsNoOtherColour() {
         PixelBuffer buffer = PixelBuffer.create(120, 40);
@@ -476,6 +528,38 @@ class TextKitTest {
     }
 
     /**
+     * Draws a one-run line over a filled buffer and collects the colours it then holds. A run of
+     * {@code !} is one Minecraft pixel wide, so its shadow, one Minecraft pixel right, never lands
+     * under its glyph, and each pass lays one colour.
+     *
+     * @param fill the colour the buffer is filled with
+     * @param run the line's only run
+     * @param argb the colour the line is drawn in
+     * @param dropShadow whether the shadow a run derives from its colour is asked for
+     * @return each distinct colour the buffer holds after the draw
+     */
+    private static Set<Integer> laidOver(int fill, TextSegment run, int argb, boolean dropShadow) {
+        PixelBuffer buffer = PixelBuffer.create(40, 40);
+        buffer.fill(fill);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(run), X0, BASE, argb, TextPalette.VANILLA, 0, 0L, 0L, dropShadow);
+        return opaqueColours(buffer);
+    }
+
+    /**
+     * Draws a one-run line in white and counts the passes the graphics is handed - the shadow pass and
+     * the main pass each hand it the run once.
+     *
+     * @param run the line's only run
+     * @param dropShadow whether the shadow a run derives from its colour is asked for
+     * @return how many times the run is handed to the graphics
+     */
+    private static int passes(TextSegment run, boolean dropShadow) {
+        Recording g = new Recording();
+        TextKit.drawLine(g, line(run), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L, 0L, dropShadow);
+        return g.texts().size();
+    }
+
+    /**
      * Describes a rectangle in output pixels.
      *
      * @param bounds the rectangle
@@ -505,6 +589,18 @@ class TextKitTest {
 
     private static TextSegment obfuscated(String text) {
         return TextSegment.builder().text(text).obfuscated(true).build();
+    }
+
+    /**
+     * Builds a run naming its own shadow colour, as the text library reads a component's
+     * {@code shadow_color}.
+     *
+     * @param text the run's text
+     * @param argb the shadow colour as packed ARGB, its alpha included
+     * @return the run
+     */
+    private static TextSegment shadowed(String text, int argb) {
+        return TextSegment.builder().text(text).shadowColor(ChatColor.builder().color(new Color(argb, true)).build()).build();
     }
 
     /**

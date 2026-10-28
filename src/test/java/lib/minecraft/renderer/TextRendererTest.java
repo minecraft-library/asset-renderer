@@ -88,8 +88,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * frame of the render pixel for pixel, so the canvas holds every pixel the text draws and no other and
  * the text sits where its own ink puts it - across descenders, leading and trailing spaces, bars, an
  * italic overhang, a half-pixel glyph, a scramble and two lines, plain and scrambled, a line naming no
- * colour, which draws in the renderer's default grey, and a run in a colour the client's text shader
- * discards, which lays its shadow alone.
+ * colour, which draws in the renderer's default grey, and a run whose shadow colour the client's text
+ * shader discards, which lays its glyphs alone.
  * <p>
  * A render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated: chat
  * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, and a sprite box
@@ -664,13 +664,14 @@ class TextRendererTest {
         // Over two frames a scramble's bounds fall short of the extremes its picks can reach, so the
         // canvas follows the glyphs each line's own number picks.
         corpus.put("two obfuscated lines", chat("&f&kHello", "&f&l&kab").frameCount(2).build());
-        // A run in a colour the client's text shader discards lays no pixel of its own, while the
-        // shadow its colour derives, an opaque 3F3F3F, lays whole - so the canvas is the shadow's ink.
+        // A run whose shadow colour the client's text shader discards lays its glyphs whole, while its
+        // shadow lays no pixel - so the canvas is the glyphs' ink.
         TextSegment faint = TextSegment.builder()
             .text("Faint")
-            .color(ChatColor.builder().color(new Color(255, 255, 255, 25)).build())
+            .color(ChatColor.Legacy.WHITE)
+            .shadowColor(ChatColor.builder().color(new Color(0x19FF0000, true)).build())
             .build();
-        corpus.put("a run in a colour the text shader discards", TextOptions.builder()
+        corpus.put("a run whose shadow colour the text shader discards", TextOptions.builder()
             .style(TextOptions.Style.CHAT)
             .lines(Concurrent.newList(LineSegment.builder().segments(Concurrent.newList(faint)).build()))
             .build());

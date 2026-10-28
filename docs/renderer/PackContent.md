@@ -62,10 +62,11 @@ stack.
   text draw keeps the colours it is given.
 - **Derive, then swap.** The client computes a glyph's shadow vertex colour before its shader runs and
   the shader swaps each vertex after, so `TextKit` derives the shadow from the unswapped text colour and
-  swaps the text colour and the shadow colour each as a colour of its own. Swapping first and shadowing
-  the swap agrees with the client only where a pack's shadow keys are its quartered swaps. The
-  strikethrough and underline bars take their pass's swapped colour, being text vertices of that pass.
-  A swap keeps every colour's top byte, so it moves no pixel's place or presence.
+  swaps the text colour and the shadow colour each as a colour of its own. A run naming its own shadow
+  colour has it stand in for the derived one, swapped the same way, being that pass's vertex colour.
+  Swapping first and shadowing the swap agrees with the client only where a pack's shadow keys are its
+  quartered swaps. The strikethrough and underline bars take their pass's swapped colour, being text
+  vertices of that pass. A swap keeps every colour's top byte, so it moves no pixel's place or presence.
 - **Every text draw takes it.** The client draws a tooltip, a menu label, a field's text and a stack
   count through one text program, so `TextRenderer`, `MenuRenderer`, `TextField` and `ItemRenderer` each
   hand their context's palette to the kits, and no kit supplies one on a caller's behalf. A renderer

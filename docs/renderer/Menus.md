@@ -38,6 +38,13 @@ chrome exact rather than resampled.
   Minecraft-pixel geometry and nothing else: a strikethrough or underline bar goes through
   `MinecraftGraphics#fillEffect`, never the inherited `fillRect`, which works in output pixels and
   overwrites what it covers.
+- **A run's colours are the client's font's.** A segment naming a colour draws its red, green and
+  blue in the line colour's alpha, as `getTextColor` keeps it. Its shadow is the segment's shadow
+  colour where it names one - that colour's alpha scaled by a see-through line's and floored - drawn
+  whether or not the caller asks for a shadow; otherwise it is the text colour at a quarter, drawn
+  where the caller asks for one. A shadow colour of `0` draws no shadow pass, as the client emits no
+  shadow quad for it, and the library's cut lays nothing of any other at alpha 25 or less. A gradient
+  run keeps `GradientKit`'s own colours and band shadow.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
   ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves

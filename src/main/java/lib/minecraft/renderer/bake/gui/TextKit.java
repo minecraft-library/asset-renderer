@@ -41,10 +41,19 @@ import java.util.random.RandomGenerator;
  * obfuscation ({@code §k}). Shadow, strikethrough, and underline offsets match vanilla's pixel-level
  * rendering.
  * <p>
+ * A run is drawn in the colours the client's font derives for it ({@link #resolveColor},
+ * {@link #shadowColor}): a segment naming a colour draws its red, green and blue in the alpha of the
+ * colour the line is drawn in, and one naming none draws that colour. Its shadow is the segment's
+ * shadow colour where it names one, that colour's alpha scaled by a see-through text colour's, and is
+ * drawn whether or not the caller asks for a shadow; otherwise it is the text colour at a quarter, drawn
+ * where the caller asks for one. A gradient run is drawn in {@link GradientKit}'s own colours and band
+ * shadow.
+ * <p>
  * Every colour a run lays down - a glyph's, its drop shadow's and its strikethrough and underline
  * bars' - is drawn in the colour the caller's {@link TextPalette} swaps it for, as a pack's text shader
- * swaps every text vertex colour. The shadow is derived from the text colour first and swapped as a
- * colour of its own, as the client derives a shadow's vertex colour before its shader runs.
+ * swaps every text vertex colour. The shadow's colour is resolved first, from the unswapped text colour
+ * or as the segment's own, and swapped as a colour of its own, as the client derives a shadow's vertex
+ * colour before its shader runs.
  * <p>
  * An obfuscated run draws, in place of each glyph, a random glyph its font lays out at the same
  * non-bold advance ({@link MinecraftFont#obfuscate(String, RandomGenerator)}), so a non-bold run
@@ -90,9 +99,9 @@ public class TextKit {
     static final int SHADOW_OFFSET_MCPX = 1;
 
     /**
-     * Divisor applied to each RGB channel to produce vanilla's ~25%-brightness drop shadow.
-     * Matches the {@code (rgb & 0xFCFCFC) >> 2} formula used by {@code Font#getShadowColor}
-     * from 1.13 onward, split across channels so the low two bits survive the mask independently.
+     * Divisor applied to each red, green and blue channel to produce the client's quarter-brightness
+     * drop shadow. Dividing a channel by it truncates as the client's {@code (int) (channel * 0.25F)}
+     * does, for every channel value.
      */
     private static final int SHADOW_DARKEN_DIVISOR = 4;
 
@@ -107,7 +116,8 @@ public class TextKit {
      * @param line the line of styled segments to render
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
      * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
@@ -134,7 +144,8 @@ public class TextKit {
      * @param line the line of styled segments to render
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
      * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
@@ -155,8 +166,9 @@ public class TextKit {
     }
 
     /**
-     * Draws all segments in a {@link LineSegment}, with the drop shadow declinable. Text drawn into a
-     * container's chrome carries none, which is what the client's own label draws pass.
+     * Draws all segments in a {@link LineSegment}, with the drop shadow a run derives from its colour
+     * declinable, as a container's labels decline it - the client's own label draws pass none. A run
+     * naming its own shadow colour draws it regardless, as the client's font does.
      * <p>
      * The line opens where its caller places it, on a fraction of an mcPixel where asked, and each
      * segment starts where the one before it ended, its fraction kept, as the client's font keeps its
@@ -167,13 +179,15 @@ public class TextKit {
      * @param line the line of styled segments to render
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
      * @param palette the colours a pack's text shader draws in place of the ones the line is given
      * @param lineIndex the line's number among the lines drawn together, which with the frame seeds
      * the scramble of its obfuscated runs
      * @param frame the animation frame drawn
      * @param tick the absolute animation tick driving gradient scroll phase
-     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @param dropShadow whether to draw the shadow a run derives from its colour - a segment naming a
+     * shadow colour draws it either way
      */
     public static void drawLine(
         @NotNull MinecraftGraphics g,
@@ -240,7 +254,9 @@ public class TextKit {
      * Draws a single {@link TextSegment}'s run at an mcPixel origin with shadow, strikethrough and
      * underline support, answering how far it moves the line's pen. A segment carrying a
      * {@link TextSegment#getGradient() gradient} routes to {@link GradientKit}; every other segment
-     * takes the solid path. The shadow colour is derived from the text colour before either is swapped.
+     * takes the solid path. The shadow colour is resolved from the unswapped text colour, or is the
+     * segment's own, before either is swapped, and a shadow colour of {@code 0} draws no shadow pass, as
+     * the client emits no shadow quad for it.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param segment the styled text segment to render
@@ -248,10 +264,12 @@ public class TextKit {
      * @param text the segment's text, substituted where the segment is obfuscated
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color when the segment has no explicit color
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
      * @param palette the colours a pack's text shader draws in place of the ones the segment is given
      * @param tick the absolute animation tick driving gradient scroll phase
-     * @param dropShadow whether to draw the offset shadow pass beneath the glyphs
+     * @param dropShadow whether the caller asks for the shadow the run derives from its colour; a
+     * segment naming a shadow colour draws it either way
      * @return the advance width of the segment in mcPixels, its fraction kept
      */
     private static float drawSegment(
@@ -269,14 +287,14 @@ public class TextKit {
             return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, palette, tick, dropShadow);
 
         int color = resolveColor(segment, defaultArgb);
-        int shadow = shadowColor(segment, color);
+        int shadow = shadowColor(segment, color, dropShadow);
 
         float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
         List<Rectangle2D.Float> bars = decorations(segment, xMcPx, yMcPx, textWidthMcPx);
 
         // Shadow pass
         g.setFont(font);
-        if (dropShadow) {
+        if (shadow != 0) {
             g.setColor(new java.awt.Color(palette.swap(shadow), true));
             g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
             for (Rectangle2D.Float bar : bars)
@@ -373,8 +391,8 @@ public class TextKit {
      * picks for that frame and line number, and unions what each run lays down: a solid run's glyphs,
      * as the text library answers the pixels a run draws ({@link MinecraftGlyphVector#getVisualBounds()}),
      * with its bars, and a gradient run's as {@link GradientKit} answers them - each again at the
-     * shadow's offset when the shadow is drawn. A glyph that draws no pixel, such as a space, counts
-     * for nothing.
+     * shadow's offset where the run draws a shadow: its own shadow colour, or the one it derives where
+     * the shadow is asked for. A glyph that draws no pixel, such as a space, counts for nothing.
      * <p>
      * A solid run's pass whose colour the client's text shader discards whole - alpha
      * {@link MinecraftGraphics#DISCARD_ALPHA} or less - lays nothing and counts for nothing. In any
@@ -384,11 +402,11 @@ public class TextKit {
      * @param line the line to measure
      * @param xMcPx the starting cursor X in mcPixels
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color for segments without an explicit color, as {@link #drawLine}
-     * takes it
+     * @param defaultArgb the colour the line is drawn in, as {@link #drawLine} takes it
      * @param lineIndex the line's number among the lines drawn together
      * @param frame the animation frame drawn
-     * @param dropShadow whether the offset shadow pass is drawn
+     * @param dropShadow whether the shadow a run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      * @return the bounds of what the line draws in mcPixels, empty where it draws nothing
      */
     public static @NotNull Optional<Rectangle2D> inkBounds(
@@ -417,8 +435,10 @@ public class TextKit {
      * @param text the segment's text, substituted where the segment is obfuscated
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
-     * @param defaultArgb the fallback color when the segment has no explicit color
-     * @param dropShadow whether the offset shadow pass is drawn
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
+     * @param dropShadow whether the shadow the run derives from its colour is drawn - a segment naming a
+     * shadow colour draws it either way
      * @param drawn the rectangles laid down so far, in mcPixels, which this run's rectangles join
      * @return the advance width of the segment in mcPixels, its fraction kept
      */
@@ -439,7 +459,7 @@ public class TextKit {
 
         int color = resolveColor(segment, defaultArgb);
         boolean main = ColorMath.alpha(color) > MinecraftGraphics.DISCARD_ALPHA;
-        boolean shadow = dropShadow && ColorMath.alpha(shadowColor(segment, color)) > MinecraftGraphics.DISCARD_ALPHA;
+        boolean shadow = ColorMath.alpha(shadowColor(segment, color, dropShadow)) > MinecraftGraphics.DISCARD_ALPHA;
 
         int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         int xOut = Math.round(xMcPx * pxPerMcPx);
@@ -498,36 +518,50 @@ public class TextKit {
     // --- color utilities ---
 
     /**
-     * Resolves a {@link TextSegment}'s color to a packed ARGB int, falling back to the given
-     * default when the segment has no explicit color.
+     * Resolves the colour a segment's run is drawn in, as the client's font does - a segment naming a
+     * colour draws its red, green and blue in the alpha of the colour the line is drawn in, and one
+     * naming none draws that colour.
      *
      * @param segment the segment to resolve
-     * @param defaultArgb the fallback color
-     * @return the resolved ARGB color
+     * @param defaultArgb the colour the line is drawn in, which a segment naming no colour draws in and
+     * whose alpha a segment naming one keeps
+     * @return the colour the run's text is drawn in, as packed ARGB
      */
     public static int resolveColor(@NotNull TextSegment segment, int defaultArgb) {
         return segment.getColor()
-            .map(ChatColor::rgb)
+            .map(colour -> ColorMath.withAlpha(colour.rgb(), ColorMath.alpha(defaultArgb)))
             .orElse(defaultArgb);
     }
 
     /**
-     * Returns the shadow color for a segment as packed ARGB. When the segment carries an explicit
-     * {@link ChatColor} its {@link ChatColor#shadowRgb() shadowRgb} is used; a colorless
-     * segment falls back to {@link #darken(int) darkening} {@code fallbackArgb} to 25% brightness.
+     * Answers the colour a run's shadow is drawn in, as the client's font derives it - the segment's
+     * shadow colour where it names one, its alpha scaled by a see-through text colour's and floored,
+     * drawn whether or not the caller asks for a shadow; otherwise the text colour at a quarter
+     * ({@link #darken(int)}) where the caller asks for one, and {@code 0}, no shadow, where it asks for
+     * none.
      *
      * @param segment the segment
-     * @param fallbackArgb the primary color to darken when the segment has no explicit ChatColor
-     * @return the shadow ARGB color
+     * @param textArgb the colour the run's text is drawn in, as {@link #resolveColor} answers it
+     * @param dropShadow whether the caller asks for the shadow a run derives from its colour
+     * @return the shadow colour as packed ARGB, {@code 0} where the run draws no shadow
      */
-    public static int shadowColor(@NotNull TextSegment segment, int fallbackArgb) {
-        return segment.getColor()
-            .map(ChatColor::shadowRgb)
-            .orElseGet(() -> darken(fallbackArgb));
+    public static int shadowColor(@NotNull TextSegment segment, int textArgb, boolean dropShadow) {
+        return segment.getShadowColor()
+            .map(ChatColor::rgb)
+            .map(shadow -> {
+                float textAlpha = ColorMath.alpha(textArgb) / 255.0F;
+                float shadowAlpha = ColorMath.alpha(shadow) / 255.0F;
+                return textAlpha != 1.0F ? ColorMath.withAlpha(shadow, (int) Math.floor(textAlpha * shadowAlpha * 255.0F)) : shadow;
+            })
+            .orElseGet(() -> dropShadow ? darken(textArgb) : 0);
     }
 
     /**
-     * Darkens a color to approximately 25% brightness, matching vanilla's shadow rendering.
+     * Darkens a colour to the client's derived shadow - each of its red, green and blue at a quarter,
+     * truncated, and its alpha kept, as the client's {@code ARGB.scaleRGB(argb, 0.25F)} answers it.
+     *
+     * @param argb the colour as packed ARGB
+     * @return the darkened colour as packed ARGB
      */
     static int darken(int argb) {
         return ColorMath.pack(
