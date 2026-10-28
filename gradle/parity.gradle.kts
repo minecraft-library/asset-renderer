@@ -1215,11 +1215,12 @@ tasks {
     // the runs that load resource packs, one per pack mode. HarnessMode.resolve refuses packs beside any
     // other mode, because the packs load at boot and every sweep after them would draw through them. The
     // pack-source and pack-icon runs take -PrefharnessPacks over a default of their own; the pack-tooltip
-    // run fixes its pack by its name, so a task named for one pack never draws another, and takes only
-    // the folder. The pack-source default names are PipelineParityDump.PACK_FIXTURES, the packs the packs
-    // dump is taken over and from the same folder: the harness is a build of its own launched as a
-    // process, so it cannot read the constant, and the two lists are kept equal by hand. The
-    // pack-tooltip run is the one of the three a capture runs: what it draws is a stored ground truth.
+    // run fixes its pack by its name, so a task named for one pack never draws another, takes only the
+    // folder, and hands the client the copy of its pack packTooltipPacks derives from that folder. The
+    // pack-source default names are PipelineParityDump.PACK_FIXTURES, the packs the packs dump is taken
+    // over and from the same folder: the harness is a build of its own launched as a process, so it
+    // cannot read the constant, and the two lists are kept equal by hand. The pack-tooltip run is the
+    // one of the three a capture runs: what it draws is a stored ground truth.
     val packFixtureDir = layout.projectDirectory.dir(
         (project.findProperty("refharnessPackDir") as String?) ?: "cache/asset-renderer/packs").asFile.absolutePath
 
@@ -1232,14 +1233,47 @@ tasks {
             "-PrefharnessPacks=${project.findProperty("refharnessPacks") ?: "defrosted,hypixel-skyblock,eureka.cats.zip"}",
             "-PrefharnessPackDir=$packFixtureDir"))
 
+    // The folder the pack-tooltip run hands the client. hypixel-skyblock recolours text through
+    // core/text.vsh, a program no 26.1 pipeline loads - the client's text pipelines name
+    // core/rendertype_text - so a client given the pack as published draws vanilla's colours. The copy
+    // carries that shader under 26.1's name as well, and the client runs the pack's own colour swap.
+    // Only the vertex shader: the fragment shader the pipeline pairs it with reads exactly what the
+    // pack's shader writes, and 26.1 builds its programs in code, so no program file names the pair.
+    // Derived from the fixture before every run rather than kept, so the fixture stays the pack as
+    // published and the copy cannot drift from it; a Sync, so the folder holds exactly what the
+    // derivation wrote. A sibling of the reference tree rather than a build directory: the handshake
+    // records the folder the client was handed and the pack's tooltip sweep loads its packs back out
+    // of it, so the folder has to last as long as the drawings that name it.
+    val packTooltipPackDir = layout.projectDirectory.dir(
+        parityReferenceRoot.substringBeforeLast('/') + "/pack-tooltip-packs").asFile.absolutePath
+
+    register<Sync>("packTooltipPacks") {
+        description = "Derives the folder renderVanillaPackTooltipsHypixelSkyblock hands the client: hypixel-skyblock " +
+            "from -PrefharnessPackDir (default cache/asset-renderer/packs/) copied into pack-tooltip-packs/ beside " +
+            "the reference tree, its core/text.vsh also placed at core/rendertype_text.vsh, the program the 26.1 " +
+            "client draws text with, so the client runs the pack's own colour swap."
+        group = "tooling"
+        val pack = File(packFixtureDir, "hypixel-skyblock")
+        into(packTooltipPackDir)
+        from(pack) { into("hypixel-skyblock") }
+        from(File(pack, "assets/minecraft/shaders/core/text.vsh")) {
+            into("hypixel-skyblock/assets/minecraft/shaders/core")
+            rename { "rendertype_text.vsh" }
+        }
+    }
+
     registerHarnessRun("renderVanillaPackTooltipsHypixelSkyblock", "refharnessModes=PACK_TOOLTIPS", "PACK_TOOLTIPS", false, emptyList(),
-        "Runs the harness in PACK_TOOLTIPS mode: boots the client with hypixel-skyblock from -PrefharnessPackDir (default " +
-        "cache/asset-renderer/packs/) selected over vanilla, and draws the tooltip roster's hypixel-skyblock section - " +
-        "each subject whole and as its box alone - into pack-tooltips/hypixel-skyblock/, OUTSIDE the reference tree, " +
-        "beside a stack.json naming the packs and the chrome sprites the client resolved. Refreshes no reference. " +
+        "Runs the harness in PACK_TOOLTIPS mode: boots the client with hypixel-skyblock selected over vanilla, " +
+        "from the copy packTooltipPacks derives from -PrefharnessPackDir (default cache/asset-renderer/packs/) with " +
+        "the pack's text shader also under the name the 26.1 client loads, and draws the tooltip roster's " +
+        "hypixel-skyblock section - each subject whole and as its box alone - into pack-tooltips/hypixel-skyblock/, " +
+        "OUTSIDE the reference tree, beside a stack.json naming the packs, the folder the client read them from " +
+        "and the chrome sprites it resolved. Refreshes no reference. " +
         "What it draws is the ground truth the pack's tooltip sweep is measured against. " +
         "Then run tooltipHypixelSkyblockParityVanilla.",
-        listOf("-PrefharnessPacks=hypixel-skyblock", "-PrefharnessPackDir=$packFixtureDir"))
+        listOf("-PrefharnessPacks=hypixel-skyblock", "-PrefharnessPackDir=$packTooltipPackDir"))
+
+    named("renderVanillaPackTooltipsHypixelSkyblock") { dependsOn("packTooltipPacks") }
 
     // The pack-icon roster and the run that draws it are one question asked over one set of packs, so
     // both take the packs from here: Hypixel+, whose shadowed block items are the subjects no

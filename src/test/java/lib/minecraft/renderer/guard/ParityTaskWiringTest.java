@@ -162,6 +162,16 @@ final class ParityTaskWiringTest {
     private static final Pattern RESOLVES_A_SIBLING =
         Pattern.compile("ParityPaths\\.REFERENCES\\.resolveSibling\\(\"([^\"]+)\"\\)");
 
+    /** One folder derivation the build registers, capturing the task's name and its body. */
+    private static final Pattern REGISTERS_A_DERIVATION =
+        Pattern.compile("(?s)register<Sync>\\(\"([^\"]+)\"\\) \\{(.*?)\n {0,4}\\}");
+
+    /** The folder a derivation writes, as the script variable its {@code into} names. */
+    private static final Pattern DERIVES_INTO = Pattern.compile("\\binto\\((\\w+)\\)");
+
+    /** A harness-run argument handing the harness a script variable, capturing the variable. */
+    private static final Pattern HANDS_A_VARIABLE = Pattern.compile("\"-Prefharness\\w+=\\$(\\w+)\"");
+
     /** One quoted string, for reading a producer list apart. */
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"");
 
@@ -1358,6 +1368,51 @@ final class ParityTaskWiringTest {
         assertThat("and never as a path into the working root, which is what made it conditional "
                 + "on a capture that the routine flow does not take",
             step, not(containsString("manifests/references.json")));
+    }
+
+    @Test
+    @DisplayName("the pack drawings are drawn from a folder this build derives, and the derivation runs first")
+    void aRunHandedADerivedFolderRunsTheDerivationFirst() {
+        String build = buildFile();
+        Map<String, String> derivationWriting = new TreeMap<>();
+        for (MatchResult derivation : REGISTERS_A_DERIVATION.matcher(build).results().toList()) {
+            Matcher into = DERIVES_INTO.matcher(derivation.group(2));
+            if (into.find()) derivationWriting.put(into.group(1), derivation.group(1));
+        }
+        Map<String, String> derivedFor = new TreeMap<>();
+        for (String call : harnessRunCalls()) {
+            Matcher handed = HANDS_A_VARIABLE.matcher(call);
+            while (handed.find())
+                if (derivationWriting.containsKey(handed.group(1)))
+                    derivedFor.put(declared(call, "registerHarnessRun\\(\"([^\"]+)\""),
+                        derivationWriting.get(handed.group(1)));
+        }
+        SequencedSet<String> beside = new TreeSet<>(groundTruths(build).values());
+        beside.remove(referencesArtifact(build));
+        Map<String, List<String>> table = artifactTable(build);
+        List<String> drawing = beside.stream()
+            .flatMap(truth -> table.getOrDefault(truth, List.of()).stream())
+            .toList();
+
+        assertThat("the ground truth beside the reference tree names no producer, so the clause below "
+            + "holds over no run", drawing, is(not(empty())));
+        assertThat("runs drawing the ground truth beside the reference tree that are handed the pack "
+                + "fixture rather than a folder a Sync of this build derives from it. The fixture "
+                + "recolours text through a shader no 26.1 text pipeline loads, so a client handed it "
+                + "as published draws vanilla's colours, and the drawings the pack's sweep is measured "
+                + "against stop being the pack's",
+            drawing.stream().filter(run -> !derivedFor.containsKey(run)).toList(), is(empty()));
+
+        String whole = collapsed(build);
+        assertThat("runs handed a derived folder that do not depend on the task deriving it. Without "
+                + "the edge the client is handed whatever the last derivation left on disk, so an edit "
+                + "to the derivation reaches no drawing until something else happens to run it, and a "
+                + "capture taken over that edit reports no mover",
+            derivedFor.entrySet().stream()
+                .filter(edge -> !whole.contains("named(\"" + edge.getKey() + "\") { dependsOn(\""
+                    + edge.getValue() + "\") }"))
+                .map(edge -> edge.getKey() + " -> " + edge.getValue())
+                .toList(), is(empty()));
     }
 
     @Test

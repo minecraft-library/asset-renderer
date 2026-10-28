@@ -189,12 +189,12 @@ final class BlindnessMapTest {
      * decision.
      *
      * <p>One: the client's tooltip drawings under a pack, which the harness build draws with versions
-     * of its own, from the roster file and the pack folder it reads by path, with no task of this
-     * build running first. Every other producer this store captures runs code a pin there chooses, so
-     * a version bump plans the rest of the store. An artifact whose producer runs none - one a build
-     * beside this one writes from inputs nothing here produces - goes in the version rule's
-     * {@code blind} with that mechanism and in this set, and never a sweep, a sweep being a main of
-     * this build.
+     * of its own, from the roster file it reads by path and the pack folder it is handed, which the one
+     * task of this build running first derives with Gradle's own file copy. Every other producer this
+     * store captures runs code a pin there chooses, so a version bump plans the rest of the store. An
+     * artifact whose producer runs none - one a build beside this one writes from inputs nothing here
+     * produces through pinned code - goes in the version rule's {@code blind} with that mechanism and
+     * in this set, and never a sweep, a sweep being a main of this build.
      */
     private static final Set<String> BLIND_TO_A_VERSION = Set.of("manifest.pack-tooltips");
 
@@ -213,6 +213,21 @@ final class BlindnessMapTest {
 
     /** One harness-run registration in the build, capturing the name the run's task is given. */
     private static final Pattern HARNESS_RUN = Pattern.compile("registerHarnessRun\\(\"([^\"]+)\"");
+
+    /**
+     * One folder derivation a build script registers, capturing the task's name.
+     *
+     * <p>A {@code Sync} runs no code of this repository: what it writes is the copy spec typed in the
+     * script that registers it, so that script is the one tracked file an edit to what it writes
+     * arrives in.
+     */
+    private static final Pattern REGISTERS_A_DERIVATION = Pattern.compile("register<Sync>\\(\"([^\"]+)\"\\)");
+
+    /** One row of the build's artifact table, capturing its id. */
+    private static final Pattern ARTIFACT_ROW = Pattern.compile("ParityArtifact\\(\"([^\"]+)\"");
+
+    /** The ground truth one artifact row is measured against, as the build's named argument spells it. */
+    private static final Pattern GROUND_TRUTH = Pattern.compile("groundTruth = \"([^\"]+)\"");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.
@@ -1737,6 +1752,52 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("the script deriving a folder a harness run depends on plans what that run draws")
+    void aScriptDerivingARunsFolderPlansWhatTheRunDraws() {
+        String build = buildFile();
+        Set<String> harnessRuns = new TreeSet<>(HARNESS_RUN.matcher(build).results()
+            .map(hit -> hit.group(1)).toList());
+        Map<String, String> truthOf = groundTruthOfEachRow();
+        Map<String, Set<String>> owed = new TreeMap<>();
+        for (Path script : Stream.concat(Stream.of(BuildScripts.ROOT), BuildScripts.applied().stream()).toList()) {
+            String path = script.toString().replace('\\', '/');
+            Matcher derivation = REGISTERS_A_DERIVATION.matcher(BuildScripts.read(script));
+            while (derivation.find()) {
+                Matcher edge = Pattern.compile("named\\(\"([^\"]+)\"\\) \\{ dependsOn\\(\""
+                    + Pattern.quote(derivation.group(1)) + "\"\\) \\}").matcher(build);
+                while (edge.find()) {
+                    String run = edge.group(1);
+                    if (!harnessRuns.contains(run)) continue;
+                    Set<String> drawn = new TreeSet<>(ParityArtifacts.ALL.stream()
+                        .filter(registration -> registration.producers().contains(run))
+                        .map(ParityArtifacts.Registration::id)
+                        .toList());
+                    Set<String> reached = owed.computeIfAbsent(path, key -> new TreeSet<>());
+                    reached.addAll(drawn);
+                    truthOf.forEach((row, truth) -> {
+                        if (drawn.contains(truth)) reached.add(row);
+                    });
+                }
+            }
+        }
+        List<String> unplanned = new ArrayList<>();
+        owed.forEach((path, reached) -> {
+            Set<String> sees = seesFor(path);
+            reached.stream().filter(id -> !sees.contains(id)).forEach(id -> unplanned.add(path + " -> " + id));
+        });
+
+        assertThat("no build script derives a folder a harness run drawing a stored artifact depends on, "
+                + "so the clause below holds over nothing",
+            owed.values().stream().anyMatch(reached -> !reached.isEmpty()), is(true));
+        assertThat("artifacts a harness run draws from a folder a script derives, or measured against "
+                + "what it draws, that the script does not plan. The derivation decides the content the "
+                + "client is handed, so an edit to it moves those drawings while no file their other "
+                + "rules trigger on changes - the reach the wide rule over the build wiring cannot deny, "
+                + "and the one it has to carve out",
+            unplanned, is(empty()));
+    }
+
+    @Test
     @DisplayName("the worked example resolves the way the corpus records it")
     void theBoxBuilderExampleResolves() {
         // B10's own gates, which is what the map has to keep answering for the path it claims. The
@@ -2246,9 +2307,32 @@ final class BlindnessMapTest {
      */
     private static Set<String> captureRows() {
         Set<String> out = new LinkedHashSet<>();
-        Matcher matcher = Pattern.compile("ParityArtifact\\(\"([^\"]+)\"").matcher(buildFile());
+        Matcher matcher = ARTIFACT_ROW.matcher(buildFile());
         while (matcher.find()) out.add(matcher.group(1));
         return out;
+    }
+
+    /**
+     * The ground truth each row of the build file's capture table is measured against, for the rows
+     * that name one.
+     *
+     * <p>Read per row, each row being the text from its opening to the next row's or to the table's
+     * close, so a ground truth is attributed to the row that names it and never to a neighbour.
+     *
+     * @return the ground truth by artifact id
+     */
+    private static Map<String, String> groundTruthOfEachRow() {
+        String build = buildFile();
+        List<MatchResult> rows = ARTIFACT_ROW.matcher(build).results().toList();
+        Map<String, String> named = new TreeMap<>();
+        for (int at = 0; at < rows.size(); at++) {
+            int start = rows.get(at).start();
+            int end = at + 1 < rows.size() ? rows.get(at + 1).start() : build.indexOf("\n)", start);
+            if (end < 0) throw new AssertionError("the build file's capture table never closes");
+            Matcher truth = GROUND_TRUTH.matcher(build.substring(start, end));
+            if (truth.find()) named.put(rows.get(at).group(1), truth.group(1));
+        }
+        return named;
     }
 
     /**

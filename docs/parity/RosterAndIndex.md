@@ -18,14 +18,14 @@ the type here that decides what is written: `manifest.references` roots at `Styl
 resolution the schedule roster is written through, while the harness's sources, the two entity tables
 and the roster writer reach it through the authored rules B29 and B65. Where no type here decides
 what a build beside this one writes, the artifact is `UNROOTED` with that reason:
-`manifest.pack-tooltips` hashes drawings the harness makes from the roster file and the pack folder,
-both read by path, with no task of this build running first, so the authored rules plan it. A
-pointer, source or external row has no store file and no producer, so it owes neither. A derived
-rule plans off the graph alone, and the graph answers an artifact only through its root, so an
-artifact with none is left out of every derived plan and the plan does not say so. A row one class
-writes under a property or an argument roots at that class like any other: `sweep.entity-walk`
-roots where `sweep.entity-animation` does, and `sweep.tooltip-hypixel-skyblock` where
-`sweep.tooltip` does.
+`manifest.pack-tooltips` hashes drawings the harness makes from the roster file, read by path, and
+the pack folder the parity script derives with a file copy no type here decides, so the authored
+rules plan it. A pointer, source or external row has no store file and no producer, so it owes
+neither. A derived rule plans off the graph alone, and the graph answers an artifact only through its
+root, so an artifact with none is left out of every derived plan and the plan does not say so. A row
+one class writes under a property or an argument roots at that class like any other:
+`sweep.entity-walk` roots where `sweep.entity-animation` does, and `sweep.tooltip-hypixel-skyblock`
+where `sweep.tooltip` does.
 
 **Coining a store artifact owes the version rule a place too.** The two files this project's
 dependency versions are written in - the root build file and the catalog - plan every stored
