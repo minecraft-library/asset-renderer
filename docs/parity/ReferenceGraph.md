@@ -59,7 +59,7 @@ on, so a ledger only shrinks. `tooling-blindness`, `menu-closure` and `text-clos
 the first is true only of code no renderer producer runs, so a renderer caller of `TableEnvelope`
 fails the check instead of quietly taking the sweeps it reaches out of the envelope's plans, the
 second only while a menu type reaches nothing but the visual manifest and the menu sweep, and the
-third only while a text type reaches nothing but the visual manifest and the tooltip sweep. The
+third only while a text type reaches nothing but the visual manifest and the two tooltip sweeps. The
 other four list the carriers they subtract from by decision - `engine-renders`, `tensor-math` and
 `face-vocabulary` take the dumps off a type the dump reads or serialises and never renders, and
 `cit-grammar` takes the renders off a grammar none of their producers parses a rule of. The

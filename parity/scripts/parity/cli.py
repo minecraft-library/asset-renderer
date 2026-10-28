@@ -742,6 +742,10 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     sources = args.source
     if len(sources) not in (1, len(args.artifact)):
         raise Refused(f"give one --source, or one per --artifact ({len(args.artifact)})")
+    # Before any erase, so a refused step leaves the working root as it found it.
+    if args.reference_tree and not args.reference_artifact:
+        raise Refused("--reference-tree needs --reference-artifact: the stored manifest row the "
+                      "reference tree is the ground truth of, which decides how the tree is digested")
     # A hand-run producer carries its capture step as a finalizer, so a bare `./gradlew <flow>` lands
     # here with whatever the root already holds. Where that is a finished capture, this step is not
     # one of its rows: it erases nothing, writes nothing, and says so. Failing instead would take the
@@ -765,6 +769,7 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
                 mode=args.mode, flags=args.flag or (), runs=args.runs,
                 logs=Path(args.logs) if args.logs else None,
                 reference_tree=(Path(args.reference_tree) if args.reference_tree else None),
+                reference_artifact=args.reference_artifact,
                 wall_time_ms=args.wall_time, store=args.store)
         except MissingInput:
             # A producer that failed is a RESULT to record, and only where it left nothing to read.
@@ -1964,8 +1969,12 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "reads; absent, the record carries no duration rather than a zero")
     cap.add_argument("--reference-tree", default=None, metavar="DIR",
                      help="the reference set this artifact was measured against, digested through "
-                          "its manifest into one provenance field; absent, the record cannot say "
-                          "which ground truth produced its numbers")
+                          "the manifest --reference-artifact names into one provenance field, and "
+                          "refused without it; absent, the record cannot say which ground truth "
+                          "produced its numbers")
+    cap.add_argument("--reference-artifact", default=None, metavar="ID",
+                     help="the stored manifest row the reference tree is the ground truth of, which "
+                          "decides how the tree is digested")
     table["capture-normalize"] = _cmd_capture_normalize
 
     subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")

@@ -53,8 +53,13 @@ import java.util.TreeMap;
  * selection at boot. A requested pack the client did not select - one its folder source never
  * discovered, or refused - is written under {@code missing} rather than ending the run, because a pack
  * vanilla will not load is itself an answer to the question this probe asks.
+ *
+ * <p>The selection block - {@link #selection}, {@link #stack} and {@link #sha256} - also writes the
+ * header and every chrome stack of a pack-tooltip run's {@code stack.json}, which the asset side reads
+ * before it measures that pack's tooltips. So this file reaches that pack's drawings and their sweep,
+ * and nothing else the parity store holds.
  */
-@Parity(claim = "harness-probe-sweep", mode = Mode.DEMOTE)
+@Parity(claim = "harness-pack-selection", mode = Mode.DEMOTE)
 public final class PackSourceSweep implements Sweep<String> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

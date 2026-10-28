@@ -83,6 +83,10 @@ NOT_MEMBERS = {
 
 DEFAULT_GLOBS = {
     "manifest.references": REFERENCE_GLOBS,
+    # The client's drawings and never the stack.json beside them: that file is the pack run's
+    # handshake, it carries the pack folder's absolute path and the harness's module list, and the
+    # asset side's resolution check already holds it before any pixel is compared.
+    "manifest.pack-tooltips": IMAGE_GLOBS,
     "manifest.visual": IMAGE_GLOBS,
     "manifest.player-raw": RAW_RENDER_GLOBS,
     "manifest.player-sheets": IMAGE_GLOBS,

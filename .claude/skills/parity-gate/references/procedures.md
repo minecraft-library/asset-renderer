@@ -148,6 +148,10 @@ entities and players and leaves `glint/` and `armor/` holding ground truth recor
 which has happened twice. `renderVanillaAllReferences` pays the client boot once and is *cheaper*
 than the three narrower tasks run separately.
 
+**The pack-tooltip drawings sit beside the tree, not in it.** The whole-tree boot never draws them:
+only `renderVanillaPackTooltipsHypixelSkyblock` refreshes them, and a capture of
+`manifest.pack-tooltips` runs it.
+
 **A reference that moves on a re-render with your change stashed was stale, not moved.** That is the
 check that separates the two, and two consecutive runs agreeing byte for byte is what rules out
 flapping.

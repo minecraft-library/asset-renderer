@@ -278,7 +278,7 @@ register<JavaExec>("tooltipParityVanilla") {
 }
 
 register<JavaExec>("tooltipHypixelSkyblockParityVanilla") {
-    description = "Per-subject tooltip parity report over the hypixel-skyblock pack: renders the tooltip roster's hypixel-skyblock section through Java TextRenderer with the packs the harness handshake at cache/.../pack-tooltips/hypixel-skyblock/stack.json names, against the client's drawings beside it, whole and as their box alone. Refuses first a configuration whose chrome sprites the renderer resolves from another pack, other bytes or another scaling than the client did. A diagnostic report rather than a gate: writes per-subject diff panels and a TSV to cache/visual/tooltip-hypixel-skyblock-parity-vanilla/. Run renderVanillaPackTooltipsHypixelSkyblock first. -PtooltipId=one_line"
+    description = "Per-subject tooltip parity report over the hypixel-skyblock pack: renders the tooltip roster's hypixel-skyblock section through Java TextRenderer with the packs the harness handshake at cache/.../pack-tooltips/hypixel-skyblock/stack.json names, against the client's drawings beside it, whole and as their box alone. Refuses first a configuration whose chrome sprites the renderer resolves from another pack, other bytes or another scaling than the client did. Writes per-subject diff panels and a TSV to cache/visual/tooltip-hypixel-skyblock-parity-vanilla/. Run renderVanillaPackTooltipsHypixelSkyblock first. -PtooltipId=one_line"
     group = "visual"
     mainClass.set("lib.minecraft.renderer.sweep.TooltipParitySweep")
     classpath = sourceSets["visual"].runtimeClasspath

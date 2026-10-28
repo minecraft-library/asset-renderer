@@ -106,6 +106,9 @@
     ],
     "sweep.tooltip": [
       "lib/minecraft/renderer/sweep/TooltipParitySweep"
+    ],
+    "sweep.tooltip-hypixel-skyblock": [
+      "lib/minecraft/renderer/sweep/TooltipParitySweep"
     ]
   },
   "types": {
@@ -413,7 +416,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -424,7 +428,8 @@
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -770,7 +775,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -804,7 +810,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -834,7 +841,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -844,7 +852,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.corpus-count",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -854,7 +863,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.corpus-count",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -871,7 +881,8 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.corpus-count",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -990,7 +1001,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1012,7 +1024,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1034,7 +1047,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1056,7 +1070,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1065,7 +1080,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1074,7 +1090,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1083,7 +1100,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1092,7 +1110,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1101,7 +1120,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1123,7 +1143,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1145,7 +1166,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1167,7 +1189,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1176,7 +1199,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1185,7 +1209,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1207,7 +1232,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1233,7 +1259,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1255,7 +1282,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1277,7 +1305,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1299,7 +1328,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1325,7 +1355,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1743,7 +1774,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1786,7 +1818,8 @@
     "lib/minecraft/renderer/bake/gui/NineSliceKit": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1823,7 +1856,8 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -1834,7 +1868,8 @@
     "lib/minecraft/renderer/bake/gui/TooltipChrome": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2330,7 +2365,8 @@
     "lib/minecraft/renderer/call/request/ChromeStyle": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2385,7 +2421,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2498,7 +2535,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2515,7 +2553,8 @@
     "lib/minecraft/renderer/call/request/TextOptions": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2579,7 +2618,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2603,7 +2643,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2631,7 +2672,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2721,7 +2763,8 @@
     "lib/minecraft/renderer/call/slot/TextSlot": {
       "artifacts": [
         "manifest.visual",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2749,7 +2792,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2777,7 +2821,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2805,7 +2850,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2844,7 +2890,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2873,7 +2920,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2902,7 +2950,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -2935,7 +2984,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3146,7 +3196,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3207,7 +3258,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3234,7 +3286,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3507,7 +3560,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3520,7 +3574,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3537,7 +3592,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3550,7 +3606,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3590,7 +3647,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3606,7 +3664,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3627,7 +3686,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3640,7 +3700,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3649,7 +3710,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3662,7 +3724,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3698,7 +3761,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3730,7 +3794,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3751,7 +3816,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3768,7 +3834,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3781,7 +3848,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3965,7 +4033,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -3992,7 +4061,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4091,7 +4161,8 @@
     },
     "lib/minecraft/renderer/dump/PackSourceParity": {
       "artifacts": [
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4511,7 +4582,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4537,7 +4609,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4566,7 +4639,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4649,7 +4723,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4804,7 +4879,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4903,7 +4979,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4925,7 +5002,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4947,7 +5025,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -4973,7 +5052,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5122,7 +5202,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5158,7 +5239,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5190,7 +5272,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5222,7 +5305,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5285,7 +5369,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5653,7 +5738,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5711,7 +5797,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5748,7 +5835,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5778,7 +5866,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5808,7 +5897,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5817,7 +5907,8 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5932,7 +6023,8 @@
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5953,7 +6045,8 @@
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -5974,7 +6067,8 @@
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -6003,7 +6097,8 @@
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -6041,7 +6136,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -6187,7 +6283,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -6214,13 +6311,15 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
     "lib/minecraft/renderer/sweep/TooltipParitySweep": {
       "artifacts": [
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -7338,7 +7437,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -7676,7 +7776,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },
@@ -7707,7 +7808,8 @@
         "sweep.item",
         "sweep.menu",
         "sweep.player",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
       ],
       "source": "derived"
     },

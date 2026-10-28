@@ -16,11 +16,16 @@ so the two spellings of "declared but not yet baselined" are not interchangeable
 neither. A root is the class that writes the artifact, or, where a build beside this one writes it,
 the type here that decides what is written: `manifest.references` roots at `StyleResolution`, the
 resolution the schedule roster is written through, while the harness's sources, the two entity tables
-and the roster writer reach it through the authored rules B29 and B65. A pointer, source or external
-row has no store file and no producer, so it owes neither. A derived rule plans off the graph alone,
-and the graph answers an artifact only through its root, so an artifact with none is left out of
-every derived plan and the plan does not say so. A row one class writes under a property roots at
-that class like any other: `sweep.entity-walk` roots where `sweep.entity-animation` does.
+and the roster writer reach it through the authored rules B29 and B65. Where no type here decides
+what a build beside this one writes, the artifact is `UNROOTED` with that reason:
+`manifest.pack-tooltips` hashes drawings the harness makes from the roster file and the pack folder,
+both read by path, with no task of this build running first, so the authored rules plan it. A
+pointer, source or external row has no store file and no producer, so it owes neither. A derived
+rule plans off the graph alone, and the graph answers an artifact only through its root, so an
+artifact with none is left out of every derived plan and the plan does not say so. A row one class
+writes under a property or an argument roots at that class like any other: `sweep.entity-walk`
+roots where `sweep.entity-animation` does, and `sweep.tooltip-hypixel-skyblock` where
+`sweep.tooltip` does.
 
 **Coining a store artifact owes the version rule a place too.** The two files this project's
 dependency versions are written in - the root build file and the catalog - plan every stored
@@ -67,6 +72,11 @@ never by an edit - rewriting one to satisfy a writing rule would falsify the rec
 keep. The next one written still follows the rule.
 
 One repository means one sha, so provenance records `asset_sha` alone - a second would be equal to it
-by construction. `provenance.reference_manifest_digest` derives from the reference tree rather than
-from a captured file, so re-deriving it and comparing against any sweep's provenance is the cheap
-check that a number and its ground truth still name one reference set.
+by construction. `provenance.reference_manifest_digest` derives from the tree of the ground-truth
+row the sweep names rather than from a captured file, and `reference_artifact` records that row
+beside it, because the row decides how the tree is digested. So re-deriving it and comparing
+against any sweep's provenance is the cheap check that a number and its ground truth still name one
+reference set, the same check for the reference tree and for the pack-tooltip drawings.
+`reference_counts` is no part of that check: it is the vanilla reference tree's census per sub-tree,
+recorded on every artifact whatever that artifact read, so a sweep measured against the pack-tooltip
+drawings carries the vanilla counts beside a digest of the drawings.

@@ -52,6 +52,11 @@
       "promoted_at": "5e04b56f6a5d1918fa9cb985475e642cbf1b9b61",
       "sha256": "0fc8b77ece6f222d03f053ae0b376ea36312cbe6021b6e0d9954b8774d00940a"
     },
+    "manifest.pack-tooltips": {
+      "baselined": false,
+      "determinism_floor": 2,
+      "kind": "manifest"
+    },
     "manifest.player-raw": {
       "baselined": true,
       "determinism_floor": 2,
@@ -303,6 +308,11 @@
       "promoted_at": "376ca7d2f91b2d7ca4545302a5a8b380658216fe",
       "sha256": "787d1aba24aac4d03201d977d03dd945b30de8b902b0742863b46a99f5131755",
       "sum": "78.3011"
+    },
+    "sweep.tooltip-hypixel-skyblock": {
+      "baselined": false,
+      "determinism_floor": 2,
+      "kind": "sweep-table"
     }
   },
   "external": {
@@ -329,11 +339,6 @@
     "probe.pack-sources": {
       "home": "cache/asset-renderer/vanilla/<version>/pack-sources/",
       "reason": "written deliberately outside the reference tree by renderVanillaPackSources, and read by packSourceParityVanilla, a diagnostic report rather than a gate",
-      "stored": false
-    },
-    "probe.pack-tooltips": {
-      "home": "cache/asset-renderer/vanilla/<version>/pack-tooltips/",
-      "reason": "written deliberately outside the reference tree by renderVanillaPackTooltipsHypixelSkyblock, one directory per pack configuration, each beside its stack.json, and read by tooltipHypixelSkyblockParityVanilla, a diagnostic report rather than a gate",
       "stored": false
     },
     "probe.pixel": {

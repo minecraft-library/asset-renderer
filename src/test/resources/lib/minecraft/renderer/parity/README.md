@@ -21,6 +21,7 @@ Values this store holds, one file each.
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
+| `manifest.pack-tooltips` | - | - | - | - | **no** |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
@@ -46,6 +47,7 @@ Values this store holds, one file each.
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.tooltip` | `sweeps/tooltip.json` | 28 | sum 78.3011 | `376ca7d2f91b2d7ca4545302a5a8b380658216fe` | yes |
+| `sweep.tooltip-hypixel-skyblock` | - | - | - | - | **no** |
 
 ## Pointers
 
@@ -76,7 +78,6 @@ citation by path is never the only record that something exists.
 | `probe.depth-quantum` | `cache/asset-renderer/vanilla/<version>/depth-quantum-probe/` | written deliberately outside the reference tree by renderVanillaDepthQuantumProbe |
 | `probe.pack-icons` | `cache/asset-renderer/vanilla/<version>/pack-icons/` | written deliberately outside the reference tree by renderVanillaPackIcons over the roster packIconRoster writes beside it, and read by packIconParityVanilla, a diagnostic report rather than a gate |
 | `probe.pack-sources` | `cache/asset-renderer/vanilla/<version>/pack-sources/` | written deliberately outside the reference tree by renderVanillaPackSources, and read by packSourceParityVanilla, a diagnostic report rather than a gate |
-| `probe.pack-tooltips` | `cache/asset-renderer/vanilla/<version>/pack-tooltips/` | written deliberately outside the reference tree by renderVanillaPackTooltipsHypixelSkyblock, one directory per pack configuration, each beside its stack.json, and read by tooltipHypixelSkyblockParityVanilla, a diagnostic report rather than a gate |
 | `probe.pixel` | `untracked working notes` | instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this |
 | `report.capture-note` | `commit messages` | its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose |
 | `report.expected-diff` | `<working root>/_run/expected-diff.json` | a pre-registered input to one gate, written before the capture it gates |

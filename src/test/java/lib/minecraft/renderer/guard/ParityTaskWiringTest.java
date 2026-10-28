@@ -13,10 +13,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -30,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -143,6 +146,21 @@ final class ParityTaskWiringTest {
     /** One artifact row of the build's table: its id and its producer list. */
     private static final Pattern ARTIFACT_ROW =
         Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)");
+
+    /** The ground truth one artifact row names, as the build's named argument spells it. */
+    private static final Pattern GROUND_TRUTH = Pattern.compile("groundTruth = \"([^\"]+)\"");
+
+    /** The build's home for the pack-tooltip drawings, capturing the sibling of the reference tree it names. */
+    private static final Pattern DECLARES_THE_PACK_TOOLTIP_ROOT = Pattern.compile(
+        "val parityPackTooltipRoot: String = parityReferenceRoot\\.substringBeforeLast\\('/'\\) \\+ \"/([^\"]+)\"");
+
+    /** The visual sweep that measures a pack's tooltips against the client's drawings under that pack. */
+    private static final Path TOOLTIP_SWEEP =
+        Path.of("src/visual/java/lib/minecraft/renderer/sweep/TooltipParitySweep.java");
+
+    /** A home a visual sweep resolves beside the reference tree, capturing the sibling's name. */
+    private static final Pattern RESOLVES_A_SIBLING =
+        Pattern.compile("ParityPaths\\.REFERENCES\\.resolveSibling\\(\"([^\"]+)\"\\)");
 
     /** One quoted string, for reading a producer list apart. */
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"");
@@ -1118,36 +1136,33 @@ final class ParityTaskWiringTest {
     }
 
     @Test
-    @DisplayName("the rows that read the reference tree are the rows whose producers read it")
+    @DisplayName("the rows that name a ground truth are the rows whose producers diff against one")
     void theReferenceRuleSelectsTheRowsItSaysItDoes() {
         String build = buildFile();
-        String prefix =
-            declared(build, "val referenceDerived: Boolean get\\(\\) = artifact.startsWith\\(\"([^\"]+)\"\\)");
-        assertThat("the wider rule is the narrow one plus the row that hashes the tree; read here "
-                + "rather than restated, because a second spelling of it is a second answer",
+        assertThat("the wider statement is each row's ground truth plus the rows some row names as "
+                + "one; read here rather than restated, because a second spelling of it is a "
+                + "second answer",
             collapsed(build),
-            containsString("val readsReferenceTree: Boolean get() = referenceDerived "
-                + "|| artifact == parityReferencesArtifact"));
+            containsString("val tree: String? get() = groundTruth ?: artifact.takeIf { id -> "
+                + "parityArtifacts.any { it.groundTruth == id } }"));
 
-        Set<String> diffAgainstIt = idsWhoseProducerSatisfies(name -> name.endsWith("ParityVanilla"));
-        Set<String> hashIt = idsWhoseProducerSatisfies(harnessRunNames()::contains);
-        Set<String> selected = new TreeSet<>();
-        Set<String> readsTheTree = new TreeSet<>();
-        for (Map.Entry<String, List<String>> row : artifactTable(build).entrySet()) {
-            if (row.getKey().startsWith(prefix)) selected.add(row.getKey());
-            if (row.getKey().startsWith(prefix) || row.getKey().equals(referencesArtifact(build)))
-                readsTheTree.add(row.getKey());
-        }
+        Set<String> diffAgainstOne = idsWhoseProducerSatisfies(name -> name.endsWith("ParityVanilla"));
+        Set<String> hashOne = idsWhoseProducerSatisfies(harnessRunNames()::contains);
+        Map<String, String> named = groundTruths(build);
 
         assertThat("no artifact's producer is a sweep, which would leave this vacuous",
-            diffAgainstIt, is(not(empty())));
-        assertThat("the rule decides which rows carry the digest of the ground truth they were "
-                + "measured against, so it has to select the rows that ARE measured against it - "
-                + "resolved from the producer column of the Java-side roster rather than from the "
-                + "prefix, which is the thing under test", selected, equalTo(diffAgainstIt));
-        assertThat("no artifact's producer is a harness run, the same", hashIt, is(not(empty())));
-        assertThat("and the wider rule adds exactly the row a harness run writes",
-            readsTheTree, equalTo(union(diffAgainstIt, hashIt)));
+            diffAgainstOne, is(not(empty())));
+        assertThat("the column decides which rows carry the digest of the ground truth they were "
+                + "measured against, so it has to be given on the rows that ARE measured against "
+                + "one - resolved from the producer column of the Java-side roster rather than from "
+                + "the build table's groundTruth column, which is the thing under test",
+            named.keySet(), equalTo(diffAgainstOne));
+        assertThat("no artifact's producer is a harness run, the same", hashOne, is(not(empty())));
+        assertThat("and what the rows name is exactly the rows a harness run writes: every ground "
+                + "truth is a tree a harness run draws, and every tree a harness run draws is some "
+                + "sweep's ground truth. A sweep naming the reference tree's row where it diffs "
+                + "against another tree stamps a digest of references it never read",
+            new TreeSet<>(named.values()), equalTo(hashOne));
     }
 
     @Test
@@ -1162,37 +1177,53 @@ final class ParityTaskWiringTest {
                 + "that did not", occurrences(build, "parityHarnessModesRun"), is(equalTo(3)));
         assertThat("written where a render finishes, so a failed one records nothing",
             collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN)),
-            containsString("doLast { parityHarnessModesRun += mode }"));
+            containsString("doLast { parityHarnessModesRun.getOrPut(writes) { sortedSetOf() } += mode }"));
         assertThat("and read where the capture's argv is built, at execution, on the rows that read "
-                + "the tree and no others: which harness run is in the graph is not known while it "
-                + "is being configured, and a row whose value is no function of the tree carries no "
-                + "statement about what last wrote one - unguarded, a shipped-table digest taken in "
-                + "an invocation that also rendered is stamped with the render's mode",
+                + "a ground truth's tree and no others, and only the modes that wrote THAT tree: "
+                + "which harness run is in the graph is not known while it is being configured, and "
+                + "a row whose value is no function of the tree carries no statement about what last "
+                + "wrote one - unguarded, a shipped-table digest taken in an invocation that also "
+                + "rendered is stamped with the render's mode, and unkeyed, a vanilla sweep captured "
+                + "beside the pack run is stamped with a mode that drew nothing it read",
             collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
-            containsString("if (spec.readsReferenceTree) doFirst { "
-                + "val ran = parityHarnessModesRun.joinToString(\",\") "
-                + "if (ran.isNotEmpty()) args(\"--mode\", ran) }"));
-        assertThat("never off the artifact table's own producer column, which is where the value "
-                + "restates the producer instead of describing the run",
-            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)), not(containsString("harnessRunModes[")));
+            containsString("spec.tree?.let { tree -> doFirst { "
+                + "val ran = parityHarnessModesRun[tree].orEmpty().joinToString(\",\") "
+                + "if (ran.isNotEmpty()) args(\"--mode\", ran) } }"));
+        assertThat("never off the registry of what each run writes, which is the artifact table's "
+                + "producer column read a second way: the value would restate the producer instead "
+                + "of describing the run",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)), not(containsString("harnessRunTrees[")));
     }
 
     @Test
-    @DisplayName("a run that refreshes no reference stamps no mode and orders nothing")
-    void aRunThatRefreshesNothingIsNoRenderOfTheGroundTruth() {
+    @DisplayName("a run that writes no ground truth stamps no mode and orders nothing")
+    void aRunThatWritesNoGroundTruthStampsAndOrdersNothing() {
+        String build = buildFile();
         String registration = collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN));
 
-        assertThat("guarded on what the run REFRESHES. Both probes render into their own directory "
-                + "beside the reference tree and rewrite nothing in it, so an invocation running one "
-                + "has re-measured no ground truth - and a capture stamping its mode says the "
-                + "opposite about numbers taken off references nobody touched, which is worse than "
-                + "the absent field the honest answer leaves",
+        assertThat("derived once, from what the run REFRESHES and from the artifact table: a run "
+                + "refreshing a reference sub-tree writes the reference tree's row, a run the table "
+                + "names as the producer of a ground truth writes that one, and a probe writes "
+                + "neither. Each probe renders into its own directory beside the reference tree, a "
+                + "directory no ground truth is defined over, so an invocation running one has "
+                + "re-measured no ground truth - and a capture stamping its mode says the opposite "
+                + "about numbers taken off references nobody touched",
             registration,
-            containsString("if (refreshes.isNotEmpty()) doLast { parityHarnessModesRun += mode }"));
-        assertThat("and the ordering edges read the same set through the same predicate, so what a "
-                + "row that reads the tree is ordered against is what can write the tree",
-            registration,
-            containsString("}.also { if (refreshes.isNotEmpty()) harnessRunModes[name] = mode }"));
+            containsString("val writes = if (refreshes.isNotEmpty()) parityReferencesArtifact else { "
+                + "val drawn = parityArtifacts.filter { name in it.producers && it.tree == it.artifact } "
+                + "check(drawn.size <= 1) {"));
+        assertThat("and a run the table names the producer of two ground truths fails the build "
+                + "rather than writing neither. Taking the single match only where there is one "
+                + "answers no tree for two matches as for none, so such a run would stamp no mode "
+                + "and order nothing, where every other part of this wiring fails loudly",
+            registration, containsString("drawn.singleOrNull()?.artifact } "
+                + "if (writes != null) harnessRunTrees[name] = writes"));
+        assertThat("the stamp is guarded on it", registration,
+            containsString("if (writes != null) doLast { parityHarnessModesRun.getOrPut(writes) "
+                + "{ sortedSetOf() } += mode }"));
+        assertThat("and the ordering edges read the registry it fills, so what a row reading a tree "
+                + "is ordered against is what can write that tree",
+            registration, containsString("if (writes != null) harnessRunTrees[name] = writes"));
 
         Map<String, Boolean> refreshesNothing = new TreeMap<>();
         Map<String, Boolean> saysItRefreshesNothing = new TreeMap<>();
@@ -1211,6 +1242,19 @@ final class ParityTaskWiringTest {
                 + "says it rewrites a sub-tree while its description says it refreshes none is one "
                 + "of the two claims being wrong, and the wiring reads the one nobody looks at",
             saysItRefreshesNothing, equalTo(refreshesNothing));
+
+        Set<String> truths = new TreeSet<>(groundTruths(build).values());
+        Map<String, List<String>> table = artifactTable(build);
+        List<String> drawsOutsideTheTree = refreshesNothing.entrySet().stream()
+            .filter(Map.Entry::getValue)
+            .map(Map.Entry::getKey)
+            .filter(run -> truths.stream().anyMatch(truth -> table.getOrDefault(truth, List.of()).contains(run)))
+            .toList();
+        assertThat("and a run with an empty refresh list that the artifact table names as the "
+                + "producer of a sweep's ground truth exists, so the derivation's second branch is "
+                + "not vacuous: the pack-tooltip run refreshes no reference and draws a tree a "
+                + "stored sweep is measured against",
+            drawsOutsideTheTree, is(not(empty())));
     }
 
     @Test
@@ -1245,40 +1289,72 @@ final class ParityTaskWiringTest {
     }
 
     @Test
-    @DisplayName("a row measured against the reference tree is ordered after any render of it")
+    @DisplayName("a row measured against a ground truth is ordered after any render of that tree")
     void whatReadsTheReferenceTreeRunsAfterARenderOfIt() {
         assertThat("a render landing between a sweep and the capture of it has that capture stamp "
                 + "a mode and a manifest digest the measured value never saw, which reads as "
-                + "evidence about the number and is a statement about task order",
+                + "evidence about the number and is a statement about task order. Per tree, so a "
+                + "vanilla sweep is not ordered after a pack run that drew nothing it reads",
             collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
-            containsString("if (spec.readsReferenceTree) mustRunAfter(harnessRunModes.keys)"));
+            containsString("spec.tree?.let { tree -> "
+                + "mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }"));
         assertThat("and the producers take the same edge, which is the half that decides what the "
                 + "number was measured against",
             collapsed(buildFile()),
-            containsString("parityArtifacts.filter { it.readsReferenceTree } "
-                + ".flatMap { it.producers } .distinct() .filter { it !in harnessRunModes } "
-                + ".forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }"));
+            containsString("parityArtifacts.forEach { row -> row.tree?.let { tree -> "
+                + "row.producers.filter { it !in harnessRunTrees } "
+                + ".forEach { producer -> named(producer) { "
+                + "mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) } } } }"));
     }
 
     @Test
     @DisplayName("what a sweep was measured against is named as the tree, reachable on every capture")
     void theGroundTruthIsNamedAsTheTreeAndNotAsACapturedFile() {
+        String build = buildFile();
         String step = collapsed(declaration(REGISTERS_A_CAPTURE_STEP));
 
-        assertThat("named as the DIRECTORY the producer read. Named as the captured manifest "
+        assertThat("named as the DIRECTORY the producer read, the source of the ground-truth row the "
+                + "artifact table gives it, beside that row's id. Named as the captured manifest "
                 + "instead, the field landed only where that row was also captured - and an "
                 + "ordinary renderer change's plan selects the sweeps and not the row that hashes "
                 + "the tree, so the one field tying a number to its reference set was absent on "
-                + "every sweep the sanctioned flow produces",
-            step, containsString("if (spec.referenceDerived) { add(\"--reference-tree\"); "
-                + "add(parityReferenceRoot) }"));
-        assertThat("the same root the sweeps and the harness are pointed at, so the digest names "
-                + "the tree that was read rather than a second derivation of where it should be",
-            occurrences(buildFile(), "systemProperty(\"asset.parity.references\", parityReferenceRoot)"),
+                + "every sweep the sanctioned flow produces. And the id, because the row decides "
+                + "how the tree is digested: one tree read as two manifests is two sets",
+            step, containsString("spec.groundTruth?.let { truth -> add(\"--reference-tree\"); "
+                + "add(parityArtifacts.single { it.artifact == truth }.source) "
+                + "add(\"--reference-artifact\"); add(truth) }"));
+        assertThat("the reference tree's row is sourced at the same root the sweeps and the harness "
+                + "are pointed at, so the digest names the tree that was read rather than a second "
+                + "derivation of where it should be",
+            occurrences(build, "systemProperty(\"asset.parity.references\", parityReferenceRoot)"),
             is(greaterThan(0)));
-        assertThat("forwarded once, under the rule that says which rows are measured against the "
+        assertThat("the same, read off the row the vanilla sweeps name", collapsed(build),
+            containsString("ParityArtifact(\"" + referencesArtifact(build) + "\", "
+                + "listOf(\"renderVanillaAllReferences\"), parityReferenceRoot"));
+
+        SequencedSet<String> beside = new TreeSet<>(groundTruths(build).values());
+        beside.remove(referencesArtifact(build));
+        assertThat("one ground truth beside the reference tree, the pack drawings, which the clauses "
+            + "below hold to the home the pack sweep reads them from", beside.size(), is(equalTo(1)));
+        assertThat("that row is sourced at the root the build declares for the drawings, never at a "
+                + "path of its own",
+            declared(build, "ParityArtifact\\(\"" + Pattern.quote(beside.getFirst())
+                + "\",\\s*listOf\\([^)]*\\),\\s*(\\w+)"),
+            equalTo("parityPackTooltipRoot"));
+        Matcher home = RESOLVES_A_SIBLING.matcher(read(TOOLTIP_SWEEP));
+        assertThat("the tooltip sweep resolves no home beside the reference tree, so the root below "
+            + "has nothing to be held to", home.find(), is(true));
+        assertThat("and that root is the reference tree's parent plus the sibling the sweep resolves "
+                + "there, read off the sweep rather than typed again. The build derives the home a "
+                + "second time, so the two can drift, and the manifest and the digest are then taken "
+                + "over a tree other than the one the sweep resolves: narrowed to one pack's "
+                + "directory, every entry loses the pack segment it is keyed by",
+            declared(build, DECLARES_THE_PACK_TOOLTIP_ROOT.pattern()), equalTo(home.group(1)));
+        assertThat("forwarded once, under the column that says which rows are measured against a "
                 + "tree - an unguarded one puts the digest on rows nothing measured",
             occurrences(step, "add(\"--reference-tree\")"), is(equalTo(1)));
+        assertThat("and the row it is the ground truth of, once beside it",
+            occurrences(step, "add(\"--reference-artifact\")"), is(equalTo(1)));
         assertThat("and never as a path into the working root, which is what made it conditional "
                 + "on a capture that the routine flow does not take",
             step, not(containsString("manifests/references.json")));
@@ -1307,16 +1383,19 @@ final class ParityTaskWiringTest {
         // and it only decomposes back into them while none of them carries the joiner.
         assertThat("the value is joined on this separator, so a reader splits on it to recover the "
                 + "runs", collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
-            containsString("parityHarnessModesRun.joinToString(\"" + MODE_SEPARATOR + "\")"));
+            containsString("parityHarnessModesRun[tree].orEmpty().joinToString(\"" + MODE_SEPARATOR + "\")"));
         assertThat("and the set it joins is SORTED, so the joined value is a function of the modes "
                 + "rather than of which render finished first. Unlike the flag map collected beside "
                 + "it, whose pairs canonical JSON sorts back into place, this string is stamped "
                 + "verbatim into a promoted baseline's provenance: unsorted, two invocations running "
                 + "the same two renders in opposite orders name one reference tree two ways, and "
-                + "the difference is in the stored bytes forever",
+                + "the difference is in the stored bytes forever. The map of trees is sorted too",
             declared(buildFile(),
-                "val parityHarnessModesRun: MutableSet<String> = (\\w+)\\(\\)"),
-            equalTo("sortedSetOf"));
+                "val parityHarnessModesRun: MutableMap<String, MutableSet<String>> = (\\w+)\\(\\)"),
+            equalTo("sortedMapOf"));
+        assertThat("and each tree's set is created sorted where a run first writes it",
+            collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN)),
+            containsString("parityHarnessModesRun.getOrPut(writes) { sortedSetOf() }"));
         assertThat("a declared mode carrying the separator would make a two-run value ambiguous "
                 + "with a one-run value, and the composite would stop being a set of names",
             declared.stream().filter(mode -> mode.contains(MODE_SEPARATOR)).toList(), is(empty()));
@@ -1410,6 +1489,33 @@ final class ParityTaskWiringTest {
                 QUOTED.matcher(found.group(2)).results().map(hit -> hit.group(1)).toList());
         assertThat("build.gradle.kts declares no artifact rows", rows.keySet(), is(not(empty())));
         return rows;
+    }
+
+    /**
+     * Returns the ground truth each artifact row names, for the rows that name one.
+     *
+     * <p>Read per row, each row being the build text from its opening to the next row's or to the
+     * table's close, so a ground truth is attributed to the row that names it and never to a
+     * neighbour.
+     *
+     * @param build the build file's text
+     * @return the named ground truth by artifact id, in declaration order
+     */
+    private static Map<String, String> groundTruths(String build) {
+        List<MatchResult> rows = ARTIFACT_ROW.matcher(build).results().toList();
+        Map<String, String> named = new LinkedHashMap<>();
+        for (int at = 0; at < rows.size(); at++) {
+            int start = rows.get(at).start();
+            int end = at + 1 < rows.size() ? rows.get(at + 1).start() : build.indexOf("\n)", start);
+            assertThat("the artifact table never closes", end, is(not(-1)));
+            List<String> truths = GROUND_TRUTH.matcher(build.substring(start, end)).results()
+                .map(hit -> hit.group(1)).toList();
+            assertThat("a row naming more than one ground truth: " + rows.get(at).group(1),
+                truths.size(), is(lessThanOrEqualTo(1)));
+            if (!truths.isEmpty()) named.put(rows.get(at).group(1), truths.getFirst());
+        }
+        assertThat("no artifact row names a ground truth", named.keySet(), is(not(empty())));
+        return named;
     }
 
     /** The artifact id the build gives the row that hashes the whole reference tree. */
@@ -1526,13 +1632,6 @@ final class ParityTaskWiringTest {
             else if (ch == '{' && depth-- == 0) return at;
         }
         return -1;
-    }
-
-    /** The union of two id sets, sorted, so a failure prints both sides comparably. */
-    private static Set<String> union(Set<String> left, Set<String> right) {
-        Set<String> both = new TreeSet<>(left);
-        both.addAll(right);
-        return both;
     }
 
     /**

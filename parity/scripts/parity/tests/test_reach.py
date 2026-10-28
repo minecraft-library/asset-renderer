@@ -490,6 +490,11 @@ class TheRootsOverTheIndex(unittest.TestCase):
         self.assertEqual(reach.ROOTS.get("sweep.entity-walk"),
                          reach.ROOTS["sweep.entity-animation"])
 
+    def test_the_pack_tooltip_row_roots_where_the_tooltip_row_does(self):
+        """One main run over a pack's section, so either row is moved by what that main reaches."""
+        self.assertEqual(reach.ROOTS.get("sweep.tooltip-hypixel-skyblock"),
+                         reach.ROOTS["sweep.tooltip"])
+
 
 class HeldDemotes(unittest.TestCase):
     """A held demote's carriers reach nothing it subtracts unless its ledger lists them.

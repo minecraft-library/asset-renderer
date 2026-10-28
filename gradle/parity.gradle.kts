@@ -352,6 +352,11 @@ val minecraftVersion: String = providers
 val parityReferenceRoot: String =
     "cache/asset-renderer/vanilla/${minecraftVersion.split(".").take(2).joinToString(".")}/references"
 
+// The client's tooltip drawings under a pack, a SIBLING of the reference tree: the pack-tooltip run is
+// handed the tree's parent, and its sweep writes pack-tooltips/<label>/ under it. The asset side
+// resolves the same sibling, in TooltipParitySweep.
+val parityPackTooltipRoot: String = parityReferenceRoot.substringBeforeLast('/') + "/pack-tooltips"
+
 
 /**
  * Where every parity producer's stdout is teed, as a project-relative path the toolkit can read.
@@ -406,10 +411,10 @@ fun org.gradle.process.ExecSpec.parityToolkit(vararg argv: String) {
 }
 
 // ---- the artifact roster ------------------------------------------------------------------------
-// The row that hashes the whole vanilla reference tree, named for the one RULE that asks about that
-// one row by id: which rows are a function of the tree. The roster below keeps the id as a literal,
-// because the roster is the declaration a rule is resolved against and two suites read those rows as
-// data.
+// The row that hashes the whole vanilla reference tree, named for the one thing that asks about that
+// row by id: the ground truth each harness run refreshing a reference sub-tree writes. The roster below
+// keeps every id, ground truths included, as a literal, because the roster is the declaration a rule is
+// resolved against and two suites read those rows as data.
 val parityReferencesArtifact: String = "manifest.references"
 
 /**
@@ -423,13 +428,16 @@ val parityReferencesArtifact: String = "manifest.references"
  *   capture, because a scoped run is a hole rather than a sample
  * @param logSource the directory holding this artifact's producers' teed diagnostics logs, for a row
  *   whose stored form carries a digest per flow beside its file digests; null for every other row
+ * @param groundTruth the ground-truth row whose tree this row's numbers are a diff against - a manifest
+ *   a harness run writes - or null for a row measured against none
  */
 data class ParityArtifact(
     val artifact: String,
     val producers: List<String>,
     val source: String,
     val scopedBy: List<String> = emptyList(),
-    val logSource: String? = null
+    val logSource: String? = null,
+    val groundTruth: String? = null
 ) {
     /**
      * Whether this row's producer writes it from inside the test JVM.
@@ -441,27 +449,18 @@ data class ParityArtifact(
     val selfCaptured: Boolean get() = source == parityWorkingRoot
 
     /**
-     * Whether this row's numbers are a diff against the vanilla reference tree.
+     * The ground-truth row whose tree this row's value is a function of.
      *
-     * <p>The sweeps are exactly those rows, which is why this is a rule over the kind rather
-     * than a column: every `*ParityVanilla` producer reads the reference tree and nothing else does.
-     * Such a row's provenance carries the digest of that tree's manifest, so a stored number says
-     * which ground truth produced it - the one thing that cannot be recovered from the number later.
-     * ParityTaskWiringTest holds the rule to that statement, resolving it against the producer
-     * column rather than trusting the prefix.
+     * <p>The one this row diffs against, or its own id when some row names it as a ground truth;
+     * null for every other row. Wider than `groundTruth` by exactly the rows that hash a ground truth,
+     * and the two part company because a digest of the tree is what a number is measured against and
+     * would restate such a row's own content - but the render mode that last wrote a tree is a fact
+     * about the invocation, which the row hashing the tree needs as much as the rows measured against
+     * it. ParityTaskWiringTest holds the rows naming a ground truth to the rows whose producers read
+     * one, resolving them against the producer column of the Java-side roster.
      */
-    val referenceDerived: Boolean get() = artifact.startsWith("sweep.")
-
-    /**
-     * Whether this row's value is a function of the vanilla reference tree at all.
-     *
-     * <p>Every sweep, which diffs against it, and the one row that hashes it. Wider than
-     * `referenceDerived` by exactly that row, and the two part company because a digest of the tree
-     * is what a number is measured against and would restate that row's own content - but the render
-     * mode that last wrote the tree is a fact about the invocation, which the row that hashes it
-     * needs as much.
-     */
-    val readsReferenceTree: Boolean get() = referenceDerived || artifact == parityReferencesArtifact
+    val tree: String? get() =
+        groundTruth ?: artifact.takeIf { id -> parityArtifacts.any { it.groundTruth == id } }
 }
 
 // The digest and pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those
@@ -475,37 +474,51 @@ data class ParityArtifact(
 // BundledResourceShaTest runs in the fast suite while ClientAcquisitionIntegrationTest is @Tag("slow") -
 // naming `test` for the latter would let a fast-suite run credit itself with a value it never computed.
 //
-// manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
-// leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
-// stale that is indistinguishable from a whole-tree run. manifest.tooling-tables names eight
+// manifest.references names ONE producer where several tasks write into that tree: every narrow run
+// leaves the sub-trees it does not name stale, and a whole-tree manifest taken after one of them hashes
+// a mix of fresh and stale that is indistinguishable from a whole-tree run. manifest.pack-tooltips
+// names the one run that draws its pack. manifest.tooling-tables names eight
 // producers and one source directory, so any single flow's run captures the whole shipped table
 // state - a per-flow manifest would be four files here and six there and the two would not compare.
 // The count is deliberately not written here: the flows do not emit one table each - entityModels
 // writes three and blockModels two - so a number typed beside the producer list goes stale on the
 // next flow that grows an output, and the baseline manifest's own files[] is the one that answers.
 val parityArtifacts = listOf(
-    ParityArtifact("sweep.entity", listOf("entityParityVanilla"), "cache/visual/entity-parity-vanilla", listOf("entityId")),
-    ParityArtifact("sweep.block", listOf("blockParityVanilla"), "cache/visual/block-parity-vanilla", listOf("blockId")),
-    ParityArtifact("sweep.item", listOf("itemParityVanilla"), "cache/visual/item-parity-vanilla", listOf("itemId")),
-    ParityArtifact("sweep.player", listOf("playerParityVanilla"), "cache/visual/player-parity-vanilla"),
-    ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla"),
-    ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId")),
-    ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId")),
+    ParityArtifact("sweep.entity", listOf("entityParityVanilla"), "cache/visual/entity-parity-vanilla", listOf("entityId"),
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.block", listOf("blockParityVanilla"), "cache/visual/block-parity-vanilla", listOf("blockId"),
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.item", listOf("itemParityVanilla"), "cache/visual/item-parity-vanilla", listOf("itemId"),
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.player", listOf("playerParityVanilla"), "cache/visual/player-parity-vanilla",
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.armor", listOf("armorParityVanilla"), "cache/visual/armor-parity-vanilla",
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.glint", listOf("glintParityVanilla"), "cache/visual/glint-parity-vanilla", listOf("itemId"),
+        groundTruth = "manifest.references"),
+    ParityArtifact("sweep.menu", listOf("menuParityVanilla"), "cache/visual/menu-parity-vanilla", listOf("menuId"),
+        groundTruth = "manifest.references"),
     // Measured against idle/ rather than entities/, which is the same reference tree and a
     // different sub-tree of it - so the digest this row's provenance carries names the ground truth
     // it was taken off, exactly as the seven above do.
     ParityArtifact("sweep.entity-animation", listOf("entityAnimationParityVanilla"),
-        "cache/visual/entity-animation-parity-vanilla", listOf("entityId")),
+        "cache/visual/entity-animation-parity-vanilla", listOf("entityId"), groundTruth = "manifest.references"),
     // The same driver at a gait, measured against walk/ rather than idle/ - so the two rows are
     // the same measurement over the two sub-trees, and each carries the digest of the ground truth it
     // was taken off. It is a gate rather than a report because a subject that holds still under IDLE
     // and moves under a stride is animated THROUGH this row and through no other: the animation sweep
     // holds those subjects still on both sides, so nothing it compares can report them moving wrongly.
     ParityArtifact("sweep.entity-walk", listOf("entityWalkParityVanilla"),
-        "cache/visual/entity-walk-parity-vanilla", listOf("entityId")),
+        "cache/visual/entity-walk-parity-vanilla", listOf("entityId"), groundTruth = "manifest.references"),
     ParityArtifact("sweep.tooltip", listOf("tooltipParityVanilla"), "cache/visual/tooltip-parity-vanilla",
-        listOf("tooltipId")),
+        listOf("tooltipId"), groundTruth = "manifest.references"),
+    // The tooltip sweep under the hypixel-skyblock pack, measured against the client's drawings under
+    // that pack rather than the reference tree, so its provenance names that set's manifest.
+    ParityArtifact("sweep.tooltip-hypixel-skyblock", listOf("tooltipHypixelSkyblockParityVanilla"),
+        "cache/visual/tooltip-hypixel-skyblock-parity-vanilla", listOf("tooltipId"),
+        groundTruth = "manifest.pack-tooltips"),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
+    ParityArtifact("manifest.pack-tooltips", listOf("renderVanillaPackTooltipsHypixelSkyblock"), parityPackTooltipRoot),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
     // Shares manifest.visual's parent and its member mechanism, and covers a disjoint file set: that
     // allowlist names the producer directories no other artifact covers, and neither of these two is
@@ -681,24 +694,27 @@ val referenceSubTrees =
 /** The whole-suite producers, which order a capture step but are never finalized by one. */
 val paritySuiteProducers = setOf("test", "slowTest")
 
-// Which HarnessMode each run that WRITES the reference tree selects, filled as the run is REGISTERED
-// so the ordering edges below can name every one of them without a second list of their names.
-// ParityTaskWiringTest holds every value here to a constant the harness declares, because free text
-// in a promoted baseline is free text forever. The two probes are not here and that is the same
-// distinction the stamp below draws: each renders into its own directory beside the tree and
-// rewrites nothing in it, so nothing reading the tree needs ordering against one.
-val harnessRunModes: MutableMap<String, String> = linkedMapOf()
+// Which ground-truth row each harness run WRITES, filled as the run is REGISTERED so the ordering
+// edges below can name every run writing a tree without a second list of their names. A run that
+// refreshes a reference sub-tree writes the reference tree's row; a run the artifact table names as the
+// producer of a ground-truth row writes that row's tree. The probes are not here and that is the same
+// distinction the stamp below draws: each renders into its own directory beside the tree, a directory
+// no ground truth is defined over, so nothing reading a ground truth needs ordering against one.
+val harnessRunTrees: MutableMap<String, String> = linkedMapOf()
 
-// Which of those runs actually RAN, filled as each one executes. This is what a capture stamps, and
-// the distinction is the whole value of the field: the mode a row's declared producer would select
-// is a constant restatement of that producer's name, where the mode that refreshed the tree this
-// invocation is the difference between a baseline whose ground truth was refreshed in part and one
-// whose was refreshed whole. Empty is the honest answer for a capture that refreshed nothing: a
-// record claiming ground truth nobody re-measured is worse than one that omits the claim, and the
-// digest of the tree beside it already says WHICH references a number was measured against. Sorted,
-// and comma-joined where it is stamped, so two runs in one invocation name themselves in an order
-// that is a function of the modes rather than of execution timing.
-val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
+// Which modes of those runs actually RAN, per ground-truth row they wrote, filled as each one executes.
+// This is what a capture stamps, and the distinction is the whole value of the field: the mode a row's
+// declared producer would select is a constant restatement of that producer's name, where the mode
+// that refreshed the tree this invocation is the difference between a baseline whose ground truth was
+// refreshed in part and one whose was refreshed whole. Per tree, because a capture stamps only the
+// modes that wrote the tree its own row reads: the pack-tooltip run rewrites nothing in the reference
+// tree, so a vanilla sweep captured beside it was measured against references that run never touched.
+// Empty is the honest answer for a tree a capture refreshed nothing of: a record claiming ground truth
+// nobody re-measured is worse than one that omits the claim, and the digest of the tree beside it
+// already says WHICH ground truth a number was measured against. Sorted by tree, and each tree's modes
+// sorted and comma-joined where they are stamped, so two runs in one invocation name themselves in an
+// order that is a function of the modes rather than of execution timing.
+val parityHarnessModesRun: MutableMap<String, MutableSet<String>> = sortedMapOf()
 
 /**
  * Registers one harness run. A mode is a task, never a pass-through property: a mode flag changes
@@ -711,10 +727,12 @@ val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
  *   carrying its own `=value` is passed through as written, which is how one run names several modes;
  *   a bare flag is passed as `=true`.
  * @param mode the HarnessMode constant that flag resolves to, held against the harness's own
- *   declaration of it and stamped on this invocation's captures when the run refreshes something
+ *   declaration of it and stamped on this invocation's captures of the rows reading the tree the run
+ *   writes
  * @param forwardsTargets whether -PrefharnessTargets is honoured by the sweeps this mode runs
  * @param refreshes the reference sub-trees this run rewrites; empty means it writes outside the
- *   tree, which is also what makes the run no re-measurement of anybody's ground truth
+ *   tree, and then the run re-measures a ground truth only where the artifact table names it the
+ *   producer of one
  * @param describe the task description
  * @param extraArgs further `-P` arguments this run alone hands the harness, written whole
  * @return the registered task
@@ -727,67 +745,83 @@ fun TaskContainer.registerHarnessRun(
     refreshes: List<String>,
     describe: String,
     extraArgs: List<String> = emptyList()
-) = register<Exec>(name) {
-    description = describe
-    group = "tooling"
-    workingDir = harnessDir.asFile
-    val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-    val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
-    // layout.projectDirectory, never File(relative): a bare File resolves against the JVM's working
-    // directory, which in a long-lived daemon is usually but not guaranteed the project directory -
-    // and this value is what the harness writes its whole reference tree into.
-    val referenceDir = layout.projectDirectory.dir(parityReferenceRoot).asFile
-    // A probe is handed the reference tree's PARENT, and the empty `refreshes` list is what says it is
-    // one. Every sweep writes through SweepRunner, which resolves each path against
-    // `outputRoot / sweep.outputDir()`, so a probe handed the tree itself lands INSIDE it - and
-    // manifest.references walks that root for `*.png` at any depth with no member list, so one probe
-    // run would enter its whole grid as rows of a manifest no reference render had touched. The store
-    // already says where a probe's output belongs: index.json homes probe.depth-quantum at a SIBLING
-    // of the tree, "written deliberately outside the reference tree". This is what makes that true.
-    val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile else referenceDir
-    val argv = mutableListOf<String>()
-    if (isWindows) {
-        argv += "cmd"
-        argv += "/c"
+): TaskProvider<Exec> {
+    // The ground-truth row this run writes: the reference tree's when it refreshes a sub-tree of it,
+    // otherwise the row the artifact table names it the producer of, and none for a probe. Recorded
+    // here, where the run is REGISTERED: the configuration block below runs only when the task is
+    // realized, and the ordering edges that read the map are wired whether or not a harness run is
+    // in the graph. A run named the producer of two ground truths fails here rather than reading as a
+    // probe.
+    val writes = if (refreshes.isNotEmpty()) parityReferencesArtifact else {
+        val drawn = parityArtifacts.filter { name in it.producers && it.tree == it.artifact }
+        check(drawn.size <= 1) {
+            "$name is named the producer of ${drawn.size} ground truths " +
+                "(${drawn.joinToString { it.artifact }}), and a harness run writes one tree"
+        }
+        drawn.singleOrNull()?.artifact
     }
-    argv += gradlew
-    argv += "runRenderReferences"
-    argv += "--no-daemon"
-    // -P propagates through the harness's build.gradle to its Loom run config, which sets the system
-    // property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
-    argv += "-PrefharnessOutputDir=${outputDir.absolutePath}"
-    if (modeFlag != null) argv += if (modeFlag.contains('=')) "-P$modeFlag" else "-P$modeFlag=true"
-    if (forwardsTargets && project.hasProperty("refharnessTargets"))
-        argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
-    harnessDiagnosticProperties.filter { project.hasProperty(it) }
-        .forEach { argv += "-P$it=${project.property(it)}" }
-    argv += extraArgs
-    commandLine = argv
-    val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
-    val stale = referenceSubTrees - refreshes.toSet()
-    doFirst {
-        log.parentFile.mkdirs()
-        // The harness prints "<sweep>: done. rendered= skipped= failed= total=" and one fit line per
-        // cohort, and both are discarded with its gitignored logs. failed= is the only signal a
-        // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
-        standardOutput = TeeStream(System.out, FileOutputStream(log))
-        outputDir.mkdirs()
-        println("$name -> ${outputDir.toPath().toAbsolutePath().normalize()}")
-        if (refreshes.isNotEmpty() && stale.isNotEmpty())
-            println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep whatever " +
-                "produced them. After any harness render change run renderVanillaAllReferences.")
+    if (writes != null) harnessRunTrees[name] = writes
+    return register<Exec>(name) {
+        description = describe
+        group = "tooling"
+        workingDir = harnessDir.asFile
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+        // layout.projectDirectory, never File(relative): a bare File resolves against the JVM's
+        // working directory, which in a long-lived daemon is usually but not guaranteed the project
+        // directory - and this value is what the harness writes its whole reference tree into.
+        val referenceDir = layout.projectDirectory.dir(parityReferenceRoot).asFile
+        // A run that refreshes no reference sub-tree - a probe, or the pack-tooltip run - is handed
+        // the reference tree's PARENT, and the empty `refreshes` list is what says so. Every sweep
+        // writes through SweepRunner, which resolves each path against `outputRoot / sweep.outputDir()`,
+        // so a run handed the tree itself lands INSIDE it - and manifest.references walks that root for
+        // `*.png` at any depth with no member list, so one such run would enter its whole grid as rows
+        // of a manifest no reference render had touched. The store already says where a probe's output
+        // belongs: index.json homes probe.depth-quantum at a SIBLING of the tree, "written
+        // deliberately outside the reference tree". This is what makes that true.
+        val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile else referenceDir
+        val argv = mutableListOf<String>()
+        if (isWindows) {
+            argv += "cmd"
+            argv += "/c"
+        }
+        argv += gradlew
+        argv += "runRenderReferences"
+        argv += "--no-daemon"
+        // -P propagates through the harness's build.gradle to its Loom run config, which sets the
+        // system property the mod reads. -D would only reach the wrapper's JVM, never the forked client.
+        argv += "-PrefharnessOutputDir=${outputDir.absolutePath}"
+        if (modeFlag != null) argv += if (modeFlag.contains('=')) "-P$modeFlag" else "-P$modeFlag=true"
+        if (forwardsTargets && project.hasProperty("refharnessTargets"))
+            argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
+        harnessDiagnosticProperties.filter { project.hasProperty(it) }
+            .forEach { argv += "-P$it=${project.property(it)}" }
+        argv += extraArgs
+        commandLine = argv
+        val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
+        val stale = referenceSubTrees - refreshes.toSet()
+        doFirst {
+            log.parentFile.mkdirs()
+            // The harness prints "<sweep>: done. rendered= skipped= failed= total=" and one fit line
+            // per cohort, and both are discarded with its gitignored logs. failed= is the only signal a
+            // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
+            standardOutput = TeeStream(System.out, FileOutputStream(log))
+            outputDir.mkdirs()
+            println("$name -> ${outputDir.toPath().toAbsolutePath().normalize()}")
+            if (refreshes.isNotEmpty() && stale.isNotEmpty())
+                println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep " +
+                    "whatever produced them. After any harness render change run renderVanillaAllReferences.")
+        }
+        // The run happened, so any capture still to come in this invocation reads a tree this mode
+        // wrote. doLast rather than doFirst: a render that failed left a half-written tree, and a
+        // record naming the mode that produced one is a claim about a run that did not finish. Guarded
+        // on the ground truth the run WRITES, because a probe writes none: it renders into its own
+        // directory beside the tree, so an invocation running one has re-measured no ground truth and
+        // a capture stamping its mode says the opposite about numbers taken off references nobody
+        // touched. Keyed by that tree, so a row reading another one is stamped with none of it.
+        if (writes != null) doLast { parityHarnessModesRun.getOrPut(writes) { sortedSetOf() } += mode }
     }
-    // The run happened, so any capture still to come in this invocation reads a tree this mode
-    // wrote. doLast rather than doFirst: a render that failed left a half-written tree, and a
-    // record naming the mode that produced one is a claim about a run that did not finish. Guarded
-    // on what the run REFRESHES, because a probe rewrites no reference: it renders into its own
-    // directory beside the tree, so an invocation running one has re-measured no ground truth and a
-    // capture stamping its mode says the opposite about numbers taken off references nobody touched.
-    if (refreshes.isNotEmpty()) doLast { parityHarnessModesRun += mode }
-    // The name-to-mode map is recorded through `also`, which runs where the run is REGISTERED. The
-    // configuration block above runs only when the task is realized, and the ordering edges that
-    // read this map are wired whether or not a harness run is in the graph.
-}.also { if (refreshes.isNotEmpty()) harnessRunModes[name] = mode }
+}
 
 /**
  * The task whose action is the once-per-invocation erase of the parity working root.
@@ -873,24 +907,30 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             runs?.let { add("--runs"); add(it) }
             spec.logSource?.let { add("--logs"); add(it) }
             assetFlags.forEach { (name, value) -> add("--flag"); add("$name=$value") }
-            // The ground truth this row's numbers are a diff against, named as the TREE. Naming the
-            // captured manifest instead put the field on a harness-triggered capture and nowhere
-            // else: an ordinary renderer change's plan selects the sweeps and not the row that
-            // hashes the tree, so the file is not there and the one field tying a number to its
-            // reference set was absent on every sweep the sanctioned flow produces. The toolkit
-            // digests the manifest OF this tree, provenance out, so the value is the stored
-            // manifest.references row's own identity whether or not this invocation captured it.
-            if (spec.referenceDerived) { add("--reference-tree"); add(parityReferenceRoot) }
+            // The ground truth this row's numbers are a diff against, named as the TREE of the
+            // ground-truth row the artifact table gives it, beside that row's id. Naming the captured
+            // manifest instead put the field on a harness-triggered capture and nowhere else: an
+            // ordinary renderer change's plan selects the sweeps and not the row that hashes the
+            // tree, so the file is not there and the one field tying a number to its reference set
+            // was absent on every sweep the sanctioned flow produces. The toolkit digests the
+            // manifest OF this tree, provenance out, under the globs of the row named beside it, so
+            // the value is that stored row's own identity whether or not this invocation captured it.
+            spec.groundTruth?.let { truth ->
+                add("--reference-tree"); add(parityArtifacts.single { it.artifact == truth }.source)
+                add("--reference-artifact"); add(truth)
+            }
         }.toTypedArray())
         // And the render mode behind that tree, appended where the answer exists: which harness run
         // executed is not known while the graph is being configured, and the mode a row's declared
         // producer would name instead is that producer's own name spelled a second way. A row that
-        // does not read the tree never carries one.
-        if (spec.readsReferenceTree)
+        // reads no ground truth never carries one, and a row reading one carries only the modes that
+        // wrote that tree.
+        spec.tree?.let { tree ->
             doFirst {
-                val ran = parityHarnessModesRun.joinToString(",")
+                val ran = parityHarnessModesRun[tree].orEmpty().joinToString(",")
                 if (ran.isNotEmpty()) args("--mode", ran)
             }
+        }
         // And the wall time of this row's producers, appended for the same reason: how long they
         // took is not known while the graph is configured. Only what RAN is summed, so a step whose
         // producers were up to date or absent from the invocation stamps no duration at all - a zero
@@ -917,14 +957,14 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     step.configure {
         mustRunAfter(spec.producers)
         mustRunAfter(parityCaptureBeginTask)
-        // And after any render of the tree: a render that landed between this row's producer and
-        // this step would have the capture name a mode and a manifest the measured value never saw.
-        // The producers take the same edge below, which is what makes the pair of stamped fields a
-        // statement about the number rather than about task order. No edge orders the two rows that
-        // read the tree against EACH OTHER: neither writes into it, so they answer the same question
-        // about the same bytes whichever runs first, and this edge is what keeps a render out from
-        // between them.
-        if (spec.readsReferenceTree) mustRunAfter(harnessRunModes.keys)
+        // And after any render of the tree this row reads: a render that landed between this row's
+        // producer and this step would have the capture name a mode and a manifest the measured value
+        // never saw. The producers take the same edge below, which is what makes the pair of stamped
+        // fields a statement about the number rather than about task order. No edge orders two rows
+        // that read the tree against EACH OTHER: neither writes into it, so they answer the same
+        // question about the same bytes whichever runs first, and this edge is what keeps a render
+        // out from between them.
+        spec.tree?.let { tree -> mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }
     }
 
     // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
@@ -1178,7 +1218,8 @@ tasks {
     // run fixes its pack by its name, so a task named for one pack never draws another, and takes only
     // the folder. The pack-source default names are PipelineParityDump.PACK_FIXTURES, the packs the packs
     // dump is taken over and from the same folder: the harness is a build of its own launched as a
-    // process, so it cannot read the constant, and the two lists are kept equal by hand.
+    // process, so it cannot read the constant, and the two lists are kept equal by hand. The
+    // pack-tooltip run is the one of the three a capture runs: what it draws is a stored ground truth.
     val packFixtureDir = layout.projectDirectory.dir(
         (project.findProperty("refharnessPackDir") as String?) ?: "cache/asset-renderer/packs").asFile.absolutePath
 
@@ -1192,10 +1233,11 @@ tasks {
             "-PrefharnessPackDir=$packFixtureDir"))
 
     registerHarnessRun("renderVanillaPackTooltipsHypixelSkyblock", "refharnessModes=PACK_TOOLTIPS", "PACK_TOOLTIPS", false, emptyList(),
-        "Harness PACK_TOOLTIPS probe: boots the client with hypixel-skyblock from -PrefharnessPackDir (default " +
+        "Runs the harness in PACK_TOOLTIPS mode: boots the client with hypixel-skyblock from -PrefharnessPackDir (default " +
         "cache/asset-renderer/packs/) selected over vanilla, and draws the tooltip roster's hypixel-skyblock section - " +
         "each subject whole and as its box alone - into pack-tooltips/hypixel-skyblock/, OUTSIDE the reference tree, " +
         "beside a stack.json naming the packs and the chrome sprites the client resolved. Refreshes no reference. " +
+        "What it draws is the ground truth the pack's tooltip sweep is measured against. " +
         "Then run tooltipHypixelSkyblockParityVanilla.",
         listOf("-PrefharnessPacks=hypixel-skyblock", "-PrefharnessPackDir=$packFixtureDir"))
 
@@ -1651,17 +1693,19 @@ tasks {
     // so every producer name the table references is already registered.
     parityArtifacts.forEach { registerParityCapture(it) }
 
-    // A sweep reads the vanilla reference tree, so it runs after any render of that tree whenever
-    // both are in the graph. Command-line order got this right by convention and nothing made it so,
-    // and the cost of the gap is not a stale number: it is a capture stamping the mode and the
-    // manifest digest of a tree its own producer never saw, which reads as evidence about the number
-    // and is a statement about which task Gradle picked first. A producer that IS a harness run takes
-    // no edge - it is the render.
-    parityArtifacts.filter { it.readsReferenceTree }
-        .flatMap { it.producers }
-        .distinct()
-        .filter { it !in harnessRunModes }
-        .forEach { producer -> named(producer) { mustRunAfter(harnessRunModes.keys) } }
+    // A sweep reads its ground truth's tree, so it runs after any render of that tree whenever both
+    // are in the graph. Command-line order got this right by convention and nothing made it so, and
+    // the cost of the gap is not a stale number: it is a capture stamping the mode and the manifest
+    // digest of a tree its own producer never saw, which reads as evidence about the number and is a
+    // statement about which task Gradle picked first. Per tree: the pack sweep runs after the
+    // pack-tooltip run, a vanilla sweep after the runs writing the reference tree, and neither after
+    // the other's. A producer that IS a harness run takes no edge - it is the render.
+    parityArtifacts.forEach { row ->
+        row.tree?.let { tree ->
+            row.producers.filter { it !in harnessRunTrees }
+                .forEach { producer -> named(producer) { mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) } }
+        }
+    }
 
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
     // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the

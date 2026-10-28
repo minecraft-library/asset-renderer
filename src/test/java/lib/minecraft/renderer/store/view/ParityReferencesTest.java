@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -256,6 +257,12 @@ final class ParityReferencesTest {
             + "about nothing - and the strings are literals in the renderer, so regenerating the "
             + "file reproduces them and the byte comparison above pins them green",
             unregistered, is(empty()));
+        Set<String> producers = new TreeSet<>();
+        ParityArtifacts.ALL.forEach(registration -> producers.addAll(registration.producers()));
+        assertThat("names in the same column that produce a registered artifact. A producer carries the "
+            + "id of what it writes, so a row saying it carries none is a claim the roster contradicts - "
+            + "and the row goes when its task's output becomes a stored artifact",
+            named.stream().filter(producers::contains).toList(), is(empty()));
     }
 
     /**

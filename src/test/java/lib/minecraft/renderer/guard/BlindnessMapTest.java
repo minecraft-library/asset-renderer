@@ -188,12 +188,31 @@ final class BlindnessMapTest {
      * Stored artifacts the {@linkplain #VERSION_DECLARATIONS version files} call blind, each one a
      * decision.
      *
-     * <p>Empty: every producer this store captures runs code a pin there chooses, so a version bump
-     * plans the whole store. An artifact whose producer runs none - one a build beside this one writes
-     * from inputs nothing here produces - goes in the version rule's {@code blind} with that mechanism
-     * and in this set, and never a sweep, a sweep being a main of this build.
+     * <p>One: the client's tooltip drawings under a pack, which the harness build draws with versions
+     * of its own, from the roster file and the pack folder it reads by path, with no task of this
+     * build running first. Every other producer this store captures runs code a pin there chooses, so
+     * a version bump plans the rest of the store. An artifact whose producer runs none - one a build
+     * beside this one writes from inputs nothing here produces - goes in the version rule's
+     * {@code blind} with that mechanism and in this set, and never a sweep, a sweep being a main of
+     * this build.
      */
-    private static final Set<String> BLIND_TO_A_VERSION = Set.of();
+    private static final Set<String> BLIND_TO_A_VERSION = Set.of("manifest.pack-tooltips");
+
+    /**
+     * The select rules whose selection is sweep-wide, each written down for the reason
+     * {@link #VERSION_DECLARATIONS} is.
+     *
+     * <p>The harness's render rule, because the harness draws every sweep's ground truth, and the
+     * visual mains' rule, because every sweep is a visual main. A claim-keyed demote firing on a path
+     * one of them fires on subtracts what it calls blind from that whole selection, so one that names
+     * neither as seen nor as blind an artifact the wide rule sees leaves that artifact's place on the
+     * path to whichever rule happens to fire there - and an artifact coined later lands in that gap
+     * without any rule having decided it.
+     */
+    private static final List<String> SWEEP_WIDE_SELECTIONS = List.of("B29", "B32");
+
+    /** One harness-run registration in the build, capturing the name the run's task is given. */
+    private static final Pattern HARNESS_RUN = Pattern.compile("registerHarnessRun\\(\"([^\"]+)\"");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.
@@ -468,10 +487,11 @@ final class BlindnessMapTest {
      * split ids on a dot would hand each of them a renderer that does not exist.
      *
      * <p><b>A renderer can have more than one picture and the entity renderer has two</b>, one per
-     * pose the same subjects are drawn in. So the clauses below quantify over a list: reaching any
-     * of a renderer's own artifacts is naming that renderer, and reaching any of another's is the
-     * contradiction - which is what lets a claim over the animated sweep alone belong to the entity
-     * renderer without also having to move the still one.
+     * pose the same subjects are drawn in, and the text renderer has two, one per pack its tooltips
+     * are drawn under - the client's own assets and hypixel-skyblock. So the clauses below quantify
+     * over a list: reaching any of a renderer's own artifacts is naming that renderer, and reaching
+     * any of another's is the contradiction - which is what lets a claim over the animated sweep
+     * alone belong to the entity renderer without also having to move the still one.
      */
     private static final Map<String, List<String>> IDENTIFYING_ARTIFACTS = Map.of(
         "BLOCK", List.of("sweep.block"),
@@ -481,7 +501,7 @@ final class BlindnessMapTest {
         "MENU", List.of("sweep.menu"),
         "PLAYER", List.of("sweep.player"),
         "PORTAL", List.of("manifest.portal"),
-        "TEXT", List.of("sweep.tooltip"));
+        "TEXT", List.of("sweep.tooltip", "sweep.tooltip-hypixel-skyblock"));
 
     /**
      * The renderers with no stored artifact of their own, in enum order.
@@ -1040,6 +1060,49 @@ final class BlindnessMapTest {
             .toList();
     }
 
+    /**
+     * Returns what each claim-keyed demote firing beside a {@linkplain #SWEEP_WIDE_SELECTIONS
+     * sweep-wide selection} leaves unnamed of it.
+     *
+     * @param rules the rules to resolve against
+     * @param paths the paths to resolve
+     * @return one {@code path: demote -> artifact} line per artifact the wide rule sees that the
+     *   demote names neither as seen nor as blind
+     */
+    private static List<String> unnamedBesideAWideSelection(List<JsonObject> rules, List<String> paths) {
+        return unnamedBesideAWideSelection(rules, paths, SWEEP_WIDE_SELECTIONS);
+    }
+
+    /**
+     * Returns what each claim-keyed demote firing beside one of the given wide selections leaves
+     * unnamed of it.
+     *
+     * @param rules the rules to resolve against
+     * @param paths the paths to resolve
+     * @param wide the ids of the select rules whose selection is wide
+     * @return one {@code path: demote -> artifact} line per artifact a wide rule firing on the path
+     *   sees that a claim-keyed demote firing there names neither as seen nor as blind
+     */
+    private static List<String> unnamedBesideAWideSelection(List<JsonObject> rules, List<String> paths,
+                                                            List<String> wide) {
+        List<String> unnamed = new ArrayList<>();
+        for (String path : paths) {
+            List<JsonObject> fired = firedOn(path, rules);
+            Set<String> selected = new TreeSet<>();
+            fired.stream().filter(rule -> wide.contains(rule.get("id").getAsString()))
+                .forEach(rule -> selected.addAll(strings(rule.getAsJsonArray("sees"))));
+            if (selected.isEmpty()) continue;
+            for (JsonObject rule : fired) {
+                if (!rule.has("claim_key") || !rule.get("mode").getAsString().equals("demote")) continue;
+                Set<String> named = new TreeSet<>(strings(rule.getAsJsonArray("sees")));
+                named.addAll(strings(rule.getAsJsonArray("blind")));
+                selected.stream().filter(id -> !named.contains(id))
+                    .forEach(id -> unnamed.add(path + ": " + rule.get("id").getAsString() + " -> " + id));
+            }
+        }
+        return unnamed;
+    }
+
     @Test
     @DisplayName("every trigger glob matches a tracked file")
     void noRuleIsOrphaned() {
@@ -1423,6 +1486,56 @@ final class BlindnessMapTest {
             recorded.stream()
                 .filter(id -> index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
                 .toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("every closure firing beside a sweep-wide selection names all of that selection")
+    void everyClosureOverASweepWideSelectionNamesAllOfIt() {
+        JsonObject index = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+        List<String> sweeps = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
+            .filter(id -> index.has(id) && index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
+            .sorted().toList();
+        Set<String> harnessRuns = new TreeSet<>(HARNESS_RUN.matcher(buildFile()).results()
+            .map(hit -> hit.group(1)).toList());
+        List<String> harnessDrawn = ParityArtifacts.ALL.stream()
+            .filter(registration -> registration.producers().stream().anyMatch(harnessRuns::contains))
+            .map(ParityArtifacts.Registration::id).sorted().toList();
+        List<JsonObject> rules = rules();
+        Map<String, JsonObject> byId = new LinkedHashMap<>();
+        rules.forEach(rule -> byId.put(rule.get("id").getAsString(), rule));
+
+        assertThat("the roster registers no sweep, which would leave the first clause vacuous",
+            sweeps, is(not(empty())));
+        assertThat("no registration is produced by a harness run, the same of the second",
+            harnessDrawn, is(not(empty())));
+        for (String id : SWEEP_WIDE_SELECTIONS) {
+            assertThat(id + " is not a rule of the shipped map", byId.containsKey(id), is(true));
+            Set<String> sees = strings(byId.get(id).getAsJsonArray("sees"));
+            assertThat(id + ": sweeps the sweep-wide selection does not see",
+                sweeps.stream().filter(sweep -> !sees.contains(sweep)).toList(), is(empty()));
+        }
+        Set<String> harnessSees = strings(byId.get("B29").getAsJsonArray("sees"));
+        assertThat("artifacts a harness run draws that the harness's render rule does not see. The "
+                + "harness draws every one of them, so a harness change reaches each",
+            harnessDrawn.stream().filter(id -> !harnessSees.contains(id)).toList(), is(empty()));
+        assertThat("claim-keyed demotes firing beside a sweep-wide selection that name an artifact of it "
+                + "neither as seen nor as blind. Name it in the demote's sees, measured, or its blind, "
+                + "with the mechanism", unnamedBesideAWideSelection(rules, trackedFiles()), is(empty()));
+
+        // Synthetic, because the shipped map is the case where the clause above holds, and a check
+        // that only ever sees a map it holds over is not shown to fail on one it does not.
+        JsonObject wide = syntheticRule("W", "select", "a/**", List.of("sweep.block", "sweep.item"),
+            List.of());
+        JsonObject naming = syntheticRule("N", "demote", "a/x.java", List.of("sweep.block"),
+            List.of("sweep.item"));
+        naming.addProperty("claim_key", "names-all-of-it");
+        JsonObject missing = syntheticRule("M", "demote", "a/y.java", List.of("sweep.block"), List.of());
+        missing.addProperty("claim_key", "names-part-of-it");
+        assertThat("a claim-keyed demote naming one of the wide selection's two artifacts is reported "
+                + "for the other, and one naming both is not",
+            unnamedBesideAWideSelection(List.of(wide, naming, missing), List.of("a/x.java", "a/y.java"),
+                List.of("W")),
+            equalTo(List.of("a/y.java: M -> sweep.item")));
     }
 
     @Test

@@ -44,7 +44,9 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 25702 ms | yes |
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 44406 ms | yes |
 | `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 28 | 3821 ms | yes |
+| `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | - | - | - | **no** |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9804 | 126121 ms | yes |
+| `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | - | - | - | **no** |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 211 | 36334 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 8238 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 6150 ms | yes |
@@ -97,7 +99,6 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `probe.depth-quantum` | - | EXTERNAL | - | - | - | - | - | - |
 | `probe.pack-icons` | - | EXTERNAL | - | - | - | - | - | - |
 | `probe.pack-sources` | - | EXTERNAL | - | - | - | - | - | - |
-| `probe.pack-tooltips` | - | EXTERNAL | - | - | - | - | - | - |
 
 ## Tasks that carry no artifact id
 
@@ -112,5 +113,5 @@ selected by `parityPlan`, and none is a gate.
 | `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
 | `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |
 | `renderVanillaReferences` and every other harness run that refreshes part of the tree | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |
-| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons`, `renderVanillaPackTooltipsHypixelSkyblock` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.depth-quantum`, `probe.pack-sources`, `probe.pack-icons` and `probe.pack-tooltips`: evidence rather than a value a gate reproduces. |
-| `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla`, `tooltipHypixelSkyblockParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. The fourth holds `TextRenderer` to the client's hypixel-skyblock tooltips in `probe.pack-tooltips`, once the chrome resolves as the client's does. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |
+| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`: evidence rather than a value a gate reproduces. |
+| `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |

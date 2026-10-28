@@ -179,6 +179,8 @@ byte-stable ground truth the parity sweeps diff against, one sub-tree each under
   it found them.
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
+- One pack's tooltip drawings are ground truth beside the tree, not in it: the pack-tooltip run
+  draws them, the whole-tree boot does not, and a capture of their gate re-runs it.
 - A reference that moves on a re-render with your change stashed was stale, not moved.
 
 Why the boot orders its sweeps, the two posed sub-trees, and the roster they are rendered at are

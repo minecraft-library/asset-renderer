@@ -464,7 +464,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla          -PentityId=minecraft:zombie      # omit -P for the full sweep
@@ -477,6 +477,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew armorParityVanilla                                            # worn-armor shells
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
 ./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone
+./gradlew tooltipHypixelSkyblockParityVanilla -PtooltipId=one_line      # the same under the hypixel-skyblock pack
 ```
 
 > [!NOTE]
@@ -494,6 +495,7 @@ Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`
 ./gradlew renderVanillaTooltipReferences    # tooltips (then run tooltipParityVanilla)
 ./gradlew renderVanillaAnimationReferences  # idle/ frames (then run entityAnimationParityVanilla)
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
+./gradlew renderVanillaPackTooltipsHypixelSkyblock  # tooltips under hypixel-skyblock, beside the tree (then run tooltipHypixelSkyblockParityVanilla)
 ```
 
 A sweep is a diagnostic report, not a pass/fail gate; it becomes one when its table is compared against a stored baseline, which is what the five `parity`-group tasks do (`./gradlew tasks --group parity`): `parityPlan` resolves which artifacts can see a change, `parityCapture` runs their producers and writes the capture, `parityExpect` registers the movers a change intends, `parityCompare` reports what actually moved, and `parityPromote` makes a capture the new baseline. See `docs/renderer/` for the per-renderer rules and `docs/renderer/Debugging.md` for debugging a mismatch, `harness/CLAUDE.md` for the session-refresh checklist, and `.claude/skills/parity-gate/references/procedures.md` for the re-render runbook; `CLAUDE.md` is the map to all three.

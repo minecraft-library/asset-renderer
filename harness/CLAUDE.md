@@ -17,7 +17,7 @@ before you touch it. The renderer's side of every contract below is routed from
 | Working on | Read |
 |---|---|
 | A run mode - full, glint, animated, walk, armour - and the output tree; a run that hangs with no output or halts with exit 4 | [Running](../docs/harness/Running.md) |
-| The probes - `TexCoordProbeMixin`, `TexCoordProbeBlendMixin`, `SelectHarnessPacksMixin`, `PackSourceSweep`, `PackIconSweep`, the pack-tooltip run and `TooltipRenderUtilAccessor` | [Probes](../docs/harness/Probes.md) |
+| The probes and the pack-tooltip run - `TexCoordProbeMixin`, `TexCoordProbeBlendMixin`, `SelectHarnessPacksMixin`, `PackSourceSweep`, `PackIconSweep` and `TooltipRenderUtilAccessor` | [Probes](../docs/harness/Probes.md) |
 | `HarnessMode`, `api.Sweep` and `SweepRunner`, `PipTarget`, the pacing, the posed sub-trees | [SweepArchitecture](../docs/harness/SweepArchitecture.md) |
 | `GuiFrameRenderer`, `MenuSweep`, `TooltipSweep`, the capture's three mixins, and capturing a GUI | [GuiCapture](../docs/harness/GuiCapture.md) |
 | `BlockSweep`, `ItemSweep`, `GlintSweep`; the block-render mixins and when one may be deleted | [BlockPipeline](../docs/harness/BlockPipeline.md) |

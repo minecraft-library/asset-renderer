@@ -14,7 +14,8 @@ import unittest
 from pathlib import Path
 
 from parity import capture, provenance
-from parity.norm import (canonical_json, read_json, sha256_file, sha256_text, write_json,
+from parity import manifest as manifest_mod
+from parity.norm import (Refused, canonical_json, read_json, sha256_file, sha256_text, write_json,
                          write_text)
 
 REPO = Path(__file__).resolve().parents[4]
@@ -33,11 +34,17 @@ ACCENTED = "café …"
 REFERENCE_TREE = next((root for root in [provenance.reference_root(REPO)]
                        if root is not None and root.is_dir()), None)
 
+#: The two ground-truth manifests a sweep can name: the reference tree's, and one pack's tooltip
+#: drawings beside it.
+REFERENCES = "manifest.references"
+PACK_TOOLTIPS = "manifest.pack-tooltips"
+
 #: The keywords ``capture.normalize`` - the only path that writes an artifact's provenance - hands
 #: ``gather``. Stated once and asserted against both sides below, because a keyword the signature
 #: accepts and the capture never passes is exactly how three fields reached 24 promoted baselines
 #: absent while a test that passed them by hand stayed green.
-CAPTURE_KEYWORDS = ("producer", "mode", "runs", "flags", "counts", "root", "reference_tree")
+CAPTURE_KEYWORDS = ("producer", "mode", "runs", "flags", "counts", "root", "reference_tree",
+                    "reference_artifact")
 
 
 def as_capture_gathers(**overrides) -> dict:
@@ -47,7 +54,7 @@ def as_capture_gathers(**overrides) -> dict:
     :return: the gathered record
     """
     call = {"producer": "entityParityVanilla", "mode": None, "runs": 2, "flags": (),
-            "counts": None, "root": None, "reference_tree": None}
+            "counts": None, "root": None, "reference_tree": None, "reference_artifact": None}
     call.update(overrides)
     return provenance.gather("sweep.entity", REPO, **call)
 
@@ -105,7 +112,7 @@ class Registry(unittest.TestCase):
         write_text(tree / "blocks" / "stone" / "vanilla.png", "x")
         record = as_capture_gathers(mode="EVERY", flags=("asset.depth.range=1000",),
                                     counts={"rows": 1}, root="cache/visual",
-                                    reference_tree=tree)
+                                    reference_tree=tree, reference_artifact=REFERENCES)
         # `reason`, `parity_class` and `wall_time_ms` are gather's own arguments that no capture
         # supplies - the promotion writes the first two onto the record afterwards - so they are
         # exercised on their own call rather than smuggled into the capture's shape.
@@ -185,13 +192,13 @@ class Degradation(unittest.TestCase):
 
     def test_a_named_reference_tree_that_is_absent_says_so_on_stderr(self):
         with contextlib.redirect_stderr(io.StringIO()) as err:
-            provenance.reference_manifest_digest(self.empty / "references")
+            provenance.reference_manifest_digest(self.empty / "references", REFERENCES)
         self.assertIn("reference_manifest_digest", err.getvalue())
 
     def test_naming_no_reference_tree_at_all_is_silent(self):
         """Nothing was asked for, so there is nothing to report as not done."""
         with contextlib.redirect_stderr(io.StringIO()) as err:
-            provenance.reference_manifest_digest(None)
+            provenance.reference_manifest_digest(None, REFERENCES)
         self.assertEqual(err.getvalue(), "")
 
     def test_gather_still_produces_a_record(self):
@@ -285,7 +292,7 @@ class ReferenceManifestDigest(unittest.TestCase):
         write_text(self.tree / "entities" / "cow" / "vanilla.png", "two")
 
     def test_absent_is_none_not_a_throw(self):
-        self.assertIsNone(provenance.reference_manifest_digest(self.tree / "nope"))
+        self.assertIsNone(provenance.reference_manifest_digest(self.tree / "nope", REFERENCES))
 
     def test_it_is_the_identity_of_the_stored_manifest_of_that_tree(self):
         """The tie the field exists to make, asserted against the artifact rather than restated.
@@ -295,11 +302,11 @@ class ReferenceManifestDigest(unittest.TestCase):
         that row name the same reference set, and a reader can check the two against each other
         without the sweep's own capture having had to hash the tree into the store.
         """
-        stored = capture.normalize(provenance.REFERENCES_ARTIFACT, self.tree,
+        stored = capture.normalize(REFERENCES, self.tree,
                                    Path(tempfile.mkdtemp()), REPO)
         payload = read_json(stored)
         content = {name: value for name, value in payload.items() if name != "provenance"}
-        self.assertEqual(provenance.reference_manifest_digest(self.tree),
+        self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES),
                          sha256_text(canonical_json(content)))
 
     def test_it_does_not_move_when_only_the_capture_does(self):
@@ -309,27 +316,73 @@ class ReferenceManifestDigest(unittest.TestCase):
         nothing, which is what reading the digest off the captured file gave: the timestamp alone
         moves that sha on every capture, over a reference set nobody touched.
         """
-        stored = capture.normalize(provenance.REFERENCES_ARTIFACT, self.tree,
+        stored = capture.normalize(REFERENCES, self.tree,
                                    Path(tempfile.mkdtemp()), REPO)
         payload = read_json(stored)
         self.assertIn("timestamp", payload["provenance"])
-        before, derived = sha256_file(stored), provenance.reference_manifest_digest(self.tree)
+        before = sha256_file(stored)
+        derived = provenance.reference_manifest_digest(self.tree, REFERENCES)
         payload["provenance"]["timestamp"] = "1999-01-01T00:00:00Z"
         write_json(stored, payload)
         self.assertNotEqual(sha256_file(stored), before)
-        self.assertEqual(provenance.reference_manifest_digest(self.tree), derived)
+        self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES), derived)
 
     def test_a_changed_reference_moves_it(self):
-        before = provenance.reference_manifest_digest(self.tree)
+        before = provenance.reference_manifest_digest(self.tree, REFERENCES)
         write_text(self.tree / "blocks" / "stone" / "vanilla.png", "edited")
-        self.assertNotEqual(provenance.reference_manifest_digest(self.tree), before)
+        self.assertNotEqual(provenance.reference_manifest_digest(self.tree, REFERENCES), before)
 
     def test_it_does_not_depend_on_where_the_tree_sits(self):
         """The paths in the manifest are relative to the tree, so a redirected root is the same set."""
         elsewhere = Path(tempfile.mkdtemp()) / "somewhere" / "references"
         shutil.copytree(self.tree, elsewhere)
-        self.assertEqual(provenance.reference_manifest_digest(elsewhere),
-                         provenance.reference_manifest_digest(self.tree))
+        self.assertEqual(provenance.reference_manifest_digest(elsewhere, REFERENCES),
+                         provenance.reference_manifest_digest(self.tree, REFERENCES))
+
+
+class PackTooltipDigest(unittest.TestCase):
+    """A second ground truth, digested as its own manifest rather than as the reference tree's.
+
+    The pack-tooltip home holds the client's drawings and the run's ``stack.json`` handshake beside
+    them. Read under the reference tree's globs it is a different set - the handshake is a member
+    there - so a digest that does not take the manifest's id could never equal the stored row.
+    """
+
+    def setUp(self):
+        self.tree = Path(tempfile.mkdtemp()) / "pack-tooltips"
+        write_text(self.tree / "hypixel-skyblock" / "one_line.png", "one")
+        write_text(self.tree / "hypixel-skyblock" / "one_line_chrome.png", "two")
+
+    def test_it_is_the_identity_of_the_stored_pack_tooltip_manifest_of_that_tree(self):
+        stored = capture.normalize(PACK_TOOLTIPS, self.tree, Path(tempfile.mkdtemp()), REPO)
+        payload = read_json(stored)
+        content = {name: value for name, value in payload.items() if name != "provenance"}
+        self.assertEqual(provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS),
+                         sha256_text(canonical_json(content)))
+
+    def test_the_handshake_beside_the_drawings_moves_neither_the_digest_nor_the_manifest(self):
+        """The handshake carries the pack folder's absolute path, so it would move per checkout."""
+        before = provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS)
+        entries = manifest_mod.build(PACK_TOOLTIPS, self.tree).entries
+        write_text(self.tree / "hypixel-skyblock" / "stack.json", '{"pack_directory": "C:/x"}\n')
+        self.assertEqual(provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS), before)
+        self.assertEqual(manifest_mod.build(PACK_TOOLTIPS, self.tree).entries, entries)
+
+    def test_one_tree_holding_json_digests_differently_as_the_two_manifests(self):
+        write_text(self.tree / "hypixel-skyblock" / "stack.json", "{}\n")
+        self.assertNotEqual(provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS),
+                            provenance.reference_manifest_digest(self.tree, REFERENCES))
+
+    def test_a_tree_named_without_its_manifest_is_refused(self):
+        """No default: with two ground truths a default digests one of them as the other."""
+        with self.assertRaises(Refused):
+            as_capture_gathers(reference_tree=self.tree)
+
+    def test_the_record_names_the_manifest_beside_the_digest(self):
+        record = as_capture_gathers(reference_tree=self.tree, reference_artifact=PACK_TOOLTIPS)
+        self.assertEqual(record["reference_artifact"], PACK_TOOLTIPS)
+        self.assertEqual(record["reference_manifest_digest"],
+                         provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS))
 
 
 class ReferenceCounts(unittest.TestCase):
