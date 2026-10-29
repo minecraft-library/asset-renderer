@@ -186,7 +186,7 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("ae4b3e0") } }
+    api("com.github.minecraft-library:text") { version { strictly("1fc1c58") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
