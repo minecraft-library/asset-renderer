@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.tooltip",
-    "asset_content_digest": "0449b3f91b99df49b639be68987cfac314da325d7ee4fd0a3ff457afd8360277",
+    "asset_content_digest": "b7f90d9865519626dc3d5378aa000993396382282cf84e981f81c3c1edf3d3d3",
     "asset_dirty": true,
-    "asset_sha": "b464eda8206d95fe69311343c565caa513127661",
+    "asset_sha": "33935094db15adf57139f1790ec28fa311dfa634",
     "counts": {
       "failed": 0,
       "rows": 32
@@ -16,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "tooltipParityVanilla",
-    "reason": "816e51c0 lays strikethrough and underline bars where and when the client lays them, so formats moves from 1070 differing pixels to 717 (mean 13.7536 to 8.9300), its three bar lines matching the client to the pixel; what is left is its two italic lines. Values registered before the capture; the other 31 rows held.",
+    "reason": "18a008fd draws with the regenerated bold and italic faces (font-generator 51188db: the client's quarter slant about 3 mcPx above the baseline, bold as two copies a pixel wider, the space 5) and leans gradient bands by the drawn font's slant (minecraft-text 1071351). sweep.tooltip formats 717 -> 0 and item_like 3034 -> 16 (the frame side-ramp gap), sweep.tooltip-hypixel-skyblock item_like 3018 -> 0, and six lore-tooltip renders move: accessory.png and the four weapon files by the bold space, gradient_italic_shear.png by the italic face and its bands. Eleven values registered before the capture; the other 26 planned artifacts held.",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -33,9 +34,9 @@
       "walk": 4896
     },
     "reference_manifest_digest": "51baf16163b93d6354b7d2d6f55a4145814ecfdd054e0f8b5c09aabe9cee69dd",
-    "timestamp": "2026-10-29T12:38:07Z",
+    "timestamp": "2026-10-29T23:36:44Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 4338
+    "wall_time_ms": 3935
   },
   "rows": [
     {
@@ -95,12 +96,12 @@
       "vanilla_w": "214"
     },
     {
-      "differing_pixels": "717",
+      "differing_pixels": "0",
       "java_coverage": "0.9996",
       "java_h": "136",
       "java_w": "272",
-      "mean_argb_delta": "8.9300",
-      "raw_differing_pixels": "717",
+      "mean_argb_delta": "0.0000",
+      "raw_differing_pixels": "0",
       "stand_ins": "",
       "status": "ok",
       "subject": "formats",
@@ -179,12 +180,12 @@
       "vanilla_w": "424"
     },
     {
-      "differing_pixels": "3034",
+      "differing_pixels": "16",
       "java_coverage": "0.9997",
       "java_h": "176",
       "java_w": "286",
-      "mean_argb_delta": "12.6417",
-      "raw_differing_pixels": "3034",
+      "mean_argb_delta": "0.0004",
+      "raw_differing_pixels": "16",
       "stand_ins": "",
       "status": "ok",
       "subject": "item_like",
@@ -489,15 +490,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 30,
-      "<0.50": 30,
-      "<0.75": 30,
-      "<1.00": 30,
+      "<0.25": 32,
+      "<0.50": 32,
+      "<0.75": 32,
+      "<1.00": 32,
       "failed": 0,
       "total": 32
     },
     "failed": 0,
     "rows": 32,
-    "sum": "21.5743"
+    "sum": "0.0030"
   }
 }

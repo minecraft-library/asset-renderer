@@ -118,9 +118,9 @@
       "entries": 211,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 36103,
-      "promoted_at": "64d79d029a8ede7aea5a21c6bc9577a13e004739",
-      "sha256": "cd52244ec88cfccdeb92b8574c2c64f89d476899fc14dbfe89ecb6b87c619247"
+      "last_duration_ms": 36038,
+      "promoted_at": "33935094db15adf57139f1790ec28fa311dfa634",
+      "sha256": "71497e96ab5a6996a4498999d6761152f3fc15c4197a2710ae039dc66a6e402f"
     },
     "pin.block-crc": {
       "baselined": true,
@@ -309,10 +309,10 @@
       "entries": 32,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4338,
-      "promoted_at": "b464eda8206d95fe69311343c565caa513127661",
-      "sha256": "640ee4aa537ba818211612e75230e72def174c4c1c571e0aaf4e261e42ac0d87",
-      "sum": "21.5743"
+      "last_duration_ms": 3935,
+      "promoted_at": "33935094db15adf57139f1790ec28fa311dfa634",
+      "sha256": "b856d141c42290d12789f3c50c5176945445e633c0d1fb5385d5b05ccc3cc7ab",
+      "sum": "0.0030"
     },
     "sweep.tooltip-hypixel-skyblock": {
       "baselined": true,
@@ -320,10 +320,10 @@
       "entries": 44,
       "file": "sweeps/tooltip-hypixel-skyblock.json",
       "kind": "sweep-table",
-      "last_duration_ms": 6105,
-      "promoted_at": "d20add1659c7e0c13d3091588122c23c9c091fab",
-      "sha256": "d828718d6bce086906a09a6f019b2415647b1d3300bf3d88a3df5652b5b63913",
-      "sum": "12.5480"
+      "last_duration_ms": 5849,
+      "promoted_at": "33935094db15adf57139f1790ec28fa311dfa634",
+      "sha256": "7cae7670c1c743966e5daa25d2bbf57ca1f646c550df54d1d33703156c2c823e",
+      "sum": "0.0000"
     }
   },
   "external": {
