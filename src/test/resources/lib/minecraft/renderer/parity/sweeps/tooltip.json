@@ -5,22 +5,21 @@
   "key": "subject",
   "kind": "sweep-table",
   "provenance": {
-    "allow_partial": true,
     "artifact": "sweep.tooltip",
-    "asset_content_digest": "2099d6939c23bd720e3c227ca5acff964ad5ddff804687952d9ff1bee1b4483c",
-    "asset_dirty": false,
-    "asset_sha": "a0cb9e6b5ae459e0a13ab1e7a8460f3296ebec75",
+    "asset_content_digest": "b2a18e33527c9a0969d618bcf79b139a9af592ca37e3c29eefd5d2734249091f",
+    "asset_dirty": true,
+    "asset_sha": "2ccbe88c112af82bb9a584c2c6a2c3de71926af0",
     "counts": {
-      "failed": 2,
+      "failed": 0,
       "rows": 32
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "mode": "EVERY,ANIMATION,WALK",
+    "parity_class": "moving",
     "producer": "tooltipParityVanilla",
-    "reason": "90c142bd adds the alt_font and illageralt_font roster subjects, drawn in the client's minecraft:alt and minecraft:illageralt fonts. Their box-alone rows read 0 at 278x56 and 424x56; their full rows fail on canvas, 324x56 against 278x56 and 452x56 against 424x56, because the renderer draws every segment in the default font whatever font it names - the partial-run exception covers those two rows. The other 28 rows held. Captured clean at a0cb9e6b.",
+    "reason": "5aeef172 draws, scrambles and measures a run in the font its segment names (minecraft-text ae4b3e0), with the alt fonts named apart (font-generator 70ca092), so alt_font and illageralt_font move from failed on canvas (324x56 and 452x56 in the default font) to 0 differing pixels at the client's 278x56 and 424x56. The sweep holds no failed row; the other 30 rows held.",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -35,22 +34,22 @@
       "walk": 4896
     },
     "reference_manifest_digest": "51baf16163b93d6354b7d2d6f55a4145814ecfdd054e0f8b5c09aabe9cee69dd",
-    "timestamp": "2026-10-29T05:15:05Z",
+    "timestamp": "2026-10-29T07:12:45Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 6147
+    "wall_time_ms": 4080
   },
   "rows": [
     {
-      "differing_pixels": "",
-      "java_coverage": "0.0000",
+      "differing_pixels": "0",
+      "java_coverage": "0.9990",
       "java_h": "56",
-      "java_w": "324",
-      "mean_argb_delta": "",
-      "raw_differing_pixels": "",
+      "java_w": "278",
+      "mean_argb_delta": "0.0000",
+      "raw_differing_pixels": "0",
       "stand_ins": "",
-      "status": "failed",
+      "status": "ok",
       "subject": "alt_font",
-      "vanilla_coverage": "0.0000",
+      "vanilla_coverage": "0.9990",
       "vanilla_h": "56",
       "vanilla_w": "278"
     },
@@ -153,16 +152,16 @@
       "vanilla_w": "100"
     },
     {
-      "differing_pixels": "",
-      "java_coverage": "0.0000",
+      "differing_pixels": "0",
+      "java_coverage": "0.9993",
       "java_h": "56",
-      "java_w": "452",
-      "mean_argb_delta": "",
-      "raw_differing_pixels": "",
+      "java_w": "424",
+      "mean_argb_delta": "0.0000",
+      "raw_differing_pixels": "0",
       "stand_ins": "",
-      "status": "failed",
+      "status": "ok",
       "subject": "illageralt_font",
-      "vanilla_coverage": "0.0000",
+      "vanilla_coverage": "0.9993",
       "vanilla_h": "56",
       "vanilla_w": "424"
     },
@@ -491,14 +490,14 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 28,
-      "<0.50": 28,
-      "<0.75": 28,
-      "<1.00": 28,
-      "failed": 2,
+      "<0.25": 30,
+      "<0.50": 30,
+      "<0.75": 30,
+      "<1.00": 30,
+      "failed": 0,
       "total": 32
     },
-    "failed": 2,
+    "failed": 0,
     "rows": 32,
     "sum": "26.3979"
   }
