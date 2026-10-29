@@ -42,8 +42,11 @@ import java.util.random.RandomGenerator;
  * obfuscation picks from, its glyphs are drawn in and its width and ink are measured in; a gradient
  * run is handed the same font.
  * <p>
- * Handles color mapping, text shadow, strikethrough, underline, and obfuscation ({@code §k}). Shadow,
- * strikethrough, and underline offsets match vanilla's pixel-level rendering.
+ * Handles color mapping, text shadow, strikethrough, underline, and obfuscation ({@code §k}). A run's
+ * strikethrough and underline bars run from one mcPixel left of the run to its end, the strikethrough
+ * across 3.5 to 4.5 and the underline across 8 to 9 mcPixels below the line's top, and are laid after
+ * every glyph of the line, each bar's shadow copy first, as the client's font lays a line's glyphs and
+ * then its effects.
  * <p>
  * A run is drawn in the colours the client's font derives for it ({@link #resolveColor},
  * {@link #shadowColor}): a segment naming a colour draws its red, green and blue in the alpha of the
@@ -74,28 +77,35 @@ import java.util.random.RandomGenerator;
 public class TextKit {
 
     /**
-     * Strikethrough top-edge offset from baseline, in mcPixels. Matches vanilla 1.13+'s
-     * {@code y + 3.5..y + 4.5} 1-mcPixel-tall rect when combined with
-     * {@link #STRIKETHROUGH_THICKNESS_MCPX}.
+     * Strikethrough top-edge offset from the baseline, in mcPixels - the client's
+     * {@code y + 4.5F - 1.0F}, from a line top the regular font's ascent, 7 mcPixels, above the
+     * baseline.
      */
-    static final int STRIKETHROUGH_OFFSET_MCPX = -4;
+    static final float STRIKETHROUGH_OFFSET_MCPX = -3.5F;
 
     /**
-     * Underline top-edge offset from baseline, in mcPixels. Matches vanilla's
-     * {@code y + 8..y + 9} 1-mcPixel-tall rect when combined with
-     * {@link #UNDERLINE_THICKNESS_MCPX}.
+     * Underline top-edge offset from the baseline, in mcPixels - the client's {@code y + 9.0F - 1.0F},
+     * from a line top the regular font's ascent, 7 mcPixels, above the baseline.
      */
-    static final int UNDERLINE_OFFSET_MCPX = 1;
+    static final float UNDERLINE_OFFSET_MCPX = 1.0F;
 
     /**
-     * Strikethrough bar thickness in mcPixels.
+     * Strikethrough bar thickness in mcPixels - the client's {@code 1.0F} between the bar's top and
+     * bottom edges.
      */
-    static final int STRIKETHROUGH_THICKNESS_MCPX = 1;
+    static final float STRIKETHROUGH_THICKNESS_MCPX = 1.0F;
 
     /**
-     * Underline bar thickness in mcPixels.
+     * Underline bar thickness in mcPixels - the client's {@code 1.0F} between the bar's top and bottom
+     * edges.
      */
-    static final int UNDERLINE_THICKNESS_MCPX = 1;
+    static final float UNDERLINE_THICKNESS_MCPX = 1.0F;
+
+    /**
+     * How far a run's bars reach left of the run, in mcPixels - the client opens the bars of the first
+     * glyph of each run of one style at {@code x - 1.0F}.
+     */
+    static final float BAR_LEAD_MCPX = 1.0F;
 
     /**
      * Drop-shadow displacement in mcPixels - one mcPixel right and one mcPixel down.
@@ -178,6 +188,9 @@ public class TextKit {
      * segment starts where the one before it ended, its fraction kept, as the client's font keeps its
      * pen. A caller wanting the line's width measures it with {@link #measureLineMcPixels}, and what
      * it lays down with {@link #inkBounds}.
+     * <p>
+     * Every glyph of the line is laid before any of its bars, and each bar's shadow copy before the
+     * bar, as the client lays a line's glyphs and then its effects.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param line the line of styled segments to render
@@ -205,7 +218,9 @@ public class TextKit {
         boolean dropShadow
     ) {
         walk(line, xMcPx, lineIndex, frame, (segment, font, text, penMcPx) ->
-            drawSegment(g, segment, font, text, penMcPx, yMcPx, defaultArgb, palette, tick, dropShadow));
+            drawGlyphs(g, segment, font, text, penMcPx, yMcPx, defaultArgb, palette, tick, dropShadow));
+        walk(line, xMcPx, lineIndex, frame, (segment, font, text, penMcPx) ->
+            drawBars(g, segment, font, text, penMcPx, yMcPx, defaultArgb, palette, tick, dropShadow));
     }
 
     /**
@@ -213,6 +228,10 @@ public class TextKit {
      * an obfuscated one substituted from the line's one stream, the pen opening at the line's origin
      * and moving by what each run answers. {@link #drawLine} and {@link #inkBounds} both walk through
      * here, so the text they answer for and where they place it cannot part.
+     * <p>
+     * {@link #drawLine} walks a line twice, its glyphs then its bars, and {@link #inkBounds} once; each
+     * walk opens the line's scramble stream afresh, so every walk of one line on one frame substitutes
+     * the same text.
      *
      * @param line the line to walk
      * @param xMcPx the line's starting cursor X in mcPixels
@@ -255,8 +274,9 @@ public class TextKit {
     }
 
     /**
-     * Draws a single {@link TextSegment}'s run at an mcPixel origin with shadow, strikethrough and
-     * underline support, answering how far it moves the line's pen. A segment carrying a
+     * Draws a single {@link TextSegment}'s glyphs at an mcPixel origin with their shadow, answering how
+     * far the run moves the line's pen. Its bars are {@link #drawBars}', which {@link #drawLine} lays in
+     * a walk of their own after every glyph of the line. A segment carrying a
      * {@link TextSegment#getGradient() gradient} routes to {@link GradientKit}; every other segment
      * takes the solid path. The shadow colour is resolved from the unswapped text colour, or is the
      * segment's own, before either is swapped, and a shadow colour of {@code 0} draws no shadow pass, as
@@ -276,7 +296,7 @@ public class TextKit {
      * segment naming a shadow colour draws it either way
      * @return the advance width of the segment in mcPixels, its fraction kept
      */
-    private static float drawSegment(
+    private static float drawGlyphs(
         @NotNull MinecraftGraphics g,
         @NotNull TextSegment segment,
         @NotNull MinecraftFont font,
@@ -293,48 +313,99 @@ public class TextKit {
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color, dropShadow);
 
-        float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
-        List<Rectangle2D.Float> bars = decorations(segment, xMcPx, yMcPx, textWidthMcPx);
-
         // Shadow pass
         g.setFont(font);
         if (shadow != 0) {
             g.setColor(new java.awt.Color(palette.swap(shadow), true));
             g.drawString(text, xMcPx + SHADOW_OFFSET_MCPX, yMcPx + SHADOW_OFFSET_MCPX);
-            for (Rectangle2D.Float bar : bars)
-                g.fillEffect(bar.x + SHADOW_OFFSET_MCPX, bar.y + SHADOW_OFFSET_MCPX, bar.width, bar.height);
         }
 
         // Main pass
         g.setColor(new java.awt.Color(palette.swap(color), true));
         g.drawString(text, xMcPx, yMcPx);
-        for (Rectangle2D.Float bar : bars)
+
+        return font.metrics().stringAdvanceMcPixels(text);
+    }
+
+    /**
+     * Draws a single {@link TextSegment}'s strikethrough and underline bars at an mcPixel origin,
+     * answering how far the run moves the line's pen. Each bar runs from one mcPixel left of the run to
+     * its end ({@link #bars}), and its shadow copy is laid first, one mcPixel right and down, where the
+     * run draws a shadow - as the client lays an effect's shadow copy where its shadow colour is not
+     * {@code 0} - then the bar, each through
+     * {@link MinecraftGraphics#fillEffect(float, float, float, float)}. {@link #drawLine} calls it in a
+     * walk of its own after every glyph of the line is laid, as the client lays a prepared text's
+     * effects after its glyphs. A segment carrying a {@link TextSegment#getGradient() gradient} routes
+     * to {@link GradientKit}; every other segment's colours are resolved as {@link #drawGlyphs} resolves
+     * them.
+     *
+     * @param g the graphics owning the buffer and sampling factor
+     * @param segment the styled text segment whose bars are drawn
+     * @param font the segment's font
+     * @param text the segment's text, substituted where the segment is obfuscated
+     * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
+     * @param yMcPx the baseline Y in mcPixels
+     * @param defaultArgb the colour the line is drawn in - a segment naming no colour draws in it, and
+     * one naming a colour keeps its alpha
+     * @param palette the colours a pack's text shader draws in place of the ones the segment is given
+     * @param tick the absolute animation tick driving gradient scroll phase
+     * @param dropShadow whether the caller asks for the shadow the run derives from its colour; a
+     * segment naming a shadow colour draws it either way
+     * @return the advance width of the segment in mcPixels, its fraction kept
+     */
+    private static float drawBars(
+        @NotNull MinecraftGraphics g,
+        @NotNull TextSegment segment,
+        @NotNull MinecraftFont font,
+        @NotNull String text,
+        float xMcPx, float yMcPx,
+        int defaultArgb,
+        @NotNull TextPalette palette,
+        long tick,
+        boolean dropShadow
+    ) {
+        if (segment.getGradient().isPresent())
+            return GradientKit.drawBars(g, segment, segment.getGradient().get(), font, text, xMcPx, yMcPx, palette, tick, dropShadow);
+
+        int color = resolveColor(segment, defaultArgb);
+        int shadow = shadowColor(segment, color, dropShadow);
+        float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
+
+        for (Rectangle2D.Float bar : bars(segment, xMcPx - BAR_LEAD_MCPX, xMcPx + textWidthMcPx, yMcPx)) {
+            if (shadow != 0) {
+                g.setColor(new java.awt.Color(palette.swap(shadow), true));
+                g.fillEffect(bar.x + SHADOW_OFFSET_MCPX, bar.y + SHADOW_OFFSET_MCPX, bar.width, bar.height);
+            }
+
+            g.setColor(new java.awt.Color(palette.swap(color), true));
             g.fillEffect(bar.x, bar.y, bar.width, bar.height);
+        }
 
         return textWidthMcPx;
     }
 
     /**
-     * Answers the strikethrough and underline bars a solid run carries, in mcPixels and in the order
-     * they are drawn - the strikethrough from one output pixel left of the run and as wide as it,
-     * vanilla's {@code x - 1}, and the underline from the run's start and one output pixel wider. The
-     * draw lays them through {@link MinecraftGraphics#fillEffect(float, float, float, float)} and
-     * {@link #inkBounds} reads them. Each edge sits a whole number of output pixels from the run's
-     * origin, so a bar lands on the output pixels the origin's own rounding puts the run on.
+     * Answers the strikethrough and underline bars a run carries between two edges, in mcPixels and in
+     * the order the client adds them, the strikethrough first - the client's
+     * {@code createEffect(x0, y0, x1, y1)} edges. A run's bars run from one mcPixel left of the run
+     * ({@link #BAR_LEAD_MCPX}) to its end, the left edge passed already led, as the client's font
+     * computes it for the first glyph of a run. The draw lays them through
+     * {@link MinecraftGraphics#fillEffect(float, float, float, float)} and {@link #inkBounds} reads
+     * them. Each edge sits a whole number of output pixels from the run's origin, so a bar lands on the
+     * output pixels the origin's own rounding puts the run on.
      *
      * @param segment the segment, supplying which bars its run carries
-     * @param xMcPx the run's start X in mcPixels
+     * @param x0McPx the bars' left edge in mcPixels
+     * @param x1McPx the bars' right edge in mcPixels
      * @param baselineMcPx the run's baseline Y in mcPixels
-     * @param widthMcPx the run's width in mcPixels
      * @return the bars the run carries, in draw order
      */
-    private static @NotNull List<Rectangle2D.Float> decorations(@NotNull TextSegment segment, float xMcPx, float baselineMcPx, float widthMcPx) {
-        float padMcPx = 1f / MinecraftFont.MC_PIXEL_SCALE;
+    static @NotNull List<Rectangle2D.Float> bars(@NotNull TextSegment segment, float x0McPx, float x1McPx, float baselineMcPx) {
         List<Rectangle2D.Float> bars = new ArrayList<>(2);
         if (segment.isStrikethrough())
-            bars.add(new Rectangle2D.Float(xMcPx - padMcPx, baselineMcPx + STRIKETHROUGH_OFFSET_MCPX, widthMcPx, STRIKETHROUGH_THICKNESS_MCPX));
+            bars.add(new Rectangle2D.Float(x0McPx, baselineMcPx + STRIKETHROUGH_OFFSET_MCPX, x1McPx - x0McPx, STRIKETHROUGH_THICKNESS_MCPX));
         if (segment.isUnderlined())
-            bars.add(new Rectangle2D.Float(xMcPx, baselineMcPx + UNDERLINE_OFFSET_MCPX, widthMcPx + padMcPx, UNDERLINE_THICKNESS_MCPX));
+            bars.add(new Rectangle2D.Float(x0McPx, baselineMcPx + UNDERLINE_OFFSET_MCPX, x1McPx - x0McPx, UNDERLINE_THICKNESS_MCPX));
         return bars;
     }
 
@@ -429,11 +500,11 @@ public class TextKit {
     }
 
     /**
-     * Collects what one segment's run lays down at its pen, as {@link #drawSegment} draws it, and
-     * answers how far it moves the line's pen. A solid run's colour and its shadow's are resolved as
-     * the draw resolves them, and a pass is counted only where its colour clears
-     * {@link MinecraftGraphics#DISCARD_ALPHA}. The run is read from the output pixel its origin rounds
-     * to, which is where the graphics lays its glyphs and its bars.
+     * Collects what one segment's run lays down at its pen, as {@link #drawGlyphs} and
+     * {@link #drawBars} draw it, and answers how far it moves the line's pen. A solid run's colour
+     * and its shadow's are resolved as the draw resolves them, and a pass is counted only where its
+     * colour clears {@link MinecraftGraphics#DISCARD_ALPHA}. The run is read from the output pixel
+     * its origin rounds to, which is where the graphics lays its glyphs and its bars.
      *
      * @param segment the styled text segment
      * @param font the segment's font
@@ -472,7 +543,8 @@ public class TextKit {
         Rectangle glyphs = font.layout(text).getVisualBounds().getBounds();
         glyphs.translate(xOut, yOut);
         addInk(drawn, mcPixels(glyphs), main, shadow);
-        for (Rectangle2D.Float bar : decorations(segment, xOut / (float) pxPerMcPx, yOut / (float) pxPerMcPx, textWidthMcPx))
+        float originMcPx = xOut / (float) pxPerMcPx;
+        for (Rectangle2D.Float bar : bars(segment, originMcPx - BAR_LEAD_MCPX, originMcPx + textWidthMcPx, yOut / (float) pxPerMcPx))
             addInk(drawn, bar, main, shadow);
         return textWidthMcPx;
     }

@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
@@ -81,6 +82,12 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * <p>
  * It pins the font a run is drawn in: a run naming a font is drawn, obfuscated, measured and inked in
  * it, a gradient run too, and one naming a font nothing carries draws the client's missing glyph.
+ * <p>
+ * It pins the client's bars: a run's strikethrough and underline run from one mcPixel left of it to its
+ * end, the strikethrough across 3.5 to 4.5 and the underline across 8 to 9 mcPixels below the line's
+ * top, and every bar is laid after every glyph of its line, its shadow copy first. Every row and column
+ * it expects is spelled from the client's numbers - the line's top the regular font's ascent above the
+ * baseline - never from the kit's own.
  * <p>
  * Last, it pins a see-through run's bars laid as the client lays them, blended over the canvas in the
  * colour's alpha rather than overwriting it, and laid not at all in a colour the text shader discards.
@@ -270,24 +277,44 @@ class TextKitTest {
     }
 
     @Test
-    @DisplayName("an underline runs to the end of a run that ends on a half pixel")
+    @DisplayName("a strikethrough lies across 3.5 to 4.5 mcPixels below the line's top, and its shadow copy an mcPixel lower")
+    void aStrikethroughLiesWhereTheClientLaysIt() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+
+        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("    ").strikethrough(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+
+        // A space lays no glyph pixel, so every pixel lit is a bar's.
+        int row = strikethroughRow();
+        assertThat("the rows the bar is laid on", rowsHolding(buffer, 0xFFFFFFFF), is(equalTo(IntStream.range(row, row + scale).boxed().toList())));
+        assertThat("the rows its shadow copy is laid on", rowsHolding(buffer, 0xFF3F3F3F),
+            is(equalTo(IntStream.range(row + scale, row + 2 * scale).boxed().toList())));
+    }
+
+    @Test
+    @DisplayName("a run's bars run from one mcPixel left of it to its end, when it ends on a half pixel")
     void decorationSpansAHalfPixelRun() {
         endsOnAHalfPixel("✦");
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
         PixelBuffer buffer = PixelBuffer.create(60, 30);
-        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("✦").underlined(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("✦").strikethrough(true).underlined(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
-        // The main pass's underline row - the shadow's sits a pixel lower and in its darker colour.
-        int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
-        int[] lit = litColumns(buffer, row, 0xFFFFFFFF);
-        assertThat("the bar opens at the run's origin", lit[0], is(X0 * scale));
-        assertThat("and closes past its last pixel, its one-pixel pad included",
-            lit[1], is(X0 * scale + MinecraftFont.Vanilla.REGULAR.glyph('✦').advanceWidth()));
+        // The main bars' rows - each shadow copy sits an mcPixel lower and in its darker colour.
+        int[] struck = litColumns(buffer, strikethroughRow(), 0xFFFFFFFF);
+        int[] underlined = litColumns(buffer, underlineRow(), 0xFFFFFFFF);
+        int opens = (X0 - 1) * scale;
+        int closes = X0 * scale + MinecraftFont.Vanilla.REGULAR.glyph('✦').advanceWidth() - 1;
+        assertAll(
+            () -> assertThat("the strikethrough opens an mcPixel left of the run", struck[0], is(opens)),
+            () -> assertThat("the strikethrough closes on the run's last pixel", struck[1], is(closes)),
+            () -> assertThat("the underline opens an mcPixel left of the run", underlined[0], is(opens)),
+            () -> assertThat("the underline closes on the run's last pixel", underlined[1], is(closes))
+        );
     }
 
     @Test
-    @DisplayName("an underline after a run ending on a half pixel opens where that run ends")
+    @DisplayName("a bar after a run ending on a half pixel opens one mcPixel left of where that run ends")
     void decorationAfterAHalfPixelRunStartsAtItsEnd() {
         endsOnAHalfPixel("✦");
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
@@ -297,12 +324,57 @@ class TextKitTest {
         TextSegment underlined = TextSegment.builder().text("for").underlined(true).build();
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("✦"), underlined), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
-        int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
-        int[] lit = litColumns(buffer, row, 0xFFFFFFFF);
-        int opens = X0 * scale + font.glyph('✦').advanceWidth();
-        assertThat("the bar opens where '✦' ends", lit[0], is(opens));
-        assertThat("and closes past the run's last pixel, its one-pixel pad included",
-            lit[1], is(opens + "for".codePoints().map(cp -> font.glyph(cp).advanceWidth()).sum()));
+        // The client opens the first glyph of every run of one style at x - 1.
+        int[] lit = litColumns(buffer, underlineRow(), 0xFFFFFFFF);
+        int starEnds = X0 * scale + font.glyph('✦').advanceWidth();
+        assertThat("the bar opens an mcPixel left of where '✦' ends", lit[0], is(starEnds - scale));
+        assertThat("and closes on the run's last pixel",
+            lit[1], is(starEnds + "for".codePoints().map(cp -> font.glyph(cp).advanceWidth()).sum() - 1));
+    }
+
+    @Test
+    @DisplayName("a bar's shadow copy is laid over its run's glyphs, as the client lays every bar after every glyph")
+    void aBarsShadowIsLaidOverItsRunsGlyphs() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        float widthMcPx = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("HH");
+        int row = strikethroughRow();
+
+        PixelBuffer plain = PixelBuffer.create(60, 30);
+        TextKit.drawLine(new MinecraftGraphics(plain), line(TextSegment.literal("HH")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("HH").strikethrough(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+
+        ConcurrentList<String> wrong = Concurrent.newList();
+        for (int y = row; y < row + scale; y++)
+            for (int x = (X0 - 1) * scale; x < (int) ((X0 + widthMcPx) * scale); x++)
+                if (buffer.getPixel(x, y) != 0xFFFFFFFF) wrong.add(String.format("bar at %d,%d: %08X", x, y, buffer.getPixel(x, y)));
+        for (int y = row + scale; y < row + 2 * scale; y++)
+            for (int x = X0 * scale; x < (int) ((X0 + widthMcPx + 1) * scale); x++)
+                if (buffer.getPixel(x, y) != 0xFF3F3F3F) wrong.add(String.format("shadow copy at %d,%d: %08X", x, y, buffer.getPixel(x, y)));
+
+        assertThat("'H''s stems ink both rows of the shadow copy", rowsHolding(plain, 0xFFFFFFFF).containsAll(List.of(row + scale, row + scale + 1)), is(true));
+        assertThat("pixels of the bar or its shadow copy not in its colour", wrong, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a run's bars are laid after the glyphs of the runs after it, as the client lays every bar of a line after every glyph of it")
+    void aRunsBarsAreLaidAfterTheGlyphsOfTheRunsAfterIt() {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        float widthMcPx = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("HH");
+
+        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("HH").strikethrough(true).build(), TextSegment.literal("H")),
+            X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+
+        // The shadow copy reaches an mcPixel past the struck run, over the left stem of the 'H' after it.
+        int stem = (int) ((X0 + widthMcPx) * scale);
+        int row = strikethroughRow() + scale;
+        ConcurrentList<String> wrong = Concurrent.newList();
+        for (int y = row; y < row + scale; y++)
+            for (int x = stem; x < stem + scale; x++)
+                if (buffer.getPixel(x, y) != 0xFF3F3F3F) wrong.add(String.format("%d,%d: %08X", x, y, buffer.getPixel(x, y)));
+
+        assertThat("pixels of the next run's stem under the shadow copy not in the copy's colour", wrong, is(empty()));
     }
 
     @Test
@@ -347,6 +419,10 @@ class TextKitTest {
         corpus.put("spaces alone", line(TextSegment.literal("   ")));
         corpus.put("obfuscated", line(obfuscated("Hello")));
         corpus.put("bold obfuscated", line(TextSegment.builder().text("ab cd").bold(true).obfuscated(true).build(), TextSegment.literal("|")));
+        // A bold scramble can change its run's width from frame to frame, so a bar ends where the glyphs
+        // drawn before it end only where both walk one scramble. Nothing follows the run, so its bar's
+        // shadow copy is the line's right edge.
+        corpus.put("bold obfuscated struck", line(TextSegment.builder().text("ab cd").bold(true).obfuscated(true).strikethrough(true).build()));
         corpus.put("per-letter gradient", line(TextSegment.builder().text("Gradient").gradient(perLetter).strikethrough(true).underlined(true).build()));
         corpus.put("banded gradient", line(TextSegment.builder().text("Gradient").gradient(banded).strikethrough(true).underlined(true).build()));
         corpus.put("the alt font", line(alt("Galactic").build()));
@@ -410,11 +486,11 @@ class TextKitTest {
 
         assertThat("every pixel drawn is the swap of the gray or of its shadow, and both are drawn",
             opaqueColours(buffer), is(equalTo(Set.of(0xFFA8BFD2, 0xFF2A2F34))));
-        int row = BASE * scale + TextKit.UNDERLINE_OFFSET_MCPX * scale;
-        assertThat("the underline opens at the run's origin in the gray's swap",
-            litColumns(buffer, row, 0xFFA8BFD2)[0], is(X0 * scale));
+        int row = underlineRow();
+        assertThat("the underline opens an mcPixel left of the run in the gray's swap",
+            litColumns(buffer, row, 0xFFA8BFD2)[0], is((X0 - 1) * scale));
         assertThat("and its shadow copy, one mcPixel lower and right, in the shadow's swap",
-            litColumns(buffer, row + scale, 0xFF2A2F34)[0], is((X0 + TextKit.SHADOW_OFFSET_MCPX) * scale));
+            litColumns(buffer, row + scale, 0xFF2A2F34)[0], is(X0 * scale));
     }
 
     @Test
@@ -431,13 +507,17 @@ class TextKitTest {
 
         // The client's translucent blend lays 0x80FF0000 over the fill as (135,0,7) at 248, and the
         // shadow's 0x803F0000 as (39,0,7) at 248; an overwrite would leave each colour as given.
-        int underline = (BASE + TextKit.UNDERLINE_OFFSET_MCPX) * scale;
-        int strikethrough = (BASE + TextKit.STRIKETHROUGH_OFFSET_MCPX) * scale;
-        int shadowOffset = TextKit.SHADOW_OFFSET_MCPX * scale;
-        assertThat("the underline, inside its bar", buffer.getPixel(X0 * scale + 1, underline), is(0xF8870007));
-        assertThat("the strikethrough's pad pixel, left of the run", buffer.getPixel(X0 * scale - 1, strikethrough), is(0xF8870007));
-        assertThat("the shadow's underline, one mcPixel lower and right",
-            buffer.getPixel(X0 * scale + shadowOffset + 1, underline + shadowOffset), is(0xF8270007));
+        int underline = underlineRow();
+        int strikethrough = strikethroughRow();
+        assertAll(
+            () -> assertThat("the underline, inside its bar", buffer.getPixel(X0 * scale + 1, underline), is(0xF8870007)),
+            () -> assertThat("the underline's lead, an mcPixel left of the run",
+                String.format("%08X %08X", buffer.getPixel(X0 * scale - 2, underline), buffer.getPixel(X0 * scale - 1, underline)), is("F8870007 F8870007")),
+            () -> assertThat("the strikethrough's lead, an mcPixel left of the run",
+                String.format("%08X %08X", buffer.getPixel(X0 * scale - 2, strikethrough), buffer.getPixel(X0 * scale - 1, strikethrough)), is("F8870007 F8870007")),
+            () -> assertThat("the shadow's underline, one mcPixel lower and right",
+                buffer.getPixel(X0 * scale + scale + 1, underline + scale), is(0xF8270007))
+        );
 
         PixelBuffer discarded = PixelBuffer.create(80, 40);
         discarded.fill(fill);
@@ -732,6 +812,57 @@ class TextKitTest {
         float exact = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels(text);
         assertThat("'" + text + "' ends on half an mcPixel", exact % 1f, is(0.5f));
         return exact;
+    }
+
+    /**
+     * Answers the top output row of the strikethrough the client lays on a line drawn at {@link #BASE} -
+     * its {@code y + 4.5F - 1.0F}, from the line's top, which sits the regular font's ascent above the
+     * baseline.
+     *
+     * @return the bar's top row in output pixels
+     */
+    private static int strikethroughRow() {
+        return (int) ((lineTop() + 4.5F - 1.0F) * MinecraftFont.MC_PIXEL_SCALE);
+    }
+
+    /**
+     * Answers the top output row of the underline the client lays on a line drawn at {@link #BASE} - its
+     * {@code y + 9.0F - 1.0F}, from the line's top, which sits the regular font's ascent above the
+     * baseline.
+     *
+     * @return the bar's top row in output pixels
+     */
+    private static int underlineRow() {
+        return (int) ((lineTop() + 9.0F - 1.0F) * MinecraftFont.MC_PIXEL_SCALE);
+    }
+
+    /**
+     * Answers the top of a line drawn at {@link #BASE}, the {@code y} the client's font lays the line's
+     * effects from, in Minecraft pixels.
+     *
+     * @return the line's top in Minecraft pixels
+     */
+    private static int lineTop() {
+        return BASE - MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+    }
+
+    /**
+     * Finds every row holding a colour.
+     *
+     * @param buffer the buffer to read
+     * @param argb the colour to find
+     * @return each row holding it at one pixel or more, top to bottom
+     */
+    private static List<Integer> rowsHolding(PixelBuffer buffer, int argb) {
+        List<Integer> rows = new ArrayList<>();
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
+                if (buffer.getPixel(x, y) == argb) {
+                    rows.add(y);
+                    break;
+                }
+
+        return rows;
     }
 
     private static LineSegment line(TextSegment... segments) {

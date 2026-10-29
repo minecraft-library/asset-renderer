@@ -37,7 +37,13 @@ chrome exact rather than resampled.
   discards below 0.1, and the rest blend `NORMAL` over the canvas. `TextKit` hands the graphics
   Minecraft-pixel geometry and nothing else: a strikethrough or underline bar goes through
   `MinecraftGraphics#fillEffect`, never the inherited `fillRect`, which works in output pixels and
-  overwrites what it covers.
+  overwrites what it covers. A run's strikethrough and underline run from one Minecraft pixel left of
+  the run to its end - the client opens the first glyph of every run of one style at `x - 1` - the
+  strikethrough across 3.5 to 4.5 and the underline across 8 to 9 Minecraft pixels below the line's
+  top, and a line's bars are laid after every glyph of the line, each bar's shadow copy first, as the
+  client lays a prepared text's glyphs and then its effects. `TextKit` walks a line twice for it,
+  glyphs then bars; a gradient run's bars follow the same rule in `GradientKit`, a per-letter run's in
+  each letter's colour.
 - **A run's colours are the client's font's.** A segment naming a colour draws its red, green and
   blue in the line colour's alpha, as `getTextColor` keeps it. Its shadow is the segment's shadow
   colour where it names one - that colour's alpha scaled by a see-through line's and floored - drawn
