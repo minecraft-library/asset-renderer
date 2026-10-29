@@ -309,10 +309,10 @@
       "entries": 32,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4080,
-      "promoted_at": "2ccbe88c112af82bb9a584c2c6a2c3de71926af0",
-      "sha256": "590bf0c01824f1d82008600e14562a16b262734e3172a8a81d6cafd92d0c9554",
-      "sum": "26.3979"
+      "last_duration_ms": 4338,
+      "promoted_at": "b464eda8206d95fe69311343c565caa513127661",
+      "sha256": "640ee4aa537ba818211612e75230e72def174c4c1c571e0aaf4e261e42ac0d87",
+      "sum": "21.5743"
     },
     "sweep.tooltip-hypixel-skyblock": {
       "baselined": true,
