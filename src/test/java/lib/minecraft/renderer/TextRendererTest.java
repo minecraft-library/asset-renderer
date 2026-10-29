@@ -503,15 +503,15 @@ class TextRendererTest {
     void aStretchedPackBoxIsDrawnWholeOnACanvasRoundedOut() {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
-        int rectW = scale * (2 * CLIENT_MARGIN_MCPX + (int) Math.ceil(advance));
-        int rectH = scale * (2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX);
+        int rectWMcPx = 2 * CLIENT_MARGIN_MCPX + (int) Math.ceil(advance);
+        int rectHMcPx = 2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX;
         // Transparent 5 texels a side and stretched over the client's rect, the box starts and ends on an
         // odd output px on both axes - inside a Minecraft pixel rather than on its edge.
         MCMeta stretch = guiMeta(new MCMeta.GuiScaling.Stretch());
         RendererContext context = syntheticContext(stretch, 5, 94, 5, 94);
         TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty());
-        PixelBuffer clientRect = PixelBuffer.create(rectW, rectH);
-        NineSliceKit.draw(clientRect, sprites.background(), sprites.backgroundScaling(), 0, 0, rectW, rectH, scale, 1.0f);
+        PixelBuffer clientRect = PixelBuffer.create(rectWMcPx * scale, rectHMcPx * scale);
+        NineSliceKit.draw(clientRect, sprites.background(), sprites.backgroundScaling(), 0, 0, rectWMcPx, rectHMcPx, 1.0f);
         Rectangle box = clientRect.opaqueBounds();
         assertThat("the box's left, right, top and bottom edge, each an odd output px",
             List.of(box.x % scale, (box.x + box.width) % scale, box.y % scale, (box.y + box.height) % scale),

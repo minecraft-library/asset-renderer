@@ -23,7 +23,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.Rectangle;
+import java.awt.geom.Rectangle2D;
 import java.util.List;
 import java.util.Optional;
 
@@ -174,22 +174,22 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          * relative to both sprites
          */
         private static @NotNull ChromeBox spriteBox(int textW, int textH, @NotNull ChromeSprites sprites, @NotNull TextOptions options) {
-            int scale = MinecraftFont.MC_PIXEL_SCALE;
-            int rectW = (textW + 2 * SPRITE_MARGIN_MCPX) * scale;
-            int rectH = (textH + 2 * SPRITE_MARGIN_MCPX) * scale;
+            int rectW = textW + 2 * SPRITE_MARGIN_MCPX;
+            int rectH = textH + 2 * SPRITE_MARGIN_MCPX;
             int left = SPRITE_MARGIN_MCPX;
             int top = SPRITE_MARGIN_MCPX;
             int right = SPRITE_MARGIN_MCPX + textW;
             int bottom = SPRITE_MARGIN_MCPX + textH;
-            List<Rectangle> drawn = List.of(
-                NineSliceKit.extent(sprites.background(), sprites.backgroundScaling(), rectW, rectH, scale, backgroundMultiplier(options)),
-                NineSliceKit.extent(sprites.frame(), sprites.frameScaling(), rectW, rectH, scale, borderMultiplier(options)));
-            for (Rectangle bounds : drawn) {
-                if (bounds.isEmpty()) continue;
-                left = Math.min(left, Math.floorDiv(bounds.x, scale));
-                top = Math.min(top, Math.floorDiv(bounds.y, scale));
-                right = Math.max(right, Math.ceilDiv(bounds.x + bounds.width, scale));
-                bottom = Math.max(bottom, Math.ceilDiv(bounds.y + bounds.height, scale));
+            List<Optional<Rectangle2D>> drawn = List.of(
+                NineSliceKit.extent(sprites.background(), sprites.backgroundScaling(), rectW, rectH, backgroundMultiplier(options)),
+                NineSliceKit.extent(sprites.frame(), sprites.frameScaling(), rectW, rectH, borderMultiplier(options)));
+            for (Optional<Rectangle2D> extent : drawn) {
+                if (extent.isEmpty()) continue;
+                Rectangle2D bounds = extent.get();
+                left = Math.min(left, (int) Math.floor(bounds.getMinX()));
+                top = Math.min(top, (int) Math.floor(bounds.getMinY()));
+                right = Math.max(right, (int) Math.ceil(bounds.getMaxX()));
+                bottom = Math.max(bottom, (int) Math.ceil(bounds.getMaxY()));
             }
             return new ChromeBox(right - left, bottom - top, SPRITE_MARGIN_MCPX - left, SPRITE_MARGIN_MCPX - top, textW, textH);
         }
@@ -208,24 +208,24 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         /**
          * The sprite chrome: nine-slices the {@code tooltip/background} then {@code tooltip/frame} sprites
          * over the rect the client hands them - the text plus {@link #SPRITE_MARGIN_MCPX} a side, placed
-         * round the box's text block - and the canvas holds what they draw. The option alphas become
-         * multipliers on each texel's alpha relative to the baked sprite alphas (240 / 80), applied before
-         * the texel blends, so default options draw the sprites as authored and a lowered alpha fades them
-         * proportionally.
+         * round the box's text block - and the canvas holds what they draw. The sprite box lays its text
+         * block out in whole Minecraft pixels, the client's own rect for both sprites. The option alphas
+         * become multipliers on each texel's alpha relative to the baked sprite alphas (240 / 80), applied
+         * before the texel blends, so default options draw the sprites as authored and a lowered alpha
+         * fades them proportionally.
          */
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                              @NotNull ChromeSprites sprites, @NotNull TextOptions options) {
-            int scale = MinecraftFont.MC_PIXEL_SCALE;
-            int x = Math.round((box.textX() - SPRITE_MARGIN_MCPX) * scale);
-            int y = Math.round((box.textY() - SPRITE_MARGIN_MCPX) * scale);
-            int w = Math.round((box.textWidth() + 2 * SPRITE_MARGIN_MCPX) * scale);
-            int h = Math.round((box.textHeight() + 2 * SPRITE_MARGIN_MCPX) * scale);
+            int x = Math.round(box.textX()) - SPRITE_MARGIN_MCPX;
+            int y = Math.round(box.textY()) - SPRITE_MARGIN_MCPX;
+            int w = Math.round(box.textWidth()) + 2 * SPRITE_MARGIN_MCPX;
+            int h = Math.round(box.textHeight()) + 2 * SPRITE_MARGIN_MCPX;
             float bgMul = backgroundMultiplier(options);
             float borderMul = borderMultiplier(options);
             stack.append(TextSlot.BACKGROUND, frame -> NineSliceKit.draw(frame, sprites.background(), sprites.backgroundScaling(),
-                x, y, w, h, scale, bgMul));
+                x, y, w, h, bgMul));
             stack.append(TextSlot.BORDER, frame -> NineSliceKit.draw(frame, sprites.frame(), sprites.frameScaling(),
-                x, y, w, h, scale, borderMul));
+                x, y, w, h, borderMul));
         }
 
         /**

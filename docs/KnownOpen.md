@@ -103,7 +103,20 @@ differs: five of the eight at `item_like_chrome` do, rows 98 and 140 on the left
 other, column 96 matching the renderer and column 97 not.
 
 A pixel-centred integer sample gives one answer per output row, so it cannot follow a coordinate that
-lands differently per pixel. Closing it needs the rule by which the client's interpolated coordinate
-falls on one side of an exact edge or the other - the split is consistent with a quad's two triangles
-interpolating to values a last float bit apart, which is not measured - and nothing measured yet
-states that rule. Nobody has taken it on.
+lands differently per pixel - and no rule stated over the quad follows it either. The rows whose
+centre slice is 24 output px tall - `long_line_chrome`, `mixed_segments_chrome`, `narrow_chrome`,
+`one_line_chrome`, `unstyled_chrome` and `width_glyphs_chrome` - draw the same side quads, with the
+same texture coordinates, over the same rows of a render target of the same height, and differ only in
+where the right-hand quad sits across the target. Five read the texel after the edge at every visible
+boundary; `narrow_chrome` reads the one before at one pixel, in that quad's upper triangle, where the
+other five read the one after at the same row, column and triangle. The pick follows the quad's place
+in the client's target, which is consistent with the card carrying a triangle's plane value from a
+corner chosen by its position (see [Texel rules](renderer/TexelFetch.md)), applied to corner
+coordinates that are the sprite's place in the stitched GUI atlas rounded to float.
+
+The renderer's raster rule is the wrong reading here. Across the 172 visible exact-boundary pixels of
+the box-alone rows the client reads the texel after the edge at 154 and the one before at 18, so
+reading the texel below an exact boundary, as the entity raster does, would turn the 18 differing
+pixels into 154. Closing the 18 needs the card's interpolation setup at the client's screen position
+and the GUI atlas's layout, and modelling the card is refused in [Texel rules](renderer/TexelFetch.md).
+Nobody has taken it on.
