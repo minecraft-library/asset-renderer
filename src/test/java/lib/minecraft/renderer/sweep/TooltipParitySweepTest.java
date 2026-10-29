@@ -297,24 +297,26 @@ class TooltipParitySweepTest {
     }
 
     @Test
-    @DisplayName("a stretch writes its type alone, whatever size it carries")
+    @DisplayName("a stretch writes its type alone")
     void stretchWritesItsTypeAlone() {
         JsonObject stretch = JsonParser.parseString("{\"type\": \"stretch\"}").getAsJsonObject();
-        MCMeta.GuiScaling.Border none = new MCMeta.GuiScaling.Border(0, 0, 0, 0);
 
-        assertThat("the shape a sprite without a sidecar defaults to, its size unspecified",
-            TooltipParitySweep.scalingJson(new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, none, false)),
-            equalTo(stretch));
-        assertThat("a stretch sidecar naming a size the client's codec does not read",
-            TooltipParitySweep.scalingJson(new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, 16, 16, none, false)),
-            equalTo(stretch));
+        assertThat("the shape a sprite without a sidecar defaults to",
+            TooltipParitySweep.scalingJson(new MCMeta.GuiScaling.Stretch()), equalTo(stretch));
+    }
+
+    @Test
+    @DisplayName("a tile writes its type and its size")
+    void tileWritesItsTypeAndSize() {
+        assertThat(TooltipParitySweep.scalingJson(new MCMeta.GuiScaling.Tile(16, 8)),
+            equalTo(JsonParser.parseString("{\"type\": \"tile\", \"width\": 16, \"height\": 8}").getAsJsonObject()));
     }
 
     @Test
     @DisplayName("a nine-slice writes its size, four border sides and its inner stretch")
     void nineSliceWritesEveryField() {
-        MCMeta.GuiScaling nineSlice = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, 100, 100,
-            new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
+        MCMeta.GuiScaling nineSlice = new MCMeta.GuiScaling.NineSlice(100, 100,
+            new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
 
         assertThat(TooltipParitySweep.scalingJson(nineSlice), equalTo(JsonParser.parseString(NINE_SLICE).getAsJsonObject()));
     }

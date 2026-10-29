@@ -721,17 +721,17 @@ class IndexedRendererContextTest {
         MCMeta.Animation a = animation.get();
         assertThat(a.frametime(), equalTo(4));
         assertThat(a.interpolate(), is(true));
-        assertThat(a.frames().size(), equalTo(4));
+        assertThat(a.frames().orElseThrow().size(), equalTo(4));
 
-        // Bare-integer frames carry the -1 sentinel so the table can fall back to frametime.
-        assertThat(a.frames().getFirst().index(), equalTo(0));
-        assertThat(a.frames().getFirst().time(), equalTo(-1));
-        assertThat(a.frames().get(1).index(), equalTo(1));
-        assertThat(a.frames().get(1).time(), equalTo(-1));
+        // Bare-integer frames declare no time, so the table falls back to frametime.
+        assertThat(a.frames().orElseThrow().getFirst().index(), equalTo(0));
+        assertThat(a.frames().orElseThrow().getFirst().time(), equalTo(Optional.empty()));
+        assertThat(a.frames().orElseThrow().get(1).index(), equalTo(1));
+        assertThat(a.frames().orElseThrow().get(1).time(), equalTo(Optional.empty()));
 
         // Object-form frames carry their explicit per-frame duration override.
-        assertThat(a.frames().get(3).index(), equalTo(3));
-        assertThat(a.frames().get(3).time(), equalTo(8));
+        assertThat(a.frames().orElseThrow().get(3).index(), equalTo(3));
+        assertThat(a.frames().orElseThrow().get(3).time(), equalTo(Optional.of(8)));
     }
 
     @Test

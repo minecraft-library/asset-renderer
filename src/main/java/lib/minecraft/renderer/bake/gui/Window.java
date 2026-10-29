@@ -305,17 +305,19 @@ public interface Window {
         }
 
         /**
-         * The border a sprite's {@code gui.scaling} sidecar declares, empty where it declares none or
-         * declares a mode that carries no border - which is what leaves the border to be derived.
+         * The border a sprite's {@code gui.scaling} sidecar declares, empty where it declares none,
+         * declares a mode that carries no border, or carries a section the client's codec refuses - which
+         * is what leaves the border to be derived.
          */
         private static @NotNull Optional<ChromeDecomposition.Border> border(
             @NotNull RendererContext context, @NotNull ResourceId id
         ) {
             return context.findMeta(id.id())
-                .toOptional()
                 .flatMap(MCMeta::gui)
-                .filter(scaling -> scaling.type() == MCMeta.GuiScaling.Type.NINE_SLICE)
-                .map(MCMeta.GuiScaling::border)
+                .toOptional()
+                .flatMap(scaling -> scaling instanceof MCMeta.GuiScaling.NineSlice nineSlice
+                    ? Optional.of(nineSlice.border())
+                    : Optional.empty())
                 .map(declared -> new ChromeDecomposition.Border(
                     declared.left(), declared.top(), declared.right(), declared.bottom()));
         }

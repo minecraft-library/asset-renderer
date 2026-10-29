@@ -177,7 +177,7 @@ class StyleRegistrarSkinTest {
         /** {@inheritDoc} */
         @Override
         public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
+            return findMeta(textureId).flatMap(meta -> meta.animation().orAbsent(Possible::empty));
         }
 
         /**

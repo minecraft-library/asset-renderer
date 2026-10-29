@@ -64,7 +64,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * A wrong state is invisible to every render - a still frame is a still frame, whichever way it came to
  * be still - so these rows are the only witness. The production context is built over a pack holding an
  * animated texture, a static one, a zero-byte file, a truncated file beside an animated sidecar,
- * paletted permutations over readable and unreadable inputs, a blank and a malformed sidecar, strips
+ * paletted permutations over readable and unreadable inputs, a blank and a malformed sidecar, a sidecar
+ * whose animation section the client's codec refuses and one carrying no animation section, strips
  * their frame size does not divide on either axis and one wider than tall that it does, and over a
  * second pack reached through its pack id; the in-memory context over buffers, and over a source
  * answering empty; and every wrapper over each of them.
@@ -99,6 +100,12 @@ class TextureViewCoherenceTest {
 
     /** A texture that decodes, beside a sidecar that is not JSON. */
     private static final String MALFORMED_SIDECAR = "minecraft:block/coherence_malformed_sidecar";
+
+    /** A strip that decodes, beside a sidecar whose animation section the client's codec refuses. */
+    private static final String REFUSED_ANIMATION = "minecraft:block/coherence_refused_animation";
+
+    /** A texture that decodes, beside a sidecar that parses and carries no animation section. */
+    private static final String SECTIONLESS_SIDECAR = "minecraft:block/coherence_sectionless_sidecar";
 
     /** A strip whose declared frame height does not divide its height. */
     private static final String RAGGED_HEIGHT = "minecraft:block/coherence_ragged_height";
@@ -187,8 +194,8 @@ class TextureViewCoherenceTest {
 
     /** Every id each context is asked about. */
     private static final List<String> IDS = List.of(
-        ANIMATED, STATIC, ZERO_BYTE, BROKEN_ANIMATED, BLANK_SIDECAR, MALFORMED_SIDECAR,
-        RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP, WIDE,
+        ANIMATED, STATIC, ZERO_BYTE, BROKEN_ANIMATED, BLANK_SIDECAR, MALFORMED_SIDECAR, REFUSED_ANIMATION,
+        SECTIONLESS_SIDECAR, RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP, WIDE,
         PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING,
         PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MALFORMED, PACK_PREFIXED_RAGGED, PACK_PREFIXED_MISSING,
         UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
@@ -223,6 +230,10 @@ class TextureViewCoherenceTest {
         sidecar(vanillaBlocks, BLANK_SIDECAR, "  \n");
         write(vanillaBlocks, MALFORMED_SIDECAR, still);
         sidecar(vanillaBlocks, MALFORMED_SIDECAR, "{ \"animation\": ");
+        write(vanillaBlocks, REFUSED_ANIMATION, png(16, 32));
+        sidecar(vanillaBlocks, REFUSED_ANIMATION, "{\"animation\":{\"frametime\":0}}");
+        write(vanillaBlocks, SECTIONLESS_SIDECAR, still);
+        sidecar(vanillaBlocks, SECTIONLESS_SIDECAR, "{\"villager\":{\"hat\":\"full\"}}");
         write(vanillaBlocks, RAGGED_HEIGHT, png(16, 40));
         sidecar(vanillaBlocks, RAGGED_HEIGHT, "{\"animation\":{\"height\":16}}");
         write(vanillaBlocks, RAGGED_WIDTH, png(24, 16));
@@ -283,6 +294,7 @@ class TextureViewCoherenceTest {
         assertStates(BROKEN_ANIMATED, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
         assertStates(BLANK_SIDECAR, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(MALFORMED_SIDECAR, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
+        assertStates(SECTIONLESS_SIDECAR, Possible.State.PRESENT, Possible.State.PRESENT, Possible.State.EMPTY);
         assertStates(RAGGED_HEIGHT, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
         assertStates(RAGGED_WIDTH, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
         assertStates(RAGGED_UNDECLARED, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
@@ -458,7 +470,7 @@ class TextureViewCoherenceTest {
         assertThat("the playback table is absent exactly when the texture is", flipbook.isAbsent(), is(texture.isAbsent()));
 
         assertThat("the animation is the sidecar's own section, in its state", animation.getState(),
-            is(meta.flatMap(document -> Possible.ofOptional(document.animation())).getState()));
+            is(meta.flatMap(document -> document.animation().orAbsent(Possible::empty)).getState()));
 
         if (flipbook.isPresent()) {
             assertThat("a table plays under an animation that is there", animation.isPresent(), is(true));

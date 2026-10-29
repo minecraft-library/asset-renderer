@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.content.index;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -46,10 +45,9 @@ class RendererContextWithTexturesTest {
     private static final @NotNull MCMeta FULL = new MCMeta(
         ResourceId.parse(ID),
         Optional.empty(),
-        Optional.of(new MCMeta.Animation(2, true, 16, 16, Concurrent.newList())),
-        Optional.of(new MCMeta.TextureFlags(true, true)),
-        Optional.of(new MCMeta.GuiScaling(
-            MCMeta.GuiScaling.Type.NINE_SLICE, 8, 8, new MCMeta.GuiScaling.Border(1, 2, 3, 4), true)),
+        Possible.of(new MCMeta.Animation(2, true, Optional.of(16), Optional.of(16), Optional.empty())),
+        Possible.of(new MCMeta.TextureSampling(true, true, MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f)),
+        Possible.of(new MCMeta.GuiScaling.NineSlice(8, 8, new MCMeta.GuiScaling.NineSlice.Border(1, 2, 3, 4), true)),
         Optional.of(new MCMeta.Villager(MCMeta.Villager.Hat.FULL)));
 
     /**
@@ -110,7 +108,7 @@ class RendererContextWithTexturesTest {
      *     where there is no sidecar
      */
     private static @NotNull Possible<MCMeta.Animation> animationOf(@NotNull Possible<MCMeta> meta) {
-        return meta.flatMap(document -> Possible.ofOptional(document.animation()));
+        return meta.flatMap(document -> document.animation().orAbsent(Possible::empty));
     }
 
     /**
@@ -182,7 +180,7 @@ class RendererContextWithTexturesTest {
         assertThat(pinned.texture(), is(FULL.texture()));
         assertThat(pinned.gui(), is(FULL.gui()));
         assertThat(pinned.villager(), is(FULL.villager()));
-        assertThat(pinned.animation().isPresent(), is(false));
+        assertThat(pinned.animation().getState(), is(Possible.State.ABSENT));
     }
 
     @Test

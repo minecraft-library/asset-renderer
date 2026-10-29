@@ -25,7 +25,8 @@ import static org.hamcrest.Matchers.not;
  * Unit tests for {@link NineSliceKit}, exercising the three scaling modes against the real 26.1
  * tooltip sprites (background border 9 / frame border 10 + stretch_inner) over a rect that overhangs
  * the canvas, alpha multiplier included, plus the pure-algorithm cases (stretch, tile, nominal
- * downsample, degenerate-rect clamp) on synthetic sprites so they run without the client jar.
+ * downsample, inner stretch, degenerate-rect clamp) on synthetic sprites so they run without the client
+ * jar.
  * <p>
  * The real-sprite cases blit over the rect the tooltip chrome hands the kit for vanilla's pair: the
  * client's rect, overhanging the canvas by 16 output px a side - the 8 outer texels both sprites leave
@@ -165,23 +166,20 @@ class NineSliceKitTest {
     @DisplayName("the extent is the bounds of what the kit draws in every scaling mode, a nominal size and a texel the multiplier clears")
     void extentIsWhatEveryScalingDraws() {
         PixelBuffer inner = opaqueSquare(10, 2, 7);
-        MCMeta.GuiScaling.Border none = new MCMeta.GuiScaling.Border(0, 0, 0, 0);
-        assertExtentIsDrawn("stretch", inner,
-            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, none, false), 37, 23, PX_SCALE, 1.0f);
-        assertExtentIsDrawn("tile", inner,
-            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.TILE, 10, 10, none, false), 50, 30, PX_SCALE, 1.0f);
+        assertExtentIsDrawn("stretch", inner, new MCMeta.GuiScaling.Stretch(), 37, 23, PX_SCALE, 1.0f);
+        assertExtentIsDrawn("tile", inner, new MCMeta.GuiScaling.Tile(10, 10), 50, 30, PX_SCALE, 1.0f);
         assertExtentIsDrawn("nine_slice border 3 stretch_inner", inner,
-            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(3, 3, 3, 3), true),
+            new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(3, 3, 3, 3), true),
             41, 29, PX_SCALE, 1.0f);
         assertExtentIsDrawn("20x20 declared 10x10", opaqueSquare(20, 4, 15),
-            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, 10, 10, none, false), 37, 23, PX_SCALE, 1.0f);
+            new MCMeta.GuiScaling.Tile(10, 10), 37, 23, PX_SCALE, 1.0f);
 
         // An alpha-80 texel at the corner scales to alpha 0.4 at 0.005, which rounds to 0 and is
         // discarded, while the opaque texels keep alpha 1.
         PixelBuffer faint = opaqueSquare(10, 2, 7);
         faint.setPixel(0, 0, 0x50FFFFFF);
         assertExtentIsDrawn("alpha-80 texel cleared by the multiplier", faint,
-            new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, none, false), 37, 23, PX_SCALE, 0.005f);
+            new MCMeta.GuiScaling.Stretch(), 37, 23, PX_SCALE, 0.005f);
     }
 
     /**
@@ -225,7 +223,7 @@ class NineSliceKitTest {
     void stretchExpandsSprite() {
         int[] px = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFFFF}; // R G B W, row-major
         PixelBuffer sprite = PixelBuffer.of(px, 2, 2);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
+        MCMeta.GuiScaling gui = new MCMeta.GuiScaling.Stretch();
         PixelBuffer dest = PixelBuffer.create(4, 4);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 4, 4, 1, 1.0f);
@@ -241,7 +239,7 @@ class NineSliceKitTest {
     void tileRepeatsSprite() {
         int[] px = {0xFFAAAAAA, 0xFFBBBBBB, 0xFFCCCCCC, 0xFFDDDDDD};
         PixelBuffer sprite = PixelBuffer.of(px, 2, 2);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.TILE, 2, 2, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
+        MCMeta.GuiScaling gui = new MCMeta.GuiScaling.Tile(2, 2);
         PixelBuffer dest = PixelBuffer.create(4, 4);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 4, 4, 1, 1.0f);
@@ -252,22 +250,64 @@ class NineSliceKitTest {
     }
 
     @Test
-    @DisplayName("nominal downsample slices at the declared size, not the texture size")
+    @DisplayName("nominal downsample slices a tile and a nine-slice at the declared size, not the texture size")
     void nominalDownsampleTiles() {
         // A 4x2 sprite with four distinct columns, declared nominal 2x2: nominalize downsamples to
         // 2 columns, so a pxScale-1 tile repeats with period 2 (col0==col2), which a texture-size
-        // (period-4) tile would not.
+        // (period-4) tile would not. A nine-slice with no border and no inner stretch is all centre,
+        // tiled at the same period.
         int[] px = {0xFF111111, 0xFF222222, 0xFF333333, 0xFF444444,
                     0xFF111111, 0xFF222222, 0xFF333333, 0xFF444444};
         PixelBuffer sprite = PixelBuffer.of(px, 4, 2);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.TILE, 2, 2, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
-        PixelBuffer dest = PixelBuffer.create(4, 2);
+        MCMeta.GuiScaling[] scalings = {
+            new MCMeta.GuiScaling.Tile(2, 2),
+            new MCMeta.GuiScaling.NineSlice(2, 2, new MCMeta.GuiScaling.NineSlice.Border(0, 0, 0, 0), false)
+        };
 
-        NineSliceKit.draw(dest, sprite, gui, 0, 0, 4, 2, 1, 1.0f);
+        for (MCMeta.GuiScaling gui : scalings) {
+            PixelBuffer dest = PixelBuffer.create(4, 2);
+            NineSliceKit.draw(dest, sprite, gui, 0, 0, 4, 2, 1, 1.0f);
 
-        assertThat("nominal period 2", dest.getPixel(2, 0), is(dest.getPixel(0, 0)));
-        assertThat("nominal period 2", dest.getPixel(3, 0), is(dest.getPixel(1, 0)));
-        assertThat("two distinct nominal columns", dest.getPixel(0, 0), is(not(dest.getPixel(1, 0))));
+            String mode = gui.type().name();
+            assertThat(mode + " nominal period 2", dest.getPixel(2, 0), is(dest.getPixel(0, 0)));
+            assertThat(mode + " nominal period 2", dest.getPixel(3, 0), is(dest.getPixel(1, 0)));
+            assertThat(mode + " two distinct nominal columns", dest.getPixel(0, 0), is(not(dest.getPixel(1, 0))));
+        }
+    }
+
+    @Test
+    @DisplayName("a nine-slice's centre stretches under stretch_inner and tiles without it")
+    void stretchInnerStretchesOrTilesTheCentre() {
+        // A 4x1 sprite with a border of 1 on the left and the right: columns 0 and 3 are the borders and
+        // columns 1 and 2 the centre. Over 6 px at pxScale 1 each border keeps its one column and the
+        // centre spans 4 px, so a stretched centre reads each of its columns twice in turn and a tiled
+        // one repeats the pair.
+        int[] columns = {0xFF111111, 0xFF222222, 0xFF333333, 0xFF444444};
+        PixelBuffer sprite = PixelBuffer.of(columns, 4, 1);
+        MCMeta.GuiScaling.NineSlice.Border border = new MCMeta.GuiScaling.NineSlice.Border(1, 0, 1, 0);
+
+        assertThat("stretched centre", drawnRow(sprite, new MCMeta.GuiScaling.NineSlice(4, 1, border, true), 6),
+            is(new int[]{columns[0], columns[1], columns[1], columns[2], columns[2], columns[3]}));
+        assertThat("tiled centre", drawnRow(sprite, new MCMeta.GuiScaling.NineSlice(4, 1, border, false), 6),
+            is(new int[]{columns[0], columns[1], columns[2], columns[1], columns[2], columns[3]}));
+    }
+
+    /**
+     * Draws a sprite one texel high across a rect one pixel high at {@code pxScale} 1, and answers the row
+     * it lays down.
+     *
+     * @param sprite the sprite, one texel high
+     * @param gui the sprite's scaling
+     * @param width the rect width in output px
+     * @return the drawn row's pixels, left to right
+     */
+    private static int[] drawnRow(PixelBuffer sprite, MCMeta.GuiScaling gui, int width) {
+        PixelBuffer dest = PixelBuffer.create(width, 1);
+        NineSliceKit.draw(dest, sprite, gui, 0, 0, width, 1, 1, 1.0f);
+        int[] row = new int[width];
+        for (int x = 0; x < width; x++)
+            row[x] = dest.getPixel(x, 0);
+        return row;
     }
 
     @Test
@@ -282,7 +322,7 @@ class NineSliceKitTest {
             for (int x = 0; x < 20; x++)
                 px[y * 20 + x] = x == 0 ? 0xFF0000FF : x == 19 ? 0xFFFF0000 : 0xFF808080;
         PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
+        MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(20, 20, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
         PixelBuffer dest = PixelBuffer.create(10, 10);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 10, 10, 1, 1.0f);
@@ -297,7 +337,7 @@ class NineSliceKitTest {
         int[] px = new int[20 * 20];
         Arrays.fill(px, 0xFF808080);
         PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling(MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false);
+        MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(20, 20, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
         PixelBuffer dest = PixelBuffer.create(10, 10);
 
         // 9+9 border px exceed the 10 px destination; must clamp rather than throw / read OOB.

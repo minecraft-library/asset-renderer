@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,30 +13,35 @@ import java.util.regex.Pattern;
 /**
  * A parsed {@code .mcmeta} document - either a pack root {@code pack.mcmeta} or a per-asset
  * {@code <file>.png.mcmeta} sidecar. One umbrella holds every render-relevant section as an optional:
- * {@link Pack} for the root, and the four sidecar sections ({@link Animation}, {@link TextureFlags},
- * {@link GuiScaling}, {@link Villager}) that any one sidecar may combine. Sections absent from the
- * document parse to {@link Optional#empty()}.
+ * {@link Pack} for the root, and the four sidecar sections ({@link Animation}, {@link TextureSampling},
+ * {@link GuiScaling}, {@link Villager}) that any one sidecar may combine. The pack and villager sections
+ * parse to {@link Optional#empty()} where the document has none; each of the animation, texture and
+ * {@code gui} sections answers a {@link Possible} that is also empty where the document carries one the
+ * client's codec refuses, since each of the client's reads parses only the sections it asks for.
  *
  * @param id the asset this document annotates; a pack root uses {@code <packId>:pack}
  * @param pack the {@code pack} section, present only for a {@code pack.mcmeta}
- * @param animation the {@code animation} flipbook section, when present
- * @param texture the {@code texture} sampler-flags section, when present
- * @param gui the {@code gui.scaling} sprite-scaling section, when present
+ * @param animation the {@code animation} flipbook section: present where the client loads it, empty where
+ *     the document carries one the client's codec refuses, and absent where it carries none
+ * @param texture the {@code texture} sampling section: present where the client loads it, empty where the
+ *     document carries one the client's codec refuses, and absent where it carries none
+ * @param gui the {@code gui} section: present where the client loads it, empty where the document
+ *     carries one the client's codec refuses, and absent where it carries none
  * @param villager the {@code villager} hat-overlay section, when present
  */
 public record MCMeta(
     @NotNull ResourceId id,
     @NotNull Optional<Pack> pack,
-    @NotNull Optional<Animation> animation,
-    @NotNull Optional<TextureFlags> texture,
-    @NotNull Optional<GuiScaling> gui,
+    @NotNull Possible<Animation> animation,
+    @NotNull Possible<TextureSampling> texture,
+    @NotNull Possible<GuiScaling> gui,
     @NotNull Optional<Villager> villager
 ) {
 
     /** The empty document, carrying no sections; the default when a pack or asset ships no mcmeta. */
     public static final @NotNull MCMeta EMPTY = new MCMeta(
         new ResourceId(ResourceId.DEFAULT_NAMESPACE, ""),
-        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        Optional.empty(), Possible.absent(), Possible.absent(), Possible.absent(), Optional.empty());
 
     /**
      * The {@code pack} section of a root {@code pack.mcmeta}.
@@ -195,99 +201,233 @@ public record MCMeta(
     }
 
     /**
-     * A flipbook {@code animation} sidecar section.
+     * A flipbook {@code animation} sidecar section, as the client's codec reads it. Its constructor refuses
+     * what the codec refuses, so a section the client would not load cannot be built.
      *
-     * @param frametime the default per-frame duration in ticks
+     * @param frametime the ticks each frame lasts where it declares none, at least 1
      * @param interpolate whether adjacent frames blend
-     * @param width the explicit frame width override, or {@code -1} to inherit
-     * @param height the explicit frame height override, or {@code -1} to inherit
-     * @param frames the normalized playback sequence; bare strip indices carry the {@code -1}
-     *     duration marker deferring to {@link #frametime}
+     * @param width the frame width in pixels, at least 1, where the section declares one
+     * @param height the frame height in pixels, at least 1, where the section declares one
+     * @param frames the playback sequence, where the section declares one - every strip frame in order
+     *     where it does not
      */
     public record Animation(
         int frametime,
         boolean interpolate,
-        int width,
-        int height,
-        @NotNull ConcurrentList<Frame> frames
-    ) {}
+        @NotNull Optional<Integer> width,
+        @NotNull Optional<Integer> height,
+        @NotNull Optional<ConcurrentList<Frame>> frames
+    ) {
+
+        /**
+         * Constructs a new {@code Animation}, refusing what the client's codec refuses.
+         *
+         * @throws IllegalArgumentException if the frametime, or a declared width or height, is below 1
+         */
+        public Animation {
+            positive(frametime);
+            width.ifPresent(MCMeta::positive);
+            height.ifPresent(MCMeta::positive);
+        }
+
+    }
 
     /**
-     * One entry in an {@link Animation#frames} sequence.
+     * One entry of an {@link Animation}'s declared sequence.
      *
-     * @param index the zero-based frame index into the strip
-     * @param time the per-frame duration in ticks, or {@code -1} to defer to {@link Animation#frametime}
+     * @param index the strip frame it draws, never negative
+     * @param time the ticks it lasts, at least 1, where it declares them - the section's frametime where it
+     *     does not
      */
-    public record Frame(int index, int time) {}
+    public record Frame(int index, @NotNull Optional<Integer> time) {
+
+        /**
+         * Constructs a new {@code Frame}, refusing what the client's codec refuses.
+         *
+         * @throws IllegalArgumentException if the index is below 0 or a declared time below 1
+         */
+        public Frame {
+            nonNegative(index);
+            time.ifPresent(MCMeta::positive);
+        }
+
+    }
 
     /**
-     * A {@code texture} sidecar section carrying sampler flags.
+     * A {@code texture} sidecar section: how the texture is sampled and its mip levels built, as the
+     * client's codec reads it.
      *
      * @param blur whether the sampler blurs on magnification
-     * @param clamp whether the sampler clamps at texture edges
+     * @param clamp whether the sampler clamps at the texture's edges
+     * @param mipmapStrategy how each mip level is built from the one above it
+     * @param alphaCutoffBias the bias added to the alpha cutoff a mip level keeps coverage against
      */
-    public record TextureFlags(boolean blur, boolean clamp) {}
+    public record TextureSampling(boolean blur, boolean clamp, @NotNull MipmapStrategy mipmapStrategy, float alphaCutoffBias) {
+
+        /** The mipmap strategies a texture section names, each spelled as its name in lower case. */
+        public enum MipmapStrategy {
+            AUTO, MEAN, CUTOUT, STRICT_CUTOUT, DARK_CUTOUT;
+
+            /**
+             * Looks up a strategy by the name a sidecar spells it in, exactly as the client's codec does.
+             *
+             * @param name the name the sidecar spells
+             * @return the strategy, or empty for any other text
+             */
+            public static @NotNull Optional<MipmapStrategy> parse(@NotNull String name) {
+                for (MipmapStrategy strategy : values())
+                    if (strategy.name().toLowerCase(Locale.ROOT).equals(name)) return Optional.of(strategy);
+
+                return Optional.empty();
+            }
+        }
+
+    }
 
     /**
-     * A {@code gui.scaling} sidecar section describing how a GUI sprite scales.
-     *
-     * @param type the scaling mode
-     * @param width the base sprite width, or {@code -1} when unspecified
-     * @param height the base sprite height, or {@code -1} when unspecified
-     * @param border the nine-slice border insets
-     * @param stretchInner whether the nine-slice center stretches rather than tiles
+     * A GUI sprite's scaling, as the client's {@code gui.scaling} codec reads it: a stretch, a tile or a
+     * nine-slice, each holding only what its mode reads. Each refuses in its constructor what the codec
+     * refuses, so a scaling the client would not load cannot be built.
      */
-    public record GuiScaling(@NotNull Type type, int width, int height, @NotNull Border border, boolean stretchInner) {
+    public sealed interface GuiScaling permits GuiScaling.Stretch, GuiScaling.Tile, GuiScaling.NineSlice {
 
-        /** The GUI sprite scaling mode; defaults to {@link #STRETCH}. */
-        public enum Type {
+        /**
+         * The scaling of a section that declares none and of a sprite that carries no section - stretch,
+         * as the client's default is.
+         */
+        @NotNull GuiScaling DEFAULT = new Stretch();
+
+        /**
+         * Answers the mode this scaling draws in, the one a sidecar names it by.
+         *
+         * @return the scaling mode
+         */
+        @NotNull Type type();
+
+        /** The GUI sprite scaling modes, each spelled in a sidecar as its name in lower case. */
+        enum Type {
             STRETCH, TILE, NINE_SLICE;
 
             /**
-             * Parses a scaling type name case-insensitively, defaulting to {@link #STRETCH} on an
-             * unrecognised value.
+             * Looks up a scaling mode by the name a sidecar spells it in, exactly as the client's codec
+             * does.
              *
-             * @param name the type name
-             * @return the parsed type, or {@link #STRETCH}
+             * @param name the name the sidecar spells
+             * @return the mode, or empty for any other text
              */
-            public static @NotNull Type parse(@NotNull String name) {
-                return switch (name.toLowerCase(Locale.ROOT)) {
-                    case "tile" -> TILE;
-                    case "nine_slice" -> NINE_SLICE;
-                    default -> STRETCH;
-                };
+            public static @NotNull Optional<Type> parse(@NotNull String name) {
+                for (Type type : values())
+                    if (type.name().toLowerCase(Locale.ROOT).equals(name)) return Optional.of(type);
+
+                return Optional.empty();
             }
         }
 
         /**
-         * Nine-slice border insets; the bare-integer form applies the same inset to all four sides.
-         *
-         * @param left the left inset
-         * @param top the top inset
-         * @param right the right inset
-         * @param bottom the bottom inset
+         * A sprite stretched over the whole rect it is drawn into. It reads nothing beside its type, so a
+         * size declared beside it is never read.
          */
-        public record Border(int left, int top, int right, int bottom) {
+        record Stretch() implements GuiScaling {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Type type() {
+                return Type.STRETCH;
+            }
+
+        }
+
+        /**
+         * A sprite repeated across the rect from its top-left corner, cut at the size it declares.
+         *
+         * @param width the width the tile is cut at, in GUI pixels, at least 1
+         * @param height the height the tile is cut at, in GUI pixels, at least 1
+         */
+        record Tile(int width, int height) implements GuiScaling {
 
             /**
-             * Reads a {@code border} value - a bare int applied to all four sides, or a
-             * {@code {left,top,right,bottom}} object (missing keys default to {@code 0}).
+             * Constructs a new {@code Tile}, refusing a size the client's codec refuses.
              *
-             * @param value the border value
-             * @return the parsed border
+             * @throws IllegalArgumentException if the width or the height is below 1
              */
-            public static @NotNull Border of(@NotNull JsonTree value) {
-                if (value.asInt().isPresent()) {
-                    int all = value.asInt().get();
-                    return new Border(all, all, all, all);
-                }
-                return new Border(side(value, "left"), side(value, "top"), side(value, "right"), side(value, "bottom"));
+            public Tile {
+                positive(width);
+                positive(height);
             }
 
-            private static int side(@NotNull JsonTree obj, @NotNull String key) {
-                return obj.getInt(key, 0);
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Type type() {
+                return Type.TILE;
             }
+
         }
+
+        /**
+         * A sprite cut into four corners, four edges and a centre at the size it declares, the corners
+         * drawn as they are and the rest stretched or tiled over the rect. Its two opposing border sides
+         * always leave a centre slice, as the client's validation requires.
+         *
+         * @param width the width the sprite is sliced at, in GUI pixels, at least 1
+         * @param height the height the sprite is sliced at, in GUI pixels, at least 1
+         * @param border the depth of each border, in GUI pixels
+         * @param stretchInner whether the edges and the centre stretch rather than tile
+         */
+        record NineSlice(int width, int height, @NotNull Border border, boolean stretchInner) implements GuiScaling {
+
+            /**
+             * Constructs a new {@code NineSlice}, refusing what the client's codec refuses.
+             *
+             * @throws IllegalArgumentException if the width or the height is below 1, or the border's left
+             *     and right sides, or its top and bottom, leave no centre slice between them
+             */
+            public NineSlice {
+                positive(width);
+                positive(height);
+                if (border.left() + border.right() >= width) {
+                    throw new IllegalArgumentException(String.format(
+                        "Nine-sliced texture has no horizontal center slice: '%s' + '%s' >= '%s'",
+                        border.left(), border.right(), width));
+                }
+                if (border.top() + border.bottom() >= height) {
+                    throw new IllegalArgumentException(String.format(
+                        "Nine-sliced texture has no vertical center slice: '%s' + '%s' >= '%s'",
+                        border.top(), border.bottom(), height));
+                }
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Type type() {
+                return Type.NINE_SLICE;
+            }
+
+            /**
+             * A nine-slice's border depths, one a side; the bare-integer form sets all four sides alike.
+             *
+             * @param left the left border's depth, in GUI pixels, never negative
+             * @param top the top border's depth, in GUI pixels, never negative
+             * @param right the right border's depth, in GUI pixels, never negative
+             * @param bottom the bottom border's depth, in GUI pixels, never negative
+             */
+            public record Border(int left, int top, int right, int bottom) {
+
+                /**
+                 * Constructs a new {@code Border}, refusing a side the client's codec refuses.
+                 *
+                 * @throws IllegalArgumentException if a side is below 0
+                 */
+                public Border {
+                    nonNegative(left);
+                    nonNegative(top);
+                    nonNegative(right);
+                    nonNegative(bottom);
+                }
+
+            }
+
+        }
+
     }
 
     /**
@@ -315,6 +455,28 @@ public record MCMeta(
                 };
             }
         }
+    }
+
+    /**
+     * Refuses a value below 1, as the client's {@code POSITIVE_INT} codec does.
+     *
+     * @param value the value read
+     * @throws IllegalArgumentException if the value is below 1
+     */
+    private static void positive(int value) {
+        if (value < 1)
+            throw new IllegalArgumentException(String.format("Value must be positive: '%s'", value));
+    }
+
+    /**
+     * Refuses a value below 0, as the client's {@code NON_NEGATIVE_INT} codec does.
+     *
+     * @param value the value read
+     * @throws IllegalArgumentException if the value is below 0
+     */
+    private static void nonNegative(int value) {
+        if (value < 0)
+            throw new IllegalArgumentException(String.format("Value must be non-negative: '%s'", value));
     }
 
 }

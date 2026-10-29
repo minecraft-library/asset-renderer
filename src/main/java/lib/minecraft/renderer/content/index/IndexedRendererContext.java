@@ -246,9 +246,10 @@ public final class IndexedRendererContext implements RendererContext {
      * reads the texture the sprite was stitched from. Returns the memoised buffer on a cache hit;
      * otherwise resolves the texture through the pack stack (namespace-first dispatch then the winning
      * pack's root walk), decodes it once, and caches it - a file that does not decode, whose sidecar does
-     * not parse, or whose animation's frame size does not divide it is remembered as empty. Only an id
-     * the stack does not serve consults the paletted-permutation registry, so a file a pack ships shadows
-     * a permutation under the same id even when the texture cannot be read.
+     * not parse or carries an animation or texture section the client's codec refuses, or whose
+     * animation's frame size does not divide it is remembered as empty. Only an id the stack does not
+     * serve consults the paletted-permutation registry, so a file a pack ships shadows a permutation under
+     * the same id even when the texture cannot be read.
      */
     @Override
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {

@@ -360,14 +360,6 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
                          @NotNull MCMeta.GuiScaling frameScaling) {
 
         /**
-         * The {@code gui.scaling} a sprite with no {@code gui} section draws with - the spec default of
-         * {@code stretch}, NOT vanilla's nine_slice: a pack sprite shipped without one (the sidecar
-         * travels with the winning texture), and the missing texture.
-         */
-        private static final @NotNull MCMeta.GuiScaling STRETCH_DEFAULT = new MCMeta.GuiScaling(
-            MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false);
-
-        /**
          * Resolves the tooltip sprite pair for an optional style key through the pack stack, pairing each
          * sprite with the {@code gui.scaling} it draws with.
          *
@@ -376,10 +368,11 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
          * component, 24w36a). Each sprite is read through the context's
          * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no selected
-         * pack ships, or one that cannot be read - an image over the decode budget included - is the
-         * missing texture, which the wrapper reports through the context as a stand-in, as the client's
-         * atlas answers its missing sprite for any GUI sprite it does not hold. Each sprite is read on its
-         * own, so where one of the pair is the missing texture the pack's other sprite is still drawn.
+         * pack ships, one that cannot be read - an image over the decode budget included - or one whose
+         * {@code gui} section the client's codec refuses, is the missing texture, which the wrapper
+         * reports through the context as a stand-in, as the client's atlas answers its missing sprite for
+         * any GUI sprite it does not hold. Each sprite is read on its own, so where one of the pair is the
+         * missing texture the pack's other sprite is still drawn.
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
          * @param style the tooltip style key, empty for the default pair
@@ -388,7 +381,11 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         public static @NotNull ChromeSprites resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
-            RendererContext textures = context.withMissingTexture();
+            // The GUI atlas holds no sprite whose gui section its codec refuses, so such a sprite is served
+            // with no pixels.
+            RendererContext textures = context
+                .withTextures(id -> refused(context, id) ? Possible.empty() : Possible.absent())
+                .withMissingTexture();
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
             // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
             // strip and sampling it here is the same operations in the same order, spelled twice.
@@ -402,10 +399,24 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         }
 
         /**
+         * Answers whether a sprite's sidecar parses and carries a {@code gui} section the client's codec
+         * refuses - a sprite the client's GUI atlas does not hold.
+         *
+         * @param context the renderer context the sidecar is read through
+         * @param textureId the sprite's texture id
+         * @return {@code true} where the sidecar's {@code gui} section is refused
+         */
+        private static boolean refused(@NotNull RendererContext context, @NotNull String textureId) {
+            return context.findMeta(textureId)
+                .map(meta -> meta.gui().getState() == Possible.State.EMPTY)
+                .orElse(false);
+        }
+
+        /**
          * Answers the {@code gui.scaling} a sprite draws with - the one a sprite read from a pack carries in
-         * its sidecar, or {@link #STRETCH_DEFAULT} where it declares none. The missing texture carries none
-         * and stretches, as the client's missing sprite does whatever sidecar an unreadable file ships,
-         * so the sidecar of the id it stands in for is never read.
+         * its sidecar, or {@link MCMeta.GuiScaling#DEFAULT} where it declares none. The missing texture
+         * carries none and stretches, as the client's missing sprite does whatever sidecar an unreadable
+         * file ships, so the sidecar of the id it stands in for is never read.
          *
          * @param context the renderer context the sidecar is read through
          * @param spriteId the sprite's id
@@ -414,10 +425,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          */
         private static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId,
                                                           @NotNull PixelBuffer sprite) {
-            if (MissingSprite.isSprite(sprite)) return STRETCH_DEFAULT;
+            if (MissingSprite.isSprite(sprite)) return MCMeta.GuiScaling.DEFAULT;
             return context.findMeta(spriteId.id())
-                .flatMap(meta -> Possible.ofOptional(meta.gui()))
-                .orElse(STRETCH_DEFAULT);
+                .flatMap(MCMeta::gui)
+                .orElse(MCMeta.GuiScaling.DEFAULT);
         }
 
         /**

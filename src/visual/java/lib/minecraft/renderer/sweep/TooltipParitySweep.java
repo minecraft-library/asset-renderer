@@ -427,8 +427,7 @@ public final class TooltipParitySweep {
     /**
      * Writes a sprite's scaling in the client codec's field names for its type - the type alone for a
      * stretch, its size as well for a tile, and its size, four border sides and inner stretch for a
-     * nine-slice - so a stretch's unused size, and the {@code -1} a sprite without a sidecar carries,
-     * compare equal to the client's stretch.
+     * nine-slice.
      *
      * @param scaling the scaling the chrome hands its kit
      * @return the scaling as the handshake writes one
@@ -436,22 +435,22 @@ public final class TooltipParitySweep {
     static @NotNull JsonObject scalingJson(@NotNull MCMeta.GuiScaling scaling) {
         JsonObject json = new JsonObject();
         json.addProperty("type", scaling.type().name().toLowerCase(Locale.ROOT));
-        switch (scaling.type()) {
-            case STRETCH -> { }
-            case TILE -> {
-                json.addProperty("width", scaling.width());
-                json.addProperty("height", scaling.height());
+        switch (scaling) {
+            case MCMeta.GuiScaling.Stretch stretch -> { }
+            case MCMeta.GuiScaling.Tile tile -> {
+                json.addProperty("width", tile.width());
+                json.addProperty("height", tile.height());
             }
-            case NINE_SLICE -> {
-                json.addProperty("width", scaling.width());
-                json.addProperty("height", scaling.height());
+            case MCMeta.GuiScaling.NineSlice nineSlice -> {
+                json.addProperty("width", nineSlice.width());
+                json.addProperty("height", nineSlice.height());
                 JsonObject border = new JsonObject();
-                border.addProperty("left", scaling.border().left());
-                border.addProperty("top", scaling.border().top());
-                border.addProperty("right", scaling.border().right());
-                border.addProperty("bottom", scaling.border().bottom());
+                border.addProperty("left", nineSlice.border().left());
+                border.addProperty("top", nineSlice.border().top());
+                border.addProperty("right", nineSlice.border().right());
+                border.addProperty("bottom", nineSlice.border().bottom());
                 json.add("border", border);
-                json.addProperty("stretch_inner", scaling.stretchInner());
+                json.addProperty("stretch_inner", nineSlice.stretchInner());
             }
         }
         return json;

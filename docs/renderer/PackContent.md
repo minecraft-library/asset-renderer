@@ -1,8 +1,9 @@
 # Pack content
 
 Load when touching `content/read` - `PackSubtree`, a loader walking a pack subtree, `pack.mcmeta`'s
-`filter.block` - the value adapters under `content/json`, or a pack's text shader - `TextPaletteLoader`,
-`TextPalette`. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
+`filter.block` - the value adapters under `content/json`, a pack's text shader - `TextPaletteLoader`,
+`TextPalette` - or a texture sidecar's sections - `MCMetaParser`, `MCMeta.GuiScaling`,
+`MCMeta.TextureSampling`. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 ## The pack filter
 
@@ -79,6 +80,35 @@ stack.
   pass's vertex colour. A gradient has no client twin, so this is the reading that agrees with the
   client wherever one exists.
 
+## A sidecar's sections
+
+A `.png.mcmeta` sidecar is read once, and each of its sections as the client's codec reads that
+section. A document that is not JSON, or is blank, is held as there and yielding nothing, and every read
+of its texture loses it. A section the codec refuses is held as there and refused - its `Possible`
+empty - and the document's other sections stand, because each of the client's reads parses only the
+sections it asks for: an atlas sprite reads the animation and texture sections, the GUI atlas the `gui`
+section beside them, and the villager hat its own. So a refused animation or texture section loses the
+texture on every read, and leaves a villager hat declared beside it standing.
+
+The texture section, `MCMeta.TextureSampling`, holds `blur` and `clamp`, each a JSON boolean defaulting
+to false; `mipmap_strategy`, one of `auto`, `mean`, `cutout`, `strict_cutout` and `dark_cutout` spelled
+exactly, defaulting to `auto`; and `alpha_cutoff_bias`, a JSON number defaulting to 0. No render reads
+them. How the animation section is read, and the frame table it builds, is
+[Timelines](Timelines.md).
+
+## A sprite's gui section
+
+The `gui` section of a `.png.mcmeta` sidecar is read as the client's codec reads it, into
+`MCMeta.GuiScaling`: a stretch, which reads nothing beside its type; a tile, which requires a positive
+width and height; or a nine-slice, which requires those and a border - a positive integer setting all
+four sides, or an object naming all four, none negative - that leaves a centre slice on both axes, its
+inner stretch defaulting to false. A section with no `scaling` is a stretch, a `type` must be spelled
+exactly, and a member written `null` counts as missing.
+
+A section the codec refuses is held as there and refused - `MCMeta.gui()` empty - rather than failing
+the document, because the client's GUI atlas alone asks for the section: the sidecar's other sections,
+and the texture read as a block or item texture, stand.
+
 ## Decisions that stay closed
 
 - Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
@@ -94,3 +124,7 @@ stack.
   the winning one.
 - Do not parse vanilla's own text program for a table - it swaps nothing, and a stack whose packs ship
   no text shader answers absent.
+- Do not fail a sidecar's document over its `gui` section - the client's blocks and items atlases never
+  read it.
+- Do not fail a sidecar's document over a section its codec refuses - the client parses each section
+  only for the read that asks for it, and the villager hat reads its own.

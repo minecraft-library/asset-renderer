@@ -507,8 +507,7 @@ class TextRendererTest {
         int rectH = scale * (2 * CLIENT_MARGIN_MCPX + ONE_LINE_HEIGHT_MCPX);
         // Transparent 5 texels a side and stretched over the client's rect, the box starts and ends on an
         // odd output px on both axes - inside a Minecraft pixel rather than on its edge.
-        MCMeta stretch = guiMeta(new MCMeta.GuiScaling(
-            MCMeta.GuiScaling.Type.STRETCH, -1, -1, new MCMeta.GuiScaling.Border(0, 0, 0, 0), false));
+        MCMeta stretch = guiMeta(new MCMeta.GuiScaling.Stretch());
         RendererContext context = syntheticContext(stretch, 5, 94, 5, 94);
         TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty());
         PixelBuffer clientRect = PixelBuffer.create(rectW, rectH);

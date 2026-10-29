@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.bake.gui;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -8,6 +7,7 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.SubstitutionCollector;
+import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +32,8 @@ import static org.hamcrest.Matchers.is;
  * {@link TooltipChrome.Vanilla#SPRITE} is drawn with - reading the style off an item's component,
  * mapping a style onto its background and frame pair, falling to the default pair for an item with no
  * style, drawing the missing texture for each sprite of a style no pack ships, or one that cannot be
- * read, stretched, and flattening an animated sprite to its tick-0 frame.
+ * read, or one whose {@code gui} section the client's codec refuses, stretched, and flattening an
+ * animated sprite to its tick-0 frame.
  * <p>
  * Nothing here renders: each case reads an item's component or resolves against a stub context seeded
  * with stand-in sprites, so the class needs neither the font atlas nor the offline extraction.
@@ -134,6 +135,41 @@ class TooltipChromeTest {
     }
 
     @Test
+    @DisplayName("a sprite whose gui section the client's codec refuses is the missing texture, stretched, and is reported unreadable")
+    void aSpriteWhoseGuiSectionTheClientRefusesIsTheMissingTextureStretched() {
+        String backgroundId = "minecraft:gui/sprites/tooltip/background";
+        String frameId = "minecraft:gui/sprites/tooltip/frame";
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put(backgroundId, solid(0xFF112233));
+        tex.put(frameId, solid(0xFF445566));
+        // A border of 5 a side leaves a 10-wide nine-slice no centre slice, which the client refuses.
+        MCMeta refused = MCMetaParser.parse(
+            "{\"gui\":{\"scaling\":{\"type\":\"nine_slice\",\"width\":10,\"height\":10,\"border\":5}}}",
+            ResourceId.parse(backgroundId));
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put(backgroundId, refused);
+        metas.put(frameId, FRAME_META);
+        SubstitutionCollector collector = new SubstitutionCollector();
+
+        TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolve(
+            stubContext(tex, metas).collecting(collector), Optional.empty());
+
+        assertThat("the parsed section is refused", refused.gui().getState(), is(Possible.State.EMPTY));
+        assertThat("background is the missing texture", MissingSprite.isSprite(resolved.background()), is(true));
+        assertThat("background stretches", resolved.backgroundScaling(), is(MCMeta.GuiScaling.DEFAULT));
+        assertThat("frame is the pack's", MissingSprite.isSprite(resolved.frame()), is(false));
+        assertThat("frame takes its sidecar's scaling", resolved.frameScaling(), is(FRAME_META.gui().orElseThrow()));
+        assertThat("the background reported unreadable", collector.snapshot(),
+            contains(Substitution.texture(backgroundId, Possible.State.EMPTY)));
+
+        // A sidecar carrying no gui section refuses nothing: the sprite is the pack's, stretched.
+        metas.put(frameId, MCMetaParser.parse("{\"texture\":{\"blur\":true}}", ResourceId.parse(frameId)));
+        TooltipChrome.ChromeSprites sectionless = TooltipChrome.ChromeSprites.resolve(stubContext(tex, metas), Optional.empty());
+        assertThat("a frame whose sidecar carries no gui section is the pack's", MissingSprite.isSprite(sectionless.frame()), is(false));
+        assertThat("and stretches", sectionless.frameScaling(), is(MCMeta.GuiScaling.DEFAULT));
+    }
+
+    @Test
     @DisplayName("resolveForItem falls to the default pair for an item with no style")
     void resolveForItemNoStyleDefaults() {
         Map<String, PixelBuffer> tex = new HashMap<>();
@@ -159,7 +195,7 @@ class TooltipChromeTest {
         tex.put("minecraft:gui/sprites/tooltip/background", strip);
         tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
         Map<String, MCMeta.Animation> anims = new HashMap<>();
-        anims.put("minecraft:gui/sprites/tooltip/background", new MCMeta.Animation(1, false, -1, -1, Concurrent.newList()));
+        anims.put("minecraft:gui/sprites/tooltip/background", new MCMeta.Animation(1, false, Optional.empty(), Optional.empty(), Optional.empty()));
 
         TooltipChrome.ChromeSprites resolved = TooltipChrome.ChromeSprites.resolve(
             stubContext(tex, new HashMap<>(), anims), Optional.empty());

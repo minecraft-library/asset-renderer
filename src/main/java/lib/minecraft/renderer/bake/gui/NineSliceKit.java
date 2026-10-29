@@ -27,9 +27,11 @@ import java.awt.Rectangle;
  * scaled by its alpha - the bytes the client's framebuffer holds - and a translucent ring texel
  * composites over the fill beneath it.
  * <p>
- * Slicing happens in <b>sprite space</b> at the sprite's nominal ({@link MCMeta.GuiScaling#width()} /
- * {@link MCMeta.GuiScaling#height()}) resolution; each mapped texel then expands by {@code pxScale}
- * nearest-neighbor, so corners stay pixel-crisp and a baked gradient edge stretches continuously.
+ * Slicing happens in <b>sprite space</b> at the sprite's declared size - a
+ * {@link MCMeta.GuiScaling.Tile tile}'s or {@link MCMeta.GuiScaling.NineSlice nine-slice}'s width and
+ * height, or the texture's own for a stretch, which declares none; each mapped texel then expands by
+ * {@code pxScale} nearest-neighbor, so corners stay pixel-crisp and a baked gradient edge stretches
+ * continuously.
  */
 @UtilityClass
 @Parity(claim = "text-closure", mode = Mode.DEMOTE)
@@ -145,15 +147,23 @@ public class NineSliceKit {
     }
 
     /**
-     * Resamples the sprite to its declared nominal on-screen size when it differs from the texture
+     * Resamples the sprite to the size a tile or a nine-slice declares when it differs from the texture
      * size (a sprite authored at 2× GUI scale), leaving 1:1-authored sprites - every vanilla tooltip
-     * sprite - untouched. Slicing then reads the nominal-resolution buffer.
+     * sprite - and a stretch, which declares no size, untouched. Slicing then reads the nominal-resolution
+     * buffer.
      */
     private static @NotNull PixelBuffer nominalize(@NotNull PixelBuffer sprite, @NotNull MCMeta.GuiScaling scaling) {
-        int nominalW = scaling.width() > 0 ? scaling.width() : sprite.width();
-        int nominalH = scaling.height() > 0 ? scaling.height() : sprite.height();
-        if (nominalW == sprite.width() && nominalH == sprite.height()) return sprite;
-        return sprite.resize(nominalW, nominalH, Resample.NEAREST);
+        return switch (scaling) {
+            case MCMeta.GuiScaling.Stretch stretch -> sprite;
+            case MCMeta.GuiScaling.Tile tile -> resized(sprite, tile.width(), tile.height());
+            case MCMeta.GuiScaling.NineSlice nineSlice -> resized(sprite, nineSlice.width(), nineSlice.height());
+        };
+    }
+
+    /** Resamples the sprite nearest-neighbor to a declared size, or answers it as it is at that size. */
+    private static @NotNull PixelBuffer resized(@NotNull PixelBuffer sprite, int width, int height) {
+        if (width == sprite.width() && height == sprite.height()) return sprite;
+        return sprite.resize(width, height, Resample.NEAREST);
     }
 
     /**
@@ -163,17 +173,17 @@ public class NineSliceKit {
      */
     private static int[] axisMap(@NotNull MCMeta.GuiScaling scaling, boolean horizontal, int spriteSize, int destSize, int pxScale) {
         int[] map = new int[destSize];
-        switch (scaling.type()) {
-            case STRETCH -> {
+        switch (scaling) {
+            case MCMeta.GuiScaling.Stretch stretch -> {
                 for (int local = 0; local < destSize; local++)
                     map[local] = nearest(local, destSize, spriteSize);
             }
-            case TILE -> {
+            case MCMeta.GuiScaling.Tile tile -> {
                 for (int local = 0; local < destSize; local++)
                     map[local] = (local / pxScale) % spriteSize;
             }
-            case NINE_SLICE -> {
-                MCMeta.GuiScaling.Border b = scaling.border();
+            case MCMeta.GuiScaling.NineSlice nineSlice -> {
+                MCMeta.GuiScaling.NineSlice.Border b = nineSlice.border();
                 int nearBorder = horizontal ? b.left() : b.top();
                 int farBorder = horizontal ? b.right() : b.bottom();
                 // Clamp each border independently to half the destination (in sprite px) so the two
@@ -182,7 +192,7 @@ public class NineSliceKit {
                 int clampedNear = Math.min(nearBorder, half);
                 int clampedFar = Math.min(farBorder, half);
                 for (int local = 0; local < destSize; local++)
-                    map[local] = nineSlice(local, destSize, clampedNear, clampedFar, spriteSize, pxScale, scaling.stretchInner());
+                    map[local] = nineSlice(local, destSize, clampedNear, clampedFar, spriteSize, pxScale, nineSlice.stretchInner());
             }
         }
         return map;
@@ -200,18 +210,17 @@ public class NineSliceKit {
         int nearPx = clampedNear * pxScale;
         int farPx = clampedFar * pxScale;
         if (local < nearPx)
-            return Math.clamp(local / pxScale, 0, spriteSize - 1);
+            return local / pxScale;
         if (local >= destSize - farPx) {
             int off = local - (destSize - farPx);
-            return Math.clamp(spriteSize - clampedFar + off / pxScale, 0, spriteSize - 1);
+            return spriteSize - clampedFar + off / pxScale;
         }
         int centerSprite = spriteSize - clampedNear - clampedFar;
         int centerDest = destSize - nearPx - farPx;
-        if (centerSprite <= 0 || centerDest <= 0) return Math.clamp(clampedNear, 0, spriteSize - 1);
         int off = local - nearPx;
         if (stretchInner)
-            return Math.clamp(clampedNear + nearest(off, centerDest, centerSprite), 0, spriteSize - 1);
-        return Math.clamp(clampedNear + (off / pxScale) % centerSprite, 0, spriteSize - 1);
+            return clampedNear + nearest(off, centerDest, centerSprite);
+        return clampedNear + (off / pxScale) % centerSprite;
     }
 
     /** Pixel-centered nearest-neighbor sample of {@code srcSize} texels across {@code destSize} output px. */

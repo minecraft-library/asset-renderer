@@ -3,18 +3,27 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
+import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Pins {@link Window.Sliced} - the arm that paints a panel by slicing art rather than by drawing
@@ -145,6 +154,43 @@ class WindowSlicedTest {
                 if (two.getPixel(x, y) != one.getPixel(x / 2, y / 2)) differing++;
 
         assertThat(differing, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("named art takes the border its sidecar declares, and none from a gui section the client's codec refuses")
+    void namedArtTakesTheBorderItsSidecarDeclaresAndNoneFromOneTheClientRefuses() {
+        // A 4-texel frame round a flat interior, so the depth derived from the art is not the declared 3.
+        PixelBuffer art = PixelBuffer.create(20, 20);
+        art.fill(0xFF101010);
+        for (int y = 4; y < 16; y++)
+            for (int x = 4; x < 16; x++)
+                art.setPixel(x, y, 0xFF808080);
+        ResourceId id = ResourceId.parse("minecraft:gui/sprites/container/test_panel");
+        MCMeta loaded = MCMetaParser.parse(
+            "{\"gui\":{\"scaling\":{\"type\":\"nine_slice\",\"width\":20,\"height\":20,\"border\":3}}}", id);
+        // An object border missing its bottom side, which the client's codec refuses.
+        MCMeta refused = MCMetaParser.parse(
+            "{\"gui\":{\"scaling\":{\"type\":\"nine_slice\",\"width\":20,\"height\":20,\"border\":{\"left\":3,\"top\":3,\"right\":3}}}}", id);
+
+        Window.Sliced declared = Window.Sliced.resolve(stubContext(Map.of(id.id(), art), Map.of(id.id(), loaded)), id, Optional.empty());
+        Window.Sliced fromRefused = Window.Sliced.resolve(stubContext(Map.of(id.id(), art), Map.of(id.id(), refused)), id, Optional.empty());
+        ChromeDecomposition derived = ChromeSlicer.decompose(art, Optional.empty(), true);
+
+        assertThat("the depths the art itself gives are not the declared ones", depths(derived), is(not(List.of(3, 3, 3, 3))));
+        assertThat("a loaded section's border is the band depths", depths(declared.panel()),
+            is(depths(ChromeSlicer.decompose(art, Optional.of(new ChromeDecomposition.Border(3, 3, 3, 3)), true))));
+        assertThat("a refused section declares none, so the depths are derived", depths(fromRefused.panel()), is(depths(derived)));
+    }
+
+    /**
+     * Answers a decomposition's four band depths, left, top, right and bottom - the part of it a declared
+     * border decides.
+     *
+     * @param decomposition the decomposition
+     * @return its band depths
+     */
+    private static List<Integer> depths(ChromeDecomposition decomposition) {
+        return List.of(decomposition.left(), decomposition.top(), decomposition.right(), decomposition.bottom());
     }
 
     @Test

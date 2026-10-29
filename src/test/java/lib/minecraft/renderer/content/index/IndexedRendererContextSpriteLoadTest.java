@@ -44,11 +44,14 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Coverage of the two textures vanilla's sprite loader refuses beyond one whose image does not decode,
- * through the production context: one whose {@code .png.mcmeta} sidecar does not parse - blank, not JSON,
- * or carrying a value of the wrong type in a frametime, a frame entry or a gui scaling type - and one
- * whose animation's frame size does not divide its strip - a declared height or width the strip is no
- * multiple of, an undeclared frame the strip is no multiple of, and a strip shorter than its frame.
+ * Coverage of the textures vanilla's sprite loader refuses beyond one whose image does not decode,
+ * through the production context: one whose {@code .png.mcmeta} sidecar does not parse - blank or not
+ * JSON - one whose sidecar carries an animation or texture section the client's codec refuses, which
+ * loses the texture and leaves the sidecar's other sections standing, and one whose animation's frame
+ * size does not divide its strip - a declared height or width the strip is no multiple of, an undeclared
+ * frame the strip is no multiple of, and a strip shorter than its frame. A {@code gui} section the
+ * client's codec refuses fails none of this: only the GUI atlas reads it, so the texture reads as the
+ * blocks atlas loads it.
  * <p>
  * Vanilla draws its missing sprite for each, so each is served and answers empty, and the substituting
  * context draws the checkerboard for it in words of its own. A sidecar that does not parse fails nothing
@@ -56,10 +59,10 @@ import static org.hamcrest.Matchers.sameInstance;
  * Each is read and reported once. A strip its frame size does divide is unchanged, and one wider than tall
  * whose undeclared frame is a square of its height plays across, as vanilla plays it.
  * <p>
- * No shipped stack holds a texture of either kind - one would show the missing sprite in vanilla itself -
- * so nothing the parity store renders can see any of this; these rows are the only witness. The reporting
- * sets are static and live as long as the process, and each stack reports a texture once, so every id
- * whose report is read is read by one test alone.
+ * No shipped stack holds a texture of any of these kinds - one would show the missing sprite in vanilla
+ * itself - so nothing the parity store renders can see any of this; these rows are the only witness. The
+ * reporting sets are static and live as long as the process, and each stack reports a texture once, so
+ * every id whose report is read is read by one test alone.
  */
 @DisplayName("A texture vanilla's sprite loader refuses is served and empty")
 class IndexedRendererContextSpriteLoadTest {
@@ -103,9 +106,24 @@ class IndexedRendererContextSpriteLoadTest {
     /** The colours of the two frames {@link #ANIMATED} and {@link #WIDE} each hold, in strip order. */
     private static final int FIRST = 0xFF102030, SECOND = 0xFF405060;
 
-    /** The ids whose sidecar is there and does not parse - not JSON at all, or a value of the wrong type. */
-    private static final List<String> BAD_SIDECARS = List.of(
-        BLANK_SIDECAR, MALFORMED_SIDECAR, WRONG_TYPED_FRAMETIME, WRONG_TYPED_FRAME, WRONG_TYPED_SCALING);
+    /** A strip beside a villager hat and an animation section the client's codec refuses. */
+    private static final String REFUSED_ANIMATION = "minecraft:block/sprite_load_test_refused_animation";
+
+    /** A texture beside a villager hat and a texture section the client's codec refuses. */
+    private static final String REFUSED_TEXTURE = "minecraft:block/sprite_load_test_refused_texture";
+
+    /** A truncated PNG beside a texture section the client's codec refuses, whose report is read. */
+    private static final String REPORTED_REFUSED_SECTION = "minecraft:block/sprite_load_test_reported_refused_section";
+
+    /** A texture beside an animation section the client's codec refuses, drawn by the substituting context. */
+    private static final String SUBSTITUTED_REFUSED_SECTION = "minecraft:block/sprite_load_test_substituted_refused_section";
+
+    /** The ids whose sidecar is there and does not parse - blank, or not JSON. */
+    private static final List<String> BAD_SIDECARS = List.of(BLANK_SIDECAR, MALFORMED_SIDECAR);
+
+    /** The ids whose sidecar parses and carries an animation or texture section the client's codec refuses. */
+    private static final List<String> REFUSED_SECTIONS = List.of(
+        REFUSED_ANIMATION, REFUSED_TEXTURE, WRONG_TYPED_FRAMETIME, WRONG_TYPED_FRAME);
 
     /** The ids whose animation's frame size does not divide the strip. */
     private static final List<String> BAD_STRIPS = List.of(RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP);
@@ -136,6 +154,10 @@ class IndexedRendererContextSpriteLoadTest {
         write(blockDir, WRONG_TYPED_FRAMETIME, png(16, 32, false), "{\"animation\":{\"frametime\":\"x\"}}");
         write(blockDir, WRONG_TYPED_FRAME, png(16, 32, false), "{\"animation\":{\"frames\":[0,\"x\"]}}");
         write(blockDir, WRONG_TYPED_SCALING, still, "{\"gui\":{\"scaling\":{\"type\":{}}}}");
+        write(blockDir, REFUSED_ANIMATION, png(16, 32, false), "{\"animation\":{\"frametime\":0},\"villager\":{\"hat\":\"full\"}}");
+        write(blockDir, REFUSED_TEXTURE, still, "{\"texture\":{\"mipmap_strategy\":\"weird\"},\"villager\":{\"hat\":\"full\"}}");
+        write(blockDir, REPORTED_REFUSED_SECTION, Arrays.copyOf(still, still.length / 2), "{\"texture\":{\"blur\":1}}");
+        write(blockDir, SUBSTITUTED_REFUSED_SECTION, still, "{\"animation\":{\"width\":0}}");
         write(blockDir, RAGGED_HEIGHT, png(16, 40, false), "{\"animation\":{\"height\":16}}");
         write(blockDir, RAGGED_WIDTH, png(24, 16, true), "{\"animation\":{\"width\":16}}");
         write(blockDir, RAGGED_UNDECLARED, png(16, 40, false), "{\"animation\":{}}");
@@ -185,6 +207,49 @@ class IndexedRendererContextSpriteLoadTest {
             assertThat(id + "'s animation", context.findAnimation(id).getState(), is(Possible.State.EMPTY));
             assertThat(id + "'s playback table", context.findFlipbook(id).getState(), is(Possible.State.EMPTY));
         }
+    }
+
+    @Test
+    @DisplayName("a texture whose animation or texture section the client's codec refuses is served and empty, its sidecar standing")
+    void aRefusedAnimationOrTextureSectionLosesTheTextureAndKeepsTheSidecar() {
+        for (String id : REFUSED_SECTIONS) {
+            assertThat(id + "'s texture", context.resolveTexture(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s sidecar", context.findMeta(id).getState(), is(Possible.State.PRESENT));
+            assertThat(id + "'s animation", context.findAnimation(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s playback table", context.findFlipbook(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s playback table as the stack answers it",
+                stack.flipbook(ResourceId.parse(id)).getState(), is(Possible.State.EMPTY));
+        }
+
+        MCMeta refusedAnimation = context.findMeta(REFUSED_ANIMATION).orElseThrow();
+        assertThat("the refused animation section", refusedAnimation.animation().getState(), is(Possible.State.EMPTY));
+        assertThat("the villager hat beside it", refusedAnimation.villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.FULL));
+        MCMeta refusedTexture = context.findMeta(REFUSED_TEXTURE).orElseThrow();
+        assertThat("the refused texture section", refusedTexture.texture().getState(), is(Possible.State.EMPTY));
+        assertThat("the villager hat beside it", refusedTexture.villager().orElseThrow().hat(), is(MCMeta.Villager.Hat.FULL));
+
+        // The PNG is truncated, so reading it would report it as an image that does not decode; the
+        // metadata is what is reported instead.
+        String reported = errDuring(() -> assertThat(
+            context.resolveTexture(REPORTED_REFUSED_SECTION).getState(), is(Possible.State.EMPTY)));
+        assertThat(reported, containsString("Unable to parse metadata from '" + REPORTED_REFUSED_SECTION + "' in pack 'vanilla'"));
+        assertThat(reported, not(containsString("Unreadable texture '" + REPORTED_REFUSED_SECTION + "'")));
+
+        String substituted = errDuring(() -> assertThat(
+            context.withMissingTexture().resolveTexture(SUBSTITUTED_REFUSED_SECTION).orElseThrow(),
+            is(sameInstance(MissingSprite.sprite()))));
+        assertThat(substituted, containsString("Unreadable texture '" + SUBSTITUTED_REFUSED_SECTION + "' - drawing the checkerboard"));
+    }
+
+    @Test
+    @DisplayName("a block texture whose gui section the client's codec refuses is read, its sidecar with it")
+    void aBlockTextureWhoseGuiSectionTheClientRefusesIsRead() {
+        assertThat("the texture", context.resolveTexture(WRONG_TYPED_SCALING).getState(), is(Possible.State.PRESENT));
+        assertThat("its sidecar", context.findMeta(WRONG_TYPED_SCALING).getState(), is(Possible.State.PRESENT));
+        assertThat("its gui section, refused", context.findMeta(WRONG_TYPED_SCALING).orElseThrow().gui().getState(),
+            is(Possible.State.EMPTY));
+        assertThat("its row captures the sidecar it ships",
+            stack.indexed(ResourceId.parse(WRONG_TYPED_SCALING)).orElseThrow().meta().isPresent(), is(true));
     }
 
     @Test

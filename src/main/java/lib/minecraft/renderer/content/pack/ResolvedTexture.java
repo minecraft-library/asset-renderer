@@ -29,8 +29,7 @@ import java.util.Optional;
  * @param container the winning pack's container
  * @param path the container-relative, {@code /}-separated entry path of the PNG to decode
  * @param meta the sidecar bound to the same pack+root as the PNG; empty when the file is there and does
- *     not parse - blank, not JSON, or carrying a value of the wrong type or a malformed encoding - and
- *     absent when the PNG ships none
+ *     not parse - blank, or not a JSON object - and absent when the PNG ships none
  */
 public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackContainer container, @NotNull String path, @NotNull Possible<MCMeta> meta) {
 
