@@ -19519,6 +19519,14 @@
       "sha256": "add95611f7ee3319a9f79b4425e3a7ee944eeb3237a0387a2fdc4dcc0bffb1f5"
     },
     {
+      "path": "tooltips/alt_font.png",
+      "sha256": "19085362bbfde450e17923d8f8aa5413c16ba1d905ac49c7728844d1b2fdd2e3"
+    },
+    {
+      "path": "tooltips/alt_font_chrome.png",
+      "sha256": "5f509f83ced63eca5f028f25f836c36d6f590f148120cef9d29964ede295c6c0"
+    },
+    {
       "path": "tooltips/five_lines.png",
       "sha256": "5fc2d0b6f37dd264b04f6431e0c6583cd40217e5fa44788e3d73e4f269b63c7e"
     },
@@ -19541,6 +19549,14 @@
     {
       "path": "tooltips/hex_colours_chrome.png",
       "sha256": "46ebf10f63a2dec717722889e5d2adda0e49e2f14a7268e5caabc8a00442163b"
+    },
+    {
+      "path": "tooltips/illageralt_font.png",
+      "sha256": "92c1c6d13eeb2db7b75ed3aa84bf74fb8834f0012aae8d00ec3daeb0b4696186"
+    },
+    {
+      "path": "tooltips/illageralt_font_chrome.png",
+      "sha256": "c81701c29b0321b129549e818142afe4f241bb34b0411b78c7be18c336aee971"
     },
     {
       "path": "tooltips/item_like.png",
@@ -39224,11 +39240,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "ae613db577963ffe8772a4f396a12c6797092b2ecc07cd870b1e2806864a08d2",
-    "asset_dirty": false,
-    "asset_sha": "fba522bb206e605e001a436c98d96d4bc7df9324",
+    "asset_content_digest": "dafe260650ac7eee7e46cf0ab05a3dd8da3daa61bff5e2d50cab8d1a584a5b1b",
+    "asset_dirty": true,
+    "asset_sha": "d517f93aa475806ac43f76920f58c01ec2bcab55",
     "counts": {
-      "files": 9804
+      "files": 9808
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39237,7 +39253,7 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "The harness draws vanilla tooltips through one GUI capture the menu sweep shares; tooltips/ gains the 28 references of the tracked roster (14 subjects, each whole and as its box alone); menus/ and every other path held, and two whole-tree captures agreed",
+    "reason": "90c142bd adds two tooltip roster subjects naming the client's own fonts, minecraft:alt and minecraft:illageralt; the whole tree was rendered in two client boots and the four new references (alt_font, illageralt_font and each one's box alone) agree byte for byte, the other 9804 files held. tooltips 28 -> 32, files 9804 -> 9808.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -39247,12 +39263,12 @@
       "items": 479,
       "menus": 10,
       "players": 2,
-      "tooltips": 28,
+      "tooltips": 32,
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-24T13:53:20Z",
+    "timestamp": "2026-10-29T05:08:46Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 126121
+    "wall_time_ms": 229332
   }
 }
