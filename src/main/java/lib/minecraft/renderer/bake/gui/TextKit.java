@@ -37,9 +37,13 @@ import java.util.random.RandomGenerator;
  * {@link MinecraftGraphics#fillEffect(float, float, float, float)} for the bars, so the kit never
  * blends.
  * <p>
- * Handles font style resolution, color mapping, text shadow, strikethrough, underline, and
- * obfuscation ({@code §k}). Shadow, strikethrough, and underline offsets match vanilla's pixel-level
- * rendering.
+ * A run is drawn in its segment's own font ({@link TextSegment#resolveFont()}) - its font id, the
+ * default font where it names none, in its bold and italic style - and that one font is the one its
+ * obfuscation picks from, its glyphs are drawn in and its width and ink are measured in; a gradient
+ * run is handed the same font.
+ * <p>
+ * Handles color mapping, text shadow, strikethrough, underline, and obfuscation ({@code §k}). Shadow,
+ * strikethrough, and underline offsets match vanilla's pixel-level rendering.
  * <p>
  * A run is drawn in the colours the client's font derives for it ({@link #resolveColor},
  * {@link #shadowColor}): a segment naming a colour draws its red, green and blue in the alpha of the
@@ -223,7 +227,7 @@ public class TextKit {
             String text = segment.getText();
             if (text.isEmpty()) continue;
 
-            MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
+            MinecraftFont font = segment.resolveFont();
             if (segment.isObfuscated())
                 text = font.obfuscate(text, random);
 
@@ -284,7 +288,7 @@ public class TextKit {
         boolean dropShadow
     ) {
         if (segment.getGradient().isPresent())
-            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), text, xMcPx, yMcPx, palette, tick, dropShadow);
+            return GradientKit.drawSegment(g, segment, segment.getGradient().get(), font, text, xMcPx, yMcPx, palette, tick, dropShadow);
 
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color, dropShadow);
@@ -379,7 +383,7 @@ public class TextKit {
     public static int measureLineMcPixels(@NotNull LineSegment line) {
         float widthMcPx = 0;
         for (TextSegment segment : line.getSegments())
-            widthMcPx += MinecraftFont.Vanilla.of(segment.fontStyle()).metrics().stringAdvanceMcPixels(segment.getText());
+            widthMcPx += segment.resolveFont().metrics().stringAdvanceMcPixels(segment.getText());
         return (int) Math.ceil(widthMcPx);
     }
 
@@ -454,7 +458,7 @@ public class TextKit {
     ) {
         float textWidthMcPx = font.metrics().stringAdvanceMcPixels(text);
         if (segment.getGradient().isPresent()) {
-            GradientKit.inkBounds(segment, text, xMcPx, yMcPx, dropShadow).ifPresent(drawn::add);
+            GradientKit.inkBounds(segment, font, text, xMcPx, yMcPx, dropShadow).ifPresent(drawn::add);
             return textWidthMcPx;
         }
 

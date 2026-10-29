@@ -48,6 +48,15 @@ chrome exact rather than resampled.
   it names is drawn as a solid run's is, through the graphics. Its letters and bands are opaque, and a
   banded run's are tinted pixel by pixel by `GradientKit` itself, since minecraft-text lays no colour
   per pixel.
+- **A run's font is its segment's own.** `TextKit` takes it from the segment - its font id, the
+  default font where it names none, in its bold and italic style, as minecraft-text's
+  `TextSegment#resolveFont` answers - and that one font is what the run's obfuscation picks from,
+  what its glyphs are drawn in and what its width and ink are measured in; a gradient run is handed
+  the same font. An id the text library draws no font for draws the client's missing glyph for every
+  codepoint, a hollow box five Minecraft pixels wide on an advance of six. The text library draws the
+  alt fonts in one face, so a bold or italic `minecraft:alt` run is drawn upright and unbolded where
+  the client offsets and slants it, and their codepoints outside the client's sheet draw the default
+  font's glyph where the client draws its missing one.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
   ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves

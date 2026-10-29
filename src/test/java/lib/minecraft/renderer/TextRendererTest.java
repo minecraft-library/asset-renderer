@@ -28,6 +28,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.FontId;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.junit.jupiter.api.Assumptions;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -431,6 +433,26 @@ class TextRendererTest {
 
         assertThat("canvas width", render(options).width(),
             is(MinecraftFont.MC_PIXEL_SCALE * (2 * padMcPx + (int) exact + 1)));
+    }
+
+    @Test
+    @DisplayName("a tooltip is sized from the font its line names")
+    void aTooltipIsSizedFromTheFontItsLineNames() {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(LineSegment.builder().segments(Concurrent.newList(
+            TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).build())).build());
+        TextOptions options = TextOptions.builder()
+            .style(TextOptions.Style.LORE)
+            .lines(lines)
+            .chromeStyle(ChromeStyle.PROCEDURAL)
+            .build();
+        int padMcPx = options.getPadding();
+
+        assertAll(
+            () -> assertThat("'Galactic' in the alt font, which the regular face lays 39 wide",
+                MinecraftFont.Vanilla.GALACTIC.metrics().stringAdvanceMcPixels("Galactic"), is(34f)),
+            () -> assertThat("canvas width", render(options).width(), is(MinecraftFont.MC_PIXEL_SCALE * (2 * padMcPx + 34)))
+        );
     }
 
     @Test

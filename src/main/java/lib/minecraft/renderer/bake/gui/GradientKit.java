@@ -28,10 +28,11 @@ import java.util.function.IntUnaryOperator;
  * <p>
  * The color evaluator {@link #sample(GradientSpec, float)} maps a normalized position {@code t}
  * along the segment to an rgb; {@link #scrolledT} slides {@code t} by the scroll phase derived from
- * the absolute animation tick, and {@link #resolveShear} yields the band slant. Glyphs render as
- * the white-glyph-multiply identity: each glyph pixel's alpha mask is tinted by the sampled color
- * and {@code NORMAL}-blended, exactly as {@code MinecraftGraphics.blitGlyph} does for a solid tint -
- * so a degenerate single-color gradient matches the solid path pixel for pixel.
+ * the absolute animation tick, and {@link #resolveShear} yields the band slant. Glyphs render in
+ * the font {@link TextKit} resolved for the segment, as the white-glyph-multiply identity: each
+ * glyph pixel's alpha mask is tinted by the sampled color and {@code NORMAL}-blended, exactly as
+ * {@code MinecraftGraphics.blitGlyph} does for a solid tint - so a degenerate single-color gradient
+ * matches the solid path pixel for pixel.
  * <p>
  * Positions and the strikethrough and underline bars are in mcPixels, a segment's origin fractional
  * where it follows another. The per-letter path draws each letter and its bars through the graphics
@@ -69,8 +70,9 @@ public class GradientKit {
      * {@link GradientSpec#bandPx()}.
      *
      * @param g the graphics whose target buffer receives the glyphs
-     * @param segment the styled segment (supplies font style + decorations + italic)
+     * @param segment the styled segment (supplies decorations and italic)
      * @param spec the gradient spec
+     * @param font the font the text was substituted through, which draws and measures it
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -82,12 +84,13 @@ public class GradientKit {
         @NotNull MinecraftGraphics g,
         @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
+        @NotNull MinecraftFont font,
         @NotNull String text,
         float xMcPx, float yMcPx,
         @NotNull TextPalette palette,
         long tick
     ) {
-        return drawSegment(g, segment, spec, text, xMcPx, yMcPx, palette, tick, true);
+        return drawSegment(g, segment, spec, font, text, xMcPx, yMcPx, palette, tick, true);
     }
 
     /**
@@ -96,8 +99,9 @@ public class GradientKit {
      * regardless, as the client's font does.
      *
      * @param g the graphics whose target buffer receives the glyphs
-     * @param segment the styled segment (supplies font style + decorations + italic)
+     * @param segment the styled segment (supplies decorations and italic)
      * @param spec the gradient spec
+     * @param font the font the text was substituted through, which draws and measures it
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -111,13 +115,13 @@ public class GradientKit {
         @NotNull MinecraftGraphics g,
         @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
+        @NotNull MinecraftFont font,
         @NotNull String text,
         float xMcPx, float yMcPx,
         @NotNull TextPalette palette,
         long tick,
         boolean dropShadow
     ) {
-        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         float widthMcPx = font.metrics().stringAdvanceMcPixels(text);
         if (widthMcPx <= 0) return 0;
 
@@ -140,7 +144,8 @@ public class GradientKit {
      * one. The run is read from the output pixel its origin rounds to, as {@link TextKit} reads a solid
      * run. Neither the colour nor the scroll moves a pixel's place, so the tick does not enter.
      *
-     * @param segment the styled segment (supplies font style + decorations)
+     * @param segment the styled segment (supplies decorations)
+     * @param font the font the text was substituted through, which draws and measures it
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -150,11 +155,11 @@ public class GradientKit {
      */
     static @NotNull Optional<Rectangle2D> inkBounds(
         @NotNull TextSegment segment,
+        @NotNull MinecraftFont font,
         @NotNull String text,
         float xMcPx, float yMcPx,
         boolean dropShadow
     ) {
-        MinecraftFont font = MinecraftFont.Vanilla.of(segment.fontStyle());
         float widthMcPx = font.metrics().stringAdvanceMcPixels(text);
         if (widthMcPx <= 0) return Optional.empty();
 

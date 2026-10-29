@@ -12,6 +12,7 @@ import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.FontId;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
@@ -22,9 +23,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.random.RandomGenerator;
@@ -74,6 +78,9 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * handed to the graphics once, with no shadow pass, as the client emits no shadow quad for it. The
  * gate holds on either gradient path too: a per-letter run is handed over once a pass, and a banded
  * run, which tints its own pixels, is handed over only for a shadow pass in a colour it names.
+ * <p>
+ * It pins the font a run is drawn in: a run naming a font is drawn, obfuscated, measured and inked in
+ * it, a gradient run too, and one naming a font nothing carries draws the client's missing glyph.
  * <p>
  * Last, it pins a see-through run's bars laid as the client lays them, blended over the canvas in the
  * colour's alpha rather than overwriting it, and laid not at all in a colour the text shader discards.
@@ -313,7 +320,7 @@ class TextKitTest {
         apart.fill(0xFF000000);
         MinecraftGraphics g = new MinecraftGraphics(apart);
         TextKit.drawLine(g, line(TextSegment.literal("✦")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        GradientKit.drawSegment(g, gradient, spec, "M", X0 + starMcPx, BASE, TextPalette.VANILLA, 0L);
+        GradientKit.drawSegment(g, gradient, spec, gradient.resolveFont(), "M", X0 + starMcPx, BASE, TextPalette.VANILLA, 0L);
 
         assertThat("pixels that differ", differing(joined, apart), is(0));
     }
@@ -342,6 +349,13 @@ class TextKitTest {
         corpus.put("bold obfuscated", line(TextSegment.builder().text("ab cd").bold(true).obfuscated(true).build(), TextSegment.literal("|")));
         corpus.put("per-letter gradient", line(TextSegment.builder().text("Gradient").gradient(perLetter).strikethrough(true).underlined(true).build()));
         corpus.put("banded gradient", line(TextSegment.builder().text("Gradient").gradient(banded).strikethrough(true).underlined(true).build()));
+        corpus.put("the alt font", line(alt("Galactic").build()));
+        corpus.put("the alt font obfuscated", line(alt("Galactic").obfuscated(true).build(), TextSegment.literal("|")));
+        corpus.put("a per-letter gradient in the alt font", line(alt("Galactic").gradient(perLetter).strikethrough(true).underlined(true).build()));
+        corpus.put("a banded gradient in the alt font", line(alt("Galactic").gradient(banded).strikethrough(true).underlined(true).build()));
+        // A bar spans the whole of a run's advance, so only a run without bars is inked by its glyphs alone.
+        corpus.put("a per-letter gradient in the alt font without bars", line(alt("Galactic").gradient(perLetter).build()));
+        corpus.put("a banded gradient in the alt font without bars", line(alt("Galactic").gradient(banded).build()));
         // Each drawn with the shadow declined as well as asked for, and under a see-through line the
         // shadow colour's alpha is scaled by the line's: 26 of 128 floors to 13 and is discarded, 26 of
         // 255 is 26 and kept, and 25 of 255 is 25 and discarded.
@@ -529,6 +543,115 @@ class TextKitTest {
         assertThat("a bare rgb stays bare", gray.swap(0x00AAAAAA), is(0x00A8BFD2));
     }
 
+    @Test
+    @DisplayName("a run naming a font is drawn, measured and inked in it")
+    void aRunNamingAFontIsDrawnMeasuredAndInkedInIt() {
+        MinecraftFont galactic = MinecraftFont.Vanilla.GALACTIC;
+        LineSegment alt = line(alt("Galactic").build());
+
+        Recording g = new Recording();
+        TextKit.drawLine(g, line(alt("Galactic").build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        PixelBuffer drawn = PixelBuffer.create(160, 60);
+        TextKit.drawLine(new MinecraftGraphics(drawn), alt, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        PixelBuffer inTheFont = PixelBuffer.create(160, 60);
+        TextKit.drawText(new MinecraftGraphics(inTheFont), "Galactic", X0, BASE, galactic, 0xFFFFFFFF, TextPalette.VANILLA);
+
+        assertAll(
+            () -> assertThat("'Galactic' in the alt font, which the regular face lays 39 wide", galactic.metrics().stringAdvanceMcPixels("Galactic"), is(34f)),
+            () -> assertThat("the fonts the run's two passes and then '|''s two are handed",
+                g.fonts(), is(equalTo(List.of(galactic, galactic, MinecraftFont.Vanilla.REGULAR, MinecraftFont.Vanilla.REGULAR)))),
+            () -> assertThat("where '|' is drawn", g.on(BASE).getLast().xMcPx(), is(X0 + 34f)),
+            () -> assertThat("pixels that differ from the text drawn in the alt font", differing(drawn, inTheFont), is(0)),
+            () -> assertThat("the line's width", TextKit.measureLineMcPixels(alt), is(34)),
+            () -> assertThat("the same run's width in the illageralt font",
+                TextKit.measureLineMcPixels(line(font("minecraft:illageralt", "Galactic").build())), is(49)),
+            () -> assertThat("what the line lays down",
+                TextKit.inkBounds(alt, X0, BASE, 0xFFFFFFFF, 0, 0L, true).map(bounds -> described(bounds, MinecraftFont.MC_PIXEL_SCALE)).orElse("nothing"),
+                is(described(inTheFont.opaqueBounds(), 1)))
+        );
+    }
+
+    @Test
+    @DisplayName("an obfuscated run naming a font scrambles through it, keeping its width in it")
+    void anObfuscatedRunNamingAFontScramblesThroughIt() {
+        MinecraftFont galactic = MinecraftFont.Vanilla.GALACTIC;
+        LineSegment line = line(alt("Galactic").obfuscated(true).build(), TextSegment.literal("|"));
+        List<MinecraftFont> handed = List.of(galactic, galactic, MinecraftFont.Vanilla.REGULAR, MinecraftFont.Vanilla.REGULAR);
+
+        ConcurrentList<Long> inAnotherFont = Concurrent.newList();
+        ConcurrentList<Long> moved = Concurrent.newList();
+        ConcurrentList<Long> unscrambled = Concurrent.newList();
+        for (long frame = 0; frame < FRAMES; frame++) {
+            Recording g = new Recording();
+            TextKit.drawLine(g, line, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, frame);
+            ConcurrentList<Draw> drawn = g.on(BASE);
+            if (!g.fonts().equals(handed)) inAnotherFont.add(frame);
+            if (drawn.getLast().xMcPx() != X0 + 34f) moved.add(frame);
+            if (drawn.getFirst().text().equals("Galactic")) unscrambled.add(frame);
+        }
+
+        assertAll(
+            () -> assertThat("frames whose passes are handed another font than the run's and then '|''s", inAnotherFont, is(empty())),
+            () -> assertThat("frames whose '|' is not drawn where 'Galactic' ends in the alt font", moved, is(empty())),
+            () -> assertThat("frames drawing 'Galactic' as it is", unscrambled, is(empty()))
+        );
+    }
+
+    @Test
+    @DisplayName("a gradient run naming a font is drawn in it, per letter and banded")
+    void aGradientRunNamingAFontIsDrawnInIt() {
+        GradientSpec perLetter = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0x000000).addStop(0xFFFFFF).build();
+        GradientSpec banded = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
+
+        Recording letters = new Recording();
+        TextKit.drawLine(letters, line(alt("Galactic").gradient(perLetter).build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        // Each letter on the shadow pass, then on the main pass, then '|''s two passes.
+        List<MinecraftFont> handed = new ArrayList<>(Collections.nCopies(2 * "Galactic".length(), MinecraftFont.Vanilla.GALACTIC));
+        handed.addAll(List.of(MinecraftFont.Vanilla.REGULAR, MinecraftFont.Vanilla.REGULAR));
+        // A banded run tints its own pixels, so only where '|' is drawn shows the font it was measured in.
+        Recording bands = new Recording();
+        TextKit.drawLine(bands, line(alt("Galactic").gradient(banded).build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+
+        assertAll(
+            () -> assertThat("the fonts the per-letter run's letters and then '|' are handed", letters.fonts(), is(equalTo(handed))),
+            () -> assertThat("where '|' is drawn after the per-letter run", letters.on(BASE).getLast().xMcPx(), is(X0 + 34f)),
+            () -> assertThat("where '|' is drawn after the banded run", bands.on(BASE).getLast().xMcPx(), is(X0 + 34f))
+        );
+    }
+
+    @Test
+    @DisplayName("a run naming a font nothing carries draws the client's missing glyph, obfuscated or not, and the kit falls back to no font of its own")
+    void aRunNamingAFontNothingCarriesDrawsTheMissingGlyph() {
+        MinecraftFont missing = MinecraftFont.Missing.INSTANCE;
+        assertThat("'il' in the missing font, two glyphs of 6, which the regular face lays 5 wide", missing.metrics().stringAdvanceMcPixels("il"), is(12f));
+        LineSegment nope = line(font("minecraft:nope", "il").build());
+
+        Recording g = new Recording();
+        TextKit.drawLine(g, line(font("minecraft:nope", "il").build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        PixelBuffer drawn = PixelBuffer.create(160, 60);
+        TextKit.drawLine(new MinecraftGraphics(drawn), nope, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+        PixelBuffer inTheFont = PixelBuffer.create(160, 60);
+        TextKit.drawText(new MinecraftGraphics(inTheFont), "il", X0, BASE, missing, 0xFFFFFFFF, TextPalette.VANILLA);
+
+        // The missing font obfuscates each codepoint to itself, so an obfuscated run in it draws its own text.
+        LineSegment obfuscatedNope = line(font("minecraft:nope", "il").obfuscated(true).build());
+        ConcurrentList<Long> scrambled = Concurrent.newList();
+        for (long frame = 0; frame < FRAMES; frame++) {
+            Recording obfuscatedPasses = new Recording();
+            TextKit.drawLine(obfuscatedPasses, obfuscatedNope, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, frame);
+            if (!obfuscatedPasses.on(BASE).getFirst().text().equals("il")) scrambled.add(frame);
+        }
+
+        assertAll(
+            () -> assertThat("frames drawing the obfuscated run other than as 'il'", scrambled, is(empty())),
+            () -> assertThat("the fonts the run's two passes and then '|''s two are handed",
+                g.fonts(), is(equalTo(List.of(missing, missing, MinecraftFont.Vanilla.REGULAR, MinecraftFont.Vanilla.REGULAR)))),
+            () -> assertThat("where '|' is drawn", g.on(BASE).getLast().xMcPx(), is(X0 + 12f)),
+            () -> assertThat("the line's width", TextKit.measureLineMcPixels(nope), is(12)),
+            () -> assertThat("pixels that differ from the text drawn in the missing font", differing(drawn, inTheFont), is(0))
+        );
+    }
+
     /**
      * Builds a palette holding the given swaps.
      *
@@ -617,6 +740,27 @@ class TextKitTest {
 
     private static TextSegment obfuscated(String text) {
         return TextSegment.builder().text(text).obfuscated(true).build();
+    }
+
+    /**
+     * Starts a run naming a font, as the text library reads a component's {@code font}.
+     *
+     * @param fontId the font id the run names
+     * @param text the run's text
+     * @return the run's builder
+     */
+    private static TextSegment.Builder font(String fontId, String text) {
+        return TextSegment.builder().text(text).font(FontId.parse(fontId));
+    }
+
+    /**
+     * Starts a run naming the client's alt font, {@code minecraft:alt}.
+     *
+     * @param text the run's text
+     * @return the run's builder
+     */
+    private static TextSegment.Builder alt(String text) {
+        return font("minecraft:alt", text);
     }
 
     /**
@@ -742,22 +886,41 @@ class TextKitTest {
     }
 
     /**
-     * A graphics recording every run handed to it and where it was drawn, then drawing it - the solid
-     * path's shadow and main passes and a gradient run's letters all reach it here.
+     * A graphics recording every run handed to it, where it was drawn and the font it was drawn in,
+     * then drawing it - the solid path's shadow and main passes and a gradient run's letters all reach
+     * it here.
      */
     private static final class Recording extends MinecraftGraphics {
 
         /** Every run drawn, in order. */
         private final @NotNull ConcurrentList<Draw> draws = Concurrent.newList();
 
+        /** The font the next run is drawn in, as the graphics was last handed it. */
+        private @NotNull MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
+
         private Recording() {
             super(PixelBuffer.create(160, 60));
         }
 
         @Override
+        public void setFont(@NotNull MinecraftFont font) {
+            this.font = font;
+            super.setFont(font);
+        }
+
+        @Override
         public void drawString(@NotNull String str, float xMcPx, float yMcPx) {
-            this.draws.add(new Draw(str, xMcPx, yMcPx));
+            this.draws.add(new Draw(str, xMcPx, yMcPx, this.font));
             super.drawString(str, xMcPx, yMcPx);
+        }
+
+        /**
+         * Answers the font every run was drawn in, shadow and main pass alike, in order.
+         *
+         * @return the fonts the runs were drawn in
+         */
+        private @NotNull List<MinecraftFont> fonts() {
+            return this.draws.stream().map(Draw::font).toList();
         }
 
         /**
@@ -795,8 +958,9 @@ class TextKitTest {
      * @param text the text drawn
      * @param xMcPx where the pen stood, in Minecraft pixels
      * @param yMcPx the baseline it sat on, in Minecraft pixels
+     * @param font the font it was drawn in
      */
-    private record Draw(@NotNull String text, float xMcPx, float yMcPx) {}
+    private record Draw(@NotNull String text, float xMcPx, float yMcPx, @NotNull MinecraftFont font) {}
 
     /**
      * A generator whose every bounded draw answers one index and records the bound it was asked for,

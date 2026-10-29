@@ -10,6 +10,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.FontId;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * Coverage of {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode
  * position handling), the scroll phase / shear math, the segment's advance and its fractional origin,
  * the bars and bands over a run ending on half an mcPixel on either path, and the per-letter
- * advance-center draw. A run naming its own shadow colour draws its shadow and its bars' shadow in it
+ * advance-center draw. A draw leaving the shadow to its default is the draw asking for it, in the font
+ * it is handed. A run naming its own shadow colour draws its shadow and its bars' shadow in it
  * on either path, where the derived shadow is declined too, and none for {@code 0} or for a colour the
  * text shader discards.
  */
@@ -189,7 +191,7 @@ class GradientKitTest {
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
             TextSegment segment = TextSegment.builder().text("WWWW").gradient(spec).build();
             int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
-            GradientKit.drawSegment(g, segment, spec, "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+            GradientKit.drawSegment(g, segment, spec, segment.resolveFont(), "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
 
             int leftMax = maxRed(buffer, baseX, baseX + advW);
             int rightMax = maxRed(buffer, baseX + 3 * advW, baseX + 4 * advW);
@@ -214,6 +216,28 @@ class GradientKitTest {
     }
 
     @Test
+    @DisplayName("a gradient segment drawn without saying whether it casts a shadow is drawn as one asking for it, in the font it is handed")
+    void aDrawWithItsShadowByDefaultKeepsTheFontItIsHanded() {
+        GradientSpec spec = startEnd(0x000000, 0xFFFFFF);
+        TextSegment segment = TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).gradient(spec).build();
+
+        PixelBuffer byDefault = PixelBuffer.create(160, 40);
+        GradientKit.drawSegment(new MinecraftGraphics(byDefault), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+        PixelBuffer asked = PixelBuffer.create(160, 40);
+        GradientKit.drawSegment(new MinecraftGraphics(asked), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, true);
+
+        int differing = 0, painted = 0;
+        for (int y = 0; y < asked.height(); y++)
+            for (int x = 0; x < asked.width(); x++) {
+                if (byDefault.getPixel(x, y) != asked.getPixel(x, y)) differing++;
+                if ((asked.getPixel(x, y) >>> 24) != 0) painted++;
+            }
+
+        assertThat("pixels painted", painted, is(greaterThan(0)));
+        assertThat("pixels that differ", differing, is(0));
+    }
+
+    @Test
     @DisplayName("a gradient and its underline drawn half an mcPixel right are the same draw one output pixel right")
     void halfPixelOriginShiftsOneOutputPixel() {
         for (int bandPx : new int[] { GradientSpec.PER_LETTER, 1, 8 }) {
@@ -223,10 +247,10 @@ class GradientKitTest {
 
             PixelBuffer whole = PixelBuffer.create(96, 40);
             whole.fill(0xFF000000);
-            GradientKit.drawSegment(new MinecraftGraphics(whole), segment, spec, "MW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+            GradientKit.drawSegment(new MinecraftGraphics(whole), segment, spec, segment.resolveFont(), "MW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
             PixelBuffer half = PixelBuffer.create(96, 40);
             half.fill(0xFF000000);
-            GradientKit.drawSegment(new MinecraftGraphics(half), segment, spec, "MW", DRAW_COLUMN_MC_PX + 0.5f, 16, TextPalette.VANILLA, 0L);
+            GradientKit.drawSegment(new MinecraftGraphics(half), segment, spec, segment.resolveFont(), "MW", DRAW_COLUMN_MC_PX + 0.5f, 16, TextPalette.VANILLA, 0L);
 
             int differing = 0, painted = 0;
             for (int y = 0; y < whole.height(); y++)
@@ -275,7 +299,7 @@ class GradientKitTest {
         TextSegment segment = TextSegment.builder().text("✦").underlined(true).gradient(spec).build();
         PixelBuffer buffer = PixelBuffer.create(48, 40);
         buffer.fill(0xFF000000);
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
         return buffer;
     }
 
@@ -293,7 +317,7 @@ class GradientKitTest {
 
         PixelBuffer buffer = PixelBuffer.create(48, 40);
         buffer.fill(0xFF000000);
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
 
         // The run's last lit column, and the topmost pixel lit in it.
         int lastX = -1, litY = -1;
@@ -319,7 +343,7 @@ class GradientKitTest {
     private static float advanceOf(String text, GradientSpec spec) {
         PixelBuffer buffer = PixelBuffer.create(64, 32);
         TextSegment segment = TextSegment.builder().text(text).gradient(spec).build();
-        return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, text, DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+        return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), text, DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
     }
 
     @Test
@@ -339,7 +363,7 @@ class GradientKitTest {
             .gradient(startEnd(0x000000, 0xFFFFFF)) // bandPx 0 = per-letter, black -> white
             .build();
         int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
-        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
+        GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), segment.resolveFont(), "MM", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
 
         // Left M samples ~0.25 (gray ~64), right M ~0.75 (gray ~191): left strictly darker.
         int leftMax = maxRed(buffer, baseX, baseX + advM);
@@ -420,7 +444,7 @@ class GradientKitTest {
     private static Set<Integer> drawnColours(GradientSpec spec, TextPalette palette) {
         PixelBuffer buffer = PixelBuffer.create(96, 40);
         TextSegment segment = TextSegment.builder().text("MM").gradient(spec).build();
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, "MM", DRAW_COLUMN_MC_PX, 16, palette, 0L);
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "MM", DRAW_COLUMN_MC_PX, 16, palette, 0L);
 
         Set<Integer> colours = new HashSet<>();
         for (int y = 0; y < buffer.height(); y++)
@@ -464,7 +488,7 @@ class GradientKitTest {
     private static PixelBuffer drawnOver(int fill, TextSegment segment, boolean dropShadow) {
         PixelBuffer buffer = PixelBuffer.create(40, 40);
         buffer.fill(fill);
-        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, segment.getGradient().orElseThrow(), segment.getText(),
+        GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, segment.getGradient().orElseThrow(), segment.resolveFont(), segment.getText(),
             DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, dropShadow);
         return buffer;
     }
