@@ -28,7 +28,7 @@ import java.util.function.IntUnaryOperator;
  * <p>
  * The color evaluator {@link #sample(GradientSpec, float)} maps a normalized position {@code t}
  * along the segment to an rgb; {@link #scrolledT} slides {@code t} by the scroll phase derived from
- * the absolute animation tick, and {@link #resolveShear} yields the band slant. Glyphs render in
+ * the absolute animation tick, and {@link #resolveSlant} yields the band slant. Glyphs render in
  * the font {@link TextKit} resolved for the segment, as the white-glyph-multiply identity: each
  * glyph pixel's alpha mask is tinted by the sampled color and {@code NORMAL}-blended, exactly as
  * {@code MinecraftGraphics.blitGlyph} does for a solid tint - so a degenerate single-color gradient
@@ -75,9 +75,10 @@ public class GradientKit {
      * the line.
      *
      * @param g the graphics whose target buffer receives the glyphs
-     * @param segment the styled segment (supplies italic and any shadow colour it names)
+     * @param segment the styled segment (supplies any shadow colour it names)
      * @param spec the gradient spec
-     * @param font the font the text was substituted through, which draws and measures it
+     * @param font the font the text was substituted through, which draws and measures it and whose
+     * slant a banded run's bands lean by
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -105,9 +106,10 @@ public class GradientKit {
      * glyph of the line.
      *
      * @param g the graphics whose target buffer receives the glyphs
-     * @param segment the styled segment (supplies italic and any shadow colour it names)
+     * @param segment the styled segment (supplies any shadow colour it names)
      * @param spec the gradient spec
-     * @param font the font the text was substituted through, which draws and measures it
+     * @param font the font the text was substituted through, which draws and measures it and whose
+     * slant a banded run's bands lean by
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -155,10 +157,11 @@ public class GradientKit {
      * copy, and the derived one darkens the band at the main position, where the caller asks for it.
      *
      * @param g the graphics whose target buffer receives the bars
-     * @param segment the styled segment (supplies which bars the run carries, its slant and any shadow
-     * colour it names)
+     * @param segment the styled segment (supplies which bars the run carries and any shadow colour it
+     * names)
      * @param spec the gradient spec
-     * @param font the font the text was substituted through, which measures it
+     * @param font the font the text was substituted through, which measures it and whose slant a banded
+     * run's bands lean by
      * @param text the segment text after obfuscation substitution
      * @param xMcPx the segment start X in mcPixels, fractional where the segment follows another
      * @param yMcPx the baseline Y in mcPixels
@@ -207,7 +210,7 @@ public class GradientKit {
             return widthMcPx;
         }
 
-        PixelColor band = bands(spec, segment, xMcPx, yMcPx, widthMcPx, tick);
+        PixelColor band = bands(spec, font, xMcPx, yMcPx, widthMcPx, tick);
         int delta = TextKit.SHADOW_OFFSET_MCPX * MinecraftFont.MC_PIXEL_SCALE;
         // Every band is laid opaque, so a shadow colour the segment names answers one colour for the whole run.
         int namedShadow = TextKit.shadowColor(segment, ColorMath.WHITE, dropShadow);
@@ -378,8 +381,8 @@ public class GradientKit {
      * tinted by its band color and {@code NORMAL}-blended onto the frame, confining the multiply to
      * the glyph mask so neighbours, descenders' background, and chrome are never touched (the same
      * guarantee a per-segment scratch gives, without a transparent intermediate that
-     * {@code BlendMode.NORMAL} would premultiply). Bands slant by the shear, and are output pixels
-     * measured from the run's origin rounded once, here.
+     * {@code BlendMode.NORMAL} would premultiply). Bands lean by the slant {@link #resolveSlant}
+     * answers, and are output pixels measured from the run's origin rounded once, here.
      * <p>
      * The shadow pass is the segment's own shadow colour where it names one - one colour over the run,
      * laid through the graphics letter by letter as the per-letter path lays its shadow. Otherwise,
@@ -389,9 +392,9 @@ public class GradientKit {
      *
      * @param g the graphics a named shadow colour is laid through, its target the buffer the banded
      * passes are written to
-     * @param segment the styled segment, supplying its slant and any shadow colour it names
+     * @param segment the styled segment, supplying any shadow colour it names
      * @param spec the gradient spec
-     * @param font the segment's font
+     * @param font the segment's font, whose slant the bands lean by
      * @param text the segment text after obfuscation substitution
      * @param widthMcPx the run's width in mcPixels
      * @param xMcPx the run's origin X in mcPixels
@@ -416,7 +419,7 @@ public class GradientKit {
         int delta = TextKit.SHADOW_OFFSET_MCPX * MinecraftFont.MC_PIXEL_SCALE;
         float shadowX = xMcPx + TextKit.SHADOW_OFFSET_MCPX;
         float shadowY = yMcPx + TextKit.SHADOW_OFFSET_MCPX;
-        PixelColor band = bands(spec, segment, xMcPx, yMcPx, widthMcPx, tick);
+        PixelColor band = bands(spec, font, xMcPx, yMcPx, widthMcPx, tick);
         PixelColor main = (px, py) -> palette.swap(band.at(px, py));
 
         // Shadow pass (offset +1,+1 mcPx), then main pass.
@@ -435,51 +438,60 @@ public class GradientKit {
 
     /**
      * Answers the band rgb at an absolute frame pixel for a run on the per-pixel path, relative to its
-     * MAIN letterform - banded, sheared and scroll-adjusted, its bands output pixels measured from the
+     * MAIN letterform - banded, slanted and scroll-adjusted, its bands output pixels measured from the
      * run's origin rounded once - so the run's glyphs and its bars read one band layout.
      *
      * @param spec the gradient spec
-     * @param segment the styled segment, supplying its slant
+     * @param font the font the run is drawn in, whose slant the bands lean by
      * @param xMcPx the run's origin X in mcPixels
      * @param yMcPx the run's baseline Y in mcPixels
      * @param widthMcPx the run's width in mcPixels
      * @param tick the absolute animation tick driving scroll phase
      * @return the band rgb of each frame pixel
      */
-    private static @NotNull PixelColor bands(@NotNull GradientSpec spec, @NotNull TextSegment segment, float xMcPx, float yMcPx, float widthMcPx, long tick) {
+    private static @NotNull PixelColor bands(@NotNull GradientSpec spec, @NotNull MinecraftFont font, float xMcPx, float yMcPx, float widthMcPx, long tick) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int baseX = Math.round(xMcPx * scale);
         int baselineY = Math.round(yMcPx * scale);
         int segWidthOut = Math.round(widthMcPx * scale);
         int bandPx = spec.bandPx();
-        float shear = resolveShear(spec, segment.isItalic());
-        return (px, py) -> bandColor(spec, px - baseX, baselineY - py, shear, bandPx, segWidthOut, tick);
+        MinecraftFont.Slant slant = resolveSlant(spec, font);
+        return (px, py) -> bandColor(spec, px - baseX, baselineY - py, slant, bandPx, segWidthOut, tick);
     }
 
     /**
-     * The banded, sheared, scroll-adjusted rgb for a pixel at column {@code xRel} output px from the
-     * segment start and {@code heightAboveBaseline} output px above the baseline.
+     * The banded, slanted, scroll-adjusted rgb for a pixel whose left edge is {@code xRel} output px
+     * from the segment start and whose top edge is {@code heightAboveBaseline} output px above the
+     * baseline.
      */
-    private static int bandColor(@NotNull GradientSpec spec, int xRel, int heightAboveBaseline, float shear, int bandPx, int segWidthOut, long tick) {
-        float center = bandCenterT(xRel, heightAboveBaseline, shear, bandPx, segWidthOut);
+    private static int bandColor(@NotNull GradientSpec spec, int xRel, int heightAboveBaseline, @NotNull MinecraftFont.Slant slant, int bandPx, int segWidthOut, long tick) {
+        float center = bandCenterT(xRel, heightAboveBaseline, slant, bandPx, segWidthOut);
         return sample(spec, scrolledT(center, spec.scroll(), tick));
     }
 
     /**
-     * The band-center position {@code t} for a pixel: shears the column
-     * ({@code x' = xRel - shear*(yBase - y)}), takes the band {@code floor(x'/bandPx)}, and returns
-     * its center {@code ((band + 0.5)*bandPx)/segWidth}. Not yet scroll-adjusted or
-     * clamped - {@link #scrolledT} and {@link #sample} finish the mapping.
+     * The band-center position {@code t} for a pixel: moves its centre back by how far the slant moves
+     * a point at the centre's height ({@code x' = xRel + 0.5 - slant.shift(heightAboveBaseline - 0.5)},
+     * the height converted to mcPixels and the shift back to output pixels at
+     * {@link MinecraftFont#MC_PIXEL_SCALE}), takes the band {@code floor(x'/bandPx)}, and returns its
+     * center {@code ((band + 0.5)*bandPx)/segWidth}. Not yet scroll-adjusted or clamped -
+     * {@link #scrolledT} and {@link #sample} finish the mapping.
+     * <p>
+     * The centre is the point the glyph raster inks a pixel by, so the bands cut a slanted glyph's
+     * texel columns where they cut the upright glyph's. Upright, the centre falls in the band its
+     * corner does.
      *
-     * @param xRel the pixel column in output px from the segment start
-     * @param heightAboveBaseline the pixel's output px above the baseline ({@code yBase - y})
-     * @param shear the band slant
+     * @param xRel the pixel's left edge in output px from the segment start
+     * @param heightAboveBaseline the height of the pixel's top edge above the baseline in output px
+     * ({@code yBase - y})
+     * @param slant the slant the bands lean by
      * @param bandPx the band width in output px (>= 1)
      * @param segWidthOut the segment width in output px
      * @return the band-center position
      */
-    static float bandCenterT(int xRel, int heightAboveBaseline, float shear, int bandPx, int segWidthOut) {
-        float xPrime = xRel - shear * heightAboveBaseline;
+    static float bandCenterT(int xRel, int heightAboveBaseline, @NotNull MinecraftFont.Slant slant, int bandPx, int segWidthOut) {
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        float xPrime = xRel + 0.5f - slant.shift((heightAboveBaseline - 0.5f) / scale) * scale;
         int band = (int) Math.floor(xPrime / bandPx);
         return ((band + 0.5f) * bandPx) / segWidthOut;
     }
@@ -658,17 +670,22 @@ public class GradientKit {
     }
 
     /**
-     * The band slant for a spec: the spec's explicit {@link GradientSpec#shear()}, or - when it is
-     * the {@link GradientSpec#AUTO_SHEAR auto sentinel} - {@link MinecraftFont#ITALIC_SHEAR} for an
-     * italic segment, else {@code 0}.
+     * Answers the slant a run's bands lean by. A spec's explicit {@link GradientSpec#shear()} leans
+     * them by its own value about the baseline. The {@link GradientSpec#AUTO_SHEAR auto sentinel}
+     * leans them by the {@link MinecraftFont#slant() slant} of the font the run is drawn in, so they
+     * lean as its glyphs lean - in the italic faces a quarter mcPixel right per mcPixel of height
+     * about the height 3 mcPixels above the baseline, the slant the client gives an italic glyph, and
+     * in an upright font not at all. The font is the one the run is drawn in rather than the segment's
+     * italic flag, so an italic run in a font the text library draws upright, such as
+     * {@code minecraft:alt}, lays upright bands under its upright glyphs.
      *
      * @param spec the gradient spec
-     * @param italic whether the owning segment is italic
-     * @return the shear as dx per +1 py above baseline
+     * @param font the font the run is drawn in
+     * @return the slant, in mcPixels
      */
-    public static float resolveShear(@NotNull GradientSpec spec, boolean italic) {
-        if (!Float.isNaN(spec.shear())) return spec.shear();
-        return italic ? MinecraftFont.ITALIC_SHEAR : 0f;
+    public static @NotNull MinecraftFont.Slant resolveSlant(@NotNull GradientSpec spec, @NotNull MinecraftFont font) {
+        if (!Float.isNaN(spec.shear())) return new MinecraftFont.Slant(spec.shear(), 0f);
+        return font.slant();
     }
 
     /**

@@ -58,11 +58,17 @@ chrome exact rather than resampled.
   default font where it names none, in its bold and italic style, as minecraft-text's
   `TextSegment#resolveFont` answers - and that one font is what the run's obfuscation picks from,
   what its glyphs are drawn in and what its width and ink are measured in; a gradient run is handed
-  the same font. An id the text library draws no font for draws the client's missing glyph for every
-  codepoint, a hollow box five Minecraft pixels wide on an advance of six. The text library draws the
-  alt fonts in one face, so a bold or italic `minecraft:alt` run is drawn upright and unbolded where
-  the client offsets and slants it, and their codepoints outside the client's sheet draw the default
-  font's glyph where the client draws its missing one.
+  the same font, and a banded run's bands lean by that font's `slant()` - a quarter Minecraft pixel
+  per Minecraft pixel of height about the height 3 above the baseline in the italic faces, as the
+  client slants an italic glyph, and not at all in an upright font - unless its gradient names a
+  shear of its own, which leans them about the baseline. A pixel reads its band at its centre, the
+  point the glyph raster inks it by, so the bands cut a slanted glyph's texel columns where they cut
+  the upright glyph's. An id the text library draws no font for draws the client's missing glyph for
+  every codepoint, a hollow box five Minecraft pixels wide on an advance of six. The text library
+  draws the alt fonts in one face, so a bold or italic `minecraft:alt` run is drawn upright and
+  unbolded where the client offsets and slants it, a banded one with upright bands under its upright
+  glyphs, and their codepoints outside the client's sheet draw the default font's glyph where the
+  client draws its missing one.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
   ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves

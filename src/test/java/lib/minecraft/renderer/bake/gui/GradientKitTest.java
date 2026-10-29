@@ -23,9 +23,11 @@ import org.junit.jupiter.api.function.Executable;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -37,23 +39,33 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
  * Coverage of {@link GradientKit}'s pure color evaluator (sRGB piecewise / HSV rainbow, per-mode
- * position handling), the scroll phase / shear math, the segment's advance and its fractional origin,
- * the bars and bands over a run ending on half an mcPixel on either path, and the per-letter
- * advance-center draw. A draw leaving the shadow to its default is the draw asking for it, in the font
- * it is handed. A run naming its own shadow colour draws its shadow and its bars' shadow in it
- * on either path, where the derived shadow is declined too, and none for {@code 0} or for a colour the
- * text shader discards.
+ * position handling), the scroll phase and the slant a run's bands lean by - the slant of the font it
+ * is drawn in, the client's italic slant for the italic faces - the segment's advance and its
+ * fractional origin, the bars and bands over a run ending on half an mcPixel on either path, and the
+ * per-letter advance-center draw. A draw leaving the shadow to its default is the draw asking for it,
+ * in the font it is handed. A run naming its own shadow colour draws its shadow and its bars' shadow
+ * in it on either path, where the derived shadow is declined too, and none for {@code 0} or for a
+ * colour the text shader discards.
  * <p>
  * A gradient run's bars open one mcPixel left of the run, as a solid run's do, and a one-colour
  * gradient lays what the solid run in its colour lays, bars and their order included. A banded run's
- * bars read the bands its glyphs read, and every colour a run lays down, its bars' included, is drawn in
- * the palette's swap.
+ * bars read the bands its glyphs read, upright and under the italic slant, and every colour a run lays
+ * down, its bars' included, is drawn in the palette's swap. An italic banded run lays each texel column
+ * of its glyphs in the band the upright run lays it in.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class GradientKitTest {
 
     /** Column the draws start at, in Minecraft pixels, shared by every draw and the reads that check it. */
     private static final int DRAW_COLUMN_MC_PX = 1;
+
+    /**
+     * The slant the client gives an italic glyph, in Minecraft pixels: a point {@code y} below the
+     * line's top moves {@code 1 - y / 4} right, the line's top the regular font's ascent, 7, above the
+     * baseline - a quarter per Minecraft pixel of height, and none at {@code y = 4}, 3 above the
+     * baseline.
+     */
+    private static final MinecraftFont.Slant CLIENT_ITALIC = new MinecraftFont.Slant(1 / 4F, 7 - 4F);
 
     private static GradientSpec startEnd(int from, int to) {
         return GradientSpec.builder(GradientSpec.Mode.START_END).addStop(from).addStop(to).build();
@@ -114,7 +126,7 @@ class GradientKitTest {
         }
     }
 
-    /** Cases for the scroll phase, the sampled position it slides, and the italic shear. */
+    /** Cases for the scroll phase, the sampled position it slides, and the slant a run's bands lean by. */
     @Nested
     @DisplayName("scroll + shear math")
     class Motion {
@@ -146,19 +158,29 @@ class GradientKitTest {
         }
 
         @Test
-        @DisplayName("resolveShear: auto -> ITALIC_SHEAR when italic, 0 otherwise; explicit wins")
-        void resolveShear() {
+        @DisplayName("resolveSlant: auto -> the slant of the font the run is drawn in; an explicit shear leans about the baseline in any font")
+        void resolveSlant() {
             GradientSpec auto = startEnd(0x000000, 0xFFFFFF); // shear defaults to AUTO (NaN)
-            assertThat(GradientKit.resolveShear(auto, true), is(MinecraftFont.ITALIC_SHEAR));
-            assertThat(GradientKit.resolveShear(auto, false), is(0f));
-
             GradientSpec explicit = GradientSpec.builder(GradientSpec.Mode.START_END)
                 .addStop(0x000000).addStop(0xFFFFFF).shear(0.5f).build();
-            assertThat(GradientKit.resolveShear(explicit, true), is(0.5f));
+            MinecraftFont altItalic = TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).italic(true).build().resolveFont();
+
+            assertAll(
+                () -> assertThat("an italic run leans as the client slants its glyphs", GradientKit.resolveSlant(auto, MinecraftFont.Vanilla.ITALIC), is(CLIENT_ITALIC)),
+                () -> assertThat("a bold italic run leans as the client slants its glyphs", GradientKit.resolveSlant(auto, MinecraftFont.Vanilla.BOLD_ITALIC), is(CLIENT_ITALIC)),
+                () -> assertThat("a regular run stands upright", GradientKit.resolveSlant(auto, MinecraftFont.Vanilla.REGULAR), is(MinecraftFont.Slant.NONE)),
+                () -> assertThat("a bold run stands upright", GradientKit.resolveSlant(auto, MinecraftFont.Vanilla.BOLD), is(MinecraftFont.Slant.NONE)),
+                () -> assertThat("an italic run in minecraft:alt, whose glyphs the text library draws upright, stands upright",
+                    GradientKit.resolveSlant(auto, altItalic), is(MinecraftFont.Slant.NONE)),
+                () -> assertThat("an explicit shear leans about the baseline in an italic font", GradientKit.resolveSlant(explicit, MinecraftFont.Vanilla.ITALIC),
+                    is(new MinecraftFont.Slant(0.5f, 0f))),
+                () -> assertThat("an explicit shear leans about the baseline in an upright font", GradientKit.resolveSlant(explicit, MinecraftFont.Vanilla.REGULAR),
+                    is(new MinecraftFont.Slant(0.5f, 0f)))
+            );
         }
     }
 
-    /** Cases for per-column band quantisation, its baseline-anchored shear, and the swept draw. */
+    /** Cases for per-column band quantisation, the slant its bands lean by, and the swept draw. */
     @Nested
     @DisplayName("per-pixel banding + shear")
     class PerPixel {
@@ -166,22 +188,121 @@ class GradientKitTest {
         @Test
         @DisplayName("bandCenterT quantizes columns to band centers")
         void bandCenterQuantizes() {
-            assertThat((double) GradientKit.bandCenterT(0, 0, 0f, 1, 100), is(closeTo(0.005, 1e-6)));
-            assertThat((double) GradientKit.bandCenterT(10, 0, 0f, 1, 100), is(closeTo(0.105, 1e-6)));
+            MinecraftFont.Slant upright = MinecraftFont.Slant.NONE;
+            assertThat((double) GradientKit.bandCenterT(0, 0, upright, 1, 100), is(closeTo(0.005, 1e-6)));
+            assertThat((double) GradientKit.bandCenterT(10, 0, upright, 1, 100), is(closeTo(0.105, 1e-6)));
             // bandPx 8: columns 0 and 7 fall in band 0 (center 4/100), column 8 in band 1 (12/100)
-            assertThat(GradientKit.bandCenterT(0, 0, 0f, 8, 100), is(GradientKit.bandCenterT(7, 0, 0f, 8, 100)));
-            assertThat((double) GradientKit.bandCenterT(0, 0, 0f, 8, 100), is(closeTo(0.04, 1e-6)));
-            assertThat((double) GradientKit.bandCenterT(8, 0, 0f, 8, 100), is(closeTo(0.12, 1e-6)));
+            assertThat(GradientKit.bandCenterT(0, 0, upright, 8, 100), is(GradientKit.bandCenterT(7, 0, upright, 8, 100)));
+            assertThat((double) GradientKit.bandCenterT(0, 0, upright, 8, 100), is(closeTo(0.04, 1e-6)));
+            assertThat((double) GradientKit.bandCenterT(8, 0, upright, 8, 100), is(closeTo(0.12, 1e-6)));
         }
 
         @Test
-        @DisplayName("shear leaves the baseline unchanged and shifts sampling left above it")
-        void shearIsBaselineAnchored() {
-            // at the baseline (height 0) shear has no effect
-            assertThat(GradientKit.bandCenterT(20, 0, 0.2f, 1, 100), is(GradientKit.bandCenterT(20, 0, 0f, 1, 100)));
-            // above the baseline the same column samples an earlier band (bands lean right going up)
-            assertThat(GradientKit.bandCenterT(20, 10, 0.2f, 1, 100),
-                is(lessThan(GradientKit.bandCenterT(20, 0, 0.2f, 1, 100))));
+        @DisplayName("the italic slant moves a pixel's band as the client moves an italic glyph at the pixel's centre: 1 - y / 4 mcPixels at y below the line's top")
+        void theItalicSlantMovesABandAsTheClientMovesTheGlyph() {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            // The client's line top lies the regular font's ascent, 7 mcPixels, above the baseline.
+            int ascent = 7;
+            int column = 40;
+            List<Executable> cases = new ArrayList<>();
+            for (int row = 0; row < 9 * scale; row++) {
+                // The row-th output row below the line's top has its centre y mcPixels below it, and a pixel
+                // there reads the band of the upright column the client's slant moved its centre from.
+                float y = (row + 0.5F) / scale;
+                float upright = column + 0.5F - (1.0F - y / 4.0F) * scale;
+                int height = ascent * scale - row;
+                String at = "row " + row + ", its centre " + y + " mcPixels below the line's top";
+                cases.add(() -> assertThat(at, GradientKit.bandCenterT(column, height, CLIENT_ITALIC, 1, 100),
+                    is(((float) Math.floor(upright) + 0.5f) / 100)));
+            }
+
+            assertAll(cases);
+        }
+
+        @Test
+        @DisplayName("an explicit shear leaves the baseline where it stands and moves a band left above it")
+        void anExplicitShearLeansAboutTheBaseline() {
+            MinecraftFont.Slant explicit = new MinecraftFont.Slant(0.2f, 0f);
+            // The row below the baseline, its centre half an output pixel below it, moves a tenth right and reads its own column's band.
+            assertThat(GradientKit.bandCenterT(20, 0, explicit, 1, 100), is(GradientKit.bandCenterT(20, 0, MinecraftFont.Slant.NONE, 1, 100)));
+            // The row whose centre lies 9.5 output pixels above it moves 1.9 left and reads the band 2 columns left.
+            assertThat(GradientKit.bandCenterT(20, 10, explicit, 1, 100), is(GradientKit.bandCenterT(18, 0, MinecraftFont.Slant.NONE, 1, 100)));
+        }
+
+        @Test
+        @DisplayName("an italic banded run lays each texel column of its glyphs in one band, the band the upright run lays it in")
+        void anItalicBandedRunLaysEachTexelColumnInTheUprightRunsBand() {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            // Bands one mcPixel wide, so the upright run lays each texel column in a band of its own.
+            GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+                .addStop(0x000000).addStop(0xFFFFFF).bandPx(scale).build();
+            TextSegment upright = TextSegment.builder().text("WWWW").gradient(spec).build();
+            TextSegment italic = TextSegment.builder().text("WWWW").italic(true).gradient(spec).build();
+            assertThat("the italic run is drawn in the italic face", italic.resolveFont(), is(MinecraftFont.Vanilla.ITALIC));
+            assertThat("the italic run advances as far as the upright run, so their bands are one width",
+                italic.resolveFont().metrics().stringAdvanceMcPixels("WWWW"), is(upright.resolveFont().metrics().stringAdvanceMcPixels("WWWW")));
+
+            PixelBuffer uprightDrawn = PixelBuffer.create(96, 40);
+            GradientKit.drawSegment(new MinecraftGraphics(uprightDrawn), upright, spec, upright.resolveFont(), "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
+            PixelBuffer italicDrawn = PixelBuffer.create(96, 40);
+            GradientKit.drawSegment(new MinecraftGraphics(italicDrawn), italic, spec, italic.resolveFont(), "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
+
+            // The italic face moves each row of the upright glyph whole, so a row's n-th inked pixel is the
+            // n-th inked pixel of the upright row, and lies in its texel column.
+            int baseX = DRAW_COLUMN_MC_PX * scale;
+            List<String> rows = new ArrayList<>();
+            Map<Integer, Set<Integer>> uprightBands = new TreeMap<>();
+            Map<Integer, Set<Integer>> italicBands = new TreeMap<>();
+            for (int y = 0; y < uprightDrawn.height(); y++) {
+                List<Integer> uprightInk = inked(uprightDrawn, y);
+                List<Integer> italicInk = inked(italicDrawn, y);
+                if (italicInk.size() != uprightInk.size()) {
+                    rows.add(y + " " + italicInk.size() + "/" + uprightInk.size());
+                    continue;
+                }
+
+                for (int i = 0; i < uprightInk.size(); i++) {
+                    int column = Math.floorDiv(uprightInk.get(i) - baseX, scale);
+                    uprightBands.computeIfAbsent(column, key -> new LinkedHashSet<>()).add(uprightDrawn.getPixel(uprightInk.get(i), y));
+                    italicBands.computeIfAbsent(column, key -> new LinkedHashSet<>()).add(italicDrawn.getPixel(italicInk.get(i), y));
+                }
+            }
+
+            List<String> apart = new ArrayList<>();
+            italicBands.forEach((column, bands) -> {
+                if (bands.size() != 1 || !bands.equals(uprightBands.get(column)))
+                    apart.add(column + " " + hex(bands) + "/" + hex(uprightBands.get(column)));
+            });
+
+            assertAll(
+                () -> assertThat("rows the italic run inks a count of pixels apart from the upright run's in, as row italic/upright", rows, is(empty())),
+                () -> assertThat("texel columns, five to each of the four W's", italicBands.size(), is(20)),
+                () -> assertThat("texel columns laid in more than one band or apart from the upright run's, as column italic/upright", apart, is(empty()))
+            );
+        }
+
+        @Test
+        @DisplayName("an italic banded run in minecraft:alt, whose glyphs the text library draws upright, lays upright bands")
+        void anItalicBandedRunInAnUprightFontLaysUprightBands() {
+            GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+                .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
+            TextSegment segment = TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).italic(true).gradient(spec).build();
+
+            PixelBuffer buffer = PixelBuffer.create(160, 40);
+            GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
+
+            List<String> mixed = new ArrayList<>();
+            int columns = 0;
+            for (int x = 0; x < buffer.width(); x++) {
+                Set<Integer> colours = new HashSet<>();
+                for (int y = 0; y < buffer.height(); y++)
+                    if ((buffer.getPixel(x, y) >>> 24) == 0xFF) colours.add(buffer.getPixel(x, y));
+                if (!colours.isEmpty()) columns++;
+                if (colours.size() > 1) mixed.add(x + " " + colours.size());
+            }
+
+            assertThat("columns read", columns, is(greaterThan(0)));
+            assertThat("columns laying more than one band, as column colourCount", mixed, is(empty()));
         }
 
         @Test
@@ -363,7 +484,7 @@ class GradientKitTest {
                     break;
                 }
 
-        int band = GradientKit.sample(spec, GradientKit.bandCenterT(lastX - baseX, baselineY - litY, 0f, 1, font.glyph('✦').advanceWidth()));
+        int band = GradientKit.sample(spec, GradientKit.bandCenterT(lastX - baseX, baselineY - litY, MinecraftFont.Slant.NONE, 1, font.glyph('✦').advanceWidth()));
         assertThat("the last column's band, normalised over the run's whole width", buffer.getPixel(lastX, litY), is(0xFF000000 | band));
     }
 
@@ -449,7 +570,7 @@ class GradientKitTest {
         List<String> copy = new ArrayList<>();
         for (int y = top; y < top + scale; y++)
             for (int x = baseX - scale; x < baseX + widthOut; x++) {
-                int band = 0xFF000000 | GradientKit.sample(spec, GradientKit.bandCenterT(x - baseX, baselineY - y, 0f, 1, widthOut));
+                int band = 0xFF000000 | GradientKit.sample(spec, GradientKit.bandCenterT(x - baseX, baselineY - y, MinecraftFont.Slant.NONE, 1, widthOut));
                 int shadow = 0xFF000000 | TextKit.darken(band);
                 if (buffer.getPixel(x, y) != band)
                     bar.add(String.format("%d,%d %08X/%08X", x, y, buffer.getPixel(x, y), band));
@@ -459,6 +580,44 @@ class GradientKitTest {
 
         assertAll(
             () -> assertThat("bar pixels apart from the band the glyph path reads at their column, as x,y drawn/band", bar, is(empty())),
+            () -> assertThat("shadow copy pixels apart from the band an mcPixel up and left darkened, as x,y drawn/shadow", copy, is(empty()))
+        );
+    }
+
+    @Test
+    @DisplayName("an italic banded run's strikethrough and underline are tinted at each pixel by the band its glyphs read there under the italic slant, "
+        + "and their shadow copies by that band darkened, an mcPixel right and down")
+    void anItalicBandedBarReadsTheSlantedBandsItsGlyphsRead() {
+        GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
+            .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
+        TextSegment segment = TextSegment.builder().text("MM").italic(true).strikethrough(true).underlined(true).gradient(spec).build();
+        assertThat("the run is drawn in the italic face", segment.resolveFont(), is(MinecraftFont.Vanilla.ITALIC));
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        int baseX = DRAW_COLUMN_MC_PX * scale;
+        int baselineY = 16 * scale;
+        int widthOut = Math.round(segment.resolveFont().metrics().stringAdvanceMcPixels("MM") * scale);
+
+        // A clear buffer, so the lead's black - the first stop, which the columns left of the run clamp to - is the bar's own.
+        PixelBuffer buffer = PixelBuffer.create(64, 48);
+        TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
+
+        List<String> bar = new ArrayList<>();
+        List<String> copy = new ArrayList<>();
+        // The strikethrough's top row, about the height the slant moves no point at, then the underline's, an mcPixel below the
+        // baseline, where it moves a point more than an mcPixel left.
+        for (int top : new int[] { rowBelowTop(4.5F - 1.0F), rowBelowTop(9.0F - 1.0F) })
+            for (int y = top; y < top + scale; y++)
+                for (int x = baseX - scale; x < baseX + widthOut; x++) {
+                    int band = 0xFF000000 | GradientKit.sample(spec, GradientKit.bandCenterT(x - baseX, baselineY - y, CLIENT_ITALIC, 1, widthOut));
+                    int shadow = 0xFF000000 | TextKit.darken(band);
+                    if (buffer.getPixel(x, y) != band)
+                        bar.add(String.format("%d,%d %08X/%08X", x, y, buffer.getPixel(x, y), band));
+                    if (buffer.getPixel(x + scale, y + scale) != shadow)
+                        copy.add(String.format("%d,%d %08X/%08X", x + scale, y + scale, buffer.getPixel(x + scale, y + scale), shadow));
+                }
+
+        assertAll(
+            () -> assertThat("bar pixels apart from the band the glyph path reads there under the italic slant, as x,y drawn/band", bar, is(empty())),
             () -> assertThat("shadow copy pixels apart from the band an mcPixel up and left darkened, as x,y drawn/shadow", copy, is(empty()))
         );
     }
@@ -641,6 +800,30 @@ class GradientKitTest {
                 last = x;
             }
         return new int[] { first, last };
+    }
+
+    /**
+     * Collects the columns of a row a draw inks.
+     *
+     * @param buffer the buffer to read, clear where nothing is drawn
+     * @param row the row to read
+     * @return each column whose alpha is not zero, left to right
+     */
+    private static List<Integer> inked(PixelBuffer buffer, int row) {
+        List<Integer> columns = new ArrayList<>();
+        for (int x = 0; x < buffer.width(); x++)
+            if ((buffer.getPixel(x, row) >>> 24) != 0) columns.add(x);
+        return columns;
+    }
+
+    /**
+     * Spells colours as packed ARGB hex.
+     *
+     * @param argbs the colours
+     * @return each colour in hex, in the order given
+     */
+    private static List<String> hex(Set<Integer> argbs) {
+        return argbs.stream().map(argb -> String.format("%08X", argb)).toList();
     }
 
     private static int maxRed(PixelBuffer buffer, int x0, int x1) {
