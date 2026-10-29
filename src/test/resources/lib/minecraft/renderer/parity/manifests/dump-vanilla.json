@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "307ffbdd3802bbf7b0fc4e6c9ea9ca74a114b5877f4671d7b8c28afd8b14939c"
+      "sha256": "d968f22f9e7e1ba2f232987704d7adcfb890d9b11ca14babe783a44309599dd0"
     },
     {
       "path": "rules.json",
@@ -52,7 +52,7 @@
     },
     {
       "path": "textures.json",
-      "sha256": "f94107fbd4fbff8e24eb0d85c811c1a2fec1c09888d0a6ad3cb7470eeba10498"
+      "sha256": "7e3c63ee308a9f4021b486600426fece86995ef6a853da06b595c08fbc17abfc"
     },
     {
       "path": "trees.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "296c35c4909b374626605181154e6665046be4716e18c12014a3f65a5ac641d6",
+    "asset_content_digest": "00268124eaf61eb9d630403f5383ac0708b2c8028f0dd3dca748a1cd2c54ef73",
     "asset_dirty": true,
-    "asset_sha": "a4b7edc6686104052d417c8a30a9f7ece3c15664",
+    "asset_sha": "72dc3d6238acfe81ac9d3134c246914bcfba8082",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "3afdd180 reads the colour swap a pack's text shader applies and draws text through it. sweep.tooltip-hypixel-skyblock moves 7 of 44 rows: six to 0 differing pixels, item_like to its 3018-pixel text residue at a mean of 12.5480, now measured in the pack's colours; sum 52.3139 to 12.5480, no row failed. Both pipeline dumps move misc.json alone with the text palette: absent over vanilla, present over hypixel-skyblock with its 16 pairs.",
+    "reason": "ae0e33a2 reads a texture sidecar's sections as the client's codecs read them, so an undeclared animation width, height, frame list or frame time is absent from the model and the dump omits it where it wrote -1 or []. textures.json and probes.json move by that encoding alone (62 animation rows in each vanilla file, 110 in each pack-stack file), every value equal, to digests predicted from the stored files before the capture; the other 25 planned artifacts held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -89,8 +89,8 @@
       "walk": 4896
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-10-28T13:56:31Z",
+    "timestamp": "2026-10-29T03:23:39Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 5896
+    "wall_time_ms": 8691
   }
 }
