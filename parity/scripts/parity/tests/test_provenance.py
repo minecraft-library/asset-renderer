@@ -407,18 +407,18 @@ class ReferenceCounts(unittest.TestCase):
         # The ones the sum alone would not speak for: a key each, so a sub-tree dropping back out
         # of the roster fails as itself rather than as a total nobody can read a cause out of.
         self.assertEqual(counts.get("menus"), 10)
-        # Fourteen tooltip roster subjects, each drawn whole and as its box alone.
-        self.assertEqual(counts.get("tooltips"), 28)
+        # Sixteen tooltip roster subjects, each drawn whole and as its box alone.
+        self.assertEqual(counts.get("tooltips"), 32)
         # The posed sub-trees hold 134 stems each - every drawn subject and baby, and the enderman's
         # and iron golem's carried trait stems - at the frame count its schedule roster entry names,
         # so these move whenever a derived strip does.
         self.assertEqual(counts.get("idle"), 2547)
         self.assertEqual(counts.get("walk"), 4896)
-        # 9801 since the tooltip sweep draws its 28 - fourteen roster subjects and each one's box
+        # 9805 since the tooltip sweep draws its 32 - sixteen roster subjects and each one's box
         # alone - on top of the block sweep's reference for each block_state case of a
         # dispatch-rooted icon - beehive and bee_nest at honey_level=5, test_block at mode log, fail
         # and accept.
-        self.assertEqual(sum(counts.values()), 9801)
+        self.assertEqual(sum(counts.values()), 9805)
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):
