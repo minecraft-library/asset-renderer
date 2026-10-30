@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -68,10 +68,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Pixel pins for {@link TextRenderer}'s {@code LORE}-style tooltip chrome, both of its arms drawn
  * through the renderer.
  * <p>
- * {@link ChromeStyle#PROCEDURAL} paints vanilla's colours as given, so its fill and gradient ring are
- * sampled at known output coordinates against them - background fill {@code 0xF0100010}, gradient top
- * {@code 0x505000FF}, gradient bottom {@code 0x5028007F}, and the interpolated left edge bracketed
- * between them.
+ * {@link ChromeStyle#PROCEDURAL} blends vanilla's colours as the client blends its tooltip sprites, so
+ * its fill and ring are sampled at known output coordinates against the client's framebuffer bytes -
+ * the fill {@code 0xF00F000F}, the top stroke {@code 0xF523005A}, the bottom stroke {@code 0xF5170032},
+ * and the side bracketed between the two strokes - along with its cut corners and open ring corners,
+ * its canvas and padding against the sprite box's, which it equals off its side lines, and a part the
+ * request's alpha clears leaving the canvas.
  * <p>
  * {@link ChromeStyle#SPRITE}'s cases pin the bytes its blended nine-slice pair leaves, the client's
  * framebuffer bytes - the notched corners and open ring corners, the canvas drawn to the box's first
@@ -85,10 +87,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * context gives the arm. The cases needing the real sprites off the offline extraction skip per method
  * rather than per class, so the procedural pins still run on a host without it.
  * <p>
- * Each image is also pinned to the mark its frames are held in - {@link AlphaMode#STRAIGHT} for the
- * code-drawn box, which paints its colours as given, and {@link AlphaMode#PREMULTIPLIED} for a sprite
- * tooltip, chat text and a render of no line - and a premultiplied one to holding no colour channel
- * above its alpha, since a premultiplied channel is the straight one scaled by that alpha.
+ * Each image is also pinned to the mark it reports - {@link AlphaMode#STRAIGHT} for the code-drawn
+ * box, and {@link AlphaMode#PREMULTIPLIED} for a sprite tooltip, chat text and a render of no line -
+ * and a premultiplied one to holding no colour channel above its alpha, since a premultiplied channel
+ * is the straight one scaled by that alpha.
  * <p>
  * {@link TextOptions.Style#CHAT} text is pinned to the pixels it draws: drawn with room on every side
  * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
@@ -99,8 +101,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * client's text shader discards, which lays its glyphs alone.
  * <p>
  * A render whose canvas holds no pixel is the empty 1x1 image, still even where it is obfuscated: chat
- * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, and a sprite box
- * whose alphas clear both sprites round one.
+ * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, a code-drawn box
+ * whose alphas clear both its parts round one, and a sprite box whose alphas clear both sprites round
+ * one.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -108,14 +111,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
-    /** Vanilla's tooltip background fill - the background sprite's texel, and what the code-drawn box paints */
+    /** Vanilla's tooltip background fill - the background sprite's texel */
     private static final int BACKGROUND_FILL = 0xF0100010;
 
-    /** Vanilla's border gradient at the ring's top stroke - the frame sprite's texel, and what the code-drawn box paints */
+    /** Vanilla's border gradient at the ring's top stroke - the frame sprite's texel */
     private static final int RING_TOP = 0x505000FF;
-
-    /** Vanilla's border gradient at the ring's bottom stroke - the frame sprite's texel, and what the code-drawn box paints */
-    private static final int RING_BOTTOM = 0x5028007F;
 
     /** The fill as the client's framebuffer holds it: {@link #BACKGROUND_FILL} blended onto the cleared canvas */
     private static final int BLENDED_FILL = 0xF00F000F;
@@ -123,7 +123,7 @@ class TextRendererTest {
     /** {@link #RING_TOP} blended over {@link #BLENDED_FILL} */
     private static final int BLENDED_RING_TOP = 0xF523005A;
 
-    /** {@link #RING_BOTTOM} blended over {@link #BLENDED_FILL} */
+    /** Vanilla's border gradient at the ring's bottom stroke, the frame sprite's {@code 0x5028007F} texel, blended over {@link #BLENDED_FILL} */
     private static final int BLENDED_RING_BOTTOM = 0xF5170032;
 
     /** Output row of the ring's top stroke from the canvas edge, which is the box's - the stroke is 1 mcPixel thick, inset 1 mcPixel from the edge */
@@ -334,10 +334,10 @@ class TextRendererTest {
     }
 
     /**
-     * Samples a sprite tooltip's ring top stroke at the canvas mid-column, its row counted from the
-     * canvas edge, which is the box's.
+     * Samples a tooltip's ring top stroke at the canvas mid-column, its row counted from the canvas
+     * edge, which is the box's.
      *
-     * @param buf the rendered sprite tooltip
+     * @param buf the rendered tooltip
      * @return the sampled pixel
      */
     private static int ringTop(PixelBuffer buf) {
@@ -345,10 +345,10 @@ class TextRendererTest {
     }
 
     /**
-     * Samples a sprite tooltip's ring bottom stroke at the canvas mid-column, its row counted from the
-     * canvas's bottom edge, which is the box's.
+     * Samples a tooltip's ring bottom stroke at the canvas mid-column, its row counted from the canvas's
+     * bottom edge, which is the box's.
      *
-     * @param buf the rendered sprite tooltip
+     * @param buf the rendered tooltip
      * @return the sampled pixel
      */
     private static int ringBottom(PixelBuffer buf) {
@@ -356,64 +356,84 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("lore background fill pixel matches 0xF0100010")
+    @DisplayName("a code-drawn tooltip's fill is vanilla's background blended onto the clear canvas")
     void backgroundFillMatchesVanilla() {
-        TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts).image();
-        PixelBuffer buf = image.getFrames().getFirst().pixels();
+        PixelBuffer buf = render(singleLineLore());
 
-        // Border occupies y in [2, 4) (1 mcPixel inset + 1 mcPixel stroke = 4 output pixels).
-        // Sample at y=5 which is well inside the padding interior above the first glyph.
-        int cx = buf.width() / 2;
-        int cy = 5;
-        int px = buf.getPixel(cx, cy);
-        assertThat("alpha in padding", ColorMath.alpha(px), is(ColorMath.alpha(BACKGROUND_FILL)));
-        assertThat("RGB in padding", px & 0xFFFFFF, is(BACKGROUND_FILL & 0xFFFFFF));
+        // The ring's top stroke holds output rows 2 and 3 and the text starts at row 8, so row 5 is fill.
+        assertThat("fill above the text", buf.getPixel(buf.width() / 2, 5), is(BLENDED_FILL));
     }
 
     @Test
-    @DisplayName("lore border top row uses gradient top color (α=80, RGB=0x5000FF)")
+    @DisplayName("a code-drawn tooltip's top stroke is vanilla's gradient top blended over the fill")
     void borderTopMatchesVanillaGradientTop() {
-        TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts).image();
-        PixelBuffer buf = image.getFrames().getFirst().pixels();
-
-        // Border stroke is 1 mcPixel (2 output pixels) thick, inset 1 mcPixel from edge.
-        // So the top stroke spans y in [2, 4). Sample at y=2.
-        int px = buf.getPixel(buf.width() / 2, 2);
-        assertThat("top border alpha", ColorMath.alpha(px), is(ColorMath.alpha(RING_TOP)));
-        assertThat("top border RGB", px & 0xFFFFFF, is(RING_TOP & 0xFFFFFF));
+        assertThat("ring top stroke", ringTop(render(singleLineLore())), is(BLENDED_RING_TOP));
     }
 
     @Test
-    @DisplayName("lore border bottom row uses gradient bottom color (α=80, RGB=0x28007F)")
+    @DisplayName("a code-drawn tooltip's bottom stroke is vanilla's gradient bottom blended over the fill")
     void borderBottomMatchesVanillaGradientBottom() {
-        TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts).image();
-        PixelBuffer buf = image.getFrames().getFirst().pixels();
-
-        // Bottom stroke spans y in [h-4, h-2). Sample at y = h - 3.
-        int px = buf.getPixel(buf.width() / 2, buf.height() - 3);
-        assertThat("bottom border alpha", ColorMath.alpha(px), is(ColorMath.alpha(RING_BOTTOM)));
-        assertThat("bottom border RGB", px & 0xFFFFFF, is(RING_BOTTOM & 0xFFFFFF));
+        assertThat("ring bottom stroke", ringBottom(render(singleLineLore())), is(BLENDED_RING_BOTTOM));
     }
 
     @Test
-    @DisplayName("left edge interior row interpolates between gradient endpoints")
+    @DisplayName("a code-drawn tooltip's side lies between its two blended strokes")
     void borderLeftEdgeInterpolates() {
-        TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts).image();
-        PixelBuffer buf = image.getFrames().getFirst().pixels();
+        PixelBuffer buf = render(singleLineLore());
 
-        // Left edge spans x in [2, 4). Sample at x=2 on the middle row.
+        // The left side holds output columns 2 and 3; sample it on the middle row, which the ramp from the
+        // top stroke's colour to the bottom's takes strictly between the two.
         int px = buf.getPixel(2, buf.height() / 2);
         int r = ColorMath.red(px);
         int b = ColorMath.blue(px);
-        assertThat("red is at or above the bottom endpoint", r, is(greaterThan(ColorMath.red(RING_BOTTOM) - 1)));
-        assertThat("red is at or below the top endpoint", r, is(lessThanOrEqualTo(ColorMath.red(RING_TOP))));
-        assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(ColorMath.blue(RING_BOTTOM) - 1)));
-        assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(ColorMath.blue(RING_TOP))));
-        assertThat("border alpha preserved", ColorMath.alpha(px), is(ColorMath.alpha(RING_TOP)));
+        assertThat("red is above the bottom stroke's", r, is(greaterThan(ColorMath.red(BLENDED_RING_BOTTOM))));
+        assertThat("red is below the top stroke's", r, is(lessThan(ColorMath.red(BLENDED_RING_TOP))));
+        assertThat("blue is above the bottom stroke's", b, is(greaterThan(ColorMath.blue(BLENDED_RING_BOTTOM))));
+        assertThat("blue is below the top stroke's", b, is(lessThan(ColorMath.blue(BLENDED_RING_TOP))));
+        assertThat("alpha, the strokes' own", ColorMath.alpha(px), is(ColorMath.alpha(BLENDED_RING_TOP)));
+    }
+
+    @Test
+    @DisplayName("a code-drawn tooltip cuts its box's corners and leaves its ring's corners open, its fill flush to the canvas edge")
+    void aCodeDrawnTooltipCutsItsCornersAndLeavesItsRingCornersOpen() {
+        PixelBuffer buf = render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+        int w = buf.width();
+        int h = buf.height();
+        int clear = ColorMath.TRANSPARENT;
+
+        // Each corner Minecraft pixel of the box is left clear; the fill runs to the canvas edge between
+        // them, and shows through each ring corner 1 Minecraft pixel in.
+        assertThat("the box's corners, the fill's edges and the ring's corners",
+            List.of(buf.getPixel(0, 0), buf.getPixel(1, 1), buf.getPixel(w - 1, 0), buf.getPixel(w - 2, 1),
+                buf.getPixel(0, h - 1), buf.getPixel(1, h - 2), buf.getPixel(w - 1, h - 1), buf.getPixel(w - 2, h - 2),
+                buf.getPixel(w / 2, 0), buf.getPixel(0, h / 2), buf.getPixel(w - 1, h / 2), buf.getPixel(w / 2, h - 1),
+                buf.getPixel(2, 2), buf.getPixel(w - 3, 2), buf.getPixel(2, h - 3), buf.getPixel(w - 3, h - 3)),
+            is(List.of(clear, clear, clear, clear, clear, clear, clear, clear,
+                BLENDED_FILL, BLENDED_FILL, BLENDED_FILL, BLENDED_FILL,
+                BLENDED_FILL, BLENDED_FILL, BLENDED_FILL, BLENDED_FILL)));
+    }
+
+    @Test
+    @DisplayName("a code-drawn tooltip is vanilla's box - the sprite box's canvas and pixels - but on its side lines, where its lerp meets the frame sprite's baked ramp")
+    void aCodeDrawnTooltipIsVanillasBoxButItsSideRamp() {
+        assumeSprites();
+        PixelBuffer codeDrawn = render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+        PixelBuffer sprite = renderSprite(loreBuilder());
+        int w = sprite.width();
+        int h = sprite.height();
+
+        assertThat("canvas size", List.of(codeDrawn.width(), codeDrawn.height()), is(List.of(w, h)));
+        // The side lines hold output columns 2, 3, w - 4 and w - 3, from the row below the top stroke to
+        // the row above the bottom stroke.
+        List<String> offTheSides = new ArrayList<>();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean side = (x == 2 || x == 3 || x == w - 4 || x == w - 3) && y >= 4 && y <= h - 5;
+                if (!side && codeDrawn.getPixel(x, y) != sprite.getPixel(x, y))
+                    offTheSides.add(String.format("(%d, %d) holds %08X against %08X", x, y, codeDrawn.getPixel(x, y), sprite.getPixel(x, y)));
+            }
+        }
+        assertThat("pixels differing from the sprite box off the side lines", offTheSides, is(empty()));
     }
 
     @Test
@@ -479,8 +499,7 @@ class TextRendererTest {
         assertThat("ring top gradient", ringTop(buf), is(BLENDED_RING_TOP));
         assertThat("ring bottom gradient", ringBottom(buf), is(BLENDED_RING_BOTTOM));
         // The ring corner texel is transparent in the sprite (open corner), so the background fill shows
-        // through there - unlike PROCEDURAL, whose top/bottom strokes span the full width and paint the
-        // ring corner purple.
+        // through there.
         assertThat("open ring corner shows background fill",
             buf.getPixel(RING_TOP_ROW, RING_TOP_ROW), is(BLENDED_FILL));
     }
@@ -567,6 +586,31 @@ class TextRendererTest {
         assumeSprites();
         float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
         PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(0).borderAlpha(0));
+
+        assertThat("canvas width", buf.width(), is(MinecraftFont.MC_PIXEL_SCALE * (int) Math.ceil(advance)));
+        assertThat("canvas height", buf.height(), is(MinecraftFont.MC_PIXEL_SCALE * ONE_LINE_HEIGHT_MCPX));
+    }
+
+    @Test
+    @DisplayName("a code-drawn fill the request's alpha clears draws nothing, so the canvas ends at the ring's first pixel")
+    void aClearedCodeDrawnFillTakesTheCanvasToTheRing() {
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        TextOptions options = loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).backgroundAlpha(0).build();
+        int padMcPx = options.getPadding();
+        PixelBuffer buf = render(options);
+
+        assertThat("canvas width", buf.width(),
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * (padMcPx - 1) + (int) Math.ceil(advance))));
+        assertThat("canvas height", buf.height(),
+            is(MinecraftFont.MC_PIXEL_SCALE * (2 * (padMcPx - 1) + ONE_LINE_HEIGHT_MCPX)));
+        assertThat("bounds of the pixels drawn", buf.opaqueBounds(), is(new Rectangle(0, 0, buf.width(), buf.height())));
+    }
+
+    @Test
+    @DisplayName("a code-drawn box whose alphas clear both its parts leaves the canvas the text block, never cutting the text")
+    void aCodeDrawnBoxDrawingNothingLeavesTheTextBlock() {
+        float advance = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("Sprite Chrome");
+        PixelBuffer buf = render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).backgroundAlpha(0).borderAlpha(0).build());
 
         assertThat("canvas width", buf.width(), is(MinecraftFont.MC_PIXEL_SCALE * (int) Math.ceil(advance)));
         assertThat("canvas height", buf.height(), is(MinecraftFont.MC_PIXEL_SCALE * ONE_LINE_HEIGHT_MCPX));
@@ -671,7 +715,7 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("a code-drawn tooltip is marked straight, still and animated, since its box paints its colours as given")
+    @DisplayName("a code-drawn tooltip is marked straight, still and animated")
     void aCodeDrawnTooltipIsMarkedStraight() {
         TextRenderer renderer = new TextRenderer();
         ImageData still = renderer.render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build()).image();
@@ -804,6 +848,8 @@ class TextRendererTest {
             lore(TextSegment.literal("\t")).chromeStyle(ChromeStyle.PROCEDURAL).padding(0).build());
         corpus.put("code-drawn box at padding 0: a tab obfuscated",
             lore(TextSegment.builder().text("\t").obfuscated(true).build()).chromeStyle(ChromeStyle.PROCEDURAL).padding(0).build());
+        corpus.put("code-drawn box whose alphas clear it: an empty line",
+            lore(TextSegment.literal("")).chromeStyle(ChromeStyle.PROCEDURAL).backgroundAlpha(0).borderAlpha(0).build());
         corpus.put("sprite box whose alphas clear both sprites: an empty line",
             lore(TextSegment.literal("")).chromeStyle(ChromeStyle.SPRITE).backgroundAlpha(0).borderAlpha(0).build());
 

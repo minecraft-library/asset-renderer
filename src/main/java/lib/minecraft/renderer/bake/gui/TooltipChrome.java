@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -23,9 +24,11 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Tooltip chrome - lays out the box round a text block and contributes the BACKGROUND and BORDER layers
@@ -33,8 +36,9 @@ import java.util.Optional;
  * <p>
  * A chrome first lays out its {@link ChromeBox} round the text ({@link #box}) - the canvas and the text
  * block's place on it, in Minecraft pixels - then contributes its layers over that canvas
- * ({@link #contribute}). The sprite variant's canvas ends at the first pixel its sprites draw; the
- * procedural variant pads the text by the request's padding.
+ * ({@link #contribute}). Both variants' canvases end at the first pixel they draw and never cut the
+ * text: the sprite variant's at what its sprites draw over the client's sprite rect, the procedural
+ * variant's at its box round the text at the request's padding.
  * <p>
  * The chrome owns only {@link TextSlot#BACKGROUND} and {@link TextSlot#BORDER}; the {@link TextSlot#TEXT}
  * slot stays owned by the text renderer, so both {@link Vanilla} variants slot into the same
@@ -89,7 +93,8 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
                     @NotNull Optional<ChromeSprites> sprites, @NotNull TextOptions options);
 
     /**
-     * The vanilla chrome variants: sprite-backed nine-slice, or the legacy procedural fill + gradient ring.
+     * The vanilla chrome variants: the pack's sprite pair nine-sliced over the client's sprite rect, or
+     * vanilla's box drawn from its colours.
      */
     enum Vanilla implements TooltipChrome {
 
@@ -98,7 +103,9 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          */
         SPRITE,
         /**
-         * Legacy procedural fill + gradient ring (the pre-sprite constants), context-free.
+         * Vanilla's box drawn from its colours, needing no context: the fill with its corners cut and the
+         * ring 1 Minecraft pixel inside it with its corners open, each blended as the client blends its
+         * sprites.
          */
         PROCEDURAL;
 
@@ -141,23 +148,30 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         public void contribute(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                @NotNull Optional<ChromeSprites> sprites, @NotNull TextOptions options) {
             switch (this) {
-                case PROCEDURAL -> contributeProcedural(stack, options);
+                case PROCEDURAL -> contributeProcedural(stack, box, options);
                 case SPRITE -> contributeSprite(stack, box, required(sprites), options);
             }
         }
 
         /**
-         * Lays out the procedural chrome's box: the text padded by the request's padding on every side,
-         * which its fill paints to the edge.
+         * Lays out the code-drawn box: the text padded by the request's padding on every side, and the
+         * canvas the bounds of every part the box draws and of the text block - so a part the request's
+         * alpha clears does not count, and the canvas never cuts the text.
          *
          * @param textW the text block's width in mcPixels
          * @param textH the text block's height in mcPixels
-         * @param options the render options carrying the padding
-         * @return the padded canvas with the text block inset by the padding
+         * @param options the render options carrying the padding and the alpha overrides
+         * @return the canvas the box draws to, with the text block inset by the padding from the box's edge
          */
         private static @NotNull ChromeBox proceduralBox(int textW, int textH, @NotNull TextOptions options) {
             int padding = options.getPadding();
-            return new ChromeBox(textW + 2 * padding, textH + 2 * padding, padding, padding, textW, textH);
+            Rectangle box = new Rectangle(0, 0, textW + 2 * padding, textH + 2 * padding);
+            Rectangle canvas = new Rectangle(padding, padding, textW, textH);
+            if (options.getBackgroundAlpha() > 0)
+                fillQuads(box).forEach(canvas::add);
+            if (options.getBorderAlpha() > 0)
+                ringQuads(box).forEach(canvas::add);
+            return new ChromeBox(canvas.width, canvas.height, padding - canvas.x, padding - canvas.y, textW, textH);
         }
 
         /**
@@ -195,14 +209,27 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         }
 
         /**
-         * The legacy procedural chrome: a full-canvas background fill and the per-row gradient ring, with
-         * both alphas taken straight from the options - byte-identical to the pre-sprite renderer.
+         * Contributes the code-drawn chrome: vanilla's box round the box's text block at the request's
+         * padding, laid as the client lays its tooltip sprites - the fill blended onto the canvas, then the
+         * ring blended over it, each with {@link BlendMode#NORMAL}. The fill takes the request's background
+         * alpha and the ring its border alpha - vanilla's 240 and 80 by default, so the sprite chrome's
+         * multipliers over those give the same alphas.
+         *
+         * @param stack the frame's layer stack
+         * @param box the box {@link #proceduralBox} laid out
+         * @param options the render options carrying the padding and the alpha overrides
          */
-        private static void contributeProcedural(@NotNull LayerStack<ImageLayer> stack, @NotNull TextOptions options) {
-            int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
+        private static void contributeProcedural(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
+                                                 @NotNull TextOptions options) {
+            int padding = options.getPadding();
+            Rectangle rect = new Rectangle(Math.round(box.textX()) - padding, Math.round(box.textY()) - padding,
+                Math.round(box.textWidth()) + 2 * padding, Math.round(box.textHeight()) + 2 * padding);
+            int fillArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, frame.width(), frame.height(), borderAlpha));
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            stack.append(TextSlot.BACKGROUND, frame -> fillQuads(rect).forEach(quad ->
+                frame.fillRect(quad.x * scale, quad.y * scale, quad.width * scale, quad.height * scale, fillArgb, BlendMode.NORMAL)));
+            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, rect, borderAlpha));
         }
 
         /**
@@ -265,45 +292,68 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         }
 
         /**
-         * Draws the vanilla procedural tooltip border - a 1-mcPixel ring inset 1 mcPixel from the canvas
-         * edge, vertically gradient from the top RGB to the bottom RGB with the endpoint colours on the
-         * horizontal strokes and the interpolation interior on the vertical edges.
+         * Answers the quads the code-drawn fill covers over a box - the box less its four corner
+         * Minecraft pixels, as its top row between the corners, the band below it and its bottom row
+         * between the corners, which never overlap. A quad with no room in the box is left out.
+         *
+         * @param box the box, in mcPixels
+         * @return the fill's quads, in mcPixels
          */
-        private static void drawGradientBorder(@NotNull PixelBuffer buffer, int w, int h, int alpha) {
-            int inset = MinecraftFont.MC_PIXEL_SCALE;   // border is inset 1 mcPixel from edge
-            int stroke = MinecraftFont.MC_PIXEL_SCALE;  // border stroke is 1 mcPixel thick
-            int topY0 = inset;
-            int topY1 = inset + stroke;
-            int botY0 = h - inset - stroke;
-            int botY1 = h - inset;
-            int leftX0 = inset;
-            int leftX1 = inset + stroke;
-            int rightX0 = w - inset - stroke;
-            int rightX1 = w - inset;
+        private static @NotNull List<Rectangle> fillQuads(@NotNull Rectangle box) {
+            return Stream.of(
+                    new Rectangle(box.x + 1, box.y, box.width - 2, 1),
+                    new Rectangle(box.x, box.y + 1, box.width, box.height - 2),
+                    new Rectangle(box.x + 1, box.y + box.height - 1, box.width - 2, 1))
+                .map(box::intersection)
+                .filter(quad -> !quad.isEmpty())
+                .toList();
+        }
 
-            int innerTop = topY1;
-            int innerBottom = botY0;
-            int innerSpan = Math.max(1, innerBottom - 1 - innerTop); // rows in gradient interior
+        /**
+         * Answers the quads the code-drawn ring covers over a box, each 1 Minecraft pixel inside the box's
+         * edge - the top and bottom strokes 2 in from its sides and the side lines 2 in from its top and
+         * bottom, so the ring's corners are never drawn. A quad with no room in the box is left out.
+         *
+         * @param box the box, in mcPixels
+         * @return the ring's quads, in mcPixels
+         */
+        private static @NotNull List<Rectangle> ringQuads(@NotNull Rectangle box) {
+            return Stream.of(
+                    new Rectangle(box.x + 2, box.y + 1, box.width - 4, 1),
+                    new Rectangle(box.x + 2, box.y + box.height - 2, box.width - 4, 1),
+                    new Rectangle(box.x + 1, box.y + 2, 1, box.height - 4),
+                    new Rectangle(box.x + box.width - 2, box.y + 2, 1, box.height - 4))
+                .map(box::intersection)
+                .filter(quad -> !quad.isEmpty())
+                .toList();
+        }
 
-            // Top stroke - solid top color
+        /**
+         * Draws the code-drawn ring over a box: the top and bottom strokes 1 Minecraft pixel inside the
+         * box's edge and 2 in from its sides, so the ring's corners stay open, and the side lines 1 inside
+         * its sides between them, each output row of a side the lerp from the top colour to the bottom.
+         * Each quad is blended over the fill with {@link BlendMode#NORMAL}, and a part with no room in the
+         * box is not drawn. The client's frame sprite bakes its sides as 80 irregular rows, which no lerp
+         * reproduces, so the sides are where this ring differs from the client's.
+         *
+         * @param frame the frame drawn on
+         * @param box the box, in mcPixels
+         * @param alpha the ring's alpha
+         */
+        private static void drawGradientBorder(@NotNull PixelBuffer frame, @NotNull Rectangle box, int alpha) {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
             int topArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_TOP_RGB;
-            for (int y = topY0; y < topY1; y++)
-                for (int x = leftX0; x < rightX1; x++)
-                    buffer.setPixel(x, y, topArgb);
-
-            // Bottom stroke - solid bottom color
-            int botArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_BOTTOM_RGB;
-            for (int y = botY0; y < botY1; y++)
-                for (int x = leftX0; x < rightX1; x++)
-                    buffer.setPixel(x, y, botArgb);
-
-            // Left and right vertical edges - interpolate between top and bottom colors
-            for (int y = innerTop; y < innerBottom; y++) {
-                int argb = lerpArgb(topArgb, botArgb, y - innerTop, innerSpan);
-                for (int x = leftX0; x < leftX1; x++)
-                    buffer.setPixel(x, y, argb);
-                for (int x = rightX0; x < rightX1; x++)
-                    buffer.setPixel(x, y, argb);
+            int bottomArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_BOTTOM_RGB;
+            int firstSideRow = (box.y + 2) * scale;
+            int endSideRow = (box.y + box.height - 2) * scale;
+            int steps = Math.max(1, endSideRow - firstSideRow - 1);
+            for (Rectangle quad : ringQuads(box)) {
+                for (int row = quad.y * scale; row < (quad.y + quad.height) * scale; row++) {
+                    int argb = row < firstSideRow ? topArgb
+                        : row >= endSideRow ? bottomArgb
+                        : lerpArgb(topArgb, bottomArgb, row - firstSideRow, steps);
+                    frame.fillRect(quad.x * scale, row, quad.width * scale, 1, argb, BlendMode.NORMAL);
+                }
             }
         }
 

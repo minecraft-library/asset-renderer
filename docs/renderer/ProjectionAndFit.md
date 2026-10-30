@@ -59,11 +59,13 @@ entry rather than the entity's.
   the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
 - **A canvas sized to its subject ends at the subject's first pixel**, with no fixed transparent
   margin even where the client reserves one: an entity's `UNION_BOUNDS` canvas at its silhouette,
-  which the bounds walk measures, and a tooltip's at what its chrome draws over the client's sprite
-  rect, which `NineSliceKit.extent` answers before the draw. Chat text's canvas is what its lines draw
-  over every frame, which `TextKit.inkBounds` answers before the draw, and it ends inside a Minecraft
-  pixel where the first or last output pixel drawn does. `GROUP_BOUNDS`, the family fit, sizes a
-  member to its group instead, and a fixed-scale or caller-sized canvas is neither.
+  which the bounds walk measures, and a tooltip's at what its chrome draws - the sprite pair over the
+  client's sprite rect, which `NineSliceKit.extent` answers before the draw, or the code-drawn box
+  round the text at the request's padding, less any part the request's alpha clears. Chat text's
+  canvas is what its lines draw over every frame, which `TextKit.inkBounds` answers before the draw,
+  and it ends inside a Minecraft pixel where the first or last output pixel drawn does.
+  `GROUP_BOUNDS`, the family fit, sizes a member to its group instead, and a fixed-scale or
+  caller-sized canvas is neither.
 
 ## Decisions that stay closed
 

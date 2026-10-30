@@ -43,10 +43,11 @@ import java.util.Optional;
  * <p>
  * The LORE background and border are contributed by the {@link TooltipChrome} the request's
  * {@linkplain TextOptions#getChromeStyle() chrome style} selects: {@link ChromeStyle#PROCEDURAL} draws
- * the legacy vanilla palette (background {@code 0xF0100010}, gradient border {@code 0x505000FF} to
- * {@code 0x5028007F}) with the caller-configurable {@link TextOptions#getBackgroundAlpha()} /
- * {@link TextOptions#getBorderAlpha()} alphas; {@link ChromeStyle#SPRITE} nine-slices the pack's
- * {@code tooltip/background} and {@code tooltip/frame} sprites, or the pair the request's
+ * vanilla's box from its colours (background {@code 0xF0100010}, gradient border {@code 0x505000FF} to
+ * {@code 0x5028007F}), blended as the client blends its tooltip sprites, at the request's
+ * {@link TextOptions#getBackgroundAlpha()} / {@link TextOptions#getBorderAlpha()} alphas;
+ * {@link ChromeStyle#SPRITE} nine-slices the pack's {@code tooltip/background} and
+ * {@code tooltip/frame} sprites, or the pair the request's
  * {@linkplain TextOptions#getTooltipStyle() tooltip style} names. The renderer resolves that pair once
  * per render through the context it was constructed with; a lore render asking for the sprite chrome
  * raises a {@link RenderException} only when the renderer holds no context, so a renderer built without
@@ -58,25 +59,25 @@ import java.util.Optional;
  * Minecraft pixels a side, and the canvas ends at the first pixel they draw, never cutting the text -
  * vanilla's own box, the text plus 4 a side, a pack's wider box whole, or the whole rect, the text
  * plus 12 a side, where a sprite is the missing texture; the procedural chrome pads the text by the
- * request's {@linkplain TextOptions#getPadding() padding}. Chat text's canvas ends at the first pixel
- * its lines draw over every frame, which {@link TextKit#inkBounds} answers before any frame is drawn. A
- * canvas holding no pixel answers the empty 1x1 image: chat text drawing nothing, or a tooltip box of
- * no width, which lines that advance nothing make where the procedural chrome pads them by 0 or the
- * request's alphas clear both sprites.
+ * request's {@linkplain TextOptions#getPadding() padding}, the client's 4 by default, and its canvas
+ * ends at the first pixel it draws. Chat text's canvas ends at the first pixel its lines draw over
+ * every frame, which {@link TextKit#inkBounds} answers before any frame is drawn. A canvas holding no
+ * pixel answers the empty 1x1 image: chat text drawing nothing, or a tooltip box of no width, which
+ * lines that advance nothing make where the code-drawn box pads them by 0, or the request's alphas
+ * clear every part of either box.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link TextKit} obfuscation substitution - except a canvas holding no pixel, which is the
  * still, empty 1x1 image, obfuscated or not.
  * <p>
- * The image is held in the convention its frames are drawn in. The sprite box and the glyphs blend
- * onto the transparent canvas, so a {@link ChromeStyle#SPRITE} tooltip, chat text and the empty image
- * answer {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
- * copy that edits made through it do not reach, and an encoder writes each see-through pixel's
- * straight colour. The {@link ChromeStyle#PROCEDURAL} box paints its colours as given, so a
- * procedural tooltip drawing a box answers {@link AlphaMode#STRAIGHT}. A
- * {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes its colour in the
- * convention the image answers.
+ * The sprite box, the code-drawn box and the glyphs all blend onto the transparent canvas. A
+ * {@link ChromeStyle#SPRITE} tooltip, chat text and the empty image answer
+ * {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight copy that
+ * edits made through it do not reach, and an encoder writes each see-through pixel's straight colour.
+ * A {@link ChromeStyle#PROCEDURAL} tooltip drawing a box answers {@link AlphaMode#STRAIGHT}, its
+ * see-through box held premultiplied under that mark. A {@linkplain TextOptions#getLayerDecorator()
+ * layer decorator} pass writes its colour in the convention the image answers.
  */
 @Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
@@ -173,8 +174,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (box.width() <= 0 || box.height() <= 0)
             return Timeline.empty();
 
-        // The code-drawn box paints its colours as given, so a frame holding it is straight; the sprite box
-        // and the glyphs blend onto the transparent canvas, so every other frame is held premultiplied.
+        // Every frame blends onto the transparent canvas; one holding the code-drawn box is marked straight,
+        // its see-through box held premultiplied under that mark, and every other frame premultiplied.
         AlphaMode alphaMode = isLore && options.getChromeStyle() == ChromeStyle.PROCEDURAL
             ? AlphaMode.STRAIGHT
             : AlphaMode.PREMULTIPLIED;

@@ -34,9 +34,11 @@ import java.util.function.UnaryOperator;
 public class TextOptions implements RenderOptions {
 
     /**
-     * Default per-side inner padding between the tooltip border and the first glyph (mcPixels).
+     * The distance in mcPixels the client's tooltip box reaches past its text on every side - both
+     * tooltip sprites are drawn over the text plus 12 a side, and the background's first 8 texels are
+     * clear.
      */
-    public static final int TOOLTIP_PADDING_MCPX = 5;
+    public static final int TOOLTIP_PADDING_MCPX = 4;
 
     /**
      * Alpha component matching the vanilla 0xF0100010 tooltip background. {@code 0xF0 = 240}
@@ -72,7 +74,8 @@ public class TextOptions implements RenderOptions {
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
     /**
-     * Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling).
+     * The distance in mcPixels the code-drawn box reaches past the text on every side, its ring 1 inside
+     * the box's edge; the sprite box ends where its sprites draw and reads no padding.
      */
     private final int padding = TOOLTIP_PADDING_MCPX;
 
@@ -94,14 +97,19 @@ public class TextOptions implements RenderOptions {
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to
      * {@link #VANILLA_TOOLTIP_BG_ALPHA}, matching the vanilla tooltip background
-     * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1.
+     * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1. The code-drawn fill is
+     * drawn at it, and the sprite box scales each background texel's alpha by it over 240 - one meaning,
+     * since vanilla's fill carries that alpha. A fill drawn at 0 draws nothing, so the canvas ends at the
+     * next part drawn.
      */
     private final int backgroundAlpha = VANILLA_TOOLTIP_BG_ALPHA;
 
     /**
      * Alpha channel for the LORE border gradient, in {@code [0, 255]}. Defaults to
      * {@link #VANILLA_TOOLTIP_BORDER_ALPHA}, matching the vanilla tooltip border endpoints
-     * {@code 0x505000FF} and {@code 0x5028007F}.
+     * {@code 0x505000FF} and {@code 0x5028007F}. The code-drawn ring is drawn at it, and the sprite box
+     * scales each frame texel's alpha by it over 80 - one meaning, since vanilla's ring carries that
+     * alpha. A ring drawn at 0 draws nothing, so the canvas ends at the next part drawn.
      */
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 

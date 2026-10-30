@@ -1,23 +1,33 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.engine.frame.ImageLayer;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.fixture.TooltipFixtures.BG_META;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
@@ -25,6 +35,7 @@ import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -33,10 +44,12 @@ import static org.hamcrest.Matchers.is;
  * mapping a style onto its background and frame pair, falling to the default pair for an item with no
  * style, drawing the missing texture for each sprite of a style no pack ships, or one that cannot be
  * read, or one whose {@code gui} section the client's codec refuses, stretched, and flattening an
- * animated sprite to its tick-0 frame.
+ * animated sprite to its tick-0 frame - and the code-drawn box {@link TooltipChrome.Vanilla#PROCEDURAL}
+ * draws round a text block too narrow for its ring.
  * <p>
- * Nothing here renders: each case reads an item's component or resolves against a stub context seeded
- * with stand-in sprites, so the class needs neither the font atlas nor the offline extraction.
+ * Nothing here renders text: each case reads an item's component, resolves against a stub context
+ * seeded with stand-in sprites, or draws the code-drawn box alone through the chrome's own calls, so the
+ * class needs neither the font atlas nor the offline extraction.
  */
 class TooltipChromeTest {
 
@@ -203,6 +216,32 @@ class TooltipChromeTest {
         PixelBuffer bg = resolved.background();
         assertThat("flattened to one frame height", bg.height(), is(4));
         assertThat("frame 0 pixel is red", bg.getPixel(0, 0), is(0xFFFF0000));
+    }
+
+    @Test
+    @DisplayName("a code-drawn box narrower than its ring draws none of the ring and nothing off the box - its fill's middle band alone")
+    void aCodeDrawnBoxNarrowerThanItsRingDrawsNoRing() {
+        // A text block 1 Minecraft pixel wide at padding 0 is a box 1 wide: its side lines have no room in it.
+        TextOptions options = TextOptions.builder().padding(0).build();
+        TooltipChrome chrome = TooltipChrome.of(ChromeStyle.PROCEDURAL);
+        TooltipChrome.ChromeBox box = chrome.box(1, 8, Optional.empty(), options);
+        LayerStack<ImageLayer> stack = new LayerStack<>();
+        chrome.contribute(stack, box, Optional.empty(), options);
+        PixelBuffer canvas = PixelBuffer.create(
+            Math.round(box.width() * MinecraftFont.MC_PIXEL_SCALE), Math.round(box.height() * MinecraftFont.MC_PIXEL_SCALE));
+        Layers.foldInto(stack, UnaryOperator.identity(), canvas);
+
+        assertThat("canvas size", List.of(canvas.width(), canvas.height()), is(List.of(2, 16)));
+        // The box's top and bottom Minecraft pixel rows are its corners, left clear; the rows between are
+        // the fill blended onto the clear canvas.
+        List<String> wrong = new ArrayList<>();
+        for (int y = 0; y < canvas.height(); y++) {
+            int expected = y >= 2 && y <= 13 ? 0xF00F000F : ColorMath.TRANSPARENT;
+            for (int x = 0; x < canvas.width(); x++)
+                if (canvas.getPixel(x, y) != expected)
+                    wrong.add(String.format("(%d, %d) holds %08X where %08X", x, y, canvas.getPixel(x, y), expected));
+        }
+        assertThat("pixels other than the fill's middle band and the clear corner rows", wrong, is(empty()));
     }
 
 }
