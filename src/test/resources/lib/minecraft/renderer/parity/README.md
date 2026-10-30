@@ -27,7 +27,7 @@ Values this store holds, one file each.
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 9825 | 9825 entries | `6433a1c468b4dab5bef41eee546e6fb95add35d4` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `93b8a12bac92875b5febfaeb0417b9f2f4fce4ec` | yes |
+| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `1d767a914237852bb1cfbcbb894a5c54a451c092` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -44,7 +44,7 @@ Values this store holds, one file each.
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 1.8886 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7353 | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
-| `sweep.menu` | `sweeps/menu.json` | 13 | sum 0.1195 | `93b8a12bac92875b5febfaeb0417b9f2f4fce4ec` | yes |
+| `sweep.menu` | `sweeps/menu.json` | 13 | sum 0.0407 | `1d767a914237852bb1cfbcbb894a5c54a451c092` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.tooltip` | `sweeps/tooltip.json` | 76 | sum 0.3274 | `4264daab8a17cbdd2dce01193c5d0838d58d75a8` | yes |
 | `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 0.0000 | `33935094db15adf57139f1790ec28fa311dfa634` | yes |

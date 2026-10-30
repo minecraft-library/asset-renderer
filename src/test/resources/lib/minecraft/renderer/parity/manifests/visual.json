@@ -728,7 +728,7 @@
     },
     {
       "path": "menu-render/anvil.png",
-      "sha256": "d7cad7bf98cd365a6ed96c77a7dc27dd01758483301c375676a0825bdf9af6af"
+      "sha256": "fdf76b3b50ee0f98a3538b9cbb05f733a0afeeedf2f8d405916c2550eb401182"
     },
     {
       "path": "menu-render/anvil_bare.png",
@@ -852,9 +852,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "4f405bd7568dac4ed51666fbafbef45c8b69ae03a0823e1589bd81b45d328abb",
+    "asset_content_digest": "e0e824fee590f766d7b103ea2cfe9c012b9c4b7da6b633656a5a592d26a6213c",
     "asset_dirty": true,
-    "asset_sha": "93b8a12bac92875b5febfaeb0417b9f2f4fce4ec",
+    "asset_sha": "1d767a914237852bb1cfbcbb894a5c54a451c092",
     "counts": {
       "files": 211
     },
@@ -863,7 +863,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "17986917 draws the anvil's name field by input 0 and the error cross by the client's conditions: menu-render/anvil.png field becomes text_field (5272 output px, LOOKED); sweep.menu anvil_result 4860 to 16, anvil_input 5184 to 16 (the caret), anvil_error 324 to 0",
+    "reason": "ac5fc318 walks the anvil field's pen as the client's EditBox: the appended caret one past the text's advance; anvil.png caret from output x 218 to 220 (16 px, LOOKED); anvil_result and anvil_input 16 to 0",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -877,8 +877,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-30T15:45:50Z",
+    "timestamp": "2026-10-30T16:33:17Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 36621
+    "wall_time_ms": 39139
   }
 }
