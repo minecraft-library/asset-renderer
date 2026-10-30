@@ -40,10 +40,19 @@ public class TextField {
     private static final int PX_SCALE = MinecraftFont.MC_PIXEL_SCALE;
 
     /**
-     * The insert caret's own extent - one Minecraft pixel wide, opening a pixel above the glyph
-     * cells and running four below them, which is the bar vanilla fills rather than a glyph.
+     * The insert caret's own extent - one Minecraft pixel wide, opening a pixel above the glyph cell
+     * and running two below its eight rows, which is the bar vanilla fills from {@code y - 1} to
+     * {@code y + 10} rather than a glyph.
      */
     private static final int CARET_RISE = 1, CARET_HEIGHT = 11;
+
+    /**
+     * How far the field's pen moves past a text it draws, in Minecraft pixels - the client's field
+     * steps one past its text's {@code Font#width}, so an appended caret opens a pixel past the text's
+     * advance, one empty column after the last glyph's shadow, and a full field's bar steps back the
+     * same pixel onto the text's own end.
+     */
+    private static final int PEN_STEP = 1;
 
     /**
      * Draws what a screen's text field holds and the caret marking where typing would continue.
@@ -77,13 +86,16 @@ public class TextField {
 
         PixelBuffer buffer = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int textX = field.get().x() + well.inset().x();
+        int penX = field.get().x() + well.inset().x();
         int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
-        LineSegment text = plain(shown);
-        TextKit.drawLine(g, text, textX, baseline, well.argb(), palette, 0, 0L, 0L, true);
+        if (!shown.isEmpty()) {
+            LineSegment text = plain(shown);
+            TextKit.drawLine(g, text, penX, baseline, well.argb(), palette, 0, 0L, 0L, true);
+            penX += TextKit.measureLineMcPixels(text) + PEN_STEP;
+        }
 
-        if (options.isCaret()) drawCaret(g, buffer, typed, textX + TextKit.measureLineMcPixels(text), textY, baseline, well, palette);
+        if (options.isCaret()) drawCaret(g, buffer, typed, penX, textY, baseline, well, palette);
 
         FramePlacement placement = new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage()));
         stack.append(MenuSlot.TEXT, sink -> sink.add(placement));
@@ -119,20 +131,32 @@ public class TextField {
     }
 
     /**
-     * Draws the caret in whichever of its two forms the text's length selects.
+     * Draws the caret in whichever of its two forms the text's length selects, from where the field's
+     * pen stands.
      * <p>
-     * Vanilla appends an underscore glyph after the text, and stops being able to once the field is
-     * full - there is no position past the last character to append at - so at the cap it fills a
-     * bar beside it instead. The glyph carries the text's drop shadow and the bar carries none,
-     * being a fill rather than a draw, and keeps the well's own colour, the palette swapping only what
-     * is drawn as text.
+     * The pen is at the text's origin in an empty field and a Minecraft pixel past the text's width
+     * after any, the client's field stepping its pen one past the text it draws. Vanilla appends an
+     * underscore glyph at the pen, and stops being able to once the field is full - there is no
+     * position past the last character to append at - so at the cap it steps the pen back that pixel
+     * and fills a bar there, on the text's own end. The glyph carries the text's drop shadow and the
+     * bar carries none, being a fill rather than a draw, and keeps the well's own colour, the palette
+     * swapping only what is drawn as text.
+     *
+     * @param g the graphics drawing the glyph form into the buffer
+     * @param buffer the field text's layer, which the bar form is filled into
+     * @param typed what the field holds, whose length against the cap selects the form
+     * @param penX where the field's pen stands after its text, in Minecraft pixels
+     * @param textY the top of the field's glyph cell, in Minecraft pixels
+     * @param baseline the field text's baseline, in Minecraft pixels
+     * @param well the field's well, supplying its cap and colour
+     * @param palette the colours the stack's text shader draws in place of the glyph form's own
      */
     private static void drawCaret(
         @NotNull MinecraftGraphics g, @NotNull PixelBuffer buffer,
-        String typed, int caretX, int textY, int baseline, @NotNull Mark.TextWell well, @NotNull TextPalette palette
+        String typed, int penX, int textY, int baseline, @NotNull Mark.TextWell well, @NotNull TextPalette palette
     ) {
         if (typed.length() < well.maxLength()) {
-            TextKit.drawLine(g, plain("_"), caretX, baseline, well.argb(), palette, 0, 0L, 0L, true);
+            TextKit.drawLine(g, plain("_"), penX, baseline, well.argb(), palette, 0, 0L, 0L, true);
             return;
         }
 
@@ -141,7 +165,7 @@ public class TextField {
             if (py < 0 || py >= buffer.height()) continue;
 
             for (int x = 0; x < PX_SCALE; x++) {
-                int px = caretX * PX_SCALE + x;
+                int px = (penX - PEN_STEP) * PX_SCALE + x;
                 if (px < 0 || px >= buffer.width()) continue;
                 buffer.setPixel(px, py, well.argb());
             }

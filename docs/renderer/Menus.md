@@ -135,10 +135,12 @@ laid by `NineSliceKit` at output-pixel resolution.
   client's own field filters them out of what can be typed, and it carries the drop shadow a
   container's labels decline - it is a widget's text and not the panel's.
 - **A field shows the end of what was typed rather than the start**, and its caret has two forms the
-  value's length picks between: vanilla appends a `_` glyph after the text and cannot once the field
-  is full, so at the cap it fills an unshadowed bar beside it instead. The anvil caps at 50, so a
-  name at exactly that length is what draws the second form. The caret is a frozen instant of
-  something that blinks on the wall clock, so it is a caller's choice rather than a phase.
+  value's length picks between: vanilla appends a `_` glyph where its field's pen stands - at the
+  text's origin in an empty field, and a Minecraft pixel past the text's `Font#width` after any, the
+  field stepping its pen one past what it draws - and cannot once the field is full, so at the cap it
+  steps back that pixel and fills an unshadowed bar on the text's own end instead. The anvil caps at
+  50, so a name at exactly that length is what draws the second form. The caret is a frozen instant
+  of something that blinks on the wall clock, so it is a caller's choice rather than a phase.
 - **Two gates answer for a menu and neither substitutes for the other.** The shipped-art oracle is
   byte-exact about chrome, costs seconds and boots no client; the harness menu sweep renders each
   screen through the client's own GUI pipeline and is the only one that sees what a composed screen

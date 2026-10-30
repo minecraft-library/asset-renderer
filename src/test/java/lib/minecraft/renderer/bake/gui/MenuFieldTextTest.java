@@ -38,8 +38,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * view. The second is the one that matters for what is drawn - a field shows the end of what was
  * typed into it, so a name is recognised by its tail.
  * <p>
- * The caret opens where the client's {@code Font#width} puts the end of the text, which rounds a run
- * ending on half a Minecraft pixel up to the next whole one.
+ * The caret opens where the client's field leaves its pen - at the text's origin in an empty field,
+ * and a Minecraft pixel past where {@code Font#width} puts the end of a text, which rounds a run
+ * ending on half a Minecraft pixel up to the next whole one; a full field's bar steps back that pixel
+ * onto the text's own end.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A text field cuts what it cannot hold and scrolls what it cannot fit")
@@ -132,8 +134,8 @@ class MenuFieldTextTest {
     }
 
     @Test
-    @DisplayName("the caret after text ending on a half pixel opens on the next whole pixel, as the client's field places it by Font#width")
-    void caretOpensPastAHalfPixel() {
+    @DisplayName("the caret opens where the client's field leaves its pen - at the origin of an empty field, a pixel past Font#width after text, and back on the text's end as a full field's bar")
+    void caretOpensWhereTheClientsPenStands() {
         float exact = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("✦");
         assertThat("the text ends on half an mcPixel", exact % 1f, is(0.5f));
 
@@ -144,11 +146,22 @@ class MenuFieldTextTest {
             .orElseThrow();
         int textX = field.x() + WELL.inset().x();
 
+        assertThat("an empty field's caret opens at the text's origin",
+            firstOpaqueColumn(fieldText(layout, "", true, TextPalette.VANILLA)),
+            is(textX * MinecraftFont.MC_PIXEL_SCALE));
+
+        // The client fills its bar for the parity subjects' name at Minecraft x 164 - the field's text
+        // origin at 62 and the tail it shows 102 wide - which is where the anvil_named reference holds it.
+        PixelBuffer withBar = fieldText(layout, AT_LENGTH, true, TextPalette.VANILLA);
+        PixelBuffer withoutBar = fieldText(layout, AT_LENGTH, false, TextPalette.VANILLA);
+        assertThat("a full field's bar sits on the text's own end", firstDifferingColumn(withBar, withoutBar),
+            is((62 + 102) * MinecraftFont.MC_PIXEL_SCALE));
+
         PixelBuffer withCaret = fieldText(layout, "✦", true, TextPalette.VANILLA);
         PixelBuffer withoutCaret = fieldText(layout, "✦", false, TextPalette.VANILLA);
-
-        assertThat("the caret's first column", firstDifferingColumn(withCaret, withoutCaret),
-            is((textX + (int) exact + 1) * MinecraftFont.MC_PIXEL_SCALE));
+        assertThat("the caret after text opens a pixel past where Font#width puts its end",
+            firstDifferingColumn(withCaret, withoutCaret),
+            is((textX + (int) Math.ceil(exact) + 1) * MinecraftFont.MC_PIXEL_SCALE));
     }
 
     @Test
@@ -208,6 +221,20 @@ class MenuFieldTextTest {
         for (int x = 0; x < a.width(); x++)
             for (int y = 0; y < a.height(); y++)
                 if (a.getPixel(x, y) != b.getPixel(x, y)) return x;
+
+        return -1;
+    }
+
+    /**
+     * Finds the leftmost column a layer draws anything in.
+     *
+     * @param layer the layer
+     * @return the first column holding a pixel whose alpha is not zero, or -1 where none does
+     */
+    private static int firstOpaqueColumn(PixelBuffer layer) {
+        for (int x = 0; x < layer.width(); x++)
+            for (int y = 0; y < layer.height(); y++)
+                if ((layer.getPixel(x, y) >>> 24) != 0) return x;
 
         return -1;
     }
