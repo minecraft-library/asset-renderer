@@ -19475,8 +19475,20 @@
       "sha256": "0e2502b60a752491325d3939d23a7543cc86e86d9b7ac3f7a6096fe41944e7cc"
     },
     {
+      "path": "menus/anvil_error.png",
+      "sha256": "ba581f6da680c99841c2c7f5ca90e843a2a436071ed4c34c7eb80e598ed2e49f"
+    },
+    {
+      "path": "menus/anvil_input.png",
+      "sha256": "9995e20e3f134bf63649f18bfece480ec3a533280f67fc186684be61aded9b3d"
+    },
+    {
       "path": "menus/anvil_named.png",
       "sha256": "46654afe67f905e53fd0e4b1cfae486998b424e742933564636d1b257e2cf3ae"
+    },
+    {
+      "path": "menus/anvil_result.png",
+      "sha256": "558ad85e75f36a4a45c9d938fd1ef66b3e2c016a9d2e4dbc97ac31c069fe93d0"
     },
     {
       "path": "menus/chest_1row.png",
@@ -39296,11 +39308,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "372d7be72b7de38170a5e0e29de127c0a4319889a2a8452f6d1503b0a20bb25a",
+    "asset_content_digest": "5fc94c32c7bd9dd9f1925960e67e428de12eeafb7b3334fc14c0fa6cd2f1f1a8",
     "asset_dirty": true,
-    "asset_sha": "4264daab8a17cbdd2dce01193c5d0838d58d75a8",
+    "asset_sha": "6433a1c468b4dab5bef41eee546e6fb95add35d4",
     "counts": {
-      "files": 9822
+      "files": 9825
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39309,7 +39321,7 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "cd1b0f84 adds fourteen plain lines to the tooltip roster; two whole-tree boots agree on the 14 new drawings and hold the other 9808 files; sweep.tooltip gains 14 rows, each ok at 0 px, 62 held; a second root reads 0 movers over 76 rows",
+    "reason": "faa85f7a adds three anvils the client's own AnvilMenu fills (anvil_result, anvil_error, anvil_input); two whole-tree boots agree on the 3 new references and hold the other 9822; sweep.menu gains 3 rows read against today's renderer (4860, 324, 5184 output px: the field, the cross, the caret), 10 held; a second root reads 0 movers over 13 rows",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -39317,14 +39329,14 @@
       "glint": 330,
       "idle": 2547,
       "items": 479,
-      "menus": 10,
+      "menus": 13,
       "players": 2,
       "tooltips": 46,
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-30T08:33:11Z",
+    "timestamp": "2026-10-30T14:56:45Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 127742
+    "wall_time_ms": 127750
   }
 }
