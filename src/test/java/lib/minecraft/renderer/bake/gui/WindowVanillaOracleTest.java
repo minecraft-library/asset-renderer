@@ -58,7 +58,7 @@ class WindowVanillaOracleTest {
      * Every screen the client blits whole is named by the screen the renderer lays it out as, so this
      * asserts the roster's own numbers against the art rather than against a second table beside it.
      * The chest sheet is the exception and carries its cells by hand: no screen is that shape, one
-     * sheet serving every row count through a composition the client takes two draws over.
+     * sheet serving each row count the client opens through a composition it takes two draws over.
      *
      * @param id the texture id, without the {@code textures/} prefix and the extension
      * @param width the drawn width in Minecraft pixels
@@ -206,7 +206,7 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("every chest row count reproduces the panel the client composes for it")
+    @DisplayName("each chest row count the client opens reproduces the panel the client composes for it")
     void everyChestRowCountReproducesItsComposedPanel() {
         for (int rows : new int[] { 1, 2, 3, 6 }) {
             MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(rows), true);

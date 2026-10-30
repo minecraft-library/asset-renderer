@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -427,7 +426,7 @@ class MenuRendererGeometryTest {
     }
 
     @Test
-    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing is sliced as the checkerboard")
+    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing is the checkerboard, composed as the screen composes its sheet")
     void namedChromeArtThatIsMissingIsTheCheckerboard() {
         RendererContext context = RendererContext.builder().build();
 
@@ -446,9 +445,16 @@ class MenuRendererGeometryTest {
         Window window = MenuRenderer.windowOf(context, named);
         assertThat(window, is(instanceOf(Window.Sliced.class)));
         Window.Sliced sliced = (Window.Sliced) window;
-        assertThat("the panel art is the stand-in", sliced.panelArt(), is(sameInstance(MissingSprite.sprite())));
-        assertThat("and so is the shipped cell art the stub does not serve",
-            sliced.cellArt().orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+        PixelBuffer panel = sliced.panelArt();
+        assertThat("the panel is the bare chest's own, cut to fit as the sheet would be",
+            panel.width() + "x" + panel.height(), is(equalTo("176x" + (17 + 3 * 18 + 7))));
+
+        int other = 0;
+        for (int y = 0; y < panel.height(); y++)
+            for (int x = 0; x < panel.width(); x++)
+                if (panel.getPixel(x, y) != MissingSprite.MAGENTA_ARGB && panel.getPixel(x, y) != MissingSprite.BLACK_ARGB) other++;
+        assertThat("every pixel of it the stand-in's", other, is(equalTo(0)));
+        assertThat("and a chest's cells are its art's, so no cell sprite is read", sliced.cellArt().isPresent(), is(false));
 
         boolean magenta = false;
         PixelBuffer drawn = render(named);
@@ -464,19 +470,28 @@ class MenuRendererGeometryTest {
         ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
         slots.put(0, MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
             Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
-        MenuOptions named = chest(3, false).mutate()
-            .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here")))
+        // A bare grid of 140x78, which renders because a screen the client ships no sheet for reads the
+        // stand-in at its own size rather than across the client's 256-texel sheet space.
+        Optional<ResourceId> missing = Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here"));
+        MenuOptions grid = chest(3, false).mutate()
+            .columns(7)
+            .chromeSprite(missing)
             .slots(slots)
             .build();
 
-        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(named);
+        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(grid);
 
-        assertThat("the chrome names the panel art and the shipped cell art the stub does not serve",
+        assertThat("a screen the client ships no sheet for names the panel art and the slot it draws over each cell, neither of which the stub serves",
             menu.chrome(), contains(
                 Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
                 Substitution.texture("minecraft:gui/sprites/container/slot", Possible.State.ABSENT)));
         assertThat("the caller's slot names none of it", menu.slots().getFirst().result().substitutions(), is(empty()));
         assertThat("and the menu names the chrome's as its own", menu.substitutions(), is(equalTo(menu.chrome())));
+
+        MenuResult chest = new MenuRenderer(RendererContext.builder().build())
+            .render(chest(3, true).mutate().chromeSprite(missing).build());
+        assertThat("a chest names the panel art alone, its cells being the art's",
+            chest.chrome(), contains(Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT)));
     }
 
     @Test
@@ -489,12 +504,11 @@ class MenuRendererGeometryTest {
     }
 
     @Test
-    @DisplayName("a caller who names no chrome art still names the cell art a sliced window would take")
-    void theCellArtDefaultsToTheShippedSlot() {
+    @DisplayName("a caller who names no cell sprite leaves the cells to the window")
+    void aCallerWhoNamesNoCellSpriteLeavesTheCellsToTheWindow() {
         assertThat("no panel art", MenuOptions.defaults().getChromeSprite(), is(equalTo(Optional.empty())));
-        assertThat("and the cell the client ships, for the window that would read it",
-            MenuOptions.defaults().getCellSprite(),
-            is(equalTo(Optional.of(ResourceId.parse("minecraft:gui/sprites/container/slot")))));
+        assertThat("and no cell sprite, the window deciding what each cell is drawn with",
+            MenuOptions.defaults().getCellSprite(), is(equalTo(Optional.empty())));
     }
 
     @Test

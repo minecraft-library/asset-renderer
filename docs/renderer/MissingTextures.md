@@ -19,11 +19,12 @@ item names beyond its own faces - an entity's base, overlay, carried-block and g
 the equipment and armour layers and their pack-rule tiles, the elytra wings, the cape and the skin, the
 banner patterns, the trims and the glint - and for the textures that are no block's or item's: a
 fluid's still and flow faces, the two textures the portal shader samples, a menu's named chrome art,
-which is sliced as the checkerboard rather than falling back to the vanilla panel, and a tooltip's
-background and frame, each stretched over the client's whole sprite rect rather than falling back to
-the default pair. No option turns it off: a broken asset is drawn as broken, so a viewer can see it,
-rather than leaving a hole or dropping the subject - and that holds for a batch as well, so an atlas
-tile shows the checkerboard where a single render would.
+which is the checkerboard read across the sheet the client composes a shipped screen's panel from, and
+resized like any other art for a screen it ships no sheet for, rather than falling back to the vanilla
+panel, and a tooltip's background and frame, each stretched over the client's whole sprite rect rather
+than falling back to the default pair. No option turns it off: a broken asset is drawn as broken, so a
+viewer can see it, rather than leaving a hole or dropping the subject - and that holds for a batch as
+well, so an atlas tile shows the checkerboard where a single render would.
 
 - **The seam is each texture read.** Each reads through the context's `withMissingTexture()`
   wrapper, which draws the checkerboard and reports the id, while the context's own `resolveTexture`

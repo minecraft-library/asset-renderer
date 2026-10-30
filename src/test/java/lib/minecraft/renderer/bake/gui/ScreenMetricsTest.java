@@ -6,6 +6,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,11 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * agrees with them agrees with vanilla rather than with itself. The drawn heights are the opaque
  * heights of the same textures.
  * <p>
- * A chest is scanned differently, because no sheet ships one: the client composes each row count from
- * two draws out of {@code generic_54}, the second reading from a source row past the one the first
- * ended on, so the panel a player sees is a pixel shorter than the sheet and everything below the
- * container rows sits a pixel higher. The chest rows below were scanned on that composition, which is
- * what a render has to reproduce.
+ * A chest is scanned differently, because no sheet ships one: the client composes each row count it
+ * opens from two draws out of {@code generic_54}, the second reading from a source row past the one
+ * the first ended on, so the panel a player sees is a pixel shorter than the sheet and everything
+ * below the container rows sits a pixel higher. The chest rows below were scanned on that
+ * composition, which is what a render has to reproduce.
+ * <p>
+ * The regions a shipped screen composes its sheet from are the client's own blits, written from its
+ * background draws rather than read off this class.
  */
 @DisplayName("ScreenMetrics lays cells where vanilla drew them")
 class ScreenMetricsTest {
@@ -66,7 +70,7 @@ class ScreenMetricsTest {
     }
 
     @Test
-    @DisplayName("one sheet composes every chest row count, each with its own scanned rows")
+    @DisplayName("one sheet composes each chest row count the client opens, each with its own scanned rows")
     void oneSheetComposesEveryChestRowCount() {
         record Chest(int rows, int height, int[] container, int[] player, int hotbar) {}
 
@@ -209,6 +213,41 @@ class ScreenMetricsTest {
                 layout.width() >= floor.width(), is(true));
             assertThat("and tall enough", layout.height() >= floor.height(), is(true));
         }
+    }
+
+    @Test
+    @DisplayName("every shipped screen, a chest of one to six rows among them, composes its panel from exactly the regions of its sheet the client blits")
+    void everyShippedScreenComposesItsPanelFromRegionsOfItsSheet() {
+        // The client's own blits, from each screen's background draw: a chest's two out of generic_54,
+        // and every other screen's one, whole, at the size it declares. The shulker box's 167 is a row
+        // taller than the panel it draws, a row its art leaves clear.
+        record Blits(String name, ScreenMetrics screen, List<Rectangle> regions) {}
+
+        List<Blits> shipped = new ArrayList<>();
+        for (int rows = 1; rows <= 6; rows++) {
+            shipped.add(new Blits("a chest of " + rows + " rows", ScreenMetrics.chest(rows),
+                List.of(new Rectangle(0, 0, 176, 17 + rows * 18), new Rectangle(0, 126, 176, 96))));
+        }
+        shipped.add(new Blits("the shulker box", ScreenMetrics.shulkerBox(), List.of(new Rectangle(0, 0, 176, 167))));
+        shipped.add(new Blits("the hopper", ScreenMetrics.hopper(), List.of(new Rectangle(0, 0, 176, 133))));
+        shipped.add(new Blits("the dispenser", ScreenMetrics.dispenser(), List.of(new Rectangle(0, 0, 176, 166))));
+        shipped.add(new Blits("the crafting table", ScreenMetrics.craftingTable(), List.of(new Rectangle(0, 0, 176, 166))));
+        shipped.add(new Blits("the anvil", ScreenMetrics.anvil(), List.of(new Rectangle(0, 0, 176, 166))));
+
+        for (Blits blits : shipped) {
+            assertThat(blits.name() + " composes the regions the client blits",
+                new ArrayList<>(blits.screen().regions()), is(equalTo(blits.regions())));
+        }
+    }
+
+    @Test
+    @DisplayName("a screen the client ships no sheet for, a chest of other than one to six rows among them, composes none")
+    void aScreenTheClientShipsNoSheetForComposesNone() {
+        List<ScreenMetrics> unshipped = List.of(
+            ScreenMetrics.grid(4, 9), ScreenMetrics.grid(3, 7), ScreenMetrics.chest(0), ScreenMetrics.chest(7));
+
+        for (ScreenMetrics screen : unshipped)
+            assertThat("a " + screen.ownRows() + " by " + screen.ownColumns() + " composes none", screen.regions().isEmpty(), is(true));
     }
 
     @Test

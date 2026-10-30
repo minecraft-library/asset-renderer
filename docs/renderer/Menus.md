@@ -20,6 +20,23 @@ chrome exact rather than resampled.
   two blits totalling `rows*18 + 113` against a declared `rows*18 + 114`, blit B reading source
   `v=126` while the container half ends at row 124, so the declared box's bottom scanline is never
   painted and everything below the container rows sits a pixel higher than the sheet.
+- **Named art is the client's blits.** A screen the client ships carries the regions of its sheet it
+  blits - `(0, 0, 176, imageHeight)` for the shulker box, hopper, dispenser, crafting table and anvil,
+  and for a chest of one to six rows `(0, 0, 176, rows*18 + 17)` with `(0, 126, 176, 96)` under it - in
+  the 256-texel space every container blit declares. `Window.Sliced` composes the named sheet from
+  them, reading it whole as the client does, which never animates a container sheet. With the
+  player's section the panel is what the client blits. Without it there is no client panel, and the
+  composition is cut after the screen's own rows and closed by its last 7 rows, so every texel is
+  still the art's. Either way the cells are the art's own and no slot sprite is drawn over them unless
+  the caller names one. The panel is the sheet blits alone: what the client draws over them - the
+  anvil's name field and error sprite, the crafting table's recipe-book button - is a widget and no
+  part of it. A screen the client ships no sheet for - a grid, a chest of other than one to six rows,
+  the player's view - resizes the named texture, read at its own size and cut to the pixels it draws,
+  and every cell is drawn with the named sprite or the client's `container/slot`; the 256-texel space
+  is a property of the client's blits, and such a screen has none. The panel's own sidecar is never
+  read, container art being blitted rather than nine-sliced. A sheet authored at another size for a
+  shipped screen is read at one texel per Minecraft pixel, where the client draws it at full
+  resolution.
 - The frame is four 4x4 corner blocks and four bars of a **1 mcPx period**, and nothing about it is
   per-menu - one frame reproduces the 4 px ring of every shipped container at its own height with no
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a

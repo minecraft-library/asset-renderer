@@ -269,8 +269,7 @@ class WindowThemeTest {
         // The shipped crafting panel has its arrow painted into the texture, so a window slicing that
         // texture would draw a second one over the first.
         PixelBuffer buffer = PixelBuffer.create(22, 15);
-        Window.Sliced sliced = Window.Sliced.of(
-            PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(), Optional.empty());
+        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty());
         sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0), 1), Mark.ARROW);
 
         int painted = 0;

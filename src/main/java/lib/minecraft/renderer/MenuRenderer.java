@@ -157,8 +157,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Returns the window a menu's chrome is painted by - the art the caller named, or the theme's
-     * drawn geometry where they named none.
+     * Returns the window a menu's chrome is painted by - the art the caller named, composed for the
+     * menu's screen and resolved for the panel it lays out, or the theme's drawn geometry where they
+     * named none.
      *
      * @param context the renderer context resolving the art
      * @param options the menu render options
@@ -166,7 +167,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static @NotNull Window windowOf(@NotNull RendererContext context, @NotNull MenuOptions options) {
         return options.getChromeSprite()
-            .<Window>map(id -> Window.Sliced.resolve(context, id, options.getCellSprite()))
+            .<Window>map(id -> Window.Sliced.resolve(
+                context, id, options.getCellSprite(), options.screen(), layoutOf(options)))
             .orElse(Window.Theme.of(options.getThemeStyle()));
     }
 

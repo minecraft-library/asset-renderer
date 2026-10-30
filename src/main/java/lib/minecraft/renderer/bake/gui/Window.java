@@ -4,6 +4,8 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -18,6 +20,7 @@ import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
 import java.util.Optional;
 
 /**
@@ -225,19 +228,23 @@ public interface Window {
     }
 
     /**
-     * A window painted by slicing authored art rather than by drawing rules.
+     * A window painted from authored container art rather than by drawing rules.
      * <p>
-     * The panel and the cell are two chrome images and go through the same decomposition, so a pack
-     * supplying a bordered panel and an eighteen-pixel slot gets both resized by one mechanism. A
-     * panel with no cell art paints none, which is what a menu whose slots are drawn into the panel
-     * already wants.
+     * The panel is the art as the client composes it for the screen, and that is the size it is
+     * painted at: the regions of its sheet the client blits, and without the player's section those
+     * cut after the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Its
+     * cells are the art's own. For a screen the client ships no sheet for, the panel is the texture at
+     * its own size cut to what it draws, which the slicer resizes to the layout, and a sprite is drawn
+     * over each cell, since the slicer does not move the art's own cells onto the layout's. The slicer
+     * reassembles art at its own size unchanged, so one path paints both. A cell sprite a caller names
+     * is drawn over every cell of either.
      * <p>
      * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
      * different operation from re-inking drawn geometry and is not one this offers.
      *
-     * @param panelArt the panel image
+     * @param panelArt the panel the art draws at its own size
      * @param panel its decomposition
-     * @param cellArt the cell image, empty when the art draws its own cells
+     * @param cellArt the art drawn over each cell, empty where no cell is drawn
      * @param cell the cell's decomposition, present exactly when {@code cellArt} is
      */
     record Sliced(
@@ -248,56 +255,120 @@ public interface Window {
     ) implements Window {
 
         /**
+         * The sprite the client draws a slot with outside container art, drawn over each cell of a panel
+         * resized from art where a caller names none.
+         */
+        private static final @NotNull ResourceId SLOT_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/slot");
+
+        /**
          * Decomposes the art and returns the window over it.
+         * <p>
+         * The panel is container art, which the client blits with no {@code gui} section, so its depths
+         * are derived from its pixels. The cell takes the border its sidecar declares.
          *
-         * @param panelArt the panel image
-         * @param panelBorder the border the panel's sidecar declares, empty when it has none
-         * @param cellArt the cell image, empty when the art draws its own cells
+         * @param panelArt the panel the art draws at its own size
+         * @param cellArt the art drawn over each cell, empty where no cell is drawn
          * @param cellBorder the border the cell's sidecar declares, empty when it has none
          * @return the window
          */
         public static @NotNull Sliced of(
-            @NotNull PixelBuffer panelArt, @NotNull Optional<ChromeDecomposition.Border> panelBorder,
-            @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<ChromeDecomposition.Border> cellBorder
+            @NotNull PixelBuffer panelArt, @NotNull Optional<PixelBuffer> cellArt,
+            @NotNull Optional<ChromeDecomposition.Border> cellBorder
         ) {
             return new Sliced(
-                panelArt, ChromeSlicer.decompose(panelArt, panelBorder, true),
+                panelArt, ChromeSlicer.decompose(panelArt, Optional.empty(), true),
                 cellArt, cellArt.map(art -> ChromeSlicer.decompose(art, cellBorder, true)));
         }
 
         /**
-         * Resolves named art through the pack stack and decomposes it once.
+         * Resolves named art through the pack stack and composes the panel the client draws from it
+         * for the screen.
          * <p>
-         * A named sprite no pack supplies, or that cannot be read, is sliced as the checkerboard, as
-         * vanilla draws its missing sprite for a GUI sprite it cannot load. It never falls back to the
+         * The sheet is read whole, as the client reads a container texture, which it never animates.
+         * For a screen the client ships, it is read in the {@link ScreenMetrics#SHEET}-texel space every
+         * container blit declares, so a sheet of another size is read at one texel per Minecraft pixel,
+         * and the panel is the regions of it the client blits, laid one under the other; without the
+         * player's section they are cut after the screen's own rows and closed by their last
+         * {@link ScreenMetrics#MARGIN margin}. Either is the size it is painted at, its cells the art's
+         * own, and no cell sprite is read unless the caller names one. For a screen the client ships no
+         * sheet for, the panel is the texture at its own size cut to what it draws, resized to the
+         * layout, and each cell is drawn with the named sprite or the client's slot.
+         * <p>
+         * A sheet or sprite no pack supplies, or that cannot be read, is the checkerboard read the same
+         * way, as vanilla draws its missing texture for one it cannot load. It never falls back to the
          * vanilla panel, because a caller naming one has stated an intent a silently vanilla panel would
          * not honour - absence and failure are different states and only the first is expressible, by
-         * naming nothing. Each sprite is paired with whatever border its own sidecar declares, so
-         * authored art keeps its authored border and only art declaring none has one derived.
+         * naming nothing. The panel's sidecar is not read, the client reading none for a container
+         * blit; the cell takes the border its own sidecar declares.
          *
          * @param context the renderer context resolving textures and their sidecars
-         * @param panelId the panel sprite
-         * @param cellId the cell sprite, empty where the panel art draws its own cells
+         * @param panelId the container sheet
+         * @param cellId the sprite drawn over each cell, empty for the window's own - none on a screen
+         *     the client ships, its slot on any other
+         * @param screen the screen whose regions the sheet is composed from
+         * @param layout the panel the window paints, which says whether the player's section is drawn
          * @return the window over the resolved art
          */
         public static @NotNull Sliced resolve(
-            @NotNull RendererContext context,
-            @NotNull ResourceId panelId,
-            @NotNull Optional<ResourceId> cellId
+            @NotNull RendererContext context, @NotNull ResourceId panelId, @NotNull Optional<ResourceId> cellId,
+            @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            return of(
-                art(context, panelId), border(context, panelId),
-                cellId.map(id -> art(context, id)), cellId.flatMap(id -> border(context, id)));
+            PixelBuffer sheet = context.withMissingTexture().resolveTexture(panelId.id()).get();
+            PixelBuffer panel = compose(sheet, screen, layout);
+            Optional<ResourceId> cell = cellId.or(() -> screen.regions().isEmpty()
+                ? Optional.of(SLOT_SPRITE)
+                : Optional.empty());
+
+            return of(panel, cell.map(id -> art(context, id)), cell.flatMap(id -> border(context, id)));
         }
 
         /**
-         * Resolves one sprite's pixels, pinned to tick zero where the art is animated, through the
+         * Composes a container sheet into the panel the client draws from it for the screen.
+         * <p>
+         * A screen with no regions takes the texture at its own size cut to the pixels it draws, which
+         * the slicer resizes to the layout. For any other, the texture is first read into the
+         * {@link ScreenMetrics#SHEET}-texel space the client's blits declare. Each of the screen's
+         * regions is then copied verbatim under the one before, clipped to the panel the screen draws
+         * with the player's section, which drops a declared row its art leaves clear. The panel keeps
+         * that composition's rows down to the layout's bottom margin and closes on the composition's
+         * own, which is the whole of it where the player's section is drawn and cuts it after the
+         * screen's own rows where it is not.
+         *
+         * @param texture the container sheet as resolved
+         * @param screen the screen whose regions the sheet is composed from
+         * @param layout the panel the window paints
+         * @return the panel art the window slices
+         */
+        private static @NotNull PixelBuffer compose(
+            @NotNull PixelBuffer texture, @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
+        ) {
+            if (screen.regions().isEmpty()) return texture.trim();
+
+            PixelBuffer sheet = texture.resize(ScreenMetrics.SHEET, ScreenMetrics.SHEET, Resample.NEAREST);
+            MenuLayout drawn = MenuLayout.of(screen, true);
+            PixelBuffer composed = PixelBuffer.create(drawn.width(), drawn.height());
+            int y = 0;
+            for (Rectangle region : screen.regions()) {
+                composed.blit(sheet.crop(region.x, region.y, region.width, region.height), 0, y, BlendMode.REPLACE);
+                y += region.height;
+            }
+
+            int open = layout.height() - ScreenMetrics.MARGIN;
+            PixelBuffer panel = PixelBuffer.create(layout.width(), layout.height());
+            panel.blit(composed.crop(0, 0, layout.width(), open), 0, 0, BlendMode.REPLACE);
+            panel.blit(composed.crop(0, composed.height() - ScreenMetrics.MARGIN, layout.width(), ScreenMetrics.MARGIN),
+                0, open, BlendMode.REPLACE);
+            return panel;
+        }
+
+        /**
+         * Resolves a cell sprite's pixels, pinned to tick zero where the art is animated, through the
          * context's {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no
          * pack supplies, or that cannot be read, is the checkerboard.
          * <p>
          * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
-         * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
-         * strip would tile the frames into the borders.
+         * strip and sampling it here - a cell sprite is nine-sliced, and slicing a whole flipbook strip
+         * would tile the frames into the borders.
          */
         private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
             RendererContext textures = context.withMissingTexture();
@@ -305,7 +376,7 @@ public interface Window {
         }
 
         /**
-         * The border a sprite's {@code gui.scaling} sidecar declares, empty where it declares none,
+         * The border a cell sprite's {@code gui.scaling} sidecar declares, empty where it declares none,
          * declares a mode that carries no border, or carries a section the client's codec refuses - which
          * is what leaves the border to be derived.
          */

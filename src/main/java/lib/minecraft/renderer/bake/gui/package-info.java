@@ -13,9 +13,10 @@
  *
  * <p>A container panel is a {@link lib.minecraft.renderer.bake.gui.Window Window} - its frame, interior
  * fill and slot cells at a caller-chosen size, painted either as vanilla's geometry in one
- * {@link lib.minecraft.renderer.bake.gui.Window.Theme Theme}'s inks or as authored art cut up by
- * {@link lib.minecraft.renderer.bake.gui.Window.Sliced Sliced} through
- * {@link lib.minecraft.renderer.bake.gui.chrome bake.gui.chrome}.
+ * {@link lib.minecraft.renderer.bake.gui.Window.Theme Theme}'s inks or as authored container art by
+ * {@link lib.minecraft.renderer.bake.gui.Window.Sliced Sliced}, drawn as the client composes it for a
+ * screen it ships and resized through {@link lib.minecraft.renderer.bake.gui.chrome bake.gui.chrome}
+ * for any other.
  * {@link lib.minecraft.renderer.bake.gui.MenuLayout MenuLayout} is the arithmetic placing every cell and
  * mark between a screen's metrics and a window; the package-private {@code MarkPainter} paints each
  * {@link lib.minecraft.renderer.vanilla.gui.Mark Mark} a screen places beside its cells, keyed by the

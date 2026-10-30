@@ -11,6 +11,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
 import java.util.stream.Stream;
 
 /**
@@ -37,6 +38,9 @@ import java.util.stream.Stream;
  * @param extras cells that are not part of the regular grid, such as a crafting result
  * @param marks the marks the screen paints beside its cells, which hold no content and are
  * addressed by no slot index
+ * @param regions the regions of its sheet the client blits to draw the panel at its own size, the
+ * player's section included, each laid under the one before and read in the {@link #SHEET}-texel
+ * space every container blit declares; empty for a screen the client ships no sheet for
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -45,7 +49,8 @@ public record ScreenMetrics(
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, @NotNull TitleX titleX,
     @NotNull ConcurrentList<Cell> extras,
-    @NotNull ConcurrentList<Mark.Placement> marks
+    @NotNull ConcurrentList<Mark.Placement> marks,
+    @NotNull ConcurrentList<Rectangle> regions
 ) {
 
     /** side of one cell, and the pitch between two, in Minecraft pixels */
@@ -76,47 +81,68 @@ public record ScreenMetrics(
     public static final int INVENTORY_LABEL_RISE = 94;
 
     /**
+     * the side of the texture space a container sheet is blitted from, which every screen passes to
+     * its blit as the texture's size
+     */
+    public static final int SHEET = 256;
+
+    /** the most rows a chest opens with, which is what its sheet holds */
+    private static final int CHEST_SHEET_ROWS = 6;
+
+    /**
      * A grid of cells filling the panel, which is what a screen with no shipped art of its own is
-     * laid out as. Its bands are a chest's, and it declares no more than it draws.
+     * laid out as. Its bands are a chest's, and it declares no more than it draws. It composes no
+     * sheet, the client shipping none for it.
      *
      * @param rows how many rows of cells
      * @param columns how many columns of cells, which is also how wide the panel is
      * @return the screen
      */
     public static @NotNull ScreenMetrics grid(int rows, int columns) {
-        return new ScreenMetrics(17, 13, 0, rows, columns, MARGIN, columns, TITLE_START, Concurrent.newList(), Concurrent.newList());
+        return new ScreenMetrics(17, 13, 0, rows, columns, MARGIN, columns, TITLE_START,
+            Concurrent.newList(), Concurrent.newList(), Concurrent.newList());
     }
 
     /**
      * A chest of the given row count.
      * <p>
-     * A chest is the one screen the client composes rather than blits whole - one sheet serves every
-     * row count, in two draws that skip a source row between them - so its numbers are the composed
-     * panel's and sit one pixel above the sheet's below the container rows. The pixel that draw
-     * skipped is what it declares and never draws.
+     * A chest is the one screen the client composes rather than blits whole - one sheet serves each of
+     * the one to six rows a chest opens with, in two draws that skip a source row between them - so its
+     * numbers are the composed panel's and sit one pixel above the sheet's below the container rows.
+     * The pixel that draw skipped is what it declares and never draws. A chest of any other row count
+     * is one the client never opens, and composes no sheet.
      *
      * @param rows how many rows the chest has, three for a single and six for a double
      * @return the screen
      */
     public static @NotNull ScreenMetrics chest(int rows) {
-        return new ScreenMetrics(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
+        ConcurrentList<Rectangle> regions = Concurrent.newList();
+        if (rows >= 1 && rows <= CHEST_SHEET_ROWS) {
+            regions.add(new Rectangle(0, 0, width(COLUMNS), 17 + rows * CELL));
+            regions.add(new Rectangle(0, 126, width(COLUMNS), 96));
+        }
+
+        return new ScreenMetrics(17, 13, 1, rows, COLUMNS, MARGIN, COLUMNS, TITLE_START,
+            Concurrent.newList(), Concurrent.newList(), regions);
     }
 
     /**
      * The shulker box, a three-row container whose label band is one pixel short of a chest's.
      * <p>
      * It declares a pixel it never draws, as a chest does, and for a different reason: a chest's is
-     * the source row its second blit skips, where this one is blitted whole and simply declares
-     * itself one taller than its art. The player's label is positioned from the declared height on
-     * both, so the two arrive at the same offset by different routes.
+     * the source row its second blit skips, where this one is blitted whole as the 176x167 it
+     * declares, the last row of which its art leaves clear. The player's label is positioned from the
+     * declared height on both, so the two arrive at the same offset by different routes.
      */
     public static @NotNull ScreenMetrics shulkerBox() {
-        return new ScreenMetrics(17, 12, 1, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
+        return new ScreenMetrics(17, 12, 1, 3, COLUMNS, MARGIN, COLUMNS, TITLE_START,
+            Concurrent.newList(), Concurrent.newList(), Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 167)));
     }
 
     /** The hopper, one row of five cells, sitting two pixels lower than a chest's first row. */
     public static @NotNull ScreenMetrics hopper() {
-        return new ScreenMetrics(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_START, Concurrent.newList(), Concurrent.newList());
+        return new ScreenMetrics(19, 13, 0, 1, 5, centred(5), COLUMNS, TITLE_START,
+            Concurrent.newList(), Concurrent.newList(), Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 133)));
     }
 
     /**
@@ -124,7 +150,8 @@ public record ScreenMetrics(
      * rather than starting it a fixed distance in.
      */
     public static @NotNull ScreenMetrics dispenser() {
-        return new ScreenMetrics(16, 13, 0, 3, 3, centred(3), COLUMNS, new TitleX.Centred(), Concurrent.newList(), Concurrent.newList());
+        return new ScreenMetrics(16, 13, 0, 3, 3, centred(3), COLUMNS, new TitleX.Centred(),
+            Concurrent.newList(), Concurrent.newList(), Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 166)));
     }
 
     /**
@@ -145,7 +172,8 @@ public record ScreenMetrics(
         marks.add(Mark.ARROW.at(90, 35));
         marks.add(Mark.BUTTON.at(5, 34, RECIPE_BOOK_ITEM));
 
-        return new ScreenMetrics(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras, marks);
+        return new ScreenMetrics(16, 13, 0, 3, 3, 29, COLUMNS, new TitleX.Inset(29), extras, marks,
+            Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 166)));
     }
 
     /**
@@ -181,7 +209,8 @@ public record ScreenMetrics(
         marks.add(Mark.PLUS.at(53, 49));
         marks.add(Mark.ARROW.at(102, 48));
 
-        return new ScreenMetrics(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, marks);
+        return new ScreenMetrics(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, marks,
+            Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 166)));
     }
 
     /**
