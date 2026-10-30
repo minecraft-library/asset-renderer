@@ -19615,6 +19615,62 @@
       "sha256": "9d2247eed7aa4e46464845d0c24da9766fdad8b0858413a7439432a6c59aafd8"
     },
     {
+      "path": "tooltips/plain/accented.png",
+      "sha256": "0acc635458240f9368165f0f5df0eaebb90a4480a3d330e6fc0b5fe31e6cec37"
+    },
+    {
+      "path": "tooltips/plain/alt_font.png",
+      "sha256": "51fe6458bd4c6e26cde795896d878900e82fb13891f20ac93534e2107f7289c6"
+    },
+    {
+      "path": "tooltips/plain/bold.png",
+      "sha256": "3ddf88c65d03d489fd3c8e2637ab7ebe299b9511c4698847a420c0430c6e738a"
+    },
+    {
+      "path": "tooltips/plain/descenders.png",
+      "sha256": "08314d7159fe7cd7a6ea69249e28b2f8f73bd73df35dfbf1f566f0d71234af4b"
+    },
+    {
+      "path": "tooltips/plain/italic.png",
+      "sha256": "ce5b9a065cc33e1d0f511908555916a104fd7f8017e9e83a9e2a6bb5b09f5fc3"
+    },
+    {
+      "path": "tooltips/plain/mixed_segments.png",
+      "sha256": "4bbaca1c85e6f60e9b5b9b19f6f3512f2491d29db1daae321a3d7cdd7189da9f"
+    },
+    {
+      "path": "tooltips/plain/narrow.png",
+      "sha256": "59341b26b78270f702ff0dae9bd0f8117eda8a2c9a890c555e86977f8f67bdce"
+    },
+    {
+      "path": "tooltips/plain/no_capital.png",
+      "sha256": "76ec6334ce697492e821f180094a068c463b64af478d504a71cec1d87ff75b4d"
+    },
+    {
+      "path": "tooltips/plain/no_shadow.png",
+      "sha256": "b4ba0f5320bf2580a9697754ed96e917947887d1e0fe8f723559fd29dfc0fdde"
+    },
+    {
+      "path": "tooltips/plain/one_line.png",
+      "sha256": "81031d9b6b946595493e4ce3b79cab03d82ce51737cca24ae218aa22ec772c83"
+    },
+    {
+      "path": "tooltips/plain/spaces.png",
+      "sha256": "77de23b006ad4abebd539a2c9dc3df4023b38d245b500f5069bb9a927361570b"
+    },
+    {
+      "path": "tooltips/plain/translucent_shadow.png",
+      "sha256": "af763ea33c71ec65b231d0169de7eaac4f34272dbedb97229254f088c75696a5"
+    },
+    {
+      "path": "tooltips/plain/underlined.png",
+      "sha256": "9cfd327d6f5fde638c00e3738b6644d4820d9261c81042278a4569a37bfa2399"
+    },
+    {
+      "path": "tooltips/plain/unstyled.png",
+      "sha256": "8103782aa1bfcc04bc2979fc7d0d372c21dcc41fedafad8bdd6a440125ca3c69"
+    },
+    {
       "path": "tooltips/shadow_color.png",
       "sha256": "959e650203c5ad4f0fc3bc84c9c98c7787f61c87f84d63ff95b5b8781b4c4d61"
     },
@@ -39240,11 +39296,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "dafe260650ac7eee7e46cf0ab05a3dd8da3daa61bff5e2d50cab8d1a584a5b1b",
+    "asset_content_digest": "372d7be72b7de38170a5e0e29de127c0a4319889a2a8452f6d1503b0a20bb25a",
     "asset_dirty": true,
-    "asset_sha": "d517f93aa475806ac43f76920f58c01ec2bcab55",
+    "asset_sha": "4264daab8a17cbdd2dce01193c5d0838d58d75a8",
     "counts": {
-      "files": 9808
+      "files": 9822
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39253,7 +39309,7 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "90c142bd adds two tooltip roster subjects naming the client's own fonts, minecraft:alt and minecraft:illageralt; the whole tree was rendered in two client boots and the four new references (alt_font, illageralt_font and each one's box alone) agree byte for byte, the other 9804 files held. tooltips 28 -> 32, files 9804 -> 9808.",
+    "reason": "cd1b0f84 adds fourteen plain lines to the tooltip roster; two whole-tree boots agree on the 14 new drawings and hold the other 9808 files; sweep.tooltip gains 14 rows, each ok at 0 px, 62 held; a second root reads 0 movers over 76 rows",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -39263,12 +39319,12 @@
       "items": 479,
       "menus": 10,
       "players": 2,
-      "tooltips": 32,
+      "tooltips": 46,
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-29T05:08:46Z",
+    "timestamp": "2026-10-30T08:33:11Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 229332
+    "wall_time_ms": 127742
   }
 }

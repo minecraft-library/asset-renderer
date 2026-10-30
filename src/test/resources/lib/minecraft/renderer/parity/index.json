@@ -95,12 +95,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 9808,
+      "entries": 9822,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 229332,
-      "promoted_at": "d517f93aa475806ac43f76920f58c01ec2bcab55",
-      "sha256": "ea7c511e4d8053571355afdfbce407c08adf3a4879fdedb6b791b553eff5cac7"
+      "last_duration_ms": 127742,
+      "promoted_at": "4264daab8a17cbdd2dce01193c5d0838d58d75a8",
+      "sha256": "fd1d25e6c334602ee076d3d0d02600da5b41006d89d7f9ed859c3ad59d3e0fde"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -306,12 +306,12 @@
     "sweep.tooltip": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 62,
+      "entries": 76,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 7390,
-      "promoted_at": "745fde89ae8da2dd17e223b337a48c0df532a32c",
-      "sha256": "1b3b8ac54befc44113198d759b99f4205048938c48c4d8fbe6dc0a39e88dec88",
+      "last_duration_ms": 5612,
+      "promoted_at": "4264daab8a17cbdd2dce01193c5d0838d58d75a8",
+      "sha256": "3624a273ca75d4c69f18e60cd9fe41e31bf2e1ffb497ec5bd2a13e0b537ece93",
       "sum": "0.3274"
     },
     "sweep.tooltip-hypixel-skyblock": {
