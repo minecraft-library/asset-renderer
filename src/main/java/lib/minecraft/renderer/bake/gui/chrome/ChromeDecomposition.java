@@ -137,29 +137,4 @@ public record ChromeDecomposition(
 
     }
 
-    /**
-     * A declared nine-slice border, which when present supplies the four band depths outright.
-     *
-     * @param left the left depth
-     * @param top the top depth
-     * @param right the right depth
-     * @param bottom the bottom depth
-     */
-    public record Border(int left, int top, int right, int bottom) {
-
-        /**
-         * Returns whether the client's own nine-slice validation accepts this border at the given
-         * size. It refuses a border whose two opposing depths meet or cross, and a border it refuses
-         * never reaches a draw, so one that fails here is not a declaration at all.
-         *
-         * @param width the sprite width
-         * @param height the sprite height
-         * @return true when the border loads
-         */
-        public boolean loadableAt(int width, int height) {
-            return this.left + this.right < width && this.top + this.bottom < height;
-        }
-
-    }
-
 }

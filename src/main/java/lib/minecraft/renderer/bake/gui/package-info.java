@@ -7,15 +7,19 @@
  * {@link lib.minecraft.renderer.bake.gui.GradientKit GradientKit};
  * {@link lib.minecraft.renderer.bake.gui.ItemStackKit ItemStackKit} draws the durability bar and stack
  * count over a GUI item icon. Sprites are drawn by
- * {@link lib.minecraft.renderer.bake.gui.NineSliceKit NineSliceKit}, which blits a {@code gui.scaling}
- * sprite into a destination rect, and {@link lib.minecraft.renderer.bake.gui.TooltipChrome TooltipChrome}
- * contributes a tooltip's background and border layers, from the pack's sprite pair or procedurally.
+ * {@link lib.minecraft.renderer.bake.gui.NineSliceKit NineSliceKit}, which reads a sprite as the
+ * client's GUI atlas holds it and blits it into a destination rect by its {@code gui.scaling}, for the
+ * tooltip chrome and for a sliced window's cells and the widgets the client blits over its art - the
+ * anvil's name field and cross and the crafting table's recipe-book button - and
+ * {@link lib.minecraft.renderer.bake.gui.TooltipChrome TooltipChrome} contributes a tooltip's background
+ * and border layers, from the pack's sprite pair or procedurally.
  *
  * <p>A container panel is a {@link lib.minecraft.renderer.bake.gui.Window Window} - its frame, interior
  * fill and slot cells at a caller-chosen size, painted either as vanilla's geometry in one
- * {@link lib.minecraft.renderer.bake.gui.Window.Theme Theme}'s inks or as authored art cut up by
- * {@link lib.minecraft.renderer.bake.gui.Window.Sliced Sliced} through
- * {@link lib.minecraft.renderer.bake.gui.chrome bake.gui.chrome}.
+ * {@link lib.minecraft.renderer.bake.gui.Window.Theme Theme}'s inks or as authored container art by
+ * {@link lib.minecraft.renderer.bake.gui.Window.Sliced Sliced}, drawn as the client composes it for a
+ * screen it ships and resized through {@link lib.minecraft.renderer.bake.gui.chrome bake.gui.chrome}
+ * for any other.
  * {@link lib.minecraft.renderer.bake.gui.MenuLayout MenuLayout} is the arithmetic placing every cell and
  * mark between a screen's metrics and a window; the package-private {@code MarkPainter} paints each
  * {@link lib.minecraft.renderer.vanilla.gui.Mark Mark} a screen places beside its cells, keyed by the

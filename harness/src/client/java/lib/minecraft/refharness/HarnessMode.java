@@ -14,6 +14,7 @@ import lib.minecraft.refharness.sweep.PackSourceSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
 import lib.minecraft.refharness.sweep.ScheduleRoster;
+import lib.minecraft.refharness.sweep.TooltipSweep;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -35,12 +36,14 @@ public enum HarnessMode {
 
     /**
      * The reference sweep proper - blocks, items, entities and the player. Despite the name this is
-     * not the whole reference tree: the glint and armor sweeps are not in it, so a renderer change
-     * this mode covers can still leave those two behind. {@link #EVERY} is the one that covers all of
-     * it.
+     * not the whole reference tree - {@link #EVERY} with the two posed modes is - so a renderer change
+     * this mode covers can still leave every sub-tree it does not write behind.
      */
     FULL,
-    /** Every reference sweep there is, in one run - {@link #FULL}'s four plus glint, armor and menus. */
+    /**
+     * Every frozen reference sweep, in one run - {@link #FULL}'s four plus glint, armor, menus and
+     * tooltips.
+     */
     EVERY,
     /** Only the animated-glint frame sequences. */
     GLINT,
@@ -50,6 +53,12 @@ public enum HarnessMode {
     ARMOR,
     /** Only the container-screen references. */
     MENUS,
+    /**
+     * Only the tooltip references - every subject of asset-renderer's tooltip roster drawn through the
+     * client's own tooltip call, and its box alone, and every plain line through the text draw of the
+     * client's hotbar-name call.
+     */
+    TOOLTIPS,
     /**
      * Only the animated entity references, with vanilla's own animation running, written to
      * {@code idle/}.
@@ -77,9 +86,9 @@ public enum HarnessMode {
      * tree: which pack the client takes each resource from, with {@link HarnessConfig#PACKS}
      * selected over vanilla.
      *
-     * <p>One of the two {@linkplain #loadsPacks() pack modes}, the only ones a run naming packs may
-     * select - the packs are selected before the first resource load, so every other sweep in the boot
-     * would render through them.
+     * <p>A {@linkplain #loadsPacks() pack mode}, the only kind a run naming packs may select - the
+     * packs are selected before the first resource load, so every other sweep in the boot would render
+     * through them.
      */
     PACK_SOURCES,
     /**
@@ -87,9 +96,17 @@ public enum HarnessMode {
      * names through the slot path, with {@link HarnessConfig#PACKS} selected over vanilla, into a
      * directory outside the reference tree.
      *
-     * <p>The other {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
+     * <p>A {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
      */
-    PACK_ICONS;
+    PACK_ICONS,
+    /**
+     * Only the tooltip sweep over the section of asset-renderer's tooltip roster for
+     * {@link HarnessConfig#PACKS}, with those packs selected over vanilla, into
+     * {@code pack-tooltips/<label>/} beside the reference tree.
+     *
+     * <p>A {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
+     */
+    PACK_TOOLTIPS;
 
     /**
      * Resolves the modes this run performs, in the order they run.
@@ -135,8 +152,8 @@ public enum HarnessMode {
         if (selected.isEmpty()) selected.add(FULL);
         if (!HarnessConfig.packIds().isEmpty() && !selected.stream().allMatch(HarnessMode::loadsPacks))
             throw new IllegalStateException(String.format(
-                "Resource packs '%s' load only under PACK_SOURCES and PACK_ICONS, and this run selects '%s'",
-                HarnessConfig.PACKS, selected));
+                "Resource packs '%s' load only under the pack modes '%s', and this run selects '%s'",
+                HarnessConfig.PACKS, Arrays.stream(values()).filter(HarnessMode::loadsPacks).toList(), selected));
         return selected.stream().sorted(Comparator.comparing(HarnessMode::gait)).toList();
     }
 
@@ -157,13 +174,13 @@ public enum HarnessMode {
     }
 
     /**
-     * Whether this mode may run with resource packs selected - true only of the two pack modes, whose
+     * Whether this mode may run with resource packs selected - true only of the pack modes, whose
      * sweeps write outside the reference tree and exist to answer for a pack.
      *
      * @return whether the mode may load packs
      */
     public boolean loadsPacks() {
-        return this == PACK_SOURCES || this == PACK_ICONS;
+        return this == PACK_SOURCES || this == PACK_ICONS || this == PACK_TOOLTIPS;
     }
 
     /**
@@ -197,17 +214,19 @@ public enum HarnessMode {
         return switch (this) {
             case FULL -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep());
             case EVERY -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep(),
-                new GlintSweep(), new ArmorSweep(), new MenuSweep());
+                new GlintSweep(), new ArmorSweep(), new MenuSweep(), new TooltipSweep());
             case GLINT -> List.of(new GlintSweep());
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
+            case TOOLTIPS -> List.of(new TooltipSweep());
             case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case WALK -> List.of(new EntityAnimationSweep(Gait.WALK, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
             case PACK_SOURCES -> List.of(new PackSourceSweep());
             case PACK_ICONS -> List.of(new PackIconSweep());
+            case PACK_TOOLTIPS -> List.of(new TooltipSweep(HarnessConfig.packIds()));
         };
     }
 }

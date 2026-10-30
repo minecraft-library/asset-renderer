@@ -9,6 +9,7 @@ import dev.simplified.image.ImageFormat;
 import dev.simplified.image.frame.LoopCount;
 import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.pixel.Background;
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -28,7 +29,6 @@ import lib.minecraft.renderer.call.request.ArmorPiece;
 import lib.minecraft.renderer.call.request.ArmorTrim;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
-import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.call.request.GridOptions;
@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -83,10 +84,11 @@ import static org.hamcrest.Matchers.is;
  * not by hand.
  *
  * <p><b>Two arms.</b> Unset, every case asserts only that its committed image is present and carries
- * the container the README expects - no render runs, so the fast suite pays nothing for eleven
- * subjects. With {@code -Dasset.showcase.regenerate=true} each case renders its subject and
- * overwrites the image, which dirties tracked files on purpose. {@link #REGENERATE_COMMAND} is the
- * command, and it is quoted in every failure that wants it.
+ * the container the README expects, and for a GIF that the case writes it with a transparent slot
+ * and its first frame holds a transparent pixel - no render runs, so the fast suite pays for none of
+ * eleven subjects' renders. With {@code -Dasset.showcase.regenerate=true} each case renders its subject and overwrites
+ * the image, which dirties tracked files on purpose. {@link #REGENERATE_COMMAND} is the command, and
+ * it is quoted in every failure that wants it.
  *
  * <p>The cases are ORDERED, and only for the regenerating arm: the last one holds the README's image
  * references against the directory's contents, which it can only do once the others have written
@@ -118,17 +120,11 @@ final class ReadmeShowcaseTest {
     /** whether this run renders and overwrites; unset, each case asserts the committed image instead */
     private static final boolean REGENERATE = Boolean.getBoolean("asset.showcase.regenerate");
 
-    /** the GIF shape every animated render in this repository is written with */
+    /** the GIF shape every animated showcase image is written with */
     private static final @NotNull GifWriteOptions ANIMATED = GifWriteOptions.builder()
         .withLoopCount(LoopCount.Preset.INFINITE)
         .isTransparent(true)
         .withAlphaThreshold(8)
-        .build();
-
-    /** the GIF shape a wholly translucent subject wants instead - flatten onto black, no transparent slot */
-    private static final @NotNull GifWriteOptions FLATTENED = GifWriteOptions.builder()
-        .withLoopCount(LoopCount.Preset.INFINITE)
-        .withBackgroundRgb(0x000000)
         .build();
 
     /** the near-black the two composed sheets sit on, so their gutters and cells read as deliberate */
@@ -240,7 +236,7 @@ final class ReadmeShowcaseTest {
     @Order(1)
     @DisplayName("TextRenderer shimmers an obfuscated rarity footer under vanilla tooltip chrome")
     void textRenderer() throws IOException {
-        emit("text-lore-tooltip.gif", ImageFormat.GIF, FLATTENED, () -> new TextRenderer(context()).render(
+        emit("text-lore-tooltip.gif", ImageFormat.GIF, ANIMATED, () -> new TextRenderer(context()).render(
             TextOptions.builder()
                 .style(TextOptions.Style.LORE)
                 .lines(LineSegment.fromLegacy(String.join("\n",
@@ -251,7 +247,6 @@ final class ReadmeShowcaseTest {
                     "&7Right-click to &5blink &7eight blocks.",
                     "",
                     "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-                .chromeStyle(ChromeStyle.SPRITE)
                 .build()));
     }
 
@@ -369,7 +364,10 @@ final class ReadmeShowcaseTest {
      * <p>The assert arm deliberately does not render. Eleven subjects - two of them sixty-frame
      * strips and one of them an atlas - is not a cost the fast suite should carry to learn that a PNG
      * is still on disk, and what it can learn without rendering is the half that goes wrong in
-     * practice: a file deleted, truncated, or written in the wrong container.
+     * practice: a file deleted, truncated, or written in the wrong container. A GIF must be written
+     * with a transparent slot, so the README's page shows through it, and its committed bytes are
+     * decoded, still without a render: the first frame must hold a transparent pixel, since one
+     * holding none was written without the slot.
      *
      * @param name the file name under {@link #IMAGES}, which is also what the README must reference
      * @param format the container the image is written in
@@ -387,6 +385,16 @@ final class ReadmeShowcaseTest {
             assertThat(name + " is empty", committed.length, is(greaterThan(0)));
             assertThat(name + " is not a " + format.getFormatName() + ", so the README shows a container "
                 + "this case does not write", format.matches(committed), is(true));
+            if (format == ImageFormat.GIF) {
+                assertThat(name + " is a showcase GIF written without a transparent slot, so the README's page "
+                    + "does not show through it", options != null && options.transparent(), is(true));
+                ImageData decoded = ImageFactory.fromByteArray(committed, format);
+                boolean holdsTransparent = Arrays.stream(decoded.getFrames().getFirst().pixels().data())
+                    .anyMatch(argb -> ColorMath.alpha(argb) == 0);
+                assertThat(name + " is written with a transparent slot and its first frame holds no transparent "
+                    + "pixel, so the committed file was written without it - regenerate with " + REGENERATE_COMMAND,
+                    holdsTransparent, is(true));
+            }
             return;
         }
 

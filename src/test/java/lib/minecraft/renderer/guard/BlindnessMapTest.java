@@ -139,12 +139,21 @@ final class BlindnessMapTest {
      * block sweep draws a {@code block_state} case as the block's inventory icon through
      * {@code ItemRenderer}, which names the trim kit, and no stack it builds carries a trim.
      *
-     * <p>B28's two come from the one type under {@code exception} that is not a throwable:
+     * <p>B28's nine come from the one type under {@code exception} that is not a throwable:
      * {@code RuleRejection}, the record a rejected pack rule leaves, which also declares the pack
-     * resolution claim of the readers that produce it. That rule selects the block and item sweeps
-     * for every file it triggers on, while the graph answers only the dumps and the colormap digests
-     * for the record - so the exception claim is right, and the pair is a declared reach rather than
-     * an exercised one.
+     * resolution claim of the readers that produce it. That rule selects every producer drawing a
+     * texture through the production context for every file it triggers on, while the graph answers
+     * only the dumps and the colormap digests for the record - so the exception claim is right, and
+     * each pair is a declared reach rather than an exercised one.
+     *
+     * <p>B5's comes from the colormap digests' test, which builds the pack stack and resolves the
+     * colormaps through it itself and asks the renderer context for nothing. The index rule is right
+     * that the context's lookups are blind to it - flipping a bit of every texel the context answers
+     * left all three digests where they were - while the pack rule selects it on the three pack-side
+     * files both rules fire on, the stack those colormaps resolve from being its to speak for, and
+     * the engine rule, which plans what the graph answers, selects it on the context's interface and
+     * its map-backed form, whose rows name it because the test class reaches the client-assets
+     * extension that builds a context.
      *
      * <p>Every claimant here is a {@code select} rule by construction rather than by choice: the
      * resolution below applies the demote pass, so a rule whose {@code blind} list subtracts on its
@@ -169,7 +178,56 @@ final class BlindnessMapTest {
         "B23 -> sweep.block", "B23 -> sweep.item",
         "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla",
-        "B28 -> sweep.block", "B28 -> sweep.item");
+        "B28 -> manifest.player-raw", "B28 -> sweep.armor", "B28 -> sweep.entity",
+        "B28 -> sweep.entity-animation", "B28 -> sweep.entity-walk", "B28 -> sweep.glint",
+        "B28 -> sweep.block", "B28 -> sweep.item",
+        "B28 -> sweep.player",
+        "B5 -> digest.colormap-lut");
+
+    /**
+     * Stored artifacts the {@linkplain #VERSION_DECLARATIONS version files} call blind, each one a
+     * decision.
+     *
+     * <p>One: the client's tooltip drawings under a pack, which the harness build draws with versions
+     * of its own, from the roster file it reads by path and the pack folder it is handed, which the one
+     * task of this build running first derives with Gradle's own file copy. Every other producer this
+     * store captures runs code a pin there chooses, so a version bump plans the rest of the store. An
+     * artifact whose producer runs none - one a build beside this one writes from inputs nothing here
+     * produces through pinned code - goes in the version rule's {@code blind} with that mechanism and
+     * in this set, and never a sweep, a sweep being a main of this build.
+     */
+    private static final Set<String> BLIND_TO_A_VERSION = Set.of("manifest.pack-tooltips");
+
+    /**
+     * The select rules whose selection is sweep-wide, each written down for the reason
+     * {@link #VERSION_DECLARATIONS} is.
+     *
+     * <p>The harness's render rule, because the harness draws every sweep's ground truth, and the
+     * visual mains' rule, because every sweep is a visual main. A claim-keyed demote firing on a path
+     * one of them fires on subtracts what it calls blind from that whole selection, so one that names
+     * neither as seen nor as blind an artifact the wide rule sees leaves that artifact's place on the
+     * path to whichever rule happens to fire there - and an artifact coined later lands in that gap
+     * without any rule having decided it.
+     */
+    private static final List<String> SWEEP_WIDE_SELECTIONS = List.of("B29", "B32");
+
+    /** One harness-run registration in the build, capturing the name the run's task is given. */
+    private static final Pattern HARNESS_RUN = Pattern.compile("registerHarnessRun\\(\"([^\"]+)\"");
+
+    /**
+     * One folder derivation a build script registers, capturing the task's name.
+     *
+     * <p>A {@code Sync} runs no code of this repository: what it writes is the copy spec typed in the
+     * script that registers it, so that script is the one tracked file an edit to what it writes
+     * arrives in.
+     */
+    private static final Pattern REGISTERS_A_DERIVATION = Pattern.compile("register<Sync>\\(\"([^\"]+)\"\\)");
+
+    /** One row of the build's artifact table, capturing its id. */
+    private static final Pattern ARTIFACT_ROW = Pattern.compile("ParityArtifact\\(\"([^\"]+)\"");
+
+    /** The ground truth one artifact row is measured against, as the build's named argument spells it. */
+    private static final Pattern GROUND_TRUTH = Pattern.compile("groundTruth = \"([^\"]+)\"");
 
     /**
      * Tracked files a rule claims that a {@code no_reach} glob would also excuse.
@@ -300,6 +358,79 @@ final class BlindnessMapTest {
         List.of("gradle/visual.gradle.kts", "parity/scripts/parity/manifest.py");
 
     /**
+     * The files this project's dependency versions are written in.
+     *
+     * <p>A version is a statement about which code a producer runs, and every producer this store
+     * captures runs on a classpath these two files declare - this project's source sets take the pins
+     * as {@code api}, and the generators take this project. Written down rather than read off the rule
+     * that answers for them, for the reason the membership files are: taken from that rule, the check
+     * would agree with whatever it says.
+     */
+    private static final List<String> VERSION_DECLARATIONS =
+        List.of("build.gradle.kts", "gradle/libs.versions.toml");
+
+    /** The production context's binary name, whose graph row is every producer that reaches one. */
+    private static final String PRODUCTION_CONTEXT =
+        "lib/minecraft/renderer/content/index/IndexedRendererContext";
+
+    /**
+     * The files the production context resolves every texture, sidecar and flipbook through, and the
+     * registration it loads its decoders by.
+     *
+     * <p>The reference graph cuts that context whole, so nothing it holds inherits the producers that
+     * reach it, and what an edit to one of these plans is what the rules over it author. Every
+     * producer the graph answers for the context, but those {@link #BLIND_TO_THE_CONTEXT} records,
+     * draws its textures through these lookups and gets past the context's load only with the
+     * registration, so each of these plans the context's whole row but those. Written down rather
+     * than read off the rules, for the reason the version files are: taken from them, the check would
+     * agree with whatever they say.
+     */
+    private static final List<String> CONTEXT_READS = List.of(
+        "src/main/java/lib/minecraft/renderer/content/index/IndexedRendererContext.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/MCMetaParser.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/PackStack.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/ResolvedTexture.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/TextureIndexer.java",
+        "src/main/resources/META-INF/services/dev.simplified.gson.GsonContributor");
+
+    /**
+     * Artifacts the production context's graph row names that a file in {@link #CONTEXT_READS}
+     * leaves unplanned, each one a decision a rule firing on that file states as blind.
+     *
+     * <p>The colormap digests alone. Their test builds the pack stack and resolves the colormaps
+     * through it itself, and asks a context for nothing - the row names them because the test class
+     * reaches the client-assets extension that builds one. Flipping a bit of every texel the context
+     * answers, and taking the registration off the classpath, each left all three digests where they
+     * were, so the index rule and the registration's rule call them blind, while the pack rule, which
+     * speaks for the stack the colormaps resolve from, plans them.
+     */
+    private static final Set<String> BLIND_TO_THE_CONTEXT = Set.of("digest.colormap-lut");
+
+    /**
+     * The shipped tables a measured perturbation moved a production-context producer through, each
+     * with the artifacts it moved.
+     *
+     * <p>A table reaches a render per value and only the renders that read a row of it, while the
+     * context loads every table for every producer, so which producers read one is a measurement and
+     * not something the graph can answer. Each entry is one the shipped tables' rule's {@code source}
+     * records, written down for the reason the version files are.
+     */
+    private static final Map<String, List<String>> TABLE_READS = Map.of(
+        "src/main/resources/lib/minecraft/renderer/block_models.json", List.of("pin.block-crc"),
+        "src/main/resources/lib/minecraft/renderer/glint_items.json",
+        List.of("manifest.visual", "sweep.menu"));
+
+    /**
+     * Files a rule over the context's reads fires on that no producer of the context's row loads.
+     *
+     * <p>The graph answers the class the tooling manifest alone, and the producers the context's
+     * rules list beyond the block, item and entity sweeps and the dumps were measured as well: with
+     * its static initialiser made to throw, each ran and nothing it writes moved.
+     */
+    private static final List<String> UNREAD_BY_THE_CONTEXT =
+        List.of("src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java");
+
+    /**
      * The directory a renderer is a direct child of.
      *
      * <p>The library root itself rather than the tree below it, because that is where the roster is
@@ -358,24 +489,24 @@ final class BlindnessMapTest {
     /** A member naming the claim a declaration is about, by its slug or by the type it joins. */
     private static final Pattern NAMES_A_CLAIM = Pattern.compile("\\b(?:claim|as)\\s*=");
 
+    /** A member naming the claim a declaration is about by its slug, capturing the slug. */
+    private static final Pattern DECLARED_CLAIM = Pattern.compile("\\bclaim\\s*=\\s*\"([^\"]+)\"");
+
     /**
      * The stored artifacts whose names identify each renderer that has one.
      *
-     * <p>Seven of the eleven. The atlas renderer's output is registered as no artifact - it is written
-     * outside every root a capture hashes, and its own tests are its gate - and the grid, layout and
-     * text renderers have none at all. Those four appear nowhere among the
-     * store's ids, which is the fact the roster exists to carry: a subject is the only place in this
-     * repository a reader learns that the text renderer is in the parity picture and is ungated.
+     * <p>Eight of the eleven, and {@link #UNPICTURED} names the other three.
      *
      * <p>Written down rather than derived from the id grammar, because {@code sweep.armor} and
      * {@code sweep.glint} are named for what is drawn rather than for who draws it, and a rule that
      * split ids on a dot would hand each of them a renderer that does not exist.
      *
      * <p><b>A renderer can have more than one picture and the entity renderer has two</b>, one per
-     * pose the same subjects are drawn in. So the clauses below quantify over a list: reaching any
-     * of a renderer's own artifacts is naming that renderer, and reaching any of another's is the
-     * contradiction - which is what lets a claim over the animated sweep alone belong to the entity
-     * renderer without also having to move the still one.
+     * pose the same subjects are drawn in, and the text renderer has two, one per pack its tooltips
+     * are drawn under - the client's own assets and hypixel-skyblock. So the clauses below quantify
+     * over a list: reaching any of a renderer's own artifacts is naming that renderer, and reaching
+     * any of another's is the contradiction - which is what lets a claim over the animated sweep
+     * alone belong to the entity renderer without also having to move the still one.
      */
     private static final Map<String, List<String>> IDENTIFYING_ARTIFACTS = Map.of(
         "BLOCK", List.of("sweep.block"),
@@ -384,7 +515,23 @@ final class BlindnessMapTest {
         "ITEM", List.of("sweep.item"),
         "MENU", List.of("sweep.menu"),
         "PLAYER", List.of("sweep.player"),
-        "PORTAL", List.of("manifest.portal"));
+        "PORTAL", List.of("manifest.portal"),
+        "TEXT", List.of("sweep.tooltip", "sweep.tooltip-hypixel-skyblock"));
+
+    /**
+     * The renderers with no stored artifact of their own, in enum order.
+     *
+     * <p>The atlas renderer's output is registered as no artifact - it is written outside every root a
+     * capture hashes, and its own tests are its gate - and the grid and layout renderers have none at
+     * all. Those three appear nowhere among the store's ids, which is the fact the roster exists to
+     * carry: a subject is the only place in this repository a reader learns that the grid and layout
+     * renderers are in the parity picture and are ungated.
+     *
+     * <p>Written down beside {@link #IDENTIFYING_ARTIFACTS} rather than read as its complement, because
+     * a renderer dropped from that map would then read as one with no picture, and every claim naming
+     * it would be held to nothing.
+     */
+    private static final List<String> UNPICTURED = List.of("ATLAS", "GRID", "LAYOUT");
 
     /** The skill body, whose frontmatter is what decides when the gate is offered at all. */
     private static final Path PARITY_SKILL = Path.of(".claude/skills/parity-gate/SKILL.md");
@@ -928,6 +1075,49 @@ final class BlindnessMapTest {
             .toList();
     }
 
+    /**
+     * Returns what each claim-keyed demote firing beside a {@linkplain #SWEEP_WIDE_SELECTIONS
+     * sweep-wide selection} leaves unnamed of it.
+     *
+     * @param rules the rules to resolve against
+     * @param paths the paths to resolve
+     * @return one {@code path: demote -> artifact} line per artifact the wide rule sees that the
+     *   demote names neither as seen nor as blind
+     */
+    private static List<String> unnamedBesideAWideSelection(List<JsonObject> rules, List<String> paths) {
+        return unnamedBesideAWideSelection(rules, paths, SWEEP_WIDE_SELECTIONS);
+    }
+
+    /**
+     * Returns what each claim-keyed demote firing beside one of the given wide selections leaves
+     * unnamed of it.
+     *
+     * @param rules the rules to resolve against
+     * @param paths the paths to resolve
+     * @param wide the ids of the select rules whose selection is wide
+     * @return one {@code path: demote -> artifact} line per artifact a wide rule firing on the path
+     *   sees that a claim-keyed demote firing there names neither as seen nor as blind
+     */
+    private static List<String> unnamedBesideAWideSelection(List<JsonObject> rules, List<String> paths,
+                                                            List<String> wide) {
+        List<String> unnamed = new ArrayList<>();
+        for (String path : paths) {
+            List<JsonObject> fired = firedOn(path, rules);
+            Set<String> selected = new TreeSet<>();
+            fired.stream().filter(rule -> wide.contains(rule.get("id").getAsString()))
+                .forEach(rule -> selected.addAll(strings(rule.getAsJsonArray("sees"))));
+            if (selected.isEmpty()) continue;
+            for (JsonObject rule : fired) {
+                if (!rule.has("claim_key") || !rule.get("mode").getAsString().equals("demote")) continue;
+                Set<String> named = new TreeSet<>(strings(rule.getAsJsonArray("sees")));
+                named.addAll(strings(rule.getAsJsonArray("blind")));
+                selected.stream().filter(id -> !named.contains(id))
+                    .forEach(id -> unnamed.add(path + ": " + rule.get("id").getAsString() + " -> " + id));
+            }
+        }
+        return unnamed;
+    }
+
     @Test
     @DisplayName("every trigger glob matches a tracked file")
     void noRuleIsOrphaned() {
@@ -1280,6 +1470,153 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("each file a version is written in plans every stored artifact but the recorded blind ones")
+    void everyVersionDeclarationPlansTheWholeStore() {
+        List<String> stored = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
+            .filter(id -> !ParityStore.isRootFile(id)).sorted().toList();
+        JsonObject index = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+        List<String> recorded = BLIND_TO_A_VERSION.stream().sorted().toList();
+        List<String> tracked = trackedFiles();
+        for (String path : VERSION_DECLARATIONS) {
+            List<JsonObject> fired = firedOn(path, rules());
+            Set<String> sees = seesFor(path);
+            Set<String> claimed = new TreeSet<>();
+            fired.forEach(rule -> claimed.addAll(strings(rule.getAsJsonArray("blind"))));
+
+            assertThat(path + " is a file git does not track, so the version rule is being held to a "
+                + "path no commit can change and both answers below are about nothing",
+                tracked.contains(path), is(true));
+            assertThat(path + ": stored artifacts a version bump does not plan, against the recorded ones. "
+                + "A version swaps the code every producer here runs, so an artifact coined without a "
+                + "place in the version rule's sees is one a pin bump captures nothing for. Add it to "
+                + "B47's sees, or to its blind with the mechanism and to the recorded set",
+                stored.stream().filter(id -> !sees.contains(id)).toList(), equalTo(recorded));
+            assertThat(path + ": what the rules firing on it call blind, against the recorded set. A blind "
+                + "entry the set does not name is an artifact a pin bump stops capturing without anybody "
+                + "having decided it, and a recorded one no rule calls blind is a decision the map does "
+                + "not state", List.copyOf(claimed), equalTo(recorded));
+        }
+        assertThat("a sweep recorded as blind to a version. Every sweep is a main of this build and runs "
+            + "on the classpath the pins declare, so a version reaches it whatever it compares",
+            recorded.stream()
+                .filter(id -> index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
+                .toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("every closure firing beside a sweep-wide selection names all of that selection")
+    void everyClosureOverASweepWideSelectionNamesAllOfIt() {
+        JsonObject index = ParityStore.read("report.oracle-index").getAsJsonObject("artifacts");
+        List<String> sweeps = ParityArtifacts.withHome(ParityArtifacts.Home.STORE).stream()
+            .filter(id -> index.has(id) && index.getAsJsonObject(id).get("kind").getAsString().equals("sweep-table"))
+            .sorted().toList();
+        Set<String> harnessRuns = new TreeSet<>(HARNESS_RUN.matcher(buildFile()).results()
+            .map(hit -> hit.group(1)).toList());
+        List<String> harnessDrawn = ParityArtifacts.ALL.stream()
+            .filter(registration -> registration.producers().stream().anyMatch(harnessRuns::contains))
+            .map(ParityArtifacts.Registration::id).sorted().toList();
+        List<JsonObject> rules = rules();
+        Map<String, JsonObject> byId = new LinkedHashMap<>();
+        rules.forEach(rule -> byId.put(rule.get("id").getAsString(), rule));
+
+        assertThat("the roster registers no sweep, which would leave the first clause vacuous",
+            sweeps, is(not(empty())));
+        assertThat("no registration is produced by a harness run, the same of the second",
+            harnessDrawn, is(not(empty())));
+        for (String id : SWEEP_WIDE_SELECTIONS) {
+            assertThat(id + " is not a rule of the shipped map", byId.containsKey(id), is(true));
+            Set<String> sees = strings(byId.get(id).getAsJsonArray("sees"));
+            assertThat(id + ": sweeps the sweep-wide selection does not see",
+                sweeps.stream().filter(sweep -> !sees.contains(sweep)).toList(), is(empty()));
+        }
+        Set<String> harnessSees = strings(byId.get("B29").getAsJsonArray("sees"));
+        assertThat("artifacts a harness run draws that the harness's render rule does not see. The "
+                + "harness draws every one of them, so a harness change reaches each",
+            harnessDrawn.stream().filter(id -> !harnessSees.contains(id)).toList(), is(empty()));
+        assertThat("claim-keyed demotes firing beside a sweep-wide selection that name an artifact of it "
+                + "neither as seen nor as blind. Name it in the demote's sees, measured, or its blind, "
+                + "with the mechanism", unnamedBesideAWideSelection(rules, trackedFiles()), is(empty()));
+
+        // Synthetic, because the shipped map is the case where the clause above holds, and a check
+        // that only ever sees a map it holds over is not shown to fail on one it does not.
+        JsonObject wide = syntheticRule("W", "select", "a/**", List.of("sweep.block", "sweep.item"),
+            List.of());
+        JsonObject naming = syntheticRule("N", "demote", "a/x.java", List.of("sweep.block"),
+            List.of("sweep.item"));
+        naming.addProperty("claim_key", "names-all-of-it");
+        JsonObject missing = syntheticRule("M", "demote", "a/y.java", List.of("sweep.block"), List.of());
+        missing.addProperty("claim_key", "names-part-of-it");
+        assertThat("a claim-keyed demote naming one of the wide selection's two artifacts is reported "
+                + "for the other, and one naming both is not",
+            unnamedBesideAWideSelection(List.of(wide, naming, missing), List.of("a/x.java", "a/y.java"),
+                List.of("W")),
+            equalTo(List.of("a/y.java: M -> sweep.item")));
+    }
+
+    @Test
+    @DisplayName("each file the production context reads through plans every producer drawing through it")
+    void everyContextReadPlansWhatDrawsThroughIt() {
+        Set<String> row = DERIVED_REACH.getOrDefault(PRODUCTION_CONTEXT, Set.of());
+        List<String> tracked = trackedFiles();
+        List<JsonObject> rules = rules();
+        List<String> untracked = new ArrayList<>();
+        Set<String> omitted = new TreeSet<>();
+        List<String> unstated = new ArrayList<>();
+        for (String path : CONTEXT_READS) {
+            if (!tracked.contains(path)) untracked.add(path);
+            Set<String> sees = seesFor(path, rules);
+            Set<String> claimed = new TreeSet<>();
+            firedOn(path, rules).forEach(rule -> claimed.addAll(strings(rule.getAsJsonArray("blind"))));
+            for (String id : row) {
+                if (sees.contains(id)) continue;
+                omitted.add(id);
+                if (!claimed.contains(id)) unstated.add(path + " -> " + id);
+            }
+        }
+        List<String> unplannedReads = new ArrayList<>();
+        List<String> outsideTheRow = new ArrayList<>();
+        TABLE_READS.forEach((path, read) -> {
+            if (!tracked.contains(path)) untracked.add(path);
+            Set<String> sees = seesFor(path, rules);
+            read.stream().filter(id -> !sees.contains(id))
+                .forEach(id -> unplannedReads.add(path + " -> " + id));
+            read.stream().filter(id -> !row.contains(id))
+                .forEach(id -> outsideTheRow.add(path + " -> " + id));
+        });
+        List<String> overplanned = new ArrayList<>();
+        for (String path : UNREAD_BY_THE_CONTEXT) {
+            if (!tracked.contains(path)) untracked.add(path);
+            seesFor(path, rules).stream().filter(row::contains)
+                .forEach(id -> overplanned.add(path + " -> " + id));
+        }
+
+        assertThat(REACH_GRAPH + " answers nothing for " + PRODUCTION_CONTEXT + ", so every clause "
+            + "below is about an empty row. Regenerate it with 'python parity/scripts/parity reach build' "
+            + "over a compiled tree", row, is(not(empty())));
+        assertThat("files this case holds that git does not track, so what it says about them is about a "
+            + "path no commit can change", untracked, is(empty()));
+        assertThat("artifacts of the production context's graph row some file it reads through does not "
+            + "plan, against the recorded ones. The graph cuts the context whole, so the rules over these "
+            + "files are the only place a producer drawing through it is planned: an artifact coined "
+            + "without a place there is one a texture, sidecar or decoder change captures nothing for. Add "
+            + "it to the sees of the rule over the file, measured, or to that rule's blind with the "
+            + "mechanism and to the recorded set; and a recorded one no file leaves unplanned is a decision "
+            + "the map no longer makes", omitted, equalTo(new TreeSet<>(BLIND_TO_THE_CONTEXT)));
+        assertThat("artifacts a file the context reads through leaves unplanned that no rule firing on it "
+            + "calls blind, so the omission is in the plan and its mechanism is nowhere", unstated,
+            is(empty()));
+        assertThat("measured table reads the plan for the table does not include. Each is a value change "
+            + "the artifact sees that a plan over the table captures nothing for", unplannedReads,
+            is(empty()));
+        assertThat("measured table reads naming an artifact the production context's graph row does not, "
+            + "so its producer loads no context and the measurement has to be taken again",
+            outsideTheRow, is(empty()));
+        assertThat("artifacts of the context's row a file no producer of that row loads still plans. The "
+            + "tooling demote is what subtracts them there, so one here is a widening it lost",
+            overplanned, is(empty()));
+    }
+
+    @Test
     @DisplayName("a blindness claim another rule overrules is one the map has already recorded")
     void everyOverruledClaimIsRecorded() {
         List<String> tracked = trackedFiles();
@@ -1415,6 +1752,52 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("the script deriving a folder a harness run depends on plans what that run draws")
+    void aScriptDerivingARunsFolderPlansWhatTheRunDraws() {
+        String build = buildFile();
+        Set<String> harnessRuns = new TreeSet<>(HARNESS_RUN.matcher(build).results()
+            .map(hit -> hit.group(1)).toList());
+        Map<String, String> truthOf = groundTruthOfEachRow();
+        Map<String, Set<String>> owed = new TreeMap<>();
+        for (Path script : Stream.concat(Stream.of(BuildScripts.ROOT), BuildScripts.applied().stream()).toList()) {
+            String path = script.toString().replace('\\', '/');
+            Matcher derivation = REGISTERS_A_DERIVATION.matcher(BuildScripts.read(script));
+            while (derivation.find()) {
+                Matcher edge = Pattern.compile("named\\(\"([^\"]+)\"\\) \\{ dependsOn\\(\""
+                    + Pattern.quote(derivation.group(1)) + "\"\\) \\}").matcher(build);
+                while (edge.find()) {
+                    String run = edge.group(1);
+                    if (!harnessRuns.contains(run)) continue;
+                    Set<String> drawn = new TreeSet<>(ParityArtifacts.ALL.stream()
+                        .filter(registration -> registration.producers().contains(run))
+                        .map(ParityArtifacts.Registration::id)
+                        .toList());
+                    Set<String> reached = owed.computeIfAbsent(path, key -> new TreeSet<>());
+                    reached.addAll(drawn);
+                    truthOf.forEach((row, truth) -> {
+                        if (drawn.contains(truth)) reached.add(row);
+                    });
+                }
+            }
+        }
+        List<String> unplanned = new ArrayList<>();
+        owed.forEach((path, reached) -> {
+            Set<String> sees = seesFor(path);
+            reached.stream().filter(id -> !sees.contains(id)).forEach(id -> unplanned.add(path + " -> " + id));
+        });
+
+        assertThat("no build script derives a folder a harness run drawing a stored artifact depends on, "
+                + "so the clause below holds over nothing",
+            owed.values().stream().anyMatch(reached -> !reached.isEmpty()), is(true));
+        assertThat("artifacts a harness run draws from a folder a script derives, or measured against "
+                + "what it draws, that the script does not plan. The derivation decides the content the "
+                + "client is handed, so an edit to it moves those drawings while no file their other "
+                + "rules trigger on changes - the reach the wide rule over the build wiring cannot deny, "
+                + "and the one it has to carve out",
+            unplanned, is(empty()));
+    }
+
+    @Test
     @DisplayName("the worked example resolves the way the corpus records it")
     void theBoxBuilderExampleResolves() {
         // B10's own gates, which is what the map has to keep answering for the path it claims. The
@@ -1511,6 +1894,38 @@ final class BlindnessMapTest {
     }
 
     @Test
+    @DisplayName("every claim a declaration names is the claim key of exactly one rule")
+    void everyDeclaredClaimHasOneRule() {
+        Map<String, Integer> keyed = new TreeMap<>();
+        for (JsonObject rule : rules())
+            if (rule.has("claim_key")) keyed.merge(rule.get("claim_key").getAsString(), 1, Integer::sum);
+        Set<String> declared = new TreeSet<>();
+        Map<String, String> unresolved = new TreeMap<>();
+        for (String path : trackedFiles()) {
+            if (!underASourceRoot(path) || !Files.isRegularFile(Path.of(path))) continue;
+            Matcher declaration = DECLARATION_ARGUMENTS.matcher(text(Path.of(path)));
+            while (declaration.find()) {
+                Matcher claim = DECLARED_CLAIM.matcher(declaration.group(1));
+                if (!claim.find()) continue;
+                String key = claim.group(1);
+                declared.add(key);
+                int carriers = keyed.getOrDefault(key, 0);
+                if (carriers != 1) unresolved.put(key, path + " - carried by " + carriers + " rules");
+            }
+        }
+
+        assertThat("no file under a source root declares a claim by its slug, which would leave the "
+            + "check below true of nothing", declared, is(not(empty())));
+        assertThat("claims a declaration names that are the claim_key of no rule, or of more than one. "
+            + "A slug no rule carries is one the generator derives paths for and hands to nobody, so "
+            + "the file's own blind list is never read: the planner reaches the file through whatever "
+            + "wider rule globs it, the trigger regeneration has nothing to move, and every other "
+            + "check here is quantified over rules and so says nothing. A slug two rules carry is one "
+            + "claim whose sees and blind are written twice, with nothing holding the copies equal",
+            unresolved, equalTo(Map.of()));
+    }
+
+    @Test
     @DisplayName("a claim naming one renderer reaches that renderer's picture and no other's")
     void everyRendererArtifactIsNamedByItsSubject() {
         List<String> contradicted = new ArrayList<>();
@@ -1533,7 +1948,19 @@ final class BlindnessMapTest {
                 }
             });
         }
+        List<String> renderers = Stream.of(Subject.values()).map(Enum::name)
+            .filter(name -> !NOT_A_RENDERER.contains(name))
+            .sorted()
+            .toList();
+        List<String> accounted = Stream.concat(IDENTIFYING_ARTIFACTS.keySet().stream(), UNPICTURED.stream())
+            .sorted()
+            .toList();
 
+        assertThat("the renderers with a picture and the renderers without one, against the roster. "
+            + "The two clauses on what a claim reaches quantify over the renderers with a picture, so "
+            + "one missing from both lists has every claim naming it held to nothing - no picture for "
+            + "the claim to reach, and no other claim refused for reaching that renderer's own - and "
+            + "one in both is said to have a picture and to have none", accounted, equalTo(renderers));
         assertThat("no claim names exactly one renderer, which would leave both clauses below true "
             + "of nothing", checked, is(not(empty())));
         assertThat("claims naming one renderer that reach a different renderer's own picture. "
@@ -1880,9 +2307,32 @@ final class BlindnessMapTest {
      */
     private static Set<String> captureRows() {
         Set<String> out = new LinkedHashSet<>();
-        Matcher matcher = Pattern.compile("ParityArtifact\\(\"([^\"]+)\"").matcher(buildFile());
+        Matcher matcher = ARTIFACT_ROW.matcher(buildFile());
         while (matcher.find()) out.add(matcher.group(1));
         return out;
+    }
+
+    /**
+     * The ground truth each row of the build file's capture table is measured against, for the rows
+     * that name one.
+     *
+     * <p>Read per row, each row being the text from its opening to the next row's or to the table's
+     * close, so a ground truth is attributed to the row that names it and never to a neighbour.
+     *
+     * @return the ground truth by artifact id
+     */
+    private static Map<String, String> groundTruthOfEachRow() {
+        String build = buildFile();
+        List<MatchResult> rows = ARTIFACT_ROW.matcher(build).results().toList();
+        Map<String, String> named = new TreeMap<>();
+        for (int at = 0; at < rows.size(); at++) {
+            int start = rows.get(at).start();
+            int end = at + 1 < rows.size() ? rows.get(at + 1).start() : build.indexOf("\n)", start);
+            if (end < 0) throw new AssertionError("the build file's capture table never closes");
+            Matcher truth = GROUND_TRUTH.matcher(build.substring(start, end));
+            if (truth.find()) named.put(rows.get(at).group(1), truth.group(1));
+        }
+        return named;
     }
 
     /**

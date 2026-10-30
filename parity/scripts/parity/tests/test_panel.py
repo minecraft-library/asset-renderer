@@ -442,6 +442,38 @@ class Frames(unittest.TestCase):
         self.assertEqual([frame["after"]["moved_pixels"] for frame in row["frames"]], [0, 0])
 
 
+@unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
+class RowFoldersBelowTheTop(unittest.TestCase):
+    """A row whose key names a directory - the tooltip sweep's plain/<key> - writes its folder below
+    the sweep directory's top, and both walks read it under the key its report gives it."""
+
+    def setUp(self):
+        from parity import panel
+        self.panel = panel
+        self.root = Path(tempfile.mkdtemp())
+
+    def test_the_walk_reads_a_pair_below_the_top_under_its_path(self):
+        """``zeta`` is found before ``plain/x``, since a folder below the top is walked after its
+        level, so the order asserted here is the key order the walk returns rather than the one it
+        finds."""
+        for key in ("flat", "plain/x", "zeta"):
+            for side in ("vanilla", "java"):
+                _paint(self.root / key / f"{side}.png", 1, 1, GREY)
+        self.assertEqual([row["subject"] for row in self.panel.walk(self.root)],
+                         ["flat", "plain/x", "zeta"])
+        self.assertEqual([row["subject"] for row in self.panel.walk(self.root, ["plain/x"])], ["plain/x"])
+
+    def test_the_frames_walk_reads_frame_trees_below_the_top_under_their_path(self):
+        after = Path(tempfile.mkdtemp())
+        for key in ("flat", "plain/x"):
+            for side in ("vanilla", "java"):
+                _paint(self.root / key / side / "frame_000.png", 1, 1, GREY)
+            _paint(after / key / "java" / "frame_000.png", 1, 1, GREY)
+        rows = self.panel.frames_walk(self.root, after=after)
+        self.assertEqual([row["subject"] for row in rows], ["flat", "plain/x"])
+        self.assertEqual([row["after"]["mean_argb_delta"] for row in rows], [0.0, 0.0])
+
+
 SWEEP_OUTPUT = Path(__file__).resolve().parents[4] / "cache/visual/entity-parity-vanilla"
 
 

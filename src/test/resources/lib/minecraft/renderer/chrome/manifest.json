@@ -5,8 +5,6 @@
       "name": "a01_plain_bevel.png",
       "size": "24x24",
       "bytes": 137,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -44,8 +42,6 @@
       "name": "a02_chamfer_corner.png",
       "size": "32x32",
       "bytes": 199,
-      "border": 6,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -79,8 +75,6 @@
       "name": "a03_ornate_corner.png",
       "size": "40x40",
       "bytes": 256,
-      "border": 12,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -118,8 +112,6 @@
       "name": "a04_centred_top_ornament.png",
       "size": "64x24",
       "bytes": 240,
-      "border": 8,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -165,8 +157,6 @@
       "name": "a05_stud_period_7_of_100.png",
       "size": "100x20",
       "bytes": 213,
-      "border": 6,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -207,13 +197,6 @@
       "name": "a06_asymmetric_sides.png",
       "size": "48x32",
       "bytes": 165,
-      "border": {
-        "left": 9,
-        "top": 5,
-        "right": 2,
-        "bottom": 1
-      },
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -251,8 +234,6 @@
       "name": "a07_corner_straddle.png",
       "size": "36x36",
       "bytes": 261,
-      "border": 14,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -290,8 +271,6 @@
       "name": "a08_gradient_along_length.png",
       "size": "32x64",
       "bytes": 202,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": true,
       "targets": [
         [
@@ -332,8 +311,6 @@
       "name": "a09_repeat_taller_than_border.png",
       "size": "96x48",
       "bytes": 340,
-      "border": 4,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -376,8 +353,6 @@
       "name": "a10_border_leaves_one_px.png",
       "size": "15x15",
       "bytes": 192,
-      "border": 7,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -419,8 +394,6 @@
       "name": "a11_over_constrained_border.png",
       "size": "40x40",
       "bytes": 173,
-      "border": 25,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -441,7 +414,7 @@
         ]
       ],
       "note": "border 25 + 25 = 50 > 40; every target smaller than 50 px overlaps two corners",
-      "step": "a declaration vanilla's own validate refuses, so there is nothing to honour",
+      "step": "corner art reaching past half the sprite, which no depth the sanity bound allows can hold",
       "resize": {
         "corner": [
           25,
@@ -458,13 +431,6 @@
       "name": "a12_zero_bottom_border.png",
       "size": "40x24",
       "bytes": 124,
-      "border": {
-        "left": 2,
-        "top": 2,
-        "right": 2,
-        "bottom": 0
-      },
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -502,8 +468,6 @@
       "name": "a13_noise_interior.png",
       "size": "100x20",
       "bytes": 2851,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -541,8 +505,6 @@
       "name": "a14_transparent_inset_margin.png",
       "size": "40x40",
       "bytes": 177,
-      "border": 9,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -580,8 +542,6 @@
       "name": "a15_alpha_graded_edge.png",
       "size": "48x48",
       "bytes": 212,
-      "border": 14,
-      "kind": "nine_slice",
       "stretch_inner": true,
       "targets": [
         [
@@ -619,8 +579,6 @@
       "name": "a16_diagonal_hatch_border.png",
       "size": "64x64",
       "bytes": 308,
-      "border": 8,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -663,8 +621,6 @@
       "name": "a17_double_ring.png",
       "size": "40x40",
       "bytes": 212,
-      "border": 5,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -702,13 +658,6 @@
       "name": "a18_l_shaped_corner.png",
       "size": "64x32",
       "bytes": 235,
-      "border": {
-        "left": 16,
-        "top": 3,
-        "right": 16,
-        "bottom": 3
-      },
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -746,8 +695,6 @@
       "name": "a19_tile_13.png",
       "size": "13x13",
       "bytes": 133,
-      "border": null,
-      "kind": "tile",
       "stretch_inner": null,
       "targets": [
         [
@@ -780,8 +727,6 @@
       "name": "a20_flat_fill.png",
       "size": "64x64",
       "bytes": 161,
-      "border": 4,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -815,8 +760,6 @@
       "name": "a21_one_pixel.png",
       "size": "1x1",
       "bytes": 70,
-      "border": 0,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -846,8 +789,6 @@
       "name": "a22_three_px_ring.png",
       "size": "3x3",
       "bytes": 88,
-      "border": 1,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -881,13 +822,6 @@
       "name": "a23_notch_into_interior.png",
       "size": "128x64",
       "bytes": 279,
-      "border": {
-        "left": 3,
-        "top": 9,
-        "right": 3,
-        "bottom": 3
-      },
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -933,13 +867,6 @@
       "name": "a24_majority_edge_feature.png",
       "size": "96x32",
       "bytes": 201,
-      "border": {
-        "left": 3,
-        "top": 5,
-        "right": 3,
-        "bottom": 3
-      },
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -985,8 +912,6 @@
       "name": "a25_gutter_merge.png",
       "size": "128x32",
       "bytes": 241,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1032,8 +957,6 @@
       "name": "a26_two_centres.png",
       "size": "120x32",
       "bytes": 219,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1086,8 +1009,6 @@
       "name": "a27_dual_period.png",
       "size": "64x92",
       "bytes": 330,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1134,8 +1055,6 @@
       "name": "a28_corner_bracket.png",
       "size": "96x64",
       "bytes": 267,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1202,8 +1121,6 @@
       "name": "a29_twin_lattice.png",
       "size": "96x96",
       "bytes": 309,
-      "border": 3,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1241,8 +1158,6 @@
       "name": "a30_odd_centre.png",
       "size": "97x32",
       "bytes": 194,
-      "border": 2,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [
@@ -1288,8 +1203,6 @@
       "name": "a31_one_px_border.png",
       "size": "80x40",
       "bytes": 183,
-      "border": 1,
-      "kind": "nine_slice",
       "stretch_inner": null,
       "targets": [
         [

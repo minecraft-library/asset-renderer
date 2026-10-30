@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.call.request.ItemContext;
@@ -245,9 +246,10 @@ public final class IndexedRendererContext implements RendererContext {
      * reads the texture the sprite was stitched from. Returns the memoised buffer on a cache hit;
      * otherwise resolves the texture through the pack stack (namespace-first dispatch then the winning
      * pack's root walk), decodes it once, and caches it - a file that does not decode, whose sidecar does
-     * not parse, or whose animation's frame size does not divide it is remembered as empty. Only an id
-     * the stack does not serve consults the paletted-permutation registry, so a file a pack ships shadows
-     * a permutation under the same id even when the texture cannot be read.
+     * not parse or carries an animation or texture section the client's codec refuses, or whose
+     * animation's frame size does not divide it is remembered as empty. Only an id the stack does not
+     * serve consults the paletted-permutation registry, so a file a pack ships shadows a permutation under
+     * the same id even when the texture cannot be read.
      */
     @Override
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
@@ -436,6 +438,12 @@ public final class IndexedRendererContext implements RendererContext {
         // A key the file read holds no parseable colour for is not there, nor is any key where no pack
         // ships a file, which a bare ofOptional would call empty.
         return Possible.ofOptional(this.stack.rules().colors().flatMap(colors -> colors.get(key))).or(Possible::absent);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Possible<TextPalette> findTextPalette() {
+        return this.stack.textPalette();
     }
 
     /**

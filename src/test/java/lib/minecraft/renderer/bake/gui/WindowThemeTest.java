@@ -1,15 +1,20 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.vanilla.gui.Mark;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -27,11 +32,19 @@ import static org.hamcrest.Matchers.not;
 @DisplayName("A theme re-inks vanilla's geometry rather than replacing it")
 class WindowThemeTest {
 
+    /** the output pixels a Minecraft pixel is laid at on a side */
+    private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
+    private static PixelBuffer readDown(PixelBuffer painted) {
+        return painted.resize(painted.width() / S, painted.height() / S, Resample.NEAREST);
+    }
+
     private static PixelBuffer paint(Window window, int w, int h) {
-        PixelBuffer buffer = PixelBuffer.create(w, h);
-        window.paintPanel(buffer, Window.Box.of(w, h));
-        window.paintCell(buffer, new Window.Box(7, 17, 18, 18, 1));
-        return buffer;
+        PixelBuffer buffer = PixelBuffer.create(w * S, h * S);
+        window.paintPanel(buffer, new Window.Box(0, 0, w, h));
+        window.paintCell(buffer, new Window.Box(7, 17, 18, 18));
+        return readDown(buffer);
     }
 
     @Test
@@ -74,15 +87,16 @@ class WindowThemeTest {
     }
 
     /**
-     * The six inks the vanilla theme paints in, which are read off the shipped container art and are
-     * what the oracle's byte assertion rests on. Every other theme is free to be authored; this one
-     * answers to a texture, so its palette is pinned here rather than left to the constant.
+     * The seven inks the vanilla theme paints in, which are read off the shipped art - the container
+     * sheets, and the recipe-book button's sprite for its right-hand chamfers - and are what the
+     * oracle's byte assertions rest on. Every other theme is free to be authored; this one answers to a
+     * texture, so its palette is pinned here rather than left to the constant.
      */
     @Test
     @DisplayName("the vanilla theme paints in the ink the shipped art is drawn in")
     void theVanillaThemePaintsInTheShippedInk() {
         assertThat(Window.Theme.VANILLA.palette(), is(equalTo(new Window.Palette(
-            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737))));
+            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737, 0xFF0C0500))));
     }
 
     @Test
@@ -112,9 +126,9 @@ class WindowThemeTest {
      */
     private static PixelBuffer mark(Window window, Mark kind) {
         Window.Extent extent = Window.Extent.of(kind);
-        PixelBuffer buffer = PixelBuffer.create(extent.width(), extent.height());
-        window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height(), 1), kind);
-        return buffer;
+        PixelBuffer buffer = PixelBuffer.create(extent.width() * S, extent.height() * S);
+        window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height()), kind);
+        return readDown(buffer);
     }
 
     @Test
@@ -143,10 +157,11 @@ class WindowThemeTest {
     }
 
     @Test
-    @DisplayName("a button is a cell's bevel the other way up")
+    @DisplayName("a button is a cell's bevel the other way up, closed in its palette's inks, with two texels of the client's book no theme re-inks")
     void aButtonIsACellsBevelTheOtherWayUp() {
         Window.Palette palette = Window.Palette.VANILLA;
         PixelBuffer button = mark(Window.Theme.VANILLA, Mark.BUTTON);
+        PixelBuffer dark = mark(Window.Theme.DARK, Mark.BUTTON);
 
         // A cell sinks into the panel - shadow along its top and left, light along its bottom and
         // right. A button stands off it, so every one of those four reads the other way.
@@ -157,6 +172,26 @@ class WindowThemeTest {
         assertThat("the face is the panel's own fill", button.getPixel(10, 8), is(equalTo(palette.panel())));
         assertThat("the outline rings it", button.getPixel(10, 0), is(equalTo(palette.outline())));
         assertThat("and the corner is chamfered away", button.getPixel(0, 0), is(equalTo(0)));
+
+        // The client's highlighted button re-inks its whole frame and keeps these two texels, which
+        // close the sprite's book beside the item's pages: they are a picture, not the frame.
+        assertThat("the book's two texels are the same in every theme, a picture no palette re-inks",
+            List.of(dark.getPixel(17, 8), dark.getPixel(17, 9)),
+            is(equalTo(List.of(button.getPixel(17, 8), button.getPixel(17, 9)))));
+
+        // The client's sprite closes its left-hand corners in its outline and its right-hand ones in an
+        // ink of their own, and its highlighted form re-inks those two with its outline.
+        int darkChamfer = Window.Palette.DARK.buttonRightChamfer();
+        assertThat("the left-hand chamfers are the outline",
+            List.of(button.getPixel(1, 1), button.getPixel(1, 16)),
+            is(equalTo(List.of(palette.outline(), palette.outline()))));
+        assertThat("the right-hand ones the palette's ink for them",
+            List.of(button.getPixel(18, 1), button.getPixel(18, 16)),
+            is(equalTo(List.of(palette.buttonRightChamfer(), palette.buttonRightChamfer()))));
+        assertThat("a re-inked button closes them in its own palette's ink",
+            List.of(dark.getPixel(18, 1), dark.getPixel(18, 16)), is(equalTo(List.of(darkChamfer, darkChamfer))));
+        assertThat("which in the dark palette is its outline, as the client's highlighted button closes them in its own",
+            darkChamfer, is(equalTo(Window.Palette.DARK.outline())));
     }
 
     @Test
@@ -235,47 +270,90 @@ class WindowThemeTest {
     }
 
     @Test
-    @DisplayName("a field sinks into its panel in the panel's ink and fills with its own")
+    @DisplayName("a field of either form sinks into its panel in the panel's ink and fills with its own")
     void aFieldSinksIntoItsPanelButFillsWithItsOwn() {
-        Mark field = Mark.FIELD;
-        PixelBuffer vanilla = mark(Window.Theme.VANILLA, field);
-        PixelBuffer dark = mark(Window.Theme.DARK, field);
         int w = 110, h = 16;
 
-        // The outer ring is a cell's own bevel, so it re-inks and the well sits in whatever panel it
-        // is cut into.
-        assertThat("the outer ring shadows the top", vanilla.getPixel(50, 0),
-            is(equalTo(Window.Palette.VANILLA.cellShadow())));
-        assertThat("and re-inks with the theme", dark.getPixel(50, 0),
-            is(equalTo(Window.Palette.DARK.cellShadow())));
-        assertThat("the outer ring lights the bottom", vanilla.getPixel(50, h - 1),
-            is(equalTo(Window.Palette.VANILLA.light())));
-        assertThat("and re-inks with the theme", dark.getPixel(50, h - 1),
-            is(equalTo(Window.Palette.DARK.light())));
+        for (Mark field : List.of(Mark.FIELD, Mark.FIELD_DISABLED)) {
+            PixelBuffer vanilla = mark(Window.Theme.VANILLA, field);
+            PixelBuffer dark = mark(Window.Theme.DARK, field);
 
-        // The inside is the widget's, so it does not.
-        assertThat("the interior is the field's own", vanilla.getPixel(50, 8),
-            is(equalTo(dark.getPixel(50, 8))));
-        assertThat("as is the inner ring", vanilla.getPixel(50, 1), is(equalTo(dark.getPixel(50, 1))));
+            // The outer ring is a cell's own bevel, so it re-inks and the well sits in whatever panel it
+            // is cut into.
+            assertThat(field + "'s outer ring shadows the top", vanilla.getPixel(50, 0),
+                is(equalTo(Window.Palette.VANILLA.cellShadow())));
+            assertThat("and re-inks with the theme", dark.getPixel(50, 0),
+                is(equalTo(Window.Palette.DARK.cellShadow())));
+            assertThat(field + "'s outer ring lights the bottom", vanilla.getPixel(50, h - 1),
+                is(equalTo(Window.Palette.VANILLA.light())));
+            assertThat("and re-inks with the theme", dark.getPixel(50, h - 1),
+                is(equalTo(Window.Palette.DARK.light())));
 
-        // The two corners the bevel hands over are left for whatever the field is painted on.
-        assertThat("the top-right corner shows through", vanilla.getPixel(w - 1, 0), is(equalTo(0)));
-        assertThat("as does the bottom-left", vanilla.getPixel(0, h - 1), is(equalTo(0)));
+            // The inside is the widget's, so it does not.
+            assertThat(field + "'s interior is its own", vanilla.getPixel(50, 8),
+                is(equalTo(dark.getPixel(50, 8))));
+            assertThat("as is its inner ring", vanilla.getPixel(50, 1), is(equalTo(dark.getPixel(50, 1))));
+
+            // The two corners the bevel hands over are left for whatever the field is painted on.
+            assertThat(field + "'s top-right corner shows through", vanilla.getPixel(w - 1, 0), is(equalTo(0)));
+            assertThat("as does its bottom-left", vanilla.getPixel(0, h - 1), is(equalTo(0)));
+        }
+
+        // The two forms are one well in two sets of the widget's inks: the outer ring is the panel's in
+        // both, and every pixel inside it differs.
+        PixelBuffer enabled = mark(Window.Theme.VANILLA, Mark.FIELD);
+        PixelBuffer disabled = mark(Window.Theme.VANILLA, Mark.FIELD_DISABLED);
+        int ring = 0, inside = 0;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if (enabled.getPixel(x, y) == disabled.getPixel(x, y)) continue;
+                if (x == 0 || y == 0 || x == w - 1 || y == h - 1) ring++;
+                else inside++;
+            }
+        }
+
+        assertThat("the two forms share the outer ring", ring, is(equalTo(0)));
+        assertThat("and differ at every pixel inside it", inside, is(equalTo((w - 2) * (h - 2))));
     }
 
     @Test
-    @DisplayName("art carries its own marks, so a sliced window paints none")
+    @DisplayName("the cross is a picture a theme does not re-ink, in its own two inks over a box it otherwise leaves clear")
+    void theCrossIsAPictureAThemeDoesNotReInk() {
+        assertThat("the cross's box is the client's blit", Window.Extent.of(Mark.ERROR), is(equalTo(new Window.Extent(28, 21))));
+
+        PixelBuffer vanilla = mark(Window.Theme.VANILLA, Mark.ERROR);
+        PixelBuffer dark = mark(Window.Theme.DARK, Mark.ERROR);
+
+        // Red is no panel's ink, so the cross is the same picture on any panel, the arrow under it being
+        // the panel's own.
+        Set<Integer> inks = new HashSet<>();
+        int painted = 0;
+        for (int y = 0; y < 21; y++) {
+            for (int x = 0; x < 28; x++) {
+                assertThat("a theme does not re-ink the cross", dark.getPixel(x, y), is(equalTo(vanilla.getPixel(x, y))));
+                if (vanilla.getPixel(x, y) == 0) continue;
+                inks.add(vanilla.getPixel(x, y));
+                painted++;
+            }
+        }
+
+        assertThat("the whole cross, and nothing else of the box", painted, is(equalTo(81)));
+        assertThat("in its outline and its core", inks, is(equalTo(Set.of(0xFF962300, 0xFFBA370F))));
+    }
+
+    @Test
+    @DisplayName("the arrow is in the art, so a sliced window paints none")
     void artCarriesItsOwnMarks() {
         // The shipped crafting panel has its arrow painted into the texture, so a window slicing that
         // texture would draw a second one over the first.
-        PixelBuffer buffer = PixelBuffer.create(22, 15);
-        Window.Sliced sliced = Window.Sliced.of(
-            PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(), Optional.empty());
-        sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0), 1), Mark.ARROW);
+        PixelBuffer buffer = PixelBuffer.create(22 * S, 15 * S);
+        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+            Concurrent.newMap(), Concurrent.newMap());
+        sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0)), Mark.ARROW);
 
         int painted = 0;
-        for (int y = 0; y < 15; y++)
-            for (int x = 0; x < 22; x++)
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
                 if (buffer.getPixel(x, y) != 0) painted++;
 
         assertThat("a sliced window paints no mark of its own", painted, is(equalTo(0)));

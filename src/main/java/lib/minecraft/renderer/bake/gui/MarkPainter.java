@@ -15,14 +15,17 @@ import org.jetbrains.annotations.NotNull;
  * the shipped crafting panel draws its arrow in the cell's own fill, so an arrow read off the art
  * would be frozen at vanilla's grey while the panel around it changed colour.
  * <p>
- * Two are not, and each says so by carrying its own inks. {@link #HAMMER} is a picture and the
- * inside of {@link #FIELD} is an input widget, and neither is a shape a palette has anything to say
- * about - the same reason {@link #BUTTON}'s face carries a full-colour item over a bevel that does
- * re-ink. What re-inks is what the panel would have drawn itself.
+ * Four are not, and each says so by carrying its own inks. {@link #HAMMER} and {@link #ERROR} are
+ * pictures, and the inside of either name field, {@link #FIELD} or {@link #FIELD_DISABLED}, is an
+ * input widget, and none is a shape a palette has anything to say about - the same reason
+ * {@link #BUTTON}'s face carries a full-colour item over a bevel that does re-ink, and beneath that
+ * item the two texels of the client's book the item leaves clear, in the book's own ink. What re-inks
+ * is what the panel would have drawn itself.
  * <p>
- * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art paints
- * none, because whatever marks that art carries are already in the panel it slices, and nothing
- * handed to {@link #paint} says which window is asking - so the window keeps that decision.
+ * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art calls no
+ * painter: the arrow, the plus and the hammer are drawn into its art, and its name field, cross and
+ * recipe-book button are the GUI sprites the client blits there. Nothing handed to {@link #paint} says
+ * which window is asking, so the window keeps that decision.
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 enum MarkPainter {
@@ -73,12 +76,25 @@ enum MarkPainter {
     /**
      * A raised button, which is a cell's bevel the other way up - the light on the top and left
      * where a cell puts its shadow, and the shadow on the bottom and right. The item on its face is
-     * a render the renderer places, not something painted here.
+     * a render the renderer places, not something painted here; what is painted here beneath it is
+     * the two texels of the client's book that the item leaves clear, in that book's own ink.
      */
     BUTTON {
 
         /** the extent every button paints, which is the icon it holds inside its own bevel */
         private static final @NotNull Window.Extent EXTENT = new Window.Extent(20, 18);
+
+        /**
+         * The two texels of the client's book that the knowledge book's own texture leaves clear,
+         * closing the book's right-hand edge beside its pages, one character per Minecraft pixel.
+         */
+        private static final @NotNull Stencil BOOK = Stencil.of("K", "K");
+
+        /** The table the book's code resolves through, which reads no palette. */
+        private static final @NotNull Stencil.Ink INK = code -> switch (code) {
+            case 'K' -> 0xFF0C0500;
+            default -> throw new IllegalArgumentException("Unknown book role '%c'".formatted(code));
+        };
 
         /** {@inheritDoc} */
         @Override
@@ -89,9 +105,11 @@ enum MarkPainter {
         /**
          * {@inheritDoc}
          * <p>
-         * An outline chamfered a pixel at each corner, the light along the inside of the top and
-         * left, the shadow along the bottom and right, and the panel's own fill between them. This
-         * is {@link Window#paintCell} the other way up - a cell is sunk into the panel and a button
+         * An outline chamfered a pixel at each corner, the right-hand two in the palette's ink for a
+         * button's right-hand chamfers, the light along the inside of the top and left, the shadow
+         * along the bottom and right, and the panel's own fill between them, with the book's two
+         * texels stamped on the face at (17, 8) where the client's sprite holds them. The bevel is
+         * {@link Window#paintCell} the other way up - a cell is sunk into the panel and a button
          * stands off it, which is one bevel read in two directions rather than two shapes.
          */
         @Override
@@ -118,12 +136,16 @@ enum MarkPainter {
                 box.put(dest, w - 1, y, palette.outline());
             }
 
-            // The chamfer: one pixel of outline closing each corner, which is what leaves the corner
-            // itself unpainted so the panel shows through as it does under the frame's own corners.
+            // The chamfer: one pixel closing each corner, which is what leaves the corner itself
+            // unpainted so the panel shows through as it does under the frame's own corners - the
+            // left-hand two in the outline and the right-hand two in the palette's ink for them, as the
+            // client's button is inked.
             box.put(dest, 1, 1, palette.outline());
-            box.put(dest, w - 2, 1, palette.outline());
+            box.put(dest, w - 2, 1, palette.buttonRightChamfer());
             box.put(dest, 1, h - 2, palette.outline());
-            box.put(dest, w - 2, h - 2, palette.outline());
+            box.put(dest, w - 2, h - 2, palette.buttonRightChamfer());
+
+            BOOK.stamp(dest, box, 17, 8, INK);
         }
 
     },
@@ -241,15 +263,8 @@ enum MarkPainter {
     },
 
     /**
-     * The text field an anvil renames through.
-     * <p>
-     * A sunken well two pixels deep, which is {@link Window#paintCell}'s bevel applied twice - once
-     * at the box's own edge and once a pixel inside it.
-     * <p>
-     * The two rings answer to different owners, and the shipped sprite is what says so: its outer
-     * ring is a cell's own two inks bit for bit, so the well sinks into whatever panel it sits on
-     * and re-inks with it, while the olive of the inner ring and the interior belongs to no palette
-     * member and is the widget's own on a panel of any colour.
+     * The text field an anvil renames through, as the client draws it while the first input holds an
+     * item: the {@linkplain #well well} with its inside in the widget's own tan.
      * <p>
      * The shipped panel does not carry this. What the panel has at these coordinates is a rectangle
      * of flat red the client covers on every draw, so the field is owed here exactly because the art
@@ -257,8 +272,42 @@ enum MarkPainter {
      */
     FIELD {
 
-        /** the extent every field paints */
-        private static final @NotNull Window.Extent EXTENT = new Window.Extent(110, 16);
+        /** the inner line of the well, on its top and left */
+        private static final int INNER_SHADOW = 0xFFE0CA9F;
+
+        /** the well's interior, which is what the text is drawn over */
+        private static final int FILL = 0xFFA09172;
+
+        /** the inner line of the well, on its bottom and right */
+        private static final int INNER_LIGHT = 0xFF544C3B;
+
+        /** {@inheritDoc} */
+        @Override
+        @NotNull Window.Extent extent() {
+            return WELL;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * The well, its inside in the enabled field's tan.
+         */
+        @Override
+        void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette) {
+            well(dest, box, palette, INNER_SHADOW, FILL, INNER_LIGHT);
+        }
+
+    },
+
+    /**
+     * The same field while the first input is empty, as the client draws it then: the
+     * {@linkplain #well well} with its inside in the widget's own darker olive.
+     * <p>
+     * The shipped panel does not carry this. What the panel has at these coordinates is a rectangle
+     * of flat red the client covers on every draw, so the field is owed here exactly because the art
+     * cannot supply it.
+     */
+    FIELD_DISABLED {
 
         /** the inner line of the well, on its top and left */
         private static final int INNER_SHADOW = 0xFF6D634D;
@@ -272,36 +321,121 @@ enum MarkPainter {
         /** {@inheritDoc} */
         @Override
         @NotNull Window.Extent extent() {
+            return WELL;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * The well, its inside in the disabled field's olive.
+         */
+        @Override
+        void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette) {
+            well(dest, box, palette, INNER_SHADOW, FILL, INNER_LIGHT);
+        }
+
+    },
+
+    /**
+     * The red cross an anvil draws over its arrow while an input holds an item and its result holds
+     * none.
+     * <p>
+     * It is a picture in its own inks, stamped over the arrow the panel has already painted, which is
+     * what the rest of the client's sprite is - the panel's grey and the arrow, so a re-inked panel
+     * keeps its own arrow under the cross. Its box is the client's blit of that sprite, the cross
+     * opening six pixels in and three down.
+     */
+    ERROR {
+
+        /**
+         * The cross, one character per Minecraft pixel, measured off the shipped sprite - {@code R} its
+         * outline and {@code r} its core.
+         */
+        private static final @NotNull Stencil CROSS = Stencil.of(
+            "RR...........RR",
+            "RrR.........RrR",
+            ".RrR.......RrR.",
+            "..RrR.....RrR..",
+            "...RrR...RrR...",
+            "....RrR.RrR....",
+            ".....RrRrR.....",
+            "......RrR......",
+            ".....RrRrR.....",
+            "....RrR.RrR....",
+            "...RrR...RrR...",
+            "..RrR.....RrR..",
+            ".RrR.......RrR.",
+            "RrR.........RrR",
+            "RR...........RR");
+
+        /** The table the cross's codes resolve through, which reads no palette. */
+        private static final @NotNull Stencil.Ink INK = code -> switch (code) {
+            case 'R' -> 0xFF962300;
+            case 'r' -> 0xFFBA370F;
+            default -> throw new IllegalArgumentException("Unknown cross role '%c'".formatted(code));
+        };
+
+        /** the extent the client blits the cross's sprite at */
+        private static final @NotNull Window.Extent EXTENT = new Window.Extent(28, 21);
+
+        /** {@inheritDoc} */
+        @Override
+        @NotNull Window.Extent extent() {
             return EXTENT;
         }
 
         /**
          * {@inheritDoc}
          * <p>
-         * A well sunk two pixels into the panel and filled with the widget's own olive. The two
-         * rings are one bevel rule read at two depths and they differ in where their inks come
-         * from: the outer takes the palette's, because that ring is a cell's own, and the inner
-         * takes the field's. The two corners the bevel hands over are left untouched, so the panel
-         * shows through as it does under the frame's own chamfers.
+         * This one reads no palette, the cross being a picture rather than a shape.
          */
         @Override
         void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette) {
-            int w = box.width();
-            int h = box.height();
-            if (w < 4 || h < 4) return;
-
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    if ((x == w - 1 && y == 0) || (x == 0 && y == h - 1)) continue;
-                    box.put(dest, x, y, FILL);
-                }
-            }
-
-            box.sink(dest, 0, palette.cellShadow(), palette.light());
-            box.sink(dest, 1, INNER_SHADOW, INNER_LIGHT);
+            CROSS.stamp(dest, box, 6, 3, INK);
         }
 
     };
+
+    /** the extent either form of the name field paints, which is the client's blit of either sprite */
+    private static final @NotNull Window.Extent WELL = new Window.Extent(110, 16);
+
+    /**
+     * Paints the name field's well over the box - sunk two pixels into the panel, which is
+     * {@link Window#paintCell}'s bevel applied twice, once at the box's own edge and once a pixel
+     * inside it, over a fill.
+     * <p>
+     * The two rings are one bevel rule read at two depths, and they answer to different owners, as
+     * the shipped sprites of both forms say: the outer ring is a cell's own two inks bit for bit, so
+     * the well sinks into whatever panel it sits on and re-inks with it, while the inner ring and the
+     * interior are the widget's own inks, in neither form a palette member's, on a panel of any
+     * colour. The two corners the bevel hands over are left untouched, so the panel shows through as
+     * it does under the frame's own chamfers.
+     *
+     * @param dest the buffer to paint into
+     * @param box the field's rect in Minecraft pixels
+     * @param palette the inks of the panel, which the outer ring takes
+     * @param innerShadow the inner ring's ink on its top and left
+     * @param fill the interior's ink, which is what the text is drawn over
+     * @param innerLight the inner ring's ink on its bottom and right
+     */
+    private static void well(
+        @NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette,
+        int innerShadow, int fill, int innerLight
+    ) {
+        int w = box.width();
+        int h = box.height();
+        if (w < 4 || h < 4) return;
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if ((x == w - 1 && y == 0) || (x == 0 && y == h - 1)) continue;
+                box.put(dest, x, y, fill);
+            }
+        }
+
+        box.sink(dest, 0, palette.cellShadow(), palette.light());
+        box.sink(dest, 1, innerShadow, innerLight);
+    }
 
     /**
      * Returns the painter for a mark.
@@ -318,6 +452,8 @@ enum MarkPainter {
             case PLUS -> PLUS;
             case HAMMER -> HAMMER;
             case FIELD -> FIELD;
+            case FIELD_DISABLED -> FIELD_DISABLED;
+            case ERROR -> ERROR;
         };
     }
 
@@ -336,7 +472,7 @@ enum MarkPainter {
      * sliced from art declines every one of them.
      *
      * @param dest the buffer to paint into
-     * @param box the mark's rect in Minecraft pixels, with its output scale
+     * @param box the mark's rect in Minecraft pixels
      * @param palette the inks of the panel it is being painted onto
      */
     abstract void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette);

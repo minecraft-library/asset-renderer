@@ -219,7 +219,7 @@ public final class EntityParitySweep {
             } finally {
                 lib.minecraft.renderer.diagnostic.DebugChannel.endPerEntityBoundsDump(refId);
             }
-            BufferedImage javaImg = java.toBufferedImage();
+            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 

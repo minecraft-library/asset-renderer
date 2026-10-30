@@ -1,10 +1,13 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.Window;
@@ -24,6 +27,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
@@ -31,17 +35,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.awt.Rectangle;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -237,6 +245,122 @@ class MenuRendererGeometryTest {
         assertThat("a title drew something", differing, is(greaterThan(0)));
     }
 
+    @Test
+    @DisplayName("a title draws in the colour the stack's text palette swaps its ink for")
+    void aTitleDrawsInThePalettesSwap() {
+        MenuOptions bare = chest(3, true);
+        int argb = bare.getDefaultTitleArgb();
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(argb & 0xFFFFFF, 0x2B5D8A)));
+        PixelBuffer without = render(bare);
+        PixelBuffer with = new MenuRenderer(new Palette(RendererContext.builder().build(), palette))
+            .render(bare.mutate().title("Chest").build())
+            .image().getFrames().getFirst().pixels();
+
+        // The context the menu draws through wraps this one, so the title reaches the palette only
+        // through the wrapper's forward.
+        int differing = 0;
+        for (int y = 0; y < without.height(); y++) {
+            for (int x = 0; x < without.width(); x++) {
+                if (without.getPixel(x, y) == with.getPixel(x, y)) continue;
+                differing++;
+                assertThat("the pixel at " + x + "," + y + " is the title's ink, swapped",
+                    with.getPixel(x, y), is(equalTo((argb & 0xFF000000) | 0x2B5D8A)));
+            }
+        }
+
+        assertThat("a title drew something", differing, is(greaterThan(0)));
+    }
+
+    @Test
+    @DisplayName("a field's text draws in the colours the stack's text palette swaps its ink and its shadow for")
+    void fieldTextDrawsInThePalettesSwaps() {
+        int well = Mark.FIELD.textWell().orElseThrow().argb();
+        // White's shadow, each channel quartered.
+        int shadow = 0x3F3F3F;
+        assertThat("the field draws in white", well, is(equalTo(0xFFFFFFFF)));
+        TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+            Concurrent.newUnmodifiableMap(Map.of(well & 0xFFFFFF, 0x4CC2FF, shadow, 0x13303F)));
+        MenuRenderer renderer = new MenuRenderer(new Palette(RendererContext.builder().build(), palette));
+        MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.ANVIL).caret(false).build();
+        PixelBuffer without = renderer.render(bare).image().getFrames().getFirst().pixels();
+        PixelBuffer with = renderer.render(bare.mutate().fieldText("Excalibur").build()).image().getFrames().getFirst().pixels();
+
+        // The field's text is a layer of its own over the well, so the pixels the two renders disagree
+        // about are the ones it wrote.
+        Set<Integer> drawn = new HashSet<>();
+        for (int y = 0; y < without.height(); y++)
+            for (int x = 0; x < without.width(); x++)
+                if (without.getPixel(x, y) != with.getPixel(x, y)) drawn.add(with.getPixel(x, y));
+
+        assertThat("the text and its shadow, each in its swap", drawn, is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F))));
+    }
+
+    /**
+     * A context answering one text palette and forwarding every other lookup.
+     *
+     * @param delegate the context every other lookup reaches
+     * @param palette the palette it answers
+     */
+    private record Palette(@NotNull RendererContext delegate, @NotNull TextPalette palette) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<TextPalette> findTextPalette() {
+            return Possible.of(this.palette);
+        }
+
+    }
+
+    @Test
+    @DisplayName("two obfuscated labels of one frame draw two scrambles")
+    void twoLabelsOfAFrameScrambleApart() {
+        MenuOptions options = chest(3, true).mutate().title("§kHello").inventoryTitle("§kHello").build();
+        MenuLayout layout = MenuRenderer.layoutOf(options);
+        ImageData labels = MenuRenderer.labelLayer(options, layout, TextPalette.VANILLA).orElseThrow();
+
+        // The label layer holds the two labels alone, the title above the player's; a row midway
+        // between their anchors parts them, and each is taken from its own first-ink corner.
+        int parting = (anchorOf(layout, options.getTitle()).y() + layout.inventoryAnchor().orElseThrow().y()) / 2 * SCALE;
+        ConcurrentList<Integer> alike = Concurrent.newList();
+        for (int f = 0; f < labels.getFrames().size(); f++) {
+            PixelBuffer frame = labels.getFrames().get(f).pixels();
+            PixelBuffer title = inkOf(frame.crop(0, 0, frame.width(), parting));
+            PixelBuffer player = inkOf(frame.crop(0, parting, frame.width(), frame.height() - parting));
+            if (samePixels(title, player)) alike.add(f);
+        }
+
+        assertThat("the obfuscated labels animate", labels.getFrames().size(), is(greaterThan(1)));
+        assertThat("frames whose two labels draw one scramble", alike, is(empty()));
+    }
+
+    /**
+     * Cuts a buffer to the first pixel it inks on every side.
+     *
+     * @param buffer the buffer holding one label
+     * @return the label's ink
+     */
+    private static PixelBuffer inkOf(PixelBuffer buffer) {
+        Rectangle ink = buffer.opaqueBounds();
+        assertThat("a label drew something", ink.isEmpty(), is(false));
+        return buffer.crop(ink.x, ink.y, ink.width, ink.height);
+    }
+
+    /**
+     * Answers whether two buffers are one size and hold the same pixels.
+     *
+     * @param a the first buffer
+     * @param b the second buffer
+     * @return whether they hold the same pixels
+     */
+    private static boolean samePixels(PixelBuffer a, PixelBuffer b) {
+        if (a.width() != b.width() || a.height() != b.height()) return false;
+        for (int y = 0; y < a.height(); y++)
+            for (int x = 0; x < a.width(); x++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) return false;
+        return true;
+    }
+
     /** Where a title of the given text starts, measured the way the renderer measures it. */
     private static MenuLayout.Origin anchorOf(MenuLayout layout, String title) {
         return layout.titleAnchor(TextKit.measureLineMcPixels(TextSegment.fromLegacy(title, '§')));
@@ -303,7 +427,7 @@ class MenuRendererGeometryTest {
     }
 
     @Test
-    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing is sliced as the checkerboard")
+    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing is the checkerboard, composed as the screen composes its sheet")
     void namedChromeArtThatIsMissingIsTheCheckerboard() {
         RendererContext context = RendererContext.builder().build();
 
@@ -322,9 +446,16 @@ class MenuRendererGeometryTest {
         Window window = MenuRenderer.windowOf(context, named);
         assertThat(window, is(instanceOf(Window.Sliced.class)));
         Window.Sliced sliced = (Window.Sliced) window;
-        assertThat("the panel art is the stand-in", sliced.panelArt(), is(sameInstance(MissingSprite.sprite())));
-        assertThat("and so is the shipped cell art the stub does not serve",
-            sliced.cellArt().orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+        PixelBuffer panel = sliced.panelArt();
+        assertThat("the panel is the bare chest's own, cut to fit as the sheet would be",
+            panel.width() + "x" + panel.height(), is(equalTo("176x" + (17 + 3 * 18 + 7))));
+
+        int other = 0;
+        for (int y = 0; y < panel.height(); y++)
+            for (int x = 0; x < panel.width(); x++)
+                if (panel.getPixel(x, y) != MissingSprite.MAGENTA_ARGB && panel.getPixel(x, y) != MissingSprite.BLACK_ARGB) other++;
+        assertThat("every pixel of it the stand-in's", other, is(equalTo(0)));
+        assertThat("and a chest's cells are its art's, so no cell sprite is read", sliced.cellArt().isPresent(), is(false));
 
         boolean magenta = false;
         PixelBuffer drawn = render(named);
@@ -340,19 +471,115 @@ class MenuRendererGeometryTest {
         ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
         slots.put(0, MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
             Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
-        MenuOptions named = chest(3, false).mutate()
-            .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here")))
+        // A bare grid of 140x78, which renders because a screen the client ships no sheet for reads the
+        // stand-in at its own size rather than across the client's 256-texel sheet space.
+        Optional<ResourceId> missing = Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here"));
+        MenuOptions grid = chest(3, false).mutate()
+            .columns(7)
+            .chromeSprite(missing)
             .slots(slots)
             .build();
 
-        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(named);
+        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(grid);
 
-        assertThat("the chrome names the panel art and the shipped cell art the stub does not serve",
+        assertThat("a screen the client ships no sheet for names the panel art and the slot it draws over each cell, neither of which the stub serves",
             menu.chrome(), contains(
                 Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
                 Substitution.texture("minecraft:gui/sprites/container/slot", Possible.State.ABSENT)));
         assertThat("the caller's slot names none of it", menu.slots().getFirst().result().substitutions(), is(empty()));
         assertThat("and the menu names the chrome's as its own", menu.substitutions(), is(equalTo(menu.chrome())));
+
+        MenuResult chest = new MenuRenderer(RendererContext.builder().build())
+            .render(chest(3, true).mutate().chromeSprite(missing).build());
+        assertThat("a chest names the panel art alone, its cells being the art's",
+            chest.chrome(), contains(Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT)));
+
+        MenuResult anvil = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.ANVIL).chromeSprite(missing).build());
+        assertThat("an anvil names the panel art and the field sprite the client blits over it",
+            anvil.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/text_field_disabled", Possible.State.ABSENT)));
+
+        // A render in the first input alone is the anvil the client draws with its enabled field and the
+        // cross, so those are the sprites read - and the disabled field, which it does not draw, is not.
+        MenuResult filled = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.ANVIL).chromeSprite(missing).slots(slots).build());
+        assertThat("an anvil whose first input holds an item names the panel art, the enabled field and the cross the client blits over it",
+            filled.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/text_field", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/error", Possible.State.ABSENT)));
+
+        // The crafting table's recipe-book button is a sprite the client blits whole, its book drawn in,
+        // so the menu renders no knowledge book over it and names no stand-in for one.
+        MenuResult crafting = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).chromeSprite(missing).build());
+        assertThat("a crafting table names the panel art and the recipe-book button the client blits over it",
+            crafting.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/recipe_book/button", Possible.State.ABSENT)));
+        assertThat("and the menu names the chrome's alone", crafting.substitutions(), is(equalTo(crafting.chrome())));
+    }
+
+    /**
+     * Paints an anvil's chrome in the vanilla theme and counts the output pixels it moves by from the
+     * chrome of the anvil with every slot empty - inside the name field's box, inside the cross's, and
+     * anywhere else.
+     *
+     * @param options the anvil
+     * @return the moved pixels in the field's box, in the cross's and elsewhere
+     */
+    private static List<Integer> chromeMoved(MenuOptions options) {
+        MenuOptions empty = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
+        PixelBuffer before = MenuRenderer.paintChrome(Window.Theme.VANILLA, MenuRenderer.layoutOf(empty));
+        PixelBuffer after = MenuRenderer.paintChrome(Window.Theme.VANILLA, MenuRenderer.layoutOf(options));
+        // AnvilScreen blits its field 110x16 at (59, 20) and its error 28x21 at (99, 45).
+        Rectangle field = new Rectangle(59 * SCALE, 20 * SCALE, 110 * SCALE, 16 * SCALE);
+        Rectangle cross = new Rectangle(99 * SCALE, 45 * SCALE, 28 * SCALE, 21 * SCALE);
+
+        int inField = 0, inCross = 0, elsewhere = 0;
+        for (int y = 0; y < before.height(); y++) {
+            for (int x = 0; x < before.width(); x++) {
+                if (before.getPixel(x, y) == after.getPixel(x, y)) continue;
+                if (field.contains(x, y)) inField++;
+                else if (cross.contains(x, y)) inCross++;
+                else elsewhere++;
+            }
+        }
+
+        return List.of(inField, inCross, elsewhere);
+    }
+
+    @Test
+    @DisplayName("an anvil's chrome follows what its slots hold, a render and the fill holding as an item does and air holding nothing")
+    void anAnvilsChromeFollowsWhatItsSlotsHold() {
+        MenuOptions anvil = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
+        MenuOptions.MenuSlotContent render = MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
+            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+        // The client's two field sprites differ in 1512 Minecraft pixels and its cross covers 81.
+        int field = 1512 * SCALE * SCALE;
+        int cross = 81 * SCALE * SCALE;
+
+        assertThat("a render in the second input alone draws the cross and leaves the field disabled",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(1, render))).build()),
+            is(equalTo(List.of(0, cross, 0))));
+        assertThat("renders in the first input and the result enable the field and draw no cross",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, render), Map.entry(2, render))).build()),
+            is(equalTo(List.of(field, 0, 0))));
+        assertThat("an item in the first input alone enables the field and draws the cross",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:diamond")))).build()),
+            is(equalTo(List.of(field, cross, 0))));
+        assertThat("a fill naming an item holds every slot, so the field is enabled and no cross is drawn",
+            chromeMoved(anvil.mutate().fill(MenuOptions.Fill.of("minecraft:stone")).build()),
+            is(equalTo(List.of(field, 0, 0))));
+        // The client's slot holds an item unless its stack is empty, which air always is.
+        assertThat("air named in the first input holds nothing, so the field stays disabled",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:air")))).build()),
+            is(equalTo(List.of(0, 0, 0))));
+        assertThat("and a fill naming air holds none either",
+            chromeMoved(anvil.mutate().fill(MenuOptions.Fill.of("minecraft:air")).build()),
+            is(equalTo(List.of(0, 0, 0))));
     }
 
     @Test
@@ -365,12 +592,11 @@ class MenuRendererGeometryTest {
     }
 
     @Test
-    @DisplayName("a caller who names no chrome art still names the cell art a sliced window would take")
-    void theCellArtDefaultsToTheShippedSlot() {
+    @DisplayName("a caller who names no cell sprite leaves the cells to the window")
+    void aCallerWhoNamesNoCellSpriteLeavesTheCellsToTheWindow() {
         assertThat("no panel art", MenuOptions.defaults().getChromeSprite(), is(equalTo(Optional.empty())));
-        assertThat("and the cell the client ships, for the window that would read it",
-            MenuOptions.defaults().getCellSprite(),
-            is(equalTo(Optional.of(ResourceId.parse("minecraft:gui/sprites/container/slot")))));
+        assertThat("and no cell sprite, the window deciding what each cell is drawn with",
+            MenuOptions.defaults().getCellSprite(), is(equalTo(Optional.empty())));
     }
 
     @Test
@@ -419,6 +645,63 @@ class MenuRendererGeometryTest {
                 if (rendered.getPixel(x, y) == shadowOfDefault) found++;
 
         assertThat("pixels of the title's shadow colour", found, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("a see-through title and its underline blend over the panel as the client lays text")
+    void aSeeThroughTitleBlendsOverThePanel() {
+        MenuOptions bare = chest(3, false);
+        PixelBuffer without = render(bare);
+        PixelBuffer plain = render(bare.mutate().title("Chest").build());
+        PixelBuffer underlined = render(bare.mutate().title("§nChest").build());
+        PixelBuffer seeThrough = render(bare.mutate().title("§nChest").defaultTitleArgb(0x80404040).build());
+
+        // The opaque renders tell the title's glyph pixels from its underline's. Laid on the clear label
+        // layer, 0x80404040 is held as 80202020, and that over the panel's C6C6C6 shows 838383 - a glyph
+        // pixel and a bar pixel alike. A glyph laid opaque would show 404040, and an overwritten bar
+        // A3A3A3.
+        int glyphs = 0;
+        int bar = 0;
+        ConcurrentList<String> wrong = Concurrent.newList();
+        for (int y = 0; y < without.height(); y++) {
+            for (int x = 0; x < without.width(); x++) {
+                boolean glyph = plain.getPixel(x, y) != without.getPixel(x, y);
+                if (!glyph && underlined.getPixel(x, y) == without.getPixel(x, y)) continue;
+
+                if (glyph)
+                    glyphs++;
+                else
+                    bar++;
+                if (seeThrough.getPixel(x, y) != 0xFF838383)
+                    wrong.add(String.format("%s pixel at %d,%d: %08X", glyph ? "glyph" : "underline", x, y, seeThrough.getPixel(x, y)));
+            }
+        }
+
+        assertThat("the title drew glyphs", glyphs, is(greaterThan(0)));
+        assertThat("and an underline", bar, is(greaterThan(0)));
+        assertThat("title pixels that are not the client's blend over the panel", wrong, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a still label layer is held premultiplied, as the animated one is")
+    void aStillLabelLayerIsHeldPremultiplied() {
+        MenuOptions options = chest(3, true).mutate().title("Chest").build();
+        ImageData labels = MenuRenderer.labelLayer(options, MenuRenderer.layoutOf(options), TextPalette.VANILLA).orElseThrow();
+        PixelBuffer layer = labels.toPixelBuffer();
+
+        int above = 0;
+        for (int y = 0; y < layer.height(); y++) {
+            for (int x = 0; x < layer.width(); x++) {
+                int argb = layer.getPixel(x, y);
+                int alpha = argb >>> 24;
+                if (((argb >> 16) & 0xFF) > alpha || ((argb >> 8) & 0xFF) > alpha || (argb & 0xFF) > alpha)
+                    above++;
+            }
+        }
+
+        assertThat("the layer is a single frame", labels.isAnimated(), is(false));
+        assertThat("the layer's mark", labels.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("pixels with a colour channel above their alpha", above, is(equalTo(0)));
     }
 
     @Test
@@ -496,6 +779,35 @@ class MenuRendererGeometryTest {
         assertThat("and a menu no caller filled names no slot", menu.slots(), is(empty()));
     }
 
+    @Test
+    @DisplayName("a crafting table drawn from named art places no icon over the button sprite its window draws, and a theme's places the knowledge book")
+    void aButtonItsWindowDrawsAsASpriteTakesNoIcon() {
+        RendererContext context = RendererContext.builder().build();
+        MenuOptions themed = MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).build();
+        MenuOptions sliced = themed.mutate()
+            .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/crafting_table")))
+            .build();
+
+        MenuResult theme = new MenuRenderer(context).render(themed);
+        assertThat("a theme's button takes the knowledge book on its face",
+            theme.icons().stream().map(MenuResult.Icon::mark).toList(), is(equalTo(List.of(Mark.BUTTON))));
+
+        MenuResult menu = new MenuRenderer(context).render(sliced);
+        assertThat("a sliced window's button sprite carries its own book, so no icon is placed", menu.icons(), is(empty()));
+        assertThat("and no knowledge book's stand-in is named",
+            menu.substitutions().contains(Substitution.subject("minecraft:knowledge_book")), is(false));
+
+        // Inside the button's box at scale, the menu is the chrome its window painted, with nothing laid over it.
+        PixelBuffer rendered = menu.image().getFrames().getFirst().pixels();
+        PixelBuffer chrome = MenuRenderer.paintChrome(MenuRenderer.windowOf(context, sliced), MenuRenderer.layoutOf(sliced));
+        int over = 0;
+        for (int y = 34 * SCALE; y < (34 + 18) * SCALE; y++)
+            for (int x = 5 * SCALE; x < (5 + 20) * SCALE; x++)
+                if (rendered.getPixel(x, y) != chrome.getPixel(x, y)) over++;
+
+        assertThat("output pixels in the button's box that are not the chrome's", over, is(equalTo(0)));
+    }
+
     /**
      * A window whose art wants more room than any menu's content floor would ask for, which is what a
      * panel sliced from art with anchored features along its bands comes to.
@@ -515,6 +827,12 @@ class MenuRendererGeometryTest {
         /** {@inheritDoc} */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {}
+
+        /** {@inheritDoc} */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return false;
+        }
 
         /** {@inheritDoc} */
         @Override

@@ -40,16 +40,19 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 4800 ms | yes |
 | `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 19196 ms | yes |
-| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13899 ms | yes |
+| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 15 | 4614 ms | yes |
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 25702 ms | yes |
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 44406 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9776 | 128936 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 34114 ms | yes |
+| `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 5612 ms | yes |
+| `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 5849 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9827 | 127322 ms | yes |
+| `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 22698 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 211 | 36137 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 8238 ms | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 6150 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 6150 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 7555 ms | yes |
-| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2733 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 8691 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 8691 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 7645 ms | yes |
+| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2872 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 17263 ms | yes |
 | `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 9418 ms | yes |
@@ -109,6 +112,6 @@ selected by `parityPlan`, and none is a gate.
 | `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |
 | `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
 | `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |
-| `renderVanillaReferences` and the three narrow harness runs | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |
-| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. The last three's outputs are registered as `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`, all external: evidence rather than a value a gate reproduces. |
+| `renderVanillaReferences` and every other harness run that refreshes part of the tree | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |
+| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`: evidence rather than a value a gate reproduces. |
 | `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |

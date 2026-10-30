@@ -14,16 +14,27 @@ blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken ove
 
 - **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle is
   vanilla's: a declared side as declared, an undeclared side the strip's own where the other is
-  declared, and a square of the strip's shorter side where neither is. The implicit entries are the
-  whole frames the strip holds across both axes, numbered row by row, so a pack swapping either the
-  sidecar or the PNG swaps the table. It is memoised on `PackStack` on the same `(pack, id)` key the
-  decoded pixels take.
+  declared, and a square of the strip's shorter side where neither is. The section is read as the
+  client's codec reads it: a positive frametime, defaulting to 1, and a positive width and height where
+  declared; each frame a non-negative strip index, alone or as an object's required `index` with an
+  optional positive `time`; `interpolate` a JSON boolean; a number only a JSON number, and a member
+  written `null` missing. The implicit entries are the whole frames the strip holds across both axes,
+  numbered row by row, so a pack swapping either the sidecar or the PNG swaps the table. An authored
+  entry naming a frame the strip does not hold is dropped, and a table left with fewer than two
+  entries - an empty `frames` list among them - does not animate: it shows the strip's first frame, as
+  vanilla's sprite shows its top-left frame. It is memoised on `PackStack` on the same `(pack, id)` key
+  the decoded pixels take.
 - **A strip its frame size does not divide is no texture at all.** Vanilla's sprite loader refuses it
   and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
   keeps the pixels and serves one that fails as unreadable - `resolveTexture` answers empty and the
   table empty with it. A strip handed to `Flipbook.of` directly still plays the whole frames it holds,
   and one holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
   unchanged.
+- **An animation section the client's codec refuses is no texture either.** Vanilla's sprite loader
+  reads the section for every atlas and draws its missing sprite for one it refuses, so `PackStack`
+  serves the texture as unreadable, as it does a strip it refuses; the sidecar's other sections stand.
+  Vanilla reads a texture outside an atlas (an entity's, an armour layer, the elytra) with its texture
+  section alone and never animates it; this renderer reads every texture as an atlas sprite.
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
   strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`

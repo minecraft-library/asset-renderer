@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pose.PaceCeiling;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
@@ -40,8 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of how the pipeline dump writes an id its key source lists but whose lookup holds no row,
- * of how it writes the forms that re-pose a wearer, and of how it writes a style catalog and a worn
- * shell.
+ * of how it writes the forms that re-pose a wearer, of how it writes a style catalog and a worn shell,
+ * and of how it writes a sidecar's {@code gui} and {@code animation} sections in each of their three
+ * states, an animation's undeclared members omitted.
  * <p>
  * The context lists every block and item it knows, the ones that draw nothing included, so the dump's
  * blocks and items sections and its {@code icon_gui} probe each walk an id the lookup answers empty.
@@ -59,7 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * The context is a stub listing one id the lookups answer empty and one they answer absent, and the
  * forms, the catalog and the shells are built in memory, so no client assets are read.
  */
-@DisplayName("The pipeline dump writes an id that draws nothing as its state, fails one nothing knows, keeps a wearer's slot order, and writes a catalog and a shell whole")
+@DisplayName("The pipeline dump writes an id that draws nothing as its state, fails one nothing knows, keeps a wearer's slot order, and writes a catalog and a shell whole, a gui section as what its scaling holds and an animation as what it declares")
 class PipelineParityDumpTest {
 
     /** An id the stub's lookups answer empty, as the client's index answers air. */
@@ -182,6 +184,75 @@ class PipelineParityDumpTest {
         assertThat(second.get("form").getAsString(), is("BABY"));
         assertThat(second.getAsJsonArray("inner_grow").toString(), is("[0.25,0.25,0.25]"));
         assertThat(second.has("alternate"), is(false));
+    }
+
+    @Test
+    @DisplayName("a gui section is written as what its scaling holds, a refused one as its state, and an absent one not at all")
+    void aGuiSectionIsWrittenAsItsRecordAndARefusedOneAsItsState() {
+        MCMeta.GuiScaling nineSlice = new MCMeta.GuiScaling.NineSlice(100, 100, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
+
+        assertThat("a nine-slice, in the stored rows' form", gui(Possible.of(nineSlice)),
+            is(JsonParser.parseString("{\"type\":\"NINE_SLICE\",\"width\":100,\"height\":100,\"stretch_inner\":false}")));
+        assertThat("a tile", gui(Possible.of(new MCMeta.GuiScaling.Tile(16, 8))),
+            is(JsonParser.parseString("{\"type\":\"TILE\",\"width\":16,\"height\":8}")));
+        assertThat("a stretch", gui(Possible.of(new MCMeta.GuiScaling.Stretch())),
+            is(JsonParser.parseString("{\"type\":\"STRETCH\"}")));
+        assertThat("a section the client's codec refuses", gui(Possible.empty()),
+            is(JsonParser.parseString("{\"state\":\"empty\"}")));
+        assertThat("a sidecar carrying no section",
+            PipelineParityDump.meta(sidecar(Possible.absent(), Possible.absent())).has("gui"), is(false));
+    }
+
+    @Test
+    @DisplayName("an animation section is written as what it declares, a refused one as its state, and an absent one not at all")
+    void anAnimationIsWrittenAsWhatItDeclaresAndARefusedOneAsItsState() {
+        assertThat("a section declaring nothing",
+            animation(Possible.of(new MCMeta.Animation(1, false, Optional.empty(), Optional.empty(), Optional.empty()))),
+            is(JsonParser.parseString("{\"frametime\":1,\"interpolate\":false}")));
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList(
+            new MCMeta.Frame(0, Optional.empty()), new MCMeta.Frame(1, Optional.of(5)));
+        assertThat("a section declaring a height, a frame list and one frame's time",
+            animation(Possible.of(new MCMeta.Animation(2, true, Optional.empty(), Optional.of(16), Optional.of(frames)))),
+            is(JsonParser.parseString("{\"frametime\":2,\"interpolate\":true,\"height\":16,"
+                + "\"frames\":[{\"index\":0},{\"index\":1,\"time\":5}]}")));
+        assertThat("a section the client's codec refuses", animation(Possible.empty()),
+            is(JsonParser.parseString("{\"state\":\"empty\"}")));
+        assertThat("a sidecar carrying no section",
+            PipelineParityDump.meta(sidecar(Possible.absent(), Possible.absent())).has("animation"), is(false));
+    }
+
+    /**
+     * Writes a sidecar carrying the given {@code gui} section and nothing else, and answers what the dump
+     * writes under its {@code gui} key.
+     *
+     * @param gui the section the sidecar carries
+     * @return the written section
+     */
+    private static @NotNull JsonElement gui(@NotNull Possible<MCMeta.GuiScaling> gui) {
+        return PipelineParityDump.meta(sidecar(Possible.absent(), gui)).get("gui");
+    }
+
+    /**
+     * Writes a sidecar carrying the given {@code animation} section and nothing else, and answers what the
+     * dump writes under its {@code animation} key.
+     *
+     * @param animation the section the sidecar carries
+     * @return the written section
+     */
+    private static @NotNull JsonElement animation(@NotNull Possible<MCMeta.Animation> animation) {
+        return PipelineParityDump.meta(sidecar(animation, Possible.absent())).get("animation");
+    }
+
+    /**
+     * Builds a sidecar carrying the given {@code animation} and {@code gui} sections and no other.
+     *
+     * @param animation the animation section the sidecar carries
+     * @param gui the gui section the sidecar carries
+     * @return the sidecar
+     */
+    private static @NotNull MCMeta sidecar(@NotNull Possible<MCMeta.Animation> animation, @NotNull Possible<MCMeta.GuiScaling> gui) {
+        return new MCMeta(ResourceId.parse("minecraft:gui/sprites/tooltip/background"), Optional.empty(), animation,
+            Possible.absent(), gui, Optional.empty());
     }
 
     /**

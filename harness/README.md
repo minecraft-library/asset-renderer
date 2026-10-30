@@ -49,7 +49,7 @@ Or directly from the harness:
 ./gradlew runRenderReferences -PrefharnessGlintOnly=true
 ```
 
-Either path launches MC 26.1.2 with a hidden GLFW window, programmatically creates a flat normal-difficulty world, pins noon + freezes the daylight cycle, runs a family-fit pre-pass to size each entity-family canvas, then renders every block (as true 3D geometry), every non-block item (as a GUI inventory icon), every entity variant and the vanilla player into transparent PNGs before exiting. The entity bounds pre-pass takes ~250 ms. `GLINT` runs the glint sweep alone; `EVERY` runs it beside the block, item, entity, player, armor and menu sweeps in one boot.
+Either path launches MC 26.1.2 with a hidden GLFW window, programmatically creates a flat normal-difficulty world, pins noon + freezes the daylight cycle, runs a family-fit pre-pass to size each entity-family canvas, then renders every block (as true 3D geometry), every non-block item (as a GUI inventory icon), every entity variant and the vanilla player into transparent PNGs before exiting. The entity bounds pre-pass takes ~250 ms. `GLINT` runs the glint sweep alone; `EVERY` runs it beside the block, item, entity, player, armor, menu and tooltip sweeps in one boot.
 
 ---
 
@@ -189,21 +189,22 @@ The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-
 
 ### Project properties
 
-Use `-PrefharnessXxx` on the Gradle command line. The run config forwards eighteen; the ones a run most often names are below.
+Use `-PrefharnessXxx` on the Gradle command line. The run config forwards nineteen; the ones a run most often names are below.
 
 | Property                  | Default                  | Purpose                                                                                            |
 | ------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `refharnessTargets`       | _(empty)_                | Comma-separated `<ns>:<id>` filter; empty means all                                                |
-| `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `items/`, `entities/`, `players/`, `glint/`, `armor/`, `menus/`, `idle/`, `walk/` are created under it, `idle/` and `walk/` each with its `schedule.json`. The posed modes read `entity-schedule/roster.json` beside it |
+| `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `items/`, `entities/`, `players/`, `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/`, `walk/` are created under it, `idle/` and `walk/` each with its `schedule.json`. The posed modes read `entity-schedule/roster.json` beside it |
+| `refharnessTooltipRoster` | the tracked roster       | The tooltip roster `TOOLTIPS` draws, by path. Set on every run; the default is asset-renderer's `src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json` |
 | `refharnessGlintOnly`     | `false`                  | Render only the animated-glint references (the 7 foil items + 4 armor diagnostics); skip the full sweep |
 | `refharnessAnimated`      | `false`                  | Render only `idle/` - one strip per entity with vanilla's own `setupAnim` running. The gait is armed per sweep off `PoseState`, so `-PrefharnessModes=EVERY,ANIMATION,WALK` writes this sub-tree in the same boot as the frozen ones |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
-| `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES` and `PACK_ICONS`; never written to `options.txt` |
+| `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES`, `PACK_ICONS` and `PACK_TOOLTIPS`; never written to `options.txt` |
 | `refharnessPackDir`       | _(unset)_                | The folder those packs are discovered in, handed to the client as `--resourcePackDir`               |
 
 ### System properties
 
-Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads sixteen; the ones a run most often names are below.
+Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads seventeen; the ones a run most often names are below.
 
 | Property                     | Default | Purpose                                                                                                              |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -238,7 +239,7 @@ src/
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS -> their sweeps
+    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
     │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # First settled screen → WorldOpenFlows.createFreshLevel(...)
     │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin
@@ -265,6 +266,7 @@ src/
     │   │   ├── EntityBoundsWalker.java     # The reflective silhouette walk that sizes a subject
     │   │   ├── AnimatedEntityFrameRenderer.java # Arms the tick, unions bounds across the schedule
     │   │   ├── PlayerFrameRenderer.java    # PIP player-model render (no Entity; bakes the layer)
+    │   │   ├── GuiFrameRenderer.java       # The GUI capture: a sweep's extract step through the client's own GUI draw -> PNG
     │   │   ├── BlockIconGeometry.java      # A stack's block-model icon quads, off vanilla's own walk
     │   │   ├── ItemDefinitionWalk.java     # The neutral walk of items/<name>.json + a block's block_state cases
     │   │   ├── BlockGuiTransform.java      # Resolves a block's authored display.gui transform
@@ -279,6 +281,8 @@ src/
     │   │   ├── PlayerSweep.java            # FULL + SKULL scopes
     │   │   ├── GlintSweep.java             # Animated-glint frame sequences + atlas-UV dump
     │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
+    │   │   ├── MenuSweep.java              # Container screens, each laid out at its panel's own size
+    │   │   ├── TooltipSweep.java           # The tooltip roster, each subject whole and as its box alone, and its plain lines
     │   │   ├── PitchRollSweep.java         # Diagnostic pitch × roll pose sweep (outside the tree)
     │   │   ├── PackSourceSweep.java        # Diagnostic: which pack the client takes each resource from (outside the tree)
     │   │   ├── PackIconSweep.java          # Diagnostic: the slot drawing of each pack-icon roster stack (outside the tree)

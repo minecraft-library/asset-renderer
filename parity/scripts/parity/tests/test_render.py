@@ -41,6 +41,12 @@ class Indexing(unittest.TestCase):
         with self.assertRaises(MissingInput):
             render.index(self.base / "nope")
 
+    def test_a_row_folder_below_the_top_is_keyed_by_its_path(self):
+        """A row whose key names a directory - the tooltip sweep's plain/<key> - writes its folder
+        below the tree's top, and is indexed under the key its report gives it."""
+        root = tree(self.base / "n", {"flat": ("java.png", b"1"), "plain/x": ("java.png", b"2")})
+        self.assertEqual(sorted(render.index(root)), ["flat", "plain/x"])
+
 
 class Diff(unittest.TestCase):
 

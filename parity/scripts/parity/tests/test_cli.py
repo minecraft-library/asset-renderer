@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 from parity import capture, cli, pixels, promote, provenance, store
-from parity.norm import read_json, read_text, write_json, write_text
+from parity.norm import canonical_json, read_json, read_text, sha256_text, write_json, write_text
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -1077,11 +1077,14 @@ class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
         code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current", *argv])
         self.assertEqual(code, cli.OK, err)
 
-    def _provenance(self, *argv: str) -> dict:
-        self._invoke("capture-begin")
+    def _written(self) -> None:
         write_json(self.root / store.path_of(self.ARTIFACT),
                    {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
                     "digests": {"block_models": {"sha256": "a"}}})
+
+    def _provenance(self, *argv: str) -> dict:
+        self._invoke("capture-begin")
+        self._written()
         self._invoke("capture-normalize", "--artifact", self.ARTIFACT,
                      "--source", str(self.root), *argv)
         return json.loads(
@@ -1105,13 +1108,51 @@ class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
         # Outside the working root, which the capture that reads it erases first.
         tree = self.repo / "references"
         write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
-        self.assertEqual(self._provenance("--reference-tree", str(tree))
+        self.assertEqual(self._provenance("--reference-tree", str(tree),
+                                          "--reference-artifact", "manifest.references")
                          ["reference_manifest_digest"],
-                         provenance.reference_manifest_digest(tree))
+                         provenance.reference_manifest_digest(tree, "manifest.references"))
+
+    def test_the_stamped_record_names_the_manifest_its_digest_is_of(self):
+        """Two ground truths are stored, so a digest not saying whose it is re-derives nothing.
+
+        Held to the pack manifest's own row, captured through the same entry point, rather than to
+        the function that stamps the digest: that function agrees with itself whichever manifest it
+        digests the tree as. The handshake beside the drawings is what makes the two manifests two
+        sets here, as it does in the pack run's own tree.
+        """
+        pack = "manifest.pack-tooltips"
+        register(self.repo / store.PRODUCTION, self.ARTIFACT, pack)
+        tree = self.repo / "pack-tooltips"
+        write_text(tree / "hypixel-skyblock" / "one_line.png", "one")
+        write_text(tree / "hypixel-skyblock" / "stack.json", '{"pack_directory": "W:/one"}\n')
+        stamped = self._provenance("--reference-tree", str(tree), "--reference-artifact", pack)
+        self._invoke("capture-normalize", "--artifact", pack, "--source", str(tree))
+        row = read_json(self.root / store.path_of(pack))
+        self.assertEqual(stamped["reference_artifact"], pack)
+        self.assertEqual(stamped["reference_manifest_digest"], sha256_text(canonical_json(
+            {name: value for name, value in row.items() if name != "provenance"})))
 
     def test_an_absent_reference_tree_stamps_no_digest_rather_than_a_wrong_one(self):
-        self.assertNotIn("reference_manifest_digest",
-                         self._provenance("--reference-tree", str(self.root / "nowhere")))
+        stamped = self._provenance("--reference-tree", str(self.root / "nowhere"),
+                                   "--reference-artifact", "manifest.references")
+        self.assertNotIn("reference_manifest_digest", stamped)
+        self.assertNotIn("reference_artifact", stamped)
+
+    def test_a_reference_tree_without_its_manifest_is_refused_with_the_root_left_as_it_was(self):
+        """No default manifest, because a default would digest one ground truth as the other."""
+        tree = self.repo / "references"
+        write_text(tree / "blocks" / "stone" / "vanilla.png", "one")
+        self._invoke("capture-begin")
+        self._written()
+        before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                            "capture-normalize", "--artifact", self.ARTIFACT,
+                            "--source", str(self.root), "--reference-tree", str(tree)])
+        self.assertEqual(code, cli.REFUSED, err)
+        self.assertIn("--reference-artifact", err)
+        after = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        self.assertEqual(after, before)
 
 
 class AllowDirtyIsReachableAndRecorded(unittest.TestCase):
@@ -2467,6 +2508,30 @@ class RegisteringWhatTheVerdictFound(unittest.TestCase):
         self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
         self._run("expect", "--from-verdict", "--reason", "why")
         self.assertEqual(self._run("compare")[0], cli.OK)
+
+    def test_a_field_landing_on_an_empty_cell_is_registered_and_turns_the_compare_green(self):
+        """A column the row's render drew nothing into lands empty, and its registration names that.
+
+        The verdict writes ``to: ""`` for it, which the next compare refused as a registration
+        naming no value - exit 5, so a row landing on an empty cell could never be registered and
+        its gate never went GREEN.
+        """
+        write_json(self.root / "sweeps" / "entity.json",
+                   {"artifact": "sweep.entity", "format": 1, "key": "subject",
+                    "kind": "sweep-table", "provenance": {"determinism_runs": 1},
+                    "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000",
+                              "stand_ins": ""}]})
+        capture.index(self.root)
+        self.assertEqual(self._run("compare")[0], cli.DIFFERENCES)
+        self.assertEqual(self._run("expect", "--from-verdict", "--reason", "why")[0], cli.OK)
+        self.assertEqual(self._expected()["movers"],
+                         [{"artifact": "sweep.entity", "key": "minecraft__cow",
+                           "reason": "why", "to": ""}])
+        code, _, err = self._run("compare")
+        self.assertEqual(code, cli.OK, err)
+        mover, = read_json(self.root / store.RUN_DIR / "compare.json")["artifacts"][0]["movers"]
+        self.assertEqual(mover["fields"], {"stand_ins": [None, ""]})
+        self.assertTrue(mover["expected"])
 
     def test_a_reason_is_owed_however_the_registration_was_written(self):
         self._run("compare")

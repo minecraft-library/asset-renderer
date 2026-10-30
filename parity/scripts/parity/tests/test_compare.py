@@ -138,13 +138,43 @@ class ExpectedDiff(unittest.TestCase):
             compare.raise_on([result])
 
     def test_a_registration_naming_no_value_is_refused_rather_than_read_as_a_wildcard(self):
-        with self.assertRaises(Refused):
-            compare.compare(self.LEFT, self.RIGHT, self._expected())
+        """No value is a ``to`` left out and a ``to`` written as null alike. Read as text, the null
+        would register ``"None"`` - the value a dropped column lands on - and expect that row."""
+        for members in ({}, {"to": None}):
+            with self.subTest(members):
+                with self.assertRaises(Refused):
+                    compare.compare(self.LEFT, self.RIGHT, self._expected(**members))
 
     def test_a_registration_naming_no_key_is_refused_too(self):
         expected = {"movers": [{"artifact": "sweep.entity", "reason": "priced", "to": "2.0000"}]}
         with self.assertRaises(Refused):
             compare.compare(self.LEFT, self.RIGHT, expected)
+
+    #: The two ways a sweep row lands on an empty cell: a failed row's metric, which the sweep
+    #: writes blank, and a column the row's render drew nothing into, which it gains blank.
+    EMPTIED = {"a failed row's metric": artifact([{"subject": "x", "mean_argb_delta": ""},
+                                                  {"subject": "y", "mean_argb_delta": "1.0000"}]),
+               "a new empty column": artifact([{"subject": "x", "mean_argb_delta": "1.0000",
+                                                "stand_ins": ""},
+                                               {"subject": "y", "mean_argb_delta": "1.0000"}])}
+
+    def test_a_registration_naming_the_empty_value_expects_a_row_that_landed_on_it(self):
+        """An empty cell is a value the sweep writes, so a registration can name it as exactly as a
+        digit - and has to, because a row landing there is otherwise one no registration covers."""
+        for shape, right in self.EMPTIED.items():
+            with self.subTest(shape):
+                result = compare.compare(self.LEFT, right, self._expected(to=""))
+                self.assertTrue(result.movers[0]["expected"])
+                self.assertTrue(result.clean())
+                compare.raise_on([result])
+
+    def test_a_registration_naming_the_empty_value_is_not_a_wildcard(self):
+        """It licenses the empty cell and nothing else: a row landing on a value fails as before."""
+        result = compare.compare(self.LEFT, self.RIGHT, self._expected(to=""))
+        self.assertFalse(result.movers[0]["expected"])
+        self.assertEqual(result.totals()["unexpected"], 1)
+        with self.assertRaises(ComparisonFailed):
+            compare.raise_on([result])
 
     #: One row moving in two of the nine columns a real sweep row carries: the canvas it was widened
     #: to, and a metric regression nobody registered riding along on the same key.

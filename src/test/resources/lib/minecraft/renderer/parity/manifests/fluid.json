@@ -16,39 +16,39 @@
     },
     {
       "path": "water_animated_iso.gif",
-      "sha256": "c970aed84dc49ff69a4a840664a13d2a477a182dd77b2e94bfe18543a8734f6f"
+      "sha256": "8aa15381915f7c92fc8af755e6eeccd3c26060f424a3a580d624e0085b8161f1"
     },
     {
       "path": "water_cherry_grove.png",
-      "sha256": "117aca51b0faa83ae1fc2c7b8a6897a37b6b3b7a5b8cbf7633b7734e9aa9555e"
+      "sha256": "9a16da34a9d6f07beb243097b9419d1dd7bc79b2012d0e6b0cccb1b4b35f71a6"
     },
     {
       "path": "water_face_2d.png",
-      "sha256": "1f789f851746de9666c1e64f5953350fbd98282d90da26c69916c7f660d2a1e8"
+      "sha256": "8f7fa639fbfedaa5574677234d9e81aa926d70227acdadbf87c0581f136285e0"
     },
     {
       "path": "water_level_4_flow_ne.png",
-      "sha256": "d4ec8e8f99d95f2b0a16bba93a43ac574c5db7902515a26145a9eb7401f31802"
+      "sha256": "0cd8977081e416c9da251edecfaaec5a75ead639b0d821925c13e606089389c1"
     },
     {
       "path": "water_override_magenta.png",
-      "sha256": "1d1920c835fcfa61a0a874c152fdf4b455e0b23f9df07cf7e9c8d267859a5c48"
+      "sha256": "3b4329f34ec529ab1061c525d17f93655d03d6cfb12f70346baa3cb0699e2441"
     },
     {
       "path": "water_plains.png",
-      "sha256": "70e7310c971c98685a47cffabaeda879139a82962e03b12a45aa5aa1c01b9067"
+      "sha256": "a20f0a605b0afe7f20ad2f10dda15040061decf12593af1ce477cd30c2e1a708"
     },
     {
       "path": "water_source_iso.png",
-      "sha256": "70e7310c971c98685a47cffabaeda879139a82962e03b12a45aa5aa1c01b9067"
+      "sha256": "a20f0a605b0afe7f20ad2f10dda15040061decf12593af1ce477cd30c2e1a708"
     },
     {
       "path": "water_swamp.png",
-      "sha256": "ad2cf35866f410cb574b34c7eb0610324c43357a5b9afb8ffa61a88eaa2fe96d"
+      "sha256": "a8013584833cbd07ec9fcec3093db0e0cd5161e98b35dc77f0c6f5e69f40e142"
     },
     {
       "path": "water_warm_ocean.png",
-      "sha256": "5c620b223402e2a9c4a5099c279f94d8976741d3a0368fdd01c0b44a8de82159"
+      "sha256": "27c213d2fc36e02ccf9b2c0f6c066b6e4d3e7af9eb63e71ad4cc5cce46bb129a"
     }
   ],
   "format": 1,
@@ -56,9 +56,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.fluid",
-    "asset_content_digest": "3c53921873dc0b79ac928bc7cb89d84de08070db98202edb648b1b52dab8ca7f",
-    "asset_dirty": false,
-    "asset_sha": "1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a",
+    "asset_content_digest": "231b4c8445a7b73ad07bd618f50af5168d74b42ff397b6c3b037c98a220ebfc3",
+    "asset_dirty": true,
+    "asset_sha": "5e04b56f6a5d1918fa9cb985475e642cbf1b9b61",
     "counts": {
       "files": 12
     },
@@ -67,21 +67,21 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "fluidRenderer",
-    "reason": "image b6b3f4a and text f91f52a. FXAA's absolute floors read the 0-255 luma they are compared against, so edges darker than the floor stay sharp: 93 anti-aliased renders move at silhouette and dark texel edges - 64 entity renders, 18 entity projections, 8 projection-smoke tiles, 1 iso block, and the player toggles FXAA cell with its sheet - 10,875 pixels, most by 1 to 3 levels, the largest a near-black tail-tip pixel left opaque where it was softened to alpha 85. The GIF writer rounds its flatten: the animated water, weapon.gif and gradient_scroll.gif move by one level, the gradient's palette entries by up to 12. The VP8 encoder reconstructs keyframes as libwebp does: weapon_lossy.webp scores 26.20 dB against its lossless GIF where it scored 25.43. Every sweep and pin held.",
+    "reason": "Every render is marked premultiplied where it is built (7342ed6a), so each encoded see-through render is written un-premultiplied: the colour drawn rather than one scaled by its alpha twice. Held pixels unchanged - the nine sweeps, the four CRC pins, manifest.player-raw and manifest.references held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
       "entities": 406,
       "glint": 330,
-      "idle": 1056,
+      "idle": 2547,
       "items": 479,
       "menus": 10,
       "players": 2,
-      "walk": 1056
+      "walk": 4896
     },
     "root": "cache/visual/fluid-renderer",
-    "timestamp": "2026-10-18T21:01:13Z",
+    "timestamp": "2026-10-24T05:01:44Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 2733
+    "wall_time_ms": 2872
   }
 }

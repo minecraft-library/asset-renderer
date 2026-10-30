@@ -138,13 +138,12 @@ public record MenuLayout(
     }
 
     /**
-     * The extent this panel needs as a {@link Window.Box} at the given output scale.
+     * The extent this panel needs as a {@link Window.Box}.
      *
-     * @param scale the output pixels each Minecraft pixel occupies on a side
      * @return the panel box
      */
-    public @NotNull Window.Box box(int scale) {
-        return new Window.Box(0, 0, this.width, this.height, scale);
+    public @NotNull Window.Box box() {
+        return new Window.Box(0, 0, this.width, this.height);
     }
 
 }

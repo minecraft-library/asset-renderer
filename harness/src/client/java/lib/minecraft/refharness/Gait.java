@@ -13,15 +13,15 @@ package lib.minecraft.refharness;
  * {@link HarnessMode#sweeps} sorts by it. A freeze SKIPS {@code setupAnim}; it does not restore what
  * a previous call wrote. Model parts live on long-lived models, so a posed sweep leaves every bone
  * it touched holding a posed value, and a {@link #BIND} sweep after one would draw that rather than
- * the authored pose - silently, and over the seven sub-trees that exist to be the authored pose.
+ * the authored pose - silently, and over the frozen sub-trees that exist to be the authored pose.
  * Ascending, no sweep can be handed a mesh a later gait mutated.
  */
 public enum Gait {
 
     /**
      * The mesh as authored. {@code setupAnim} is skipped, so every {@code ModelPart} keeps the
-     * {@code PartPose} its {@code createBodyLayer} gave it, and the seven static sub-trees are ground
-     * truth for exactly that.
+     * {@code PartPose} its {@code createBodyLayer} gave it, and the frozen sub-trees are ground truth
+     * for exactly that.
      */
     BIND(false, false),
 

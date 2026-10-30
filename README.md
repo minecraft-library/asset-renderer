@@ -292,7 +292,7 @@ ImageData gateway = new PortalRenderer(context).render(options).image();
 
 ### TextRenderer
 
-Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip.
+Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. A renderer built over a context draws the pack's own tooltip sprites, nine-sliced, unless the request names `ChromeStyle.PROCEDURAL` - vanilla's box drawn from its colours, which a renderer built with no context draws. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip. The canvas ends at the first pixel the tooltip's box draws - both sprites are nine-sliced over the rect the client hands them, so a pack's box drawn wider than vanilla's comes out whole, and over vanilla's own sprites the image is vanilla's box with nothing round it. A chat render (`Style.CHAT`) ends at the first pixel its text draws, over every frame of an animation.
 
 <div align="center">
 <img src="docs/images/text-lore-tooltip.gif" width="332" alt="Minecraft lore tooltip with a shimmering obfuscated rarity footer">
@@ -306,7 +306,6 @@ TextOptions options = TextOptions.builder()
         "&7Damage: &c+210",
         "",
         "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-    .chromeStyle(ChromeStyle.SPRITE)               // the pack's own sprites, nine-sliced
     .build();
 
 ImageData tooltip = new TextRenderer(context).render(options).image();  // the &k footer -> AnimatedImageData
@@ -397,7 +396,7 @@ ImageData scene = new LayoutRenderer().render(options).image();   // each child 
 
 ### MenuRenderer
 
-Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized. `render` answers a `MenuResult`, which places each slot's content under `SLOT` and the fill under `CONTENT`, names each button's icon, and lists the stand-ins the menu's own chrome drew.
+Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized. `render` answers a `MenuResult`, which places each slot's content under `SLOT` and the fill under `CONTENT`, names each icon it places on a button, and lists the stand-ins the menu's own chrome drew.
 
 <div align="center">
 <img src="docs/images/menu-crafting-table.png" width="352" alt="Crafting table screen holding the diamond sword recipe, with the player inventory band drawn">
@@ -464,7 +463,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over nine sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint and the shipped container screens, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `idle`, `walk`). Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla          -PentityId=minecraft:zombie      # omit -P for the full sweep
@@ -476,6 +475,8 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew playerParityVanilla                                           # FULL + SKULL scopes
 ./gradlew armorParityVanilla                                            # worn-armor shells
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
+./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone, and the plain lines
+./gradlew tooltipHypixelSkyblockParityVanilla -PtooltipId=one_line      # the same under the hypixel-skyblock pack
 ```
 
 > [!NOTE]
@@ -484,14 +485,16 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`-group tasks):
 
 ```bash
-./gradlew renderVanillaAllReferences        # all nine sweeps in one client boot - the only task that leaves no sub-tree stale
+./gradlew renderVanillaAllReferences        # every sweep in one client boot - the only task that leaves no sub-tree stale
 ./gradlew renderVanillaReferences           # blocks + items + entities + player
 ./gradlew renderVanillaGlintReferences      # animated glint strips (then run glintParityVanilla)
 ./gradlew renderVanillaPlayerReferences     # player scopes (then run playerParityVanilla)
 ./gradlew renderVanillaArmorReferences      # worn-armor shells (then run armorParityVanilla)
 ./gradlew renderVanillaMenuReferences       # container screens (then run menuParityVanilla)
+./gradlew renderVanillaTooltipReferences    # tooltips (then run tooltipParityVanilla)
 ./gradlew renderVanillaAnimationReferences  # idle/ frames (then run entityAnimationParityVanilla)
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
+./gradlew renderVanillaPackTooltipsHypixelSkyblock  # tooltips under hypixel-skyblock, beside the tree (then run tooltipHypixelSkyblockParityVanilla)
 ```
 
 A sweep is a diagnostic report, not a pass/fail gate; it becomes one when its table is compared against a stored baseline, which is what the five `parity`-group tasks do (`./gradlew tasks --group parity`): `parityPlan` resolves which artifacts can see a change, `parityCapture` runs their producers and writes the capture, `parityExpect` registers the movers a change intends, `parityCompare` reports what actually moved, and `parityPromote` makes a capture the new baseline. See `docs/renderer/` for the per-renderer rules and `docs/renderer/Debugging.md` for debugging a mismatch, `harness/CLAUDE.md` for the session-refresh checklist, and `.claude/skills/parity-gate/references/procedures.md` for the re-render runbook; `CLAUDE.md` is the map to all three.
@@ -569,7 +572,7 @@ asset-renderer/
 │   │   ├── bake/            # What a renderer draws, from a decoded record and the caller's request
 │   │   │   ├── armor/       # Worn layers: ArmorKit, EquipmentKit, ElytraKit, PlayerArmorKit, ...
 │   │   │   ├── gui/         # GUI pixel space: TextKit, Window, MenuLayout, TooltipChrome, ...
-│   │   │   │   └── chrome/  # Decomposing a pack's GUI sprite into the parts a window paints
+│   │   │   │   └── chrome/  # Decomposing container art into the parts a window paints
 │   │   │   ├── mesh/        # A subject's triangles: BlockGeometryKit, EntityGeometryKit, ShieldKit, ...
 │   │   │   ├── pose/        # Playing a pose onto a mesh: PosePlayer, ClipPlayer
 │   │   │   └── texture/     # Composed textures: GlintKit, BannerKit, TrimKit, ItemTint, Tints, ...

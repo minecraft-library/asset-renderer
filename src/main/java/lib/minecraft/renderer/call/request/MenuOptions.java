@@ -28,8 +28,8 @@ import java.util.function.UnaryOperator;
  * <p>{@link Type} names the screen, which is one of the containers the client ships. Every one of
  * them resolves to a {@link ScreenMetrics} carrying the cell origins and band depths measured off that
  * screen's own art, so what a caller chooses is an identity rather than a set of numbers.
- * {@link Type#CHEST} is the one that takes dimensions, because the client composes it from one sheet
- * at any row count.
+ * {@link Type#CHEST} is the one that takes dimensions, because the client composes a chest of one to
+ * six rows from one sheet.
  *
  * <p><b>Slot population.</b> {@link #getSlots() slots} maps zero-based slot indices onto the cells
  * the chosen screen lays out, in that screen's own order - its own cells first and a result cell
@@ -39,9 +39,9 @@ import java.util.function.UnaryOperator;
  *
  * <p><b>Size.</b> {@link Type#CHEST} is laid out at whatever {@link #getRows() rows} and
  * {@link #getColumns() columns} it is given. Nine columns is the panel the client composes out of one
- * sheet; any other width is a grid carrying the same frame, which is four corner blocks and four bars
- * of a one-pixel period and so serves a panel of any extent. A panel with room for neither the
- * window's own frame nor one cell is refused rather than drawn.
+ * sheet at one to six rows; any other width is a grid carrying the same frame, which is four corner
+ * blocks and four bars of a one-pixel period and so serves a panel of any extent. A panel with room
+ * for neither the window's own frame nor one cell is refused rather than drawn.
  *
  * @see lib.minecraft.renderer.MenuRenderer
  */
@@ -49,12 +49,6 @@ import java.util.function.UnaryOperator;
 @Getter
 @ClassBuilder
 public class MenuOptions implements RenderOptions {
-
-    /**
-     * The cell art the client ships, which is what a sliced window takes for its cells where a
-     * caller names no other.
-     */
-    private static final @NotNull String SLOT_SPRITE = "minecraft:gui/sprites/container/slot";
 
     /**
      * Menu layout type - selects the chrome and slot geometry.
@@ -90,8 +84,8 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull String inventoryTitle = "Inventory";
 
     /**
-     * ARGB both labels are drawn in where a segment names no colour of its own. The default is what
-     * vanilla draws a container's labels in.
+     * ARGB both labels are drawn in: a segment naming no colour draws in it, and one naming a colour
+     * draws that colour in its alpha. The default is what vanilla draws a container's labels in.
      */
     private final int defaultTitleArgb = 0xFF404040;
 
@@ -128,18 +122,23 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull ThemeStyle themeStyle = ThemeStyle.VANILLA;
 
     /**
-     * The art the panel is sliced out of, empty where it is drawn from rules in the
-     * {@linkplain #themeStyle theme}'s ink. Art named here that no pack supplies, or that cannot be read,
-     * is sliced as the checkerboard rather than falling back, so a pack that ships a broken panel is
-     * distinguishable from one that ships none.
+     * The container sheet the panel is drawn from, empty where it is drawn from rules in the
+     * {@linkplain #themeStyle theme}'s ink. The panel is the sheet as the client composes it for the
+     * screen - drawn as it is with the player's section, and cut after the screen's own rows without
+     * it; a screen the client ships no sheet for resizes the texture cut to what it draws. A sheet no
+     * pack supplies, or that cannot be read, is the checkerboard rather than a fallback, so a pack that
+     * ships a broken panel is distinguishable from one that ships none.
      */
     private final @NotNull Optional<ResourceId> chromeSprite = Optional.empty();
 
     /**
-     * The art one cell is sliced out of, read only where {@link #chromeSprite} names a panel. Empty
-     * where that panel's art draws its own cells.
+     * The GUI sprite drawn over each cell where {@link #chromeSprite} names a panel, empty for the
+     * window's own - none on a screen the client ships a sheet for, whose cells are the art's, and the
+     * client's slot over each cell of a panel resized for any other. A sprite named here is drawn over
+     * every cell. Each is drawn as the client draws a GUI sprite - read as its GUI atlas holds it and
+     * stretched over the cell, or as the sprite's {@code gui.scaling} says.
      */
-    private final @NotNull Optional<ResourceId> cellSprite = Optional.of(ResourceId.parse(SLOT_SPRITE));
+    private final @NotNull Optional<ResourceId> cellSprite = Optional.empty();
 
     /**
      * Output pixels one Minecraft pixel occupies on a side. It is the font's, and a menu refuses any
@@ -182,12 +181,22 @@ public class MenuOptions implements RenderOptions {
     private static final int PLAYER_VIEW_ROWS = 4;
 
     /**
+     * The item whose stack the client holds as empty, so a slot or a fill naming it holds nothing.
+     */
+    private static final @NotNull ResourceId AIR = ResourceId.parse("minecraft:air");
+
+    /**
      * Returns the screen this menu is laid out as.
      * <p>
      * The roster lives here rather than in the renderer because a {@link Type} is what selects one
      * and this is what owns the type - and because the chest's arm reads {@link #rows} and
-     * {@link #columns}, which is a question only these options can answer. Every number a screen
-     * carries stays on {@link ScreenMetrics}; what is chosen here is which of them.
+     * {@link #columns}, and the anvil's {@link #slots} and {@link #fill}, which are questions only
+     * these options can answer. Every number a screen carries stays on {@link ScreenMetrics}; what is
+     * chosen here is which of them.
+     * <p>
+     * The anvil is answered in the state its slots give it, which picks the name field and the cross
+     * the client draws: a slot holds an item where the slot map names one, an item or a render, or
+     * where the fill names one, the fill drawing in every slot the map leaves - and air holds nothing.
      *
      * @return the screen
      */
@@ -201,7 +210,26 @@ public class MenuOptions implements RenderOptions {
             case HOPPER -> ScreenMetrics.hopper();
             case DISPENSER -> ScreenMetrics.dispenser();
             case CRAFTING_TABLE -> ScreenMetrics.craftingTable();
-            case ANVIL -> ScreenMetrics.anvil();
+            case ANVIL -> ScreenMetrics.anvil(this::holdsItem);
+        };
+    }
+
+    /**
+     * Answers whether a slot holds an item, as the client's menu answers it - by what the stack is,
+     * not by whether its model draws anything.
+     * <p>
+     * The slot map's content answers where it names the slot, and the fill where it does not, the fill
+     * drawing in every slot the map leaves. A render holds the slot, and an item or a fill holds it
+     * unless it names air, whose stack the client holds as empty.
+     *
+     * @param slot the slot index
+     * @return whether the slot holds an item
+     */
+    private boolean holdsItem(int slot) {
+        return switch (this.slots.get(slot)) {
+            case null -> this.fill.itemId().filter(id -> !id.equals(AIR)).isPresent();
+            case MenuSlotContent.Item item -> !ResourceId.parse(item.options().getItemId()).equals(AIR);
+            case MenuSlotContent.Rendered ignored -> true;
         };
     }
 
@@ -280,8 +308,8 @@ public class MenuOptions implements RenderOptions {
 
         /**
          * A chest, at the {@link MenuOptions#getRows() rows} and {@link MenuOptions#getColumns()
-         * columns} asked for. Nine columns is the panel the client composes out of one sheet at any
-         * row count; any other width is a plain grid, there being no sheet to compose it from.
+         * columns} asked for. Nine columns is the panel the client composes out of one sheet at one to
+         * six rows; any other width is a plain grid, there being no sheet to compose it from.
          */
         CHEST,
 

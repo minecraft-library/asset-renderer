@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.ItemStackKit;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
@@ -578,7 +579,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.getContext().stackCount() > 1)
                 stack.append(ItemSlot.STACK_COUNT, frame ->
-                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.Vanilla.REGULAR));
+                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.Vanilla.REGULAR,
+                        ctx.context().findTextPalette().orElse(TextPalette.VANILLA)));
 
             return stack;
         }

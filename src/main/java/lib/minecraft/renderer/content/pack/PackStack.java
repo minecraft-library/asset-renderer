@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
@@ -39,14 +40,16 @@ import java.util.stream.Stream;
  * root walk in which the last existing copy wins.
  *
  * <p>Acquisition assembles the stack without a texture index ({@link #of}); the pipeline scans the
- * stack into an index and re-derives the stack through {@link #withTextureIndex}. Both spellings share
- * the pack list, id map, and namespace union; only the index differs.
+ * stack into an index and re-derives the stack through {@link #withTextureIndex}, and attaches its rules
+ * and its text palette the same way. Every spelling shares the pack list, id map, and namespace union;
+ * only what is attached differs.
  *
  * <p>A winning file is chosen by its existence alone, as vanilla's resource manager chooses one, so a
  * file that cannot be read shadows a lower pack's copy and is served with no pixels. A served texture
  * cannot be read where its bytes are empty or do not decode, where its sidecar is there and does not
- * parse, or where its sidecar's animation has a frame size that does not divide the strip on both
- * axes - the three failures on which vanilla's sprite loader draws its missing sprite.
+ * parse or carries an animation or texture section the client's codec refuses, or where its sidecar's
+ * animation has a frame size that does not divide the strip on both axes - the three failures on which
+ * vanilla's sprite loader draws its missing sprite.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Parity(claim = "asset-layer")
@@ -80,6 +83,15 @@ public final class PackStack {
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull RuleSet rules;
 
+    /**
+     * The colours the stack's text is drawn in, in place of the ones it is given - the table the text
+     * shader of the pack drawing its text holds: the 26.1 program where a pack above vanilla ships it,
+     * else the program a newer client runs where one ships that. Empty where that shader is no colour swap
+     * this renderer reads, and absent where no pack above vanilla ships either.
+     */
+    @Getter(style = NamingStyle.FLUENT)
+    private final @NotNull Possible<TextPalette> textPalette;
+
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
     /**
@@ -91,9 +103,10 @@ public final class PackStack {
 
     /**
      * The resolved {@code (PackId, ResourceId)} keys of the textures a decode found and could not read -
-     * an empty file or one that is not an image, a sidecar that does not parse, or an animation whose
-     * frame size does not divide the strip - kept beside {@link #pixelCache} so a broken texture is read
-     * and reported once, and answered empty from then on.
+     * an empty file or one that is not an image, a sidecar that does not parse or carries an animation or
+     * texture section the client's codec refuses, or an animation whose frame size does not divide the
+     * strip - kept beside {@link #pixelCache} so a broken texture is read and reported once, and answered
+     * empty from then on.
      */
     private final @NotNull ConcurrentSet<PixelKey> undecodable = Concurrent.newSet();
 
@@ -125,7 +138,7 @@ public final class PackStack {
         ConcurrentSet<String> namespaces = ascending.stream()
             .flatMap(pack -> pack.namespaces().stream())
             .collect(Concurrent.toUnmodifiableLinkedSet());
-        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA));
+        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA), Possible.absent());
     }
 
     /**
@@ -135,7 +148,7 @@ public final class PackStack {
      * @return the indexed stack
      */
     public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, ResolvedTexture> index) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules);
+        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules, this.textPalette);
     }
 
     /**
@@ -145,7 +158,19 @@ public final class PackStack {
      * @return the stack carrying the rules
      */
     public @NotNull PackStack withRules(@NotNull RuleSet rules) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules);
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules, this.textPalette);
+    }
+
+    /**
+     * Returns a copy of this stack carrying the given text palette.
+     *
+     * @param textPalette the colours the stack's text shader draws in place of the ones it is given -
+     *     empty for a shader of another shape than the one read, absent where no pack above vanilla
+     *     ships one
+     * @return the stack carrying the palette
+     */
+    public @NotNull PackStack withTextPalette(@NotNull Possible<TextPalette> textPalette) {
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, this.rules, textPalette);
     }
 
     /**
@@ -232,8 +257,9 @@ public final class PackStack {
      *
      * @param id the namespaced texture id
      * @return the decoded texture; empty when the dispatch lands on a file whose bytes do not decode (an
-     *     empty file included), whose sidecar does not parse, or whose animation's frame size does not
-     *     divide it; absent when nothing supplies the id
+     *     empty file included), whose sidecar does not parse or carries an animation or texture section the
+     *     client's codec refuses, or whose animation's frame size does not divide it; absent when nothing
+     *     supplies the id
      */
     public @NotNull Possible<PixelBuffer> pixels(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
@@ -254,8 +280,8 @@ public final class PackStack {
      *
      * @param id the namespaced texture id
      * @return the resolved playback table; empty for a served texture that plays nothing - no sidecar,
-     *     a sidecar that does not parse or holds no animation section, a strip that cannot be read, or a
-     *     prefix naming a pack - and absent when the dispatch serves nothing
+     *     a sidecar that does not parse or holds no animation section or one the client's codec refuses, a
+     *     strip that cannot be read, or a prefix naming a pack - and absent when the dispatch serves nothing
      */
     public @NotNull Possible<Flipbook> flipbook(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
@@ -265,11 +291,11 @@ public final class PackStack {
         Possible<Flipbook> cached = this.flipbookCache.get(key);
         if (cached != null) return cached;
 
-        // No sidecar, one that does not parse, or one with no section plays nothing, and neither does a
-        // strip that cannot be read - its empty answer passes through, so the table never outlives the
-        // pixels it would play over.
+        // No sidecar, one that does not parse, or one with no animation section or a refused one plays
+        // nothing, and neither does a strip that cannot be read - its empty answer passes through, so the
+        // table never outlives the pixels it would play over.
         Possible<Flipbook> resolved = indexed.get().meta().orAbsent(Possible::empty)
-            .flatMap(meta -> Possible.ofOptional(meta.animation()))
+            .flatMap(meta -> meta.animation().orAbsent(Possible::empty))
             .flatMap(animation -> pixels(id).flatMap(strip -> Possible.ofOptional(Flipbook.of(strip, animation))));
         this.flipbookCache.put(key, resolved);
         return resolved;
@@ -281,7 +307,8 @@ public final class PackStack {
      *
      * @param texture the winning file the dispatch resolved
      * @return the decoded pixels, or empty when the file's bytes are empty or do not decode, when its
-     *     sidecar does not parse, or when its animation's frame size does not divide it
+     *     sidecar does not parse or carries an animation or texture section the client's codec refuses, or
+     *     when its animation's frame size does not divide it
      */
     private @NotNull Possible<PixelBuffer> decode(@NotNull ResolvedTexture texture) {
         PixelKey key = new PixelKey(texture.pack(), texture.id());
@@ -289,9 +316,13 @@ public final class PackStack {
         if (cached != null) return Possible.of(cached);
         if (this.undecodable.contains(key)) return Possible.empty();
 
-        // A sidecar that does not parse loses its texture before the image is read, as vanilla's sprite
-        // loader gives up on the metadata before it opens the PNG.
-        if (texture.meta().getState() == Possible.State.EMPTY)
+        // A sidecar that is not JSON, or whose animation or texture section the client's codec refuses,
+        // loses its texture before the image is read, as vanilla's sprite loader reads both sections for
+        // every atlas and gives up on the metadata before it opens the PNG.
+        Possible<MCMeta> meta = texture.meta();
+        if (meta.getState() == Possible.State.EMPTY
+            || meta.isPresent() && (meta.get().animation().getState() == Possible.State.EMPTY
+                || meta.get().texture().getState() == Possible.State.EMPTY))
             return unreadable(key, "Unable to parse metadata from '%s' in pack '%s'%n", texture.id(), texture.pack());
 
         // Read before the try: an entry that vanished since the index scan is an I/O race rather than
@@ -315,7 +346,7 @@ public final class PackStack {
 
         // An animation is checked against the strip it plays over before the pixels are kept, so a strip
         // its frame size does not divide is decoded once and held nowhere.
-        Optional<MCMeta.Animation> animation = texture.meta().toOptional().flatMap(MCMeta::animation);
+        Optional<MCMeta.Animation> animation = meta.toOptional().flatMap(document -> document.animation().toOptional());
         if (animation.isPresent()) {
             Flipbook.FrameSize frame = Flipbook.FrameSize.of(animation.get(), buffer);
             if (!frame.divides(buffer)) {

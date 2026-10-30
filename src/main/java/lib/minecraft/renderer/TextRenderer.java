@@ -4,6 +4,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
+import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
@@ -16,7 +19,9 @@ import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.text.ChatColor;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -24,28 +29,56 @@ import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.geom.Rectangle2D;
 import java.util.Optional;
 
 /**
  * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a bordered
- * background, or plain chat text on a transparent canvas.
+ * background, or plain chat text on a transparent canvas. Its text is drawn in the colours its
+ * context's pack stack swaps them for ({@link RendererContext#findTextPalette}), and every colour as
+ * given where the stack holds no palette or the renderer holds no context. Every line is drawn in
+ * opaque white, the colour the client draws a tooltip line and a chat line in, so a segment naming no
+ * colour draws white, any shadow it derives a quarter as bright, and one naming a colour draws that
+ * colour opaque.
  * <p>
  * The LORE background and border are contributed by the {@link TooltipChrome} the request's
  * {@linkplain TextOptions#getChromeStyle() chrome style} selects: {@link ChromeStyle#PROCEDURAL} draws
- * the legacy vanilla palette (background {@code 0xF0100010}, gradient border {@code 0x505000FF} to
- * {@code 0x5028007F}) with the caller-configurable {@link TextOptions#getBackgroundAlpha()} /
- * {@link TextOptions#getBorderAlpha()} alphas; {@link ChromeStyle#SPRITE} nine-slices the pack's
- * {@code tooltip/background} and {@code tooltip/frame} sprites, or the pair the request's
+ * vanilla's box from its colours (background {@code 0xF0100010}, gradient border {@code 0x505000FF} to
+ * {@code 0x5028007F}), blended as the client blends its tooltip sprites, at the request's
+ * {@link TextOptions#getBackgroundAlpha()} / {@link TextOptions#getBorderAlpha()} alphas;
+ * {@link ChromeStyle#SPRITE} nine-slices the pack's {@code tooltip/background} and
+ * {@code tooltip/frame} sprites, or the pair the request's
  * {@linkplain TextOptions#getTooltipStyle() tooltip style} names. The renderer resolves that pair once
- * per render through the context it was constructed with; a lore render asking for the sprite chrome
- * raises a {@link RenderException} when the renderer holds no context or the context's pack stack does
- * not resolve the pair, so a renderer built without one draws chat text and the procedural chrome. The
- * renderer owns only the glyph rows and the canvas sizing.
+ * per render through the context it was constructed with; a lore render naming the sprite chrome raises
+ * a {@link RenderException} only when the renderer holds no context, so a renderer built without one
+ * draws chat text and the procedural chrome. A request naming no chrome style is drawn in the sprite
+ * chrome by a renderer holding a context and in the procedural chrome by one holding none. A sprite of
+ * the pair no selected pack ships, or one that cannot be read, draws as the missing texture stretched
+ * over the client's whole sprite rect, as the client draws its missing sprite, and is named in the
+ * result as a stand-in. The renderer owns only the glyph rows and the text block's measure. A tooltip's
+ * canvas is the box its chrome lays out: the sprite chrome nine-slices both sprites over the rect the
+ * client hands them, the text plus 12 Minecraft pixels a side, and the canvas ends at the first pixel
+ * they draw, never cutting the text - vanilla's own box, the text plus 4 a side, a pack's wider box
+ * whole, or the whole rect, the text plus 12 a side, where a sprite is the missing texture; the
+ * procedural chrome pads the text by the request's {@linkplain TextOptions#getPadding() padding}, the
+ * client's 4 by default, and its canvas ends at the first pixel it draws. Chat text's canvas ends at
+ * the first pixel its lines draw over every frame, which {@link TextKit#inkBounds} answers before any
+ * frame is drawn. A canvas holding no pixel answers the empty 1x1 image: chat text drawing nothing, or
+ * a tooltip box of no width, which lines that advance nothing make where the code-drawn box pads them
+ * by 0, or the request's alphas clear every part of either box.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
- * fresh {@link TextKit} obfuscation substitution.
+ * fresh {@link TextKit} obfuscation substitution - except a canvas holding no pixel, which is the
+ * still, empty 1x1 image, obfuscated or not.
+ * <p>
+ * The sprite box, the code-drawn box and the glyphs all blend onto the transparent canvas, so every
+ * image answers {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
+ * copy that edits made through it do not reach, an encoder writes each see-through pixel's straight
+ * colour, and a {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes premultiplied
+ * colour.
  */
+@Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
 
     /**
@@ -61,19 +94,23 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static final int LORE_GAP_MCPX = 2;
 
     /**
-     * Default glyph colour for text segments that carry no explicit colour - vanilla lore grey.
+     * The colour every line is drawn in - opaque white, as the client draws a tooltip line
+     * ({@code ClientTextTooltip} passes {@code -1}) and a chat line ({@code ARGB.white} at full opacity).
+     * A segment naming no colour draws in it, and one naming a colour draws its red, green and blue in
+     * this colour's alpha.
      */
-    private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
+    private static final int DEFAULT_COLOR_ARGB = ColorMath.WHITE;
 
     /**
-     * The context a {@link ChromeStyle#SPRITE} render resolves its sprite pair through, empty for a
-     * renderer constructed without one.
+     * The context a {@link ChromeStyle#SPRITE} render resolves its sprite pair through, whose presence
+     * makes the sprite chrome the one a request naming no chrome is drawn in - empty for a renderer
+     * constructed without one, which draws such a request in the procedural chrome.
      */
     private final @NotNull Optional<RendererContext> context;
 
     /**
      * Constructs a new {@code TextRenderer} with no context, which draws chat text and the procedural
-     * tooltip chrome.
+     * tooltip chrome, the chrome it draws a request naming none in.
      */
     public TextRenderer() {
         this.context = Optional.empty();
@@ -81,7 +118,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
     /**
      * Constructs a new {@code TextRenderer} bound to the given context, through whose pack stack a
-     * sprite chrome resolves its pair.
+     * sprite chrome resolves its pair - the chrome it draws a request naming none in.
      *
      * @param context the render context resolving the tooltip sprites and their sidecars
      */
@@ -104,11 +141,12 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     /**
-     * Draws the image {@link #render} answers, resolving a sprite chrome through this renderer's own
-     * context.
+     * Draws the image {@link #render} answers, in the chrome the request names or, where it names none,
+     * this renderer's own, resolving a sprite chrome through this renderer's own context.
      *
      * @param options the text render options
-     * @return the rendered text, empty where the options hold no line
+     * @return the rendered text, empty where the options hold no line or the canvas laid out for them
+     * holds no pixel
      */
     @NotNull ImageData draw(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
@@ -116,46 +154,104 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
-        TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
-        Optional<TooltipChrome.ChromeSprites> sprites = isLore && options.getChromeStyle() == ChromeStyle.SPRITE
-            ? this.context.flatMap(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
+        int ticksPerFrame = ticksPerFrame(options);
+        int frameCount = animated ? animationFrameCount(options, ticksPerFrame) : 1;
+        ChromeStyle chromeStyle = options.getChromeStyle()
+            .orElse(this.context.isPresent() ? ChromeStyle.SPRITE : ChromeStyle.PROCEDURAL);
+        TooltipChrome chrome = TooltipChrome.of(chromeStyle);
+        Optional<TooltipChrome.ChromeSprites> sprites = isLore && chromeStyle == ChromeStyle.SPRITE
+            ? this.context.map(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
             : Optional.empty();
-        int padMcPx = isLore ? chrome.paddingMcPx(options) : 0;
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
-        int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
+        int textWMcPx = measureWidthMcPixels(options);
 
-        // Canvas height measures from the top padding to the last glyph's descender plus
-        // bottom padding - NOT a full LINE_HEIGHT past the last baseline. Symmetric padding
-        // matches in-game vanilla rendering.
+        // The text block runs from the first line's top to the last glyph's descender - NOT a full
+        // LINE_HEIGHT past the last baseline.
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         int descentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getDescentMcPixels();
-        int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
-        int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
+        int textHMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx + loreGapMcPx;
+        TooltipChrome.ChromeBox box = isLore
+            ? chrome.box(textWMcPx, textHMcPx, sprites, options)
+            : chatBox(options.getLines(), frameCount, textWMcPx, textHMcPx);
+        if (box.width() <= 0 || box.height() <= 0)
+            return Timeline.empty();
+
+        TextPalette palette = this.context.map(context -> context.findTextPalette().orElse(TextPalette.VANILLA))
+            .orElse(TextPalette.VANILLA);
 
         if (!animated)
-            return Timeline.still(drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, 0L, 0L).getFirst());
+            return Timeline.still(drawSingleFrame(options, chrome, sprites, box, palette, 0L, 0L).getFirst());
 
-        int ticksPerFrame = ticksPerFrame(options);
-        int frameCount = animationFrameCount(options, ticksPerFrame);
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, canvasWMcPx, canvasHMcPx, f, timeline.tickAt(f)).getFirst());
+            drawSingleFrame(options, chrome, sprites, box, palette, f, timeline.tickAt(f)).getFirst());
     }
 
     /**
-     * Draws one frame at the given mcPixel canvas dimensions. Composes an ordered
-     * {@link LayerStack} of the tooltip background + gradient border (LORE style only) and the
-     * glyph rows, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
-     * before flattening onto a single buffer. The {@code frameSeed} drives the per-frame
-     * obfuscation substitution so each animation frame shows a fresh scramble.
+     * Lays out a chat render's box: the bounds of every pixel its lines draw over every frame the
+     * render draws, which {@link TextKit#inkBounds} answers before any frame is drawn. Each line is
+     * measured where the text block puts it - its baseline an ascent and its line pitch down from the
+     * block's top, numbered as it is drawn - and the block's top-left lands at minus the bounds'
+     * corner, so the canvas ends at the first pixel the text draws on every side and the text keeps
+     * its place against its own ink. Only an obfuscated run changes a line's pixels between frames, so
+     * a line holding none is measured on the first frame alone. Lines drawing nothing answer a box of
+     * no size.
+     *
+     * @param lines the lines drawn
+     * @param frameCount how many frames the render draws
+     * @param textWMcPx the text block's width in mcPixels
+     * @param textHMcPx the text block's height in mcPixels
+     * @return the canvas the lines draw on, in mcPixels, and the text block's place on it
+     */
+    private static @NotNull TooltipChrome.ChromeBox chatBox(
+        @NotNull ConcurrentList<LineSegment> lines,
+        int frameCount,
+        int textWMcPx, int textHMcPx
+    ) {
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        Optional<Rectangle2D> drawn = Optional.empty();
+        for (int i = 0; i < lines.size(); i++) {
+            LineSegment line = lines.get(i);
+            int frames = line.getSegments().stream().anyMatch(TextSegment::isObfuscated) ? frameCount : 1;
+            for (int frame = 0; frame < frames; frame++)
+                drawn = union(drawn, TextKit.inkBounds(line, 0, ascentMcPx + i * LINE_HEIGHT_MCPX, DEFAULT_COLOR_ARGB, i, frame, true));
+        }
+
+        return drawn
+            .map(ink -> new TooltipChrome.ChromeBox((float) ink.getWidth(), (float) ink.getHeight(),
+                (float) -ink.getX(), (float) -ink.getY(), textWMcPx, textHMcPx))
+            .orElseGet(() -> new TooltipChrome.ChromeBox(0, 0, 0, 0, textWMcPx, textHMcPx));
+    }
+
+    /**
+     * Joins two rectangles either of which may be absent.
+     *
+     * @param first the first rectangle, empty where there is none
+     * @param second the second rectangle, empty where there is none
+     * @return the smallest rectangle holding both, empty where neither is present
+     */
+    private static @NotNull Optional<Rectangle2D> union(@NotNull Optional<Rectangle2D> first, @NotNull Optional<Rectangle2D> second) {
+        if (first.isEmpty()) return second;
+        if (second.isEmpty()) return first;
+        return Optional.of(first.get().createUnion(second.get()));
+    }
+
+    /**
+     * Draws one frame on the given box. Composes an ordered {@link LayerStack} of the tooltip
+     * background + gradient border (LORE style only) and the glyph rows, the first line at the box's
+     * text origin, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
+     * before flattening onto a single buffer. {@link TextKit} seeds each line's obfuscation scramble
+     * from the {@code frameIndex} and the line's number, so each animation frame shows a fresh
+     * scramble.
      *
      * @param options the text render options
      * @param chrome the tooltip chrome the request's style selects
      * @param sprites the sprite pair resolved for this render, empty unless a sprite chrome resolved one
-     * @param canvasWMcPx the canvas width in mcPixels
-     * @param canvasHMcPx the canvas height in mcPixels
-     * @param frameSeed the obfuscation seed for this frame
+     * @param box the canvas and the text block's place on it, in mcPixels - the chrome's box for a
+     * tooltip, the bounds of what the lines draw for chat
+     * @param palette the colours the context's text shader draws in place of the lines' own
+     * @param frameIndex the animation frame drawn, from which {@link TextKit} seeds each line's scramble
      * @param tick the absolute animation tick driving gradient scroll phase
      * @return a single-element list holding the drawn frame buffer
      */
@@ -163,32 +259,27 @@ public final class TextRenderer implements Renderer<TextOptions> {
         @NotNull TextOptions options,
         @NotNull TooltipChrome chrome,
         @NotNull Optional<TooltipChrome.ChromeSprites> sprites,
-        int canvasWMcPx,
-        int canvasHMcPx,
-        long frameSeed,
+        @NotNull TooltipChrome.ChromeBox box,
+        @NotNull TextPalette palette,
+        long frameIndex,
         long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        int padMcPx = isLore ? chrome.paddingMcPx(options) : 0;
-
-        int w = canvasWMcPx * MinecraftFont.MC_PIXEL_SCALE;
-        int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
-        PixelBuffer buffer = PixelBuffer.create(w, h);
+        PixelBuffer buffer = PixelBuffer.create(
+            Math.round(box.width() * MinecraftFont.MC_PIXEL_SCALE), Math.round(box.height() * MinecraftFont.MC_PIXEL_SCALE));
 
         // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the
         // background + border (LORE only), then the renderer appends the glyph rows. Callers can splice
         // passes via TextOptions.layerDecorator. The obfuscation animation stays the renderer's per-frame
-        // loop - the TEXT layer captures the seed.
+        // loop - the TEXT layer captures the frame index.
         LayerStack<ImageLayer> stack = new LayerStack<>();
-        if (isLore) {
-            TooltipChrome.ChromeBox box = new TooltipChrome.ChromeBox(w, h, MinecraftFont.MC_PIXEL_SCALE);
+        if (isLore)
             chrome.contribute(stack, box, sprites, options);
-        }
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
-            int baselineMcPx = padMcPx + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+            float baselineMcPx = box.textY() + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {
-                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed, tick);
+                TextKit.drawLine(g, options.getLines().get(i), box.textX(), baselineMcPx, DEFAULT_COLOR_ARGB, palette, i, frameIndex, tick);
                 baselineMcPx += LINE_HEIGHT_MCPX;
                 if (isLore && i == 0)
                     baselineMcPx += LORE_GAP_MCPX;
@@ -272,14 +363,17 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     /**
-     * Measures the widest line in mcPixels, clamped to a minimum of 16 mcPixels so short strings
-     * still produce a non-degenerate canvas.
+     * Measures the text block's width: its widest line in whole mcPixels, as the client sizes a tooltip
+     * from the widest of its lines' {@code Font#width}. Lines that advance nothing measure 0.
+     *
+     * @param options the text render options
+     * @return the widest line's width in whole mcPixels
      */
     private static int measureWidthMcPixels(@NotNull TextOptions options) {
         int max = 0;
         for (LineSegment line : options.getLines())
             max = Math.max(max, TextKit.measureLineMcPixels(line));
-        return Math.max(16, max);
+        return max;
     }
 
 }

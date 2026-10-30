@@ -9,15 +9,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * The six {@code deriveTickStrip} fixtures over the real vanilla 26.1 {@code .mcmeta} shapes: a
+ * The seven {@code deriveTickStrip} fixtures over the real vanilla 26.1 {@code .mcmeta} shapes: a
  * bare frame list, a bare frametime, an interpolating source clamped to cadence 1, a loop capped at
- * 200 ticks, and two sources reconciled over an LCM loop and a GCD cadence.
+ * 200 ticks, two sources reconciled over an LCM loop and a GCD cadence, and a one-frame strip, whose
+ * table does not animate, adding no ticks beside a source that does.
  */
 @DisplayName("Flipbook tick-strip derivation")
 class FlipbookTickStripTest {
@@ -66,6 +68,14 @@ class FlipbookTickStripTest {
             flipbook(3, implicit(4))), 0), 0, 12, 2, 100);
     }
 
+    @Test
+    @DisplayName("derive: a table that does not animate adds no ticks (a one-frame strip beside a 4-frame one -> 4 frames at cadence 2)")
+    void deriveSkipsATableThatDoesNotAnimate() {
+        assertTickLoop(Flipbook.deriveTickStrip(List.of(
+            flipbook(1, implicit(3)),
+            flipbook(4, implicit(2))), 0), 0, 4, 2, 100);
+    }
+
     // ---- helpers -------------------------------------------------------------------------------
 
     /** Asserts a derived timeline is the expected {@link Timeline.TickLoop}. */
@@ -90,36 +100,36 @@ class FlipbookTickStripTest {
     /** fire_0.png.mcmeta: 32 bare frame indices [16..31, 0..15], default frametime (1 tick each). */
     private static @NotNull MCMeta.Animation fire() {
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
-        for (int i = 16; i <= 31; i++) frames.add(new MCMeta.Frame(i, -1));
-        for (int i = 0; i <= 15; i++) frames.add(new MCMeta.Frame(i, -1));
-        return new MCMeta.Animation(1, false, -1, -1, frames);
+        for (int i = 16; i <= 31; i++) frames.add(new MCMeta.Frame(i, Optional.empty()));
+        for (int i = 0; i <= 15; i++) frames.add(new MCMeta.Frame(i, Optional.empty()));
+        return new MCMeta.Animation(1, false, Optional.empty(), Optional.empty(), Optional.of(frames));
     }
 
     /** water_still.png.mcmeta: bare {@code frametime: 2}, no frames list. */
     private static @NotNull MCMeta.Animation waterStill() {
-        return new MCMeta.Animation(2, false, -1, -1, Concurrent.newList());
+        return new MCMeta.Animation(2, false, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /** magma.png.mcmeta: {@code frametime: 8}, interpolate, frames [0, 1, 2]. */
     private static @NotNull MCMeta.Animation magma() {
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
-        frames.add(new MCMeta.Frame(0, -1));
-        frames.add(new MCMeta.Frame(1, -1));
-        frames.add(new MCMeta.Frame(2, -1));
-        return new MCMeta.Animation(8, true, -1, -1, frames);
+        frames.add(new MCMeta.Frame(0, Optional.empty()));
+        frames.add(new MCMeta.Frame(1, Optional.empty()));
+        frames.add(new MCMeta.Frame(2, Optional.empty()));
+        return new MCMeta.Animation(8, true, Optional.empty(), Optional.empty(), Optional.of(frames));
     }
 
     /** prismarine.png.mcmeta: {@code frametime: 300}, interpolate, 22 frames -> loop far over the cap. */
     private static @NotNull MCMeta.Animation prismarine() {
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
         int[] seq = {0, 1, 0, 2, 0, 3, 0, 1, 2, 1, 3, 1, 0, 2, 1, 2, 3, 2, 0, 3, 1, 3};
-        for (int index : seq) frames.add(new MCMeta.Frame(index, -1));
-        return new MCMeta.Animation(300, true, -1, -1, frames);
+        for (int index : seq) frames.add(new MCMeta.Frame(index, Optional.empty()));
+        return new MCMeta.Animation(300, true, Optional.empty(), Optional.empty(), Optional.of(frames));
     }
 
     /** A frametime-only source with the given tick length and implicit frame count. */
     private static @NotNull MCMeta.Animation implicit(int frametime) {
-        return new MCMeta.Animation(frametime, false, -1, -1, Concurrent.newList());
+        return new MCMeta.Animation(frametime, false, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
 }

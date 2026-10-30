@@ -297,7 +297,7 @@ public final class GlintParitySweep {
             default -> throw new IllegalArgumentException("not a leather armor id: " + itemId);
         }
         builder.armor(armor.build());
-        PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).image().toBufferedImage());
+        PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).image().toPixelBuffer().toBufferedImage());
 
         PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
@@ -336,7 +336,7 @@ public final class GlintParitySweep {
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
             .glintOverride(Optional.of(false))
             .build();
-        PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).image().toBufferedImage());
+        PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).image().toPixelBuffer().toBufferedImage());
 
         PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(

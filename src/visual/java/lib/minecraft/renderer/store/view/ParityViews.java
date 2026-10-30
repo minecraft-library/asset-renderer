@@ -38,9 +38,14 @@ public final class ParityViews {
     /** The views that are tracked in the production store, and therefore have to be regenerable. */
     public static final @NotNull List<String> TRACKED = List.of("README.md");
 
-    /** How to rewrite a stale view from the JSON already in the store. Measures nothing. */
+    /**
+     * How to rewrite a stale view from the JSON already in the store. Measures nothing.
+     *
+     * <p>Qualified as {@code :test} because an unqualified filter applies to every {@code Test} task in
+     * the build, and the generators' own suite holds no class this names.
+     */
     public static final @NotNull String REGEN_COMMAND =
-        "./gradlew test --tests \"*ParityViewsTest\" -Dasset.parity.regenerateViews=true --rerun";
+        "./gradlew :test --tests \"*ParityViewsTest\" -Dasset.parity.regenerateViews=true --rerun";
 
     /**
      * Renders one tracked view.

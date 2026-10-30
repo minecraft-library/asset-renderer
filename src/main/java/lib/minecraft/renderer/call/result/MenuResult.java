@@ -12,17 +12,21 @@ import java.util.stream.Stream;
 
 /**
  * What a menu render hands back: the menu, the stand-ins its own chrome drew, and where each cell's
- * content and each mark's icon was drawn. Its stand-ins are its chrome's, its slots' and its icons'.
+ * content and each icon the renderer placed on a mark's face was drawn. Its stand-ins are its chrome's,
+ * its slots' and its icons'.
  * <p>
  * A slot is a caller's content, placed under {@link MenuSlot#SLOT}, or the fill drawn in a cell no
  * caller populated, placed under {@link MenuSlot#CONTENT}; every fill cell holds the one fill render's
- * result. Slots are kept in slot-index order and icons in the screen's mark order. Each rect is the
- * content's corner and its own size, since a menu draws its content unscaled.
+ * result. Slots are kept in slot-index order and icons in the screen's mark order. A mark whose icon
+ * the window's own paint carries - a recipe-book button drawn as the client's sprite - has no icon
+ * here, being chrome whole, its stand-ins the chrome's. Each rect is the content's corner and its own
+ * size, since a menu draws its content unscaled.
  *
  * @param image the composed menu, static for one frame and animated for several
  * @param chrome the stand-ins the window art drew, distinct and in their natural order
  * @param slots one slot per drawn cell, in slot-index order
- * @param icons one icon per drawn mark icon, in the screen's mark order
+ * @param icons one per icon the renderer placed on a mark's face, in the screen's mark order - none
+ *     where the window's own paint carries it
  */
 public record MenuResult(
     @NotNull ImageData image,

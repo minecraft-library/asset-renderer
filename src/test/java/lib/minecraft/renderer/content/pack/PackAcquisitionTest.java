@@ -1,27 +1,38 @@
 package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -29,7 +40,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of {@link PackAcquisition} over synthetic directory packs: renderer-target overlay
  * activation (matching the game format, not the pack's own), namespace discovery across active roots,
- * and capability detection. Acquisition is virtual - a directory source is served in place through its
+ * capability detection, and the text palette read from the text shader of the pack drawing the
+ * stack's text. Acquisition is virtual - a directory source is served in place through its
  * {@link PackContainer.Directory}, with no extraction or cache copy.
  */
 @DisplayName("PackAcquisition over synthetic directory packs")
@@ -208,6 +220,293 @@ class PackAcquisitionTest {
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla)); // must not throw
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
         assertThat("illegal overlay directory is skipped, base root survives", catpack.roots(), contains(PackRoot.BASE));
+    }
+
+    /** The 26.1 text program's file, under the {@code minecraft} namespace. */
+    private static final String PROGRAM_FILE = "shaders/core/rendertype_text.vsh";
+
+    /** The newer client's text program's file, under the {@code minecraft} namespace. */
+    private static final String NEWER_PROGRAM_FILE = "shaders/core/text.vsh";
+
+    /** The swaps {@link #SWAP} states - two colours and their shadows, each shadow the swap quartered per channel. */
+    private static final Map<Integer, Integer> SWAPS = Map.of(0xAA0000, 0xD13228, 0x2A0000, 0x340C0A, 0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34);
+
+    /** A text program of the swap shape: vanilla's {@code main} with the swapped colour declared, every {@code vertexColor} reading it. */
+    private static final String PROGRAM = """
+        #version 330
+
+        #moj_import <swap.glsl>
+
+        #if !defined(IS_GUI)
+        #moj_import <minecraft:fog.glsl>
+        #moj_import <minecraft:sample_lightmap.glsl>
+        #endif
+
+        in vec3 Position;
+        in vec4 Color;
+        in vec2 UV0;
+        in ivec2 UV2;
+
+        uniform sampler2D Sampler2;
+
+        out float sphericalVertexDistance;
+        out vec4 vertexColor;
+        out vec2 texCoord0;
+
+        void main() {
+            gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+            vec4 swapped = swapColor(Color);
+
+        #if !defined(IS_GUI)
+            sphericalVertexDistance = fog_spherical_distance(Position);
+            vertexColor = swapped * sample_lightmap(Sampler2, UV2);
+        #else
+            vertexColor = swapped;
+        #endif
+            texCoord0 = UV0;
+        }
+        """;
+
+    /** The include {@link #PROGRAM} imports: the key packing, both rebuilding helpers and the switch. */
+    private static final String SWAP = """
+        // Keys a colour by its red, green and blue.
+        int keyOf(vec3 rgb) {
+            int r = int(rgb.r * 255.0);
+            int g = int(rgb.g * 255.0);
+            int b = int(rgb.b * 255.0);
+            return (r << 16) + (g << 8) + (b);
+        }
+
+        vec4 rebuilt(int rgb, float alpha) {
+            return vec4((rgb >> 16 & 0xFF) / 255.0, (rgb >> 8 & 0xFF) / 255.0, (rgb & 0xFF) / 255.0, alpha);
+        }
+
+        /* The shadow form, each channel quartered. */
+        vec4 rebuiltDark(int rgb, float alpha) {
+            return vec4(((rgb >> 16 & 0xFF) / 4) / 255.0, ((rgb >> 8 & 0xFF) / 4) / 255.0, ((rgb & 0xFF) / 4) / 255.0, alpha);
+        }
+
+        vec4 swapColor(vec4 color) {
+            int key = keyOf(color.rgb);
+            switch (key) {
+                case 0xAA0000: return rebuilt(0xD13228, color.a);
+                case 0x2A0000: return rebuiltDark(0xD13228, color.a);
+                case 0xAAAAAA: return rebuilt(0xA8BFD2, color.a);
+                case 0x2A2A2A: return rebuiltDark(0xA8BFD2, color.a);
+                default: return color;
+            }
+        }
+        """;
+
+    /** Vanilla's own text program, which swaps nothing. */
+    private static final String VANILLA_PROGRAM = """
+        #version 330
+
+        #moj_import <minecraft:fog.glsl>
+        #moj_import <minecraft:sample_lightmap.glsl>
+
+        in vec3 Position;
+        in vec4 Color;
+        in vec2 UV0;
+        in ivec2 UV2;
+
+        uniform sampler2D Sampler2;
+
+        out float sphericalVertexDistance;
+        out vec4 vertexColor;
+        out vec2 texCoord0;
+
+        void main() {
+            gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+
+            sphericalVertexDistance = fog_spherical_distance(Position);
+            vertexColor = Color * sample_lightmap(Sampler2, UV2);
+            texCoord0 = UV0;
+        }
+        """;
+
+    @Test
+    @DisplayName("a text shader of the swap shape is read into the table its switch states, each shadow key the swap quartered per channel")
+    void swapShapeIsRead(@TempDir Path dir) throws IOException {
+        Path user = shaderPack(dir, "mypack", PROGRAM_FILE, PROGRAM, SWAP);
+        TextPalette palette = acquire(dir, user).textPalette().get();
+
+        assertThat("the user pack's table alone - the synthetic vanilla's own swap-shaped program is never read",
+            Map.copyOf(palette.swaps()), is(equalTo(SWAPS)));
+        assertThat(palette.id(), is(new ResourceId("minecraft", PROGRAM_FILE)));
+        assertThat(palette.pack(), is(new PackId("mypack")));
+    }
+
+    @Test
+    @DisplayName("a pack shipping only the newer program is read from it")
+    void newerProgramIsRead(@TempDir Path dir) throws IOException {
+        Path user = shaderPack(dir, "mypack", NEWER_PROGRAM_FILE, PROGRAM, SWAP);
+        TextPalette palette = acquire(dir, user).textPalette().get();
+
+        assertThat(palette.id(), is(new ResourceId("minecraft", NEWER_PROGRAM_FILE)));
+        assertThat(Map.copyOf(palette.swaps()), is(equalTo(SWAPS)));
+    }
+
+    @Test
+    @DisplayName("the 26.1 program wins in a pack shipping both, and a lower pack's 26.1 program over a higher pack's newer one")
+    void the261ProgramWins(@TempDir Path dir) throws IOException {
+        String otherProgram = PROGRAM.replace("<swap.glsl>", "<other_swap.glsl>");
+        String otherSwap = SWAP.replace("0xA8BFD2", "0x123456");
+
+        Path both = shaderPack(dir, "both", PROGRAM_FILE, PROGRAM, SWAP);
+        write(both.resolve("assets/minecraft/" + NEWER_PROGRAM_FILE), otherProgram);
+        write(both.resolve("assets/minecraft/shaders/include/other_swap.glsl"), otherSwap);
+        TextPalette shippingBoth = acquire(dir.resolve("one"), both).textPalette().get();
+        assertThat(shippingBoth.id(), is(new ResourceId("minecraft", PROGRAM_FILE)));
+        assertThat(Map.copyOf(shippingBoth.swaps()), is(equalTo(SWAPS)));
+
+        Path lower = shaderPack(dir, "lower", PROGRAM_FILE, PROGRAM, SWAP);
+        Path higher = dir.resolve("higher");
+        write(higher.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(higher.resolve("assets/minecraft/" + NEWER_PROGRAM_FILE), otherProgram);
+        write(higher.resolve("assets/minecraft/shaders/include/other_swap.glsl"), otherSwap);
+        TextPalette acrossPacks = acquire(dir.resolve("two"), lower, higher).textPalette().get();
+        assertThat(acrossPacks.id(), is(new ResourceId("minecraft", PROGRAM_FILE)));
+        assertThat(acrossPacks.pack(), is(new PackId("lower")));
+    }
+
+    @Test
+    @DisplayName("a quoted import is read from the program's own directory")
+    void quotedImportIsReadBesideTheProgram(@TempDir Path dir) throws IOException {
+        Path user = shaderPack(dir, "mypack", PROGRAM_FILE, PROGRAM.replace("#moj_import <swap.glsl>", "#moj_import \"swap.glsl\""),
+            SWAP.replace("0xA8BFD2", "0x123456"));
+        write(user.resolve("assets/minecraft/shaders/core/swap.glsl"), SWAP);
+        Possible<TextPalette> palette = acquire(dir, user).textPalette();
+
+        assertThat(palette.getState(), is(Possible.State.PRESENT));
+        assertThat("the include beside the program is read, and not the one of its name under shaders/include/",
+            Map.copyOf(palette.get().swaps()), is(equalTo(SWAPS)));
+    }
+
+    @Test
+    @DisplayName("a file imported twice, directly and through another include, is imported once")
+    void repeatImportImportsNothing(@TempDir Path dir) throws IOException {
+        Path user = shaderPack(dir, "mypack", PROGRAM_FILE, PROGRAM.replace("#moj_import <swap.glsl>", "#moj_import <swap.glsl>\n#moj_import <again.glsl>"), SWAP);
+        write(user.resolve("assets/minecraft/shaders/include/again.glsl"), "#moj_import <swap.glsl>\n");
+        Possible<TextPalette> palette = acquire(dir, user).textPalette();
+
+        assertThat("a second import would define every function of the swap twice", palette.getState(), is(Possible.State.PRESENT));
+        assertThat(Map.copyOf(palette.get().swaps()), is(equalTo(SWAPS)));
+    }
+
+    @Test
+    @DisplayName("a text shader of another shape answers empty and says so once")
+    void anotherShapeIsReported(@TempDir Path dir) throws IOException {
+        Map<String, Path> refused = new LinkedHashMap<>();
+        refused.put("a case returning another colour",
+            shaderPack(dir, "constant", PROGRAM_FILE, PROGRAM, SWAP.replace("case 0xAA0000: return rebuilt(0xD13228, color.a);", "case 0xAA0000: return vec4(1.0);")));
+        refused.put("a shadow helper dividing by 3", shaderPack(dir, "thirds", PROGRAM_FILE, PROGRAM, SWAP.replace("/ 4)", "/ 3)")));
+        refused.put("an added statement in main",
+            shaderPack(dir, "added", PROGRAM_FILE, PROGRAM.replace("    texCoord0 = UV0;\n", "    texCoord0 = UV0;\n    gl_PointSize = 1.0;\n"), SWAP));
+        refused.put("the swap call under a preprocessor condition",
+            shaderPack(dir, "conditional", PROGRAM_FILE, PROGRAM.replace("    vec4 swapped = swapColor(Color);\n", "#ifdef IS_GUI\n    vec4 swapped = swapColor(Color);\n#endif\n"), SWAP));
+        Path fragment = shaderPack(dir, "fragment", PROGRAM_FILE, PROGRAM, SWAP);
+        write(fragment.resolve("assets/minecraft/shaders/core/rendertype_text.fsh"), "#version 330\n\nvoid main() {\n}\n");
+        refused.put("a pack-shipped fragment program", fragment);
+        refused.put("an import no pack ships",
+            shaderPack(dir, "unresolved", PROGRAM_FILE, PROGRAM.replace("#moj_import <swap.glsl>", "#moj_import <swap.glsl>\n#moj_import <missing.glsl>"), SWAP));
+        refused.put("a key packing the channels in another order",
+            shaderPack(dir, "selector", PROGRAM_FILE, PROGRAM, SWAP.replace("return (r << 16) + (g << 8) + (b);", "return (b << 16) + (g << 8) + (r);")));
+        refused.put("two cases for one key", shaderPack(dir, "duplicate", PROGRAM_FILE, PROGRAM, SWAP.replace("case 0xAAAAAA:", "case 0xAA0000:")));
+        refused.put("a main naming the swapped colour before it declares it",
+            shaderPack(dir, "early", PROGRAM_FILE, PROGRAM.replace("    vec4 swapped = swapColor(Color);\n", "    vertexColor = swapped;\n    vec4 swapped = swapColor(Color);\n"), SWAP));
+        refused.put("a main declaring the swapped colour whose vertexColor still reads Color",
+            shaderPack(dir, "unswapped", PROGRAM_FILE, PROGRAM.replace("    vertexColor = swapped;\n", "    vertexColor = Color;\n"), SWAP));
+        refused.put("a helper defined under a preprocessor condition",
+            shaderPack(dir, "conditionalhelper", PROGRAM_FILE, PROGRAM, SWAP.replace("/* The shadow form, each channel quartered. */\n", "#ifdef IS_GUI\n")
+                .replace("vec4 swapColor(vec4 color) {", "#endif\n\nvec4 swapColor(vec4 color) {")));
+        refused.put("a directive beyond #version and the conditionals",
+            shaderPack(dir, "define", PROGRAM_FILE, PROGRAM.replace("#version 330\n", "#version 330\n#define Color vec4(1.0)\n"), SWAP));
+
+        for (Map.Entry<String, Path> shape : refused.entrySet()) {
+            Path pack = shape.getValue();
+            PrintStream original = System.err;
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+            PackStack stack;
+            try {
+                stack = acquire(dir.resolve("stack-" + pack.getFileName()), pack);
+            } finally {
+                System.setErr(original);
+            }
+            List<String> lines = captured.toString(StandardCharsets.UTF_8).lines().toList();
+
+            assertThat(shape.getKey(), stack.textPalette().getState(), is(Possible.State.EMPTY));
+            assertThat(shape.getKey() + " is reported once", lines.size(), is(1));
+            assertThat(shape.getKey() + " is reported naming the pack and the file", lines.getFirst(),
+                allOf(containsString("'" + pack.getFileName() + "'"), containsString("minecraft:" + PROGRAM_FILE)));
+        }
+    }
+
+    @Test
+    @DisplayName("a stack whose packs ship no text shader answers absent, vanilla's own never read")
+    void noTextShaderIsAbsent(@TempDir Path dir) throws IOException {
+        Path user = dir.resolve("mypack");
+        write(user.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(user.resolve("assets/minecraft/textures/block/stone.png"), "png");
+
+        assertThat(acquire(dir, user).textPalette().getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("a pack shipping vanilla's own text program reads as a table of no swaps")
+    void vanillasOwnProgramSwapsNothing(@TempDir Path dir) throws IOException {
+        Path user = shaderPack(dir, "mypack", PROGRAM_FILE, VANILLA_PROGRAM, SWAP);
+        Possible<TextPalette> palette = acquire(dir, user).textPalette();
+
+        assertThat(palette.getState(), is(Possible.State.PRESENT));
+        assertThat(palette.get().swaps().isEmpty(), is(true));
+    }
+
+    /**
+     * Writes a pack shipping a text program under one of its names, and the swap include it imports.
+     *
+     * @param dir the directory the pack is written under
+     * @param name the pack's directory name, which its id derives from
+     * @param programFile the program's file under {@code assets/minecraft/}
+     * @param program the program's body
+     * @param swap the body of the include {@code swap.glsl}
+     * @return the pack's directory
+     * @throws IOException if a file cannot be written
+     */
+    private static Path shaderPack(Path dir, String name, String programFile, String program, String swap) throws IOException {
+        Path pack = dir.resolve(name);
+        write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(pack.resolve("assets/minecraft/" + programFile), program);
+        write(pack.resolve("assets/minecraft/shaders/include/swap.glsl"), swap);
+        return pack;
+    }
+
+    /**
+     * Acquires a stack of packs over a synthetic vanilla, which ships the two includes the programs
+     * import and a swap-shaped text program of its own, with other values, that the stack must never
+     * read.
+     *
+     * @param dir the directory the vanilla pack and the cache are written under
+     * @param packs the user packs, lowest priority first
+     * @return the acquired stack
+     * @throws IOException if a file cannot be written
+     */
+    private static PackStack acquire(Path dir, Path... packs) throws IOException {
+        Path vanilla = dir.resolve("vanilla");
+        write(vanilla.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(vanilla.resolve("assets/minecraft/textures/block/stone.png"), "png");
+        write(vanilla.resolve("assets/minecraft/shaders/include/fog.glsl"), "float fog_spherical_distance(vec3 pos) {\n    return length(pos);\n}\n");
+        write(vanilla.resolve("assets/minecraft/shaders/include/sample_lightmap.glsl"),
+            "vec4 sample_lightmap(sampler2D lightMap, ivec2 uv) {\n    return texture(lightMap, uv / 256.0);\n}\n");
+        write(vanilla.resolve("assets/minecraft/" + PROGRAM_FILE), PROGRAM.replace("<swap.glsl>", "<vanilla_swap.glsl>"));
+        write(vanilla.resolve("assets/minecraft/shaders/include/vanilla_swap.glsl"), SWAP.replace("0xA8BFD2", "0x123456").replace("0xD13228", "0x654321"));
+
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(Arrays.stream(packs).map(Path::toFile).toList()))
+            .build();
+        return PackAcquisition.acquire(new ClientAssets(options, vanilla));
     }
 
     private static void write(Path file, String content) throws IOException {

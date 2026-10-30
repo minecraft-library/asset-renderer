@@ -9,6 +9,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.image.pixel.BlendMode;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextField;
 import lib.minecraft.renderer.bake.gui.TextKit;
@@ -45,17 +46,19 @@ import java.util.stream.IntStream;
 
 /**
  * Renders an inventory-style menu by laying its cells out as a {@link ScreenMetrics} and painting them
- * through a {@link Window}, then placing the caller's slot content on the cells that layout produced,
- * and answers a {@link MenuResult} naming where each cell's content and each mark's icon was drawn,
- * beside the stand-ins its chrome drew.
+ * through a {@link Window}, then placing the caller's slot content on the cells that layout produced
+ * and an icon on each mark whose face the window's own paint leaves bare, and answers a
+ * {@link MenuResult} naming where each cell's content and each icon it placed was drawn, beside the
+ * stand-ins its chrome drew.
  * <p>
  * There is one flow, because a menu is one arithmetic and one painter. What a caller chooses is which
  * screen the client ships, what goes in its cells and what paints its chrome; none of the three is a
  * render path of its own. A menu whose slots sit where no shipped screen puts them is one of those
  * screens with the caller's own slot map over it.
  * <p>
- * A menu speaks Minecraft pixels throughout and reaches output pixels only through {@link #PX_SCALE},
- * which is what keeps the chrome exact rather than resampled.
+ * A menu speaks Minecraft pixels throughout and reaches output pixels at {@link #PX_SCALE}, the font's
+ * scale, at which a window lays its own chrome in exact blocks and the GUI sprites it draws at
+ * output-pixel resolution.
  */
 @Parity(claim = "menu-closure", mode = Mode.DEMOTE, subject = Subject.MENU)
 @RequiredArgsConstructor(access = AccessLevel.PUBLIC)
@@ -93,12 +96,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Lays the menu's screen out, paints its chrome through the window the options select, and places
      * every populated cell on it. The menu draws on a renderer built over a context recording the
-     * stand-ins its chrome draws; each cell's content and each mark's icon is a render of its own,
-     * carrying its own.
+     * stand-ins its chrome draws; each cell's content and each icon placed on a mark is a render of its
+     * own, carrying its own, and a mark whose icon the window's own paint carries is chrome whole.
      *
      * @param options the menu render options
      * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
-     *     mark's icon was drawn
+     *     icon placed on a mark was drawn
      */
     @Override
     public @NotNull MenuResult render(@NotNull MenuOptions options) {
@@ -114,7 +117,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param chrome the collector this renderer's context records into, which the chrome's stand-ins
      *     reach
      * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
-     *     mark's icon was drawn
+     *     icon placed on a mark was drawn
      */
     @NotNull MenuResult draw(@NotNull MenuOptions options, @NotNull SubstitutionCollector chrome) {
         validateScale(options);
@@ -131,11 +134,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ConcurrentList<MenuResult.Icon> icons = Concurrent.newList();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer, icons);
+        boolean anyAnimated = placeDecorationIcons(window, layout, stack, itemRenderer, icons);
         anyAnimated |= placeSlots(options, layout, stack, itemRenderer, slots);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, slots);
-        anyAnimated |= placeLabels(options, layout, stack);
-        TextField.placeFieldText(options, layout, stack);
+        TextPalette palette = this.context.findTextPalette().orElse(TextPalette.VANILLA);
+        anyAnimated |= placeLabels(options, layout, palette, stack);
+        TextField.placeFieldText(options, layout, palette, stack);
 
         return new MenuResult(composite(layout, stack, anyAnimated, options), chrome.snapshot(), slots, icons);
     }
@@ -155,8 +159,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Returns the window a menu's chrome is painted by - the art the caller named, or the theme's
-     * drawn geometry where they named none.
+     * Returns the window a menu's chrome is painted by - the art the caller named, composed for the
+     * menu's screen and resolved for the panel it lays out, or the theme's drawn geometry where they
+     * named none.
      *
      * @param context the renderer context resolving the art
      * @param options the menu render options
@@ -164,7 +169,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static @NotNull Window windowOf(@NotNull RendererContext context, @NotNull MenuOptions options) {
         return options.getChromeSprite()
-            .<Window>map(id -> Window.Sliced.resolve(context, id, options.getCellSprite()))
+            .<Window>map(id -> Window.Sliced.resolve(
+                context, id, options.getCellSprite(), options.screen(), layoutOf(options)))
             .orElse(Window.Theme.of(options.getThemeStyle()));
     }
 
@@ -182,7 +188,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Paints the panel and every cell of a layout, in Minecraft pixels replicated to output ones.
+     * Paints the panel, every cell and every mark of a layout at the font's scale.
      *
      * @param window the window painting the chrome
      * @param layout the laid-out panel
@@ -191,11 +197,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static @NotNull PixelBuffer paintChrome(@NotNull Window window, @NotNull MenuLayout layout) {
         PixelBuffer chrome = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
 
-        window.paintPanel(chrome, layout.box(PX_SCALE));
+        window.paintPanel(chrome, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
-            window.paintCell(chrome, Window.Box.of(cell, PX_SCALE));
+            window.paintCell(chrome, Window.Box.of(cell));
         for (Mark.Placement mark : layout.marks())
-            window.paintDecoration(chrome, Window.Box.of(mark, PX_SCALE), mark.kind());
+            window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
 
         return chrome;
     }
@@ -219,15 +225,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      *
      * @param options the menu render options
      * @param layout the laid-out panel
+     * @param palette the colours the stack's text shader draws in place of the labels' own
      * @param stack the layer stack to append to
      * @return whether the label layer animates
      */
     static boolean placeLabels(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
+        @NotNull TextPalette palette,
         @NotNull LayerStack<FrameLayer> stack
     ) {
-        Optional<ImageData> labels = labelLayer(options, layout);
+        Optional<ImageData> labels = labelLayer(options, layout, palette);
         if (labels.isEmpty()) return false;
 
         place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels.get()));
@@ -315,13 +323,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Draws the icon each of a screen's marks carries, returning whether any of them animated.
+     * Draws the icon on each of a screen's marks that the window's own paint leaves to the renderer,
+     * returning whether any of them animated.
      * <p>
-     * A mark's frame is chrome and its icon is a render, so the two are drawn by different parties:
-     * the window paints the raised button in its own inks and this places the item on its face. That
-     * split is what gives a pack its say - the item resolves through the pack stack like any other,
-     * so redrawing it redraws the button.
+     * Where a window paints a mark's frame alone, the frame is chrome and the icon a render, drawn by
+     * different parties: the theme paints the raised button - its bevel in its own inks, and beneath the
+     * item the two texels of the client's book the item leaves clear - and this places the item on its
+     * face. That split is what gives a pack its say - the item resolves through the pack stack like any
+     * other, so redrawing it redraws the button's book. A window sliced from art draws the client's
+     * button sprite, which carries its own book, so nothing is placed over it.
      *
+     * @param window the window that painted the chrome, which answers which marks' icons its paint carries
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an icon goes through
@@ -329,6 +341,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @return whether any icon resolved to animated content
      */
     static boolean placeDecorationIcons(
+        @NotNull Window window,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer,
@@ -340,7 +353,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         for (int index = 0; index < marks.size(); index++) {
             Mark.Placement mark = marks.get(index);
             Optional<ResourceId> icon = mark.icon();
-            if (icon.isEmpty()) continue;
+            if (icon.isEmpty() || window.paintsIcon(mark.kind())) continue;
 
             RenderResult rendered = itemRenderer.render(ItemOptions.builder()
                 .itemId(icon.get().id())
@@ -508,16 +521,18 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Builds the label layer for a menu - the container's own title, and the player's label where the
      * player section is drawn. When a label carries an obfuscated segment ({@code §k}) the layer is
-     * animated over one second of unique frames; otherwise it is a single frame.
+     * animated over one second of unique frames; otherwise it is a single frame. Either is held
+     * premultiplied, as text laid on a clear buffer is.
      * <p>
      * Empty where a menu has no label to draw at all, which is what keeps a caller who asked for no
      * title from paying for a whole transparent canvas per frame.
      *
      * @param options the menu options, supplying the labels, their colour and the frame rate
      * @param layout the laid-out panel, supplying both anchors
+     * @param palette the colours the stack's text shader draws in place of the labels' own
      * @return the label layer, empty where there is nothing to draw
      */
-    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout) {
+    static @NotNull Optional<ImageData> labelLayer(@NotNull MenuOptions options, @NotNull MenuLayout layout, @NotNull TextPalette palette) {
         ConcurrentList<Label> labels = Concurrent.newList();
 
         if (!options.getTitle().isEmpty()) {
@@ -538,16 +553,16 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         if (!animated) {
             PixelBuffer buffer = PixelBuffer.create(w, h);
-            drawLabels(buffer, labels, argb, 0);
-            return Optional.of(StaticImageData.of(buffer.toBufferedImage()));
+            drawLabels(buffer, labels, argb, palette, 0);
+            return Optional.of(Timeline.still(buffer));
         }
 
         // One second of unique obfuscation frames: a wall-rate loop of framesPerSecond frames, the
-        // frame index doubling as the per-frame obfuscation seed.
+        // frame index and each label's number being what TextKit seeds that label's scramble from.
         return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
                 PixelBuffer frameBuffer = PixelBuffer.create(w, h);
-                drawLabels(frameBuffer, labels, argb, f);
+                drawLabels(frameBuffer, labels, argb, palette, f);
                 return frameBuffer;
             }));
     }
@@ -586,19 +601,31 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * An anchor is the top of a glyph cell, which the vanilla font opens a capital on, and the draw
      * takes the baseline an ascent below it. The ascent is asked for in Minecraft pixels, because the
      * metrics answer in output ones by default and the draw is in Minecraft ones.
+     * <p>
+     * Each label is drawn as its index in the list - the title first, the player's label after it -
+     * which with the frame seeds its scramble, so two labels of one frame scramble apart.
+     *
+     * @param buffer the buffer the labels are drawn into
+     * @param labels the labels, the title first
+     * @param defaultArgb the colour of a label segment carrying none of its own
+     * @param palette the colours the stack's text shader draws in place of the labels' own
+     * @param frame the animation frame drawn
      */
     private static void drawLabels(
         @NotNull PixelBuffer buffer,
         @NotNull ConcurrentList<Label> labels,
         int defaultArgb,
-        long frameSeed
+        @NotNull TextPalette palette,
+        long frame
     ) {
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
 
-        for (Label label : labels)
+        for (int i = 0; i < labels.size(); i++) {
+            Label label = labels.get(i);
             TextKit.drawLine(g, label.line(), label.anchor().x(), label.anchor().y() + ascentMcPx,
-                defaultArgb, frameSeed, frameSeed, false);
+                defaultArgb, palette, i, frame, frame, false);
+        }
     }
 
 }

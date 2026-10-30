@@ -269,6 +269,22 @@ class Discovery(unittest.TestCase):
         with self.assertRaises(MissingInput):
             sweep.discover(home)
 
+    def test_a_pack_sweep_and_the_vanilla_one_are_each_credited_to_their_own_directory(self):
+        """The pack sweep's directory name extends the vanilla one's, and neither answers for the other."""
+        import shutil
+        import tempfile
+        source = Path(tempfile.mkdtemp())
+        for name in ("tooltip-parity-vanilla", "tooltip-hypixel-skyblock-parity-vanilla"):
+            (source / name).mkdir()
+            shutil.copyfile(DATA / "sweep-armor.tsv", source / name / "parity-report.tsv")
+        self.assertEqual(sweep.discover(source), {
+            "tooltip": source / "tooltip-parity-vanilla" / "parity-report.tsv",
+            "tooltip-hypixel-skyblock":
+                source / "tooltip-hypixel-skyblock-parity-vanilla" / "parity-report.tsv",
+        })
+        home = source / "tooltip-hypixel-skyblock-parity-vanilla"
+        self.assertEqual(sweep.discover(home), {"tooltip-hypixel-skyblock": home / "parity-report.tsv"})
+
 
 if __name__ == "__main__":
     unittest.main()

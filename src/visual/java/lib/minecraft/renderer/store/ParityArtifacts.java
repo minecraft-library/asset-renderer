@@ -120,10 +120,22 @@ public final class ParityArtifacts {
         // are the only subjects this row is the gate for. Same floor, a sweep being a pure function of
         // two file sets.
         Registration.store("sweep.entity-walk", 2, "entityWalkParityVanilla"),
+        // The tooltip references diffed at an equal canvas, each tooltip subject whole and as its box
+        // alone, so a mover says whether the box or the text moved, and each plain line as one line of
+        // chat text. Same floor, a sweep being a pure function of two file sets.
+        Registration.store("sweep.tooltip", 2, "tooltipParityVanilla"),
+        // The tooltip sweep under the hypixel-skyblock pack, measured against the client's drawings
+        // under that pack beside the reference tree rather than against the tree. Same floor, a sweep
+        // being a pure function of two file sets.
+        Registration.store("sweep.tooltip-hypixel-skyblock", 2, "tooltipHypixelSkyblockParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all.
         Registration.store("manifest.references", 2, "renderVanillaAllReferences"),
+        // The client's tooltip drawings under the hypixel-skyblock pack, beside the reference tree.
+        // One producer for the reason manifest.references names one, and two runs, the floor a render
+        // tree takes.
+        Registration.store("manifest.pack-tooltips", 2, "renderVanillaPackTooltipsHypixelSkyblock"),
         Registration.store("manifest.visual", 2, "visualSweepSet"),
         // The raw halves of the two sweeps that rescale before diffing. Its producer is an aggregator
         // over both of them rather than either one, because a manifest captured after a single sweep

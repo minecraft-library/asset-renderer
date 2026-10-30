@@ -3,9 +3,12 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.MenuRenderer;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
@@ -16,17 +19,20 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.Rectangle;
 import java.util.Optional;
 
 /**
  * The chrome of a container panel - its frame, its interior fill and its slot cells - painted at a
  * caller-chosen size.
  * <p>
- * A window speaks Minecraft pixels. {@link Box#scale()} is the only place output pixels enter, and
- * every implementation replicates one Minecraft pixel as a {@code scale x scale} block rather than
- * resampling, so chrome is exact at every integer scale.
+ * A window speaks Minecraft pixels and reaches output pixels at {@link MinecraftFont#MC_PIXEL_SCALE},
+ * the scale the labels and GUI sprites drawn with it are laid at. It lays its own chrome one Minecraft
+ * pixel to a block of that side, and the GUI sprites it draws are laid by {@link NineSliceKit} at
+ * output-pixel resolution, so a sprite authored at twice its size draws every texel.
  * <p>
  * A window carries its own ink. A {@link Theme} is vanilla's geometry in one of several palettes and
  * a {@link Sliced} is authored art, so neither takes a palette to paint with - one holds a palette
@@ -40,7 +46,7 @@ public interface Window {
      * Paints the panel frame and its interior fill over the box.
      *
      * @param dest the buffer to paint into
-     * @param box the panel rect in Minecraft pixels, with its output scale
+     * @param box the panel rect in Minecraft pixels
      */
     void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box);
 
@@ -48,7 +54,7 @@ public interface Window {
      * Paints one slot cell over the box.
      *
      * @param dest the buffer to paint into
-     * @param box the cell rect in Minecraft pixels, with its output scale
+     * @param box the cell rect in Minecraft pixels
      */
     void paintCell(@NotNull PixelBuffer dest, @NotNull Box box);
 
@@ -56,15 +62,31 @@ public interface Window {
      * Paints one of a screen's marks over the box.
      * <p>
      * A window that draws from rules paints the mark, in its own inks wherever the mark is one the
-     * panel owns; a window sliced from art paints nothing, because whatever marks that art carries
-     * are already in the panel it slices. What a mark's face holds is not painted here - a button's
-     * item and a field's text are renders, and the renderer places them.
+     * panel owns; a window sliced from art paints the anvil's name field and cross and the crafting
+     * table's recipe-book button as the GUI sprites the client blits over its art, and no other mark,
+     * the arrow, the plus and the hammer being drawn into the art it slices. A field's text is never
+     * painted here, and a button's icon only where {@link #paintsIcon} says this window's paint carries
+     * it - otherwise each is a render, and the renderer places it.
      *
      * @param dest the buffer to paint into
-     * @param box the mark's rect in Minecraft pixels, with its output scale
+     * @param box the mark's rect in Minecraft pixels
      * @param decoration which mark to paint
      */
     void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration);
+
+    /**
+     * Answers whether this window's own paint of a mark carries the icon on its face, so the renderer
+     * places none over it.
+     * <p>
+     * A window that draws from rules paints a button's bevel, and beneath the item the screen names
+     * there the two texels of the client's book that item leaves clear, and leaves the item to the
+     * renderer; a window sliced from art draws the client's widget sprite whole, the recipe-book
+     * button's carrying its own book.
+     *
+     * @param decoration the mark
+     * @return whether the mark's icon is part of this window's own paint
+     */
+    boolean paintsIcon(@NotNull Mark decoration);
 
     /**
      * Returns the smallest panel this window can paint, in Minecraft pixels - the size at which the
@@ -77,75 +99,51 @@ public interface Window {
     @NotNull Extent minimum();
 
     /**
-     * A rect in Minecraft pixels together with the output scale it is painted at.
+     * A rect in Minecraft pixels, laid at {@link MinecraftFont#MC_PIXEL_SCALE} output pixels to the
+     * Minecraft pixel.
      *
      * @param x the left edge, in Minecraft pixels relative to the destination buffer's origin
      * @param y the top edge, in Minecraft pixels relative to the destination buffer's origin
      * @param width the width in Minecraft pixels
      * @param height the height in Minecraft pixels
-     * @param scale the output pixels each Minecraft pixel occupies on a side
      */
-    record Box(int x, int y, int width, int height, int scale) {
+    record Box(int x, int y, int width, int height) {
 
         /**
-         * A box at the origin at scale one.
-         *
-         * @param width the width in Minecraft pixels
-         * @param height the height in Minecraft pixels
-         * @return the box
-         */
-        public static @NotNull Box of(int width, int height) {
-            return new Box(0, 0, width, height, 1);
-        }
-
-        /**
-         * A cell's square as a box at the given output scale.
+         * A cell's square as a box.
          *
          * @param cell the cell
-         * @param scale the output pixels each Minecraft pixel occupies on a side
          * @return the cell box
          */
-        public static @NotNull Box of(@NotNull ScreenMetrics.Cell cell, int scale) {
-            return new Box(cell.x(), cell.y(), cell.size(), cell.size(), scale);
+        public static @NotNull Box of(@NotNull ScreenMetrics.Cell cell) {
+            return new Box(cell.x(), cell.y(), cell.size(), cell.size());
         }
 
         /**
-         * A placed mark's rect as a box at the given output scale, at the extent its kind paints.
+         * A placed mark's rect as a box, at the extent its kind paints.
          *
          * @param placement the placed mark
-         * @param scale the output pixels each Minecraft pixel occupies on a side
          * @return the mark's box
          */
-        public static @NotNull Box of(@NotNull Mark.Placement placement, int scale) {
+        public static @NotNull Box of(@NotNull Mark.Placement placement) {
             Extent extent = Extent.of(placement.kind());
-            return new Box(placement.x(), placement.y(), extent.width(), extent.height(), scale);
+            return new Box(placement.x(), placement.y(), extent.width(), extent.height());
         }
 
         /**
-         * Writes one Minecraft pixel as a {@code scale x scale} block, clipped to the destination.
-         * A zero ink writes nothing, so a chamfered corner shows through what it is painted over.
+         * Lays one Minecraft pixel as a block of {@link MinecraftFont#MC_PIXEL_SCALE} output pixels a
+         * side, clipped to the destination, as the client lays a GUI texel: an ink of alpha 0 leaves the
+         * destination as it was, so a chamfered corner shows through what it is painted over, and any
+         * other blends over it with {@link BlendMode#NORMAL}.
          *
          * @param dest the buffer to paint into
          * @param mcX the left edge within this box, in Minecraft pixels
          * @param mcY the top edge within this box, in Minecraft pixels
-         * @param argb the colour, zero to leave the destination alone
+         * @param argb the colour, alpha 0 to leave the destination alone
          */
         void put(@NotNull PixelBuffer dest, int mcX, int mcY, int argb) {
-            if (argb == 0) return;
-
-            int x0 = (this.x + mcX) * this.scale;
-            int y0 = (this.y + mcY) * this.scale;
-
-            for (int dy = 0; dy < this.scale; dy++) {
-                int y = y0 + dy;
-                if (y < 0 || y >= dest.height()) continue;
-
-                for (int dx = 0; dx < this.scale; dx++) {
-                    int x = x0 + dx;
-                    if (x < 0 || x >= dest.width()) continue;
-                    dest.setPixel(x, y, argb);
-                }
-            }
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            dest.fillRect((this.x + mcX) * scale, (this.y + mcY) * scale, scale, scale, argb, BlendMode.NORMAL);
         }
 
         /**
@@ -196,7 +194,7 @@ public interface Window {
     }
 
     /**
-     * The six inks a window paints in.
+     * The seven inks a window paints in.
      *
      * @param outline the panel's outermost line
      * @param light the raised bevel, and a cell's lower and right edges
@@ -204,160 +202,306 @@ public interface Window {
      * @param panel the interior fill behind the cells
      * @param cellFill a cell's interior
      * @param cellShadow a cell's upper and left edges
+     * @param buttonRightChamfer the outline closing a raised button's two right-hand corners
      */
-    record Palette(int outline, int light, int shadow, int panel, int cellFill, int cellShadow) {
+    record Palette(
+        int outline, int light, int shadow, int panel, int cellFill, int cellShadow, int buttonRightChamfer
+    ) {
 
         /**
-         * The palette the vanilla container textures are drawn in, read off the shipped art.
+         * The palette the vanilla container textures are drawn in, read off the shipped art - the
+         * container sheets, and the recipe-book button's sprite for the ink its two right-hand chamfers
+         * take apart from the rest of its outline.
          */
         public static final @NotNull Palette VANILLA =
-            new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737);
+            new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737, 0xFF0C0500);
 
         /**
          * A dark palette for the same geometry. Only {@code panel} and {@code cellFill} carry over
          * from anything measured; the three bevel roles are authored, because neither scaling
          * vanilla's ratios nor preserving its differences survives a panel this dark - the first
-         * flattens the bevel to a few levels and the second clamps three roles to black.
+         * flattens the bevel to a few levels and the second clamps three roles to black. A button's
+         * right-hand chamfers are its outline, as the client's own re-inked button, the highlighted one,
+         * closes them in that sprite's outline.
          */
         public static final @NotNull Palette DARK =
-            new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D);
+            new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D, 0xFF000000);
 
     }
 
     /**
-     * A window painted by slicing authored art rather than by drawing rules.
+     * A window painted from authored container art rather than by drawing rules.
      * <p>
-     * The panel and the cell are two chrome images and go through the same decomposition, so a pack
-     * supplying a bordered panel and an eighteen-pixel slot gets both resized by one mechanism. A
-     * panel with no cell art paints none, which is what a menu whose slots are drawn into the panel
-     * already wants.
+     * The panel is the art as the client composes it for the screen, and that is the size it is
+     * painted at: the regions of its sheet the client blits, and without the player's section those
+     * cut after the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Its
+     * cells are the art's own. For a screen the client ships no sheet for, the panel is the texture at
+     * its own size cut to what it draws, which the slicer resizes to the layout. The slicer reassembles
+     * art at its own size unchanged, so one path paints both.
+     * <p>
+     * The cells, and the marks the client draws as widgets over the art - the anvil's name field in the
+     * form its first input gives and its cross, and the crafting table's recipe-book button - are GUI
+     * sprites: each is read as the client's GUI atlas holds it and drawn by {@link NineSliceKit} with
+     * its {@code gui.scaling}, as the client draws a GUI sprite - a cell over each cell exactly where one
+     * is drawn, which is where the caller names one and over a panel resized for a screen the client
+     * ships no sheet for, the slicer not moving the art's own cells onto the layout's, and each mark
+     * where the screen places it.
      * <p>
      * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
      * different operation from re-inking drawn geometry and is not one this offers.
      *
-     * @param panelArt the panel image
+     * @param panelArt the panel the art draws at its own size
      * @param panel its decomposition
-     * @param cellArt the cell image, empty when the art draws its own cells
-     * @param cell the cell's decomposition, present exactly when {@code cellArt} is
+     * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
+     * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
+     * @param markArt the GUI sprite drawn at each mark the screen places that the client blits, keyed by
+     *     the mark
+     * @param markScaling each one's {@code gui.scaling}, for exactly the marks {@code markArt} holds
      */
     record Sliced(
         @NotNull PixelBuffer panelArt,
         @NotNull ChromeDecomposition panel,
         @NotNull Optional<PixelBuffer> cellArt,
-        @NotNull Optional<ChromeDecomposition> cell
+        @NotNull Optional<MCMeta.GuiScaling> cellScaling,
+        @NotNull ConcurrentMap<Mark, PixelBuffer> markArt,
+        @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
     ) implements Window {
 
         /**
-         * Decomposes the art and returns the window over it.
-         *
-         * @param panelArt the panel image
-         * @param panelBorder the border the panel's sidecar declares, empty when it has none
-         * @param cellArt the cell image, empty when the art draws its own cells
-         * @param cellBorder the border the cell's sidecar declares, empty when it has none
-         * @return the window
+         * The sprite the client draws a slot with outside container art, drawn over each cell of a panel
+         * resized from art where a caller names none.
          */
-        public static @NotNull Sliced of(
-            @NotNull PixelBuffer panelArt, @NotNull Optional<ChromeDecomposition.Border> panelBorder,
-            @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<ChromeDecomposition.Border> cellBorder
-        ) {
-            return new Sliced(
-                panelArt, ChromeSlicer.decompose(panelArt, panelBorder, true),
-                cellArt, cellArt.map(art -> ChromeSlicer.decompose(art, cellBorder, true)));
+        private static final @NotNull ResourceId SLOT_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/slot");
+
+        /** The sprite the client blits at an anvil's name field while its first input holds an item. */
+        private static final @NotNull ResourceId TEXT_FIELD_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/text_field");
+
+        /** The sprite the client blits at an anvil's name field while its first input is empty. */
+        private static final @NotNull ResourceId TEXT_FIELD_DISABLED_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/text_field_disabled");
+
+        /**
+         * The sprite the client blits over an anvil's arrow while an input holds an item and its result
+         * holds none.
+         */
+        private static final @NotNull ResourceId ERROR_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/error");
+
+        /**
+         * The sprite the client's recipe-book button draws while it is neither hovered nor focused,
+         * which is how a screen opens.
+         */
+        private static final @NotNull ResourceId RECIPE_BUTTON_SPRITE = ResourceId.parse("minecraft:gui/sprites/recipe_book/button");
+
+        /**
+         * Constructs a new {@code Sliced}, refusing a GUI sprite that comes apart from its scaling.
+         *
+         * @throws IllegalArgumentException where a sprite comes without its scaling or a scaling without
+         *     its sprite
+         */
+        public Sliced {
+            if (cellArt.isPresent() != cellScaling.isPresent())
+                throw new IllegalArgumentException("Sliced window carries a '%s' sprite exactly when it carries its scaling".formatted("cell"));
+            if (!markArt.keySet().equals(markScaling.keySet()))
+                throw new IllegalArgumentException("Sliced window carries sprites for marks '%s' and scalings for '%s'"
+                    .formatted(markArt.keySet(), markScaling.keySet()));
+
+            markArt = Concurrent.newUnmodifiableMap(markArt);
+            markScaling = Concurrent.newUnmodifiableMap(markScaling);
         }
 
         /**
-         * Resolves named art through the pack stack and decomposes it once.
+         * Decomposes the panel and returns the window over it, with the GUI sprites drawn on it.
          * <p>
-         * A named sprite no pack supplies, or that cannot be read, is sliced as the checkerboard, as
-         * vanilla draws its missing sprite for a GUI sprite it cannot load. It never falls back to the
-         * vanilla panel, because a caller naming one has stated an intent a silently vanilla panel would
-         * not honour - absence and failure are different states and only the first is expressible, by
-         * naming nothing. Each sprite is paired with whatever border its own sidecar declares, so
-         * authored art keeps its authored border and only art declaring none has one derived.
+         * The panel is container art, which the client blits with no {@code gui} section, so its depths
+         * are derived from its pixels. Each GUI sprite is drawn with the scaling given beside it.
+         *
+         * @param panelArt the panel the art draws at its own size
+         * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
+         * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
+         * @param markArt the GUI sprite drawn at each mark the screen places that the client blits, keyed
+         *     by the mark
+         * @param markScaling each one's {@code gui.scaling}, for exactly the marks {@code markArt} holds
+         * @return the window
+         * @throws IllegalArgumentException where a sprite comes without its scaling or a scaling without
+         *     its sprite
+         */
+        public static @NotNull Sliced of(
+            @NotNull PixelBuffer panelArt,
+            @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<MCMeta.GuiScaling> cellScaling,
+            @NotNull ConcurrentMap<Mark, PixelBuffer> markArt, @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
+        ) {
+            return new Sliced(panelArt, ChromeSlicer.decompose(panelArt, true), cellArt, cellScaling, markArt, markScaling);
+        }
+
+        /**
+         * Answers the GUI sprite this window draws at a mark, as the client blits it there, and empty
+         * for every other mark, none of which this window draws.
+         * <p>
+         * The switch has no default, so a mark added later does not compile until it says which sprite,
+         * if any, is drawn at it.
+         *
+         * @param mark the mark
+         * @return the sprite's id, empty where this window draws nothing at the mark
+         */
+        private static @NotNull Optional<ResourceId> spriteOf(@NotNull Mark mark) {
+            return switch (mark) {
+                case FIELD -> Optional.of(TEXT_FIELD_SPRITE);
+                case FIELD_DISABLED -> Optional.of(TEXT_FIELD_DISABLED_SPRITE);
+                case ERROR -> Optional.of(ERROR_SPRITE);
+                case BUTTON -> Optional.of(RECIPE_BUTTON_SPRITE);
+                case ARROW, PLUS, HAMMER -> Optional.empty();
+            };
+        }
+
+        /**
+         * Resolves named art through the pack stack and composes the panel the client draws from it
+         * for the screen.
+         * <p>
+         * The sheet is read whole, as the client reads a container texture, which it never animates.
+         * For a screen the client ships, it is read in the {@link ScreenMetrics#SHEET}-texel space every
+         * container blit declares, so a sheet of another size is read at one texel per Minecraft pixel,
+         * and the panel is the regions of it the client blits, laid one under the other; without the
+         * player's section they are cut after the screen's own rows and closed by their last
+         * {@link ScreenMetrics#MARGIN margin}. Either is the size it is painted at, its cells the art's
+         * own, and no cell sprite is read unless the caller names one. For a screen the client ships no
+         * sheet for, the panel is the texture at its own size cut to what it draws, resized to the
+         * layout, and each cell is drawn with the named sprite or the client's slot.
+         * <p>
+         * A sheet no pack supplies, or that cannot be read, is the checkerboard read the same way, as
+         * vanilla draws its missing texture for one it cannot load. It never falls back to the vanilla
+         * panel, because a caller naming one has stated an intent a silently vanilla panel would not
+         * honour - absence and failure are different states and only the first is expressible, by naming
+         * nothing. The panel's sidecar is not read, the client reading none for a container blit.
+         * <p>
+         * The cell sprite, and the sprite of each mark the screen places that the client blits over the
+         * art - the anvil's name field in the form its first input gives, its cross, and the crafting
+         * table's recipe-book button - are read after the panel, in the order the screen places them,
+         * through {@link NineSliceKit}'s GUI-sprite read, as the client's GUI atlas holds them, so a sprite
+         * no pack supplies, one that cannot be read and one whose {@code gui} section the client's codec
+         * refuses is the missing texture, stretched.
          *
          * @param context the renderer context resolving textures and their sidecars
-         * @param panelId the panel sprite
-         * @param cellId the cell sprite, empty where the panel art draws its own cells
+         * @param panelId the container sheet
+         * @param cellId the sprite drawn over each cell, empty for the window's own - none on a screen
+         *     the client ships, its slot on any other
+         * @param screen the screen whose regions the sheet is composed from
+         * @param layout the panel the window paints, which says whether the player's section is drawn
          * @return the window over the resolved art
          */
         public static @NotNull Sliced resolve(
-            @NotNull RendererContext context,
-            @NotNull ResourceId panelId,
-            @NotNull Optional<ResourceId> cellId
+            @NotNull RendererContext context, @NotNull ResourceId panelId, @NotNull Optional<ResourceId> cellId,
+            @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            return of(
-                art(context, panelId), border(context, panelId),
-                cellId.map(id -> art(context, id)), cellId.flatMap(id -> border(context, id)));
+            PixelBuffer sheet = context.withMissingTexture().resolveTexture(panelId.id()).get();
+            PixelBuffer panel = compose(sheet, screen, layout);
+            Optional<ResourceId> cell = cellId.or(() -> screen.regions().isEmpty()
+                ? Optional.of(SLOT_SPRITE)
+                : Optional.empty());
+            Optional<PixelBuffer> cellArt = cell.map(id -> NineSliceKit.sprite(context, id));
+            ConcurrentMap<Mark, PixelBuffer> markArt = Concurrent.newMap();
+            ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling = Concurrent.newMap();
+            for (Mark.Placement mark : screen.marks()) {
+                spriteOf(mark.kind()).ifPresent(id -> {
+                    PixelBuffer art = NineSliceKit.sprite(context, id);
+                    markArt.put(mark.kind(), art);
+                    markScaling.put(mark.kind(), NineSliceKit.scaling(context, id, art));
+                });
+            }
+
+            return of(panel,
+                cellArt, cellArt.map(art -> NineSliceKit.scaling(context, cell.orElseThrow(), art)),
+                markArt, markScaling);
         }
 
         /**
-         * Resolves one sprite's pixels, pinned to tick zero where the art is animated, through the
-         * context's {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no
-         * pack supplies, or that cannot be read, is the checkerboard.
+         * Composes a container sheet into the panel the client draws from it for the screen.
          * <p>
-         * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
-         * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
-         * strip would tile the frames into the borders.
+         * A screen with no regions takes the texture at its own size cut to the pixels it draws, which
+         * the slicer resizes to the layout. For any other, the texture is first read into the
+         * {@link ScreenMetrics#SHEET}-texel space the client's blits declare. Each of the screen's
+         * regions is then copied verbatim under the one before, clipped to the panel the screen draws
+         * with the player's section, which drops a declared row its art leaves clear. The panel keeps
+         * that composition's rows down to the layout's bottom margin and closes on the composition's
+         * own, which is the whole of it where the player's section is drawn and cuts it after the
+         * screen's own rows where it is not.
+         *
+         * @param texture the container sheet as resolved
+         * @param screen the screen whose regions the sheet is composed from
+         * @param layout the panel the window paints
+         * @return the panel art the window slices
          */
-        private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
-            RendererContext textures = context.withMissingTexture();
-            return Flipbook.atTick(textures.resolveTexture(id.id()), textures.findFlipbook(id.id()), 0).get();
-        }
-
-        /**
-         * The border a sprite's {@code gui.scaling} sidecar declares, empty where it declares none or
-         * declares a mode that carries no border - which is what leaves the border to be derived.
-         */
-        private static @NotNull Optional<ChromeDecomposition.Border> border(
-            @NotNull RendererContext context, @NotNull ResourceId id
+        private static @NotNull PixelBuffer compose(
+            @NotNull PixelBuffer texture, @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            return context.findMeta(id.id())
-                .toOptional()
-                .flatMap(MCMeta::gui)
-                .filter(scaling -> scaling.type() == MCMeta.GuiScaling.Type.NINE_SLICE)
-                .map(MCMeta.GuiScaling::border)
-                .map(declared -> new ChromeDecomposition.Border(
-                    declared.left(), declared.top(), declared.right(), declared.bottom()));
-        }
+            if (screen.regions().isEmpty()) return texture.trim();
 
-        /** {@inheritDoc} */
-        @Override
-        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
-            blit(dest, ChromeSlicer.assemble(this.panel, this.panelArt, box.width(), box.height()), box);
-        }
+            PixelBuffer sheet = texture.resize(ScreenMetrics.SHEET, ScreenMetrics.SHEET, Resample.NEAREST);
+            MenuLayout drawn = MenuLayout.of(screen, true);
+            PixelBuffer composed = PixelBuffer.create(drawn.width(), drawn.height());
+            int y = 0;
+            for (Rectangle region : screen.regions()) {
+                composed.blit(sheet.crop(region.x, region.y, region.width, region.height), 0, y, BlendMode.REPLACE);
+                y += region.height;
+            }
 
-        /** {@inheritDoc} */
-        @Override
-        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {
-            if (this.cellArt.isEmpty() || this.cell.isEmpty()) return;
-            blit(dest, ChromeSlicer.assemble(this.cell.get(), this.cellArt.get(), box.width(), box.height()), box);
+            int open = layout.height() - ScreenMetrics.MARGIN;
+            PixelBuffer panel = PixelBuffer.create(layout.width(), layout.height());
+            panel.blit(composed.crop(0, 0, layout.width(), open), 0, 0, BlendMode.REPLACE);
+            panel.blit(composed.crop(0, composed.height() - ScreenMetrics.MARGIN, layout.width(), ScreenMetrics.MARGIN),
+                0, open, BlendMode.REPLACE);
+            return panel;
         }
 
         /**
          * {@inheritDoc}
          * <p>
-         * Nothing, because a panel sliced from art already carries whatever marks that art draws -
-         * the shipped crafting panel has its arrow painted into the texture, so a second one here
-         * would be drawn over the first.
+         * The art, reassembled at the box's size, is laid one Minecraft pixel to a block of
+         * {@link MinecraftFont#MC_PIXEL_SCALE} output pixels, each as the client lays a GUI texel: alpha 0
+         * leaves the destination as it was and the rest blends with {@link BlendMode#NORMAL}.
          */
         @Override
-        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {}
+        public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
+            int scale = MinecraftFont.MC_PIXEL_SCALE;
+            PixelBuffer art = ChromeSlicer.assemble(this.panel, this.panelArt, box.width(), box.height());
+            dest.blitScaled(art, box.x() * scale, box.y() * scale, art.width() * scale, art.height() * scale, BlendMode.NORMAL);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void paintCell(@NotNull PixelBuffer dest, @NotNull Box box) {
+            this.cellArt.ifPresent(art ->
+                NineSliceKit.draw(dest, art, this.cellScaling.orElseThrow(), box.x(), box.y(), box.width(), box.height(), 1.0f));
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * The GUI sprite the client blits at the mark - the anvil's name field, in the form its first
+         * input gives, over the flat-red hole the sheet leaves for it, its cross over the arrow, and the
+         * crafting table's recipe-book button over the sheet's plain grey, its sprite carrying its book -
+         * and nothing at any other mark, the arrow, the plus and the hammer being drawn into the art: a
+         * second arrow here would be drawn over the first.
+         */
+        @Override
+        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
+            this.markArt.getOptional(decoration).ifPresent(art ->
+                NineSliceKit.draw(dest, art, this.markScaling.get(decoration), box.x(), box.y(), box.width(), box.height(), 1.0f));
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * A mark this window draws a GUI sprite at carries its own face, as the client's widget sprite
+         * does - the recipe-book button's its book - and no other mark carries an icon of this window's.
+         */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return this.markArt.containsKey(decoration);
+        }
 
         /** {@inheritDoc} */
         @Override
         public @NotNull Extent minimum() {
             return new Extent(this.panel.left() + this.panel.right(), this.panel.top() + this.panel.bottom());
-        }
-
-        /**
-         * Blits a painted Minecraft-pixel image into the box, replicating each pixel as a
-         * {@code scale x scale} block and skipping a fully transparent one so the destination shows
-         * through.
-         */
-        private static void blit(@NotNull PixelBuffer dest, @NotNull PixelBuffer painted, @NotNull Box box) {
-            for (int my = 0; my < painted.height(); my++)
-                for (int mx = 0; mx < painted.width(); mx++)
-                    box.put(dest, mx, my, painted.getPixel(mx, my));
         }
 
     }
@@ -369,10 +513,12 @@ public interface Window {
      * the measured vanilla one and a theme is a re-inking of it rather than a shape of its own.
      * Nothing here reads a texture.
      * <p>
-     * Two marks are drawn in inks the theme does not own, and both carry their own rather than
-     * borrowing a role: a {@link Mark#HAMMER} is a picture, and the inside of a
-     * {@link Mark#FIELD} is an input widget's. Neither is something a panel would have drawn
-     * itself, which is the line - what re-inks is what the panel owns.
+     * Four marks are drawn in inks the theme does not own, and a fifth in part, each carrying its own
+     * rather than borrowing a role: a {@link Mark#HAMMER} and the anvil's {@link Mark#ERROR} cross are
+     * pictures, the inside of either name field, {@link Mark#FIELD} or {@link Mark#FIELD_DISABLED}, is
+     * an input widget's, and the two texels of the client's book a {@link Mark#BUTTON} paints beneath
+     * its item are that book's. None is something a panel would have drawn itself, which is the line -
+     * what re-inks is what the panel owns.
      */
     @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor
@@ -381,7 +527,8 @@ public interface Window {
         /**
          * The palette the shipped container textures are drawn in. Reproduces them pixel for pixel:
          * the frame's four corner blocks and four one-pixel edge periods are the same in every
-         * container texture that ships, and a cell's edges follow one rule at every cell size.
+         * container texture that ships, and a cell's edges follow one rule at every cell size. With the
+         * knowledge book on its face, its recipe-book button is the client's button sprite.
          */
         VANILLA(Palette.VANILLA),
         /**
@@ -505,6 +652,17 @@ public interface Window {
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
             MarkPainter.of(decoration).paint(dest, box, this.palette);
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * A theme paints a button's bevel and, beneath the item, two texels of the client's book, but
+         * never the item itself, so every icon is the renderer's to place.
+         */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return false;
         }
 
         /** {@inheritDoc} */

@@ -6,10 +6,13 @@ import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import dev.simplified.annotations.UtilityClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The asynchronous colour read-back every offscreen render ends with - copy the texture into a
@@ -28,15 +31,27 @@ import java.nio.file.Path;
 @UtilityClass
 public final class TextureReadback {
 
+    private static final Logger LOG = LoggerFactory.getLogger("refharness");
+
+    /** the PNG writes that failed inside a copy's callback, across every read-back this run queued */
+    private static final AtomicInteger FAILED_WRITES = new AtomicInteger();
+
     /**
-     * Copies a colour texture back off the GPU and writes it as a PNG.
+     * Copies a colour texture back off the GPU and writes it as a PNG once the copy lands.
+     *
+     * <p>The two ways this fails are told apart by when they happen. The output directory is created
+     * before the copy is queued, so one that cannot be made throws here and the caller's subject
+     * fails. The PNG itself is written by the copy's callback on a later frame, after this has
+     * returned and the caller has counted the subject rendered, so a write that fails there has no
+     * caller to throw to: it is logged with its path and counted in {@link #failedWrites()}, which the
+     * run's exit status reads.
      *
      * @param colorTexture the texture to read
      * @param width its width in pixels, as it was allocated
      * @param height its height in pixels, as it was allocated
      * @param debugName the label the GPU device tags the staging buffer with
      * @param outputPath where to write; parent directories are created on demand
-     * @throws IOException if the PNG write fails
+     * @throws IOException if the output directory cannot be created
      */
     public static void writeToPng(
         GpuTexture colorTexture, int width, int height, String debugName, Path outputPath
@@ -48,7 +63,6 @@ public final class TextureReadback {
         GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
             () -> "refharness-" + debugName + "-readback", /*usage*/ 9, byteSize);
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
-        IOException[] err = new IOException[1];
 
         encoder.copyTextureToBuffer(colorTexture, buffer, 0L, () -> {
             try (GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false);
@@ -61,12 +75,21 @@ public final class TextureReadback {
                 }
                 image.writeToFile(outputPath);
             } catch (IOException ex) {
-                err[0] = ex;
+                LOG.error("PNG write failed for {}", outputPath, ex);
+                FAILED_WRITES.incrementAndGet();
             } finally {
                 buffer.close();
             }
         }, /*mipLevel*/ 0);
+    }
 
-        if (err[0] != null) throw err[0];
+    /**
+     * Counts the PNG writes that failed inside a copy's callback, across every read-back this run
+     * queued - the failures {@link #writeToPng} could not throw.
+     *
+     * @return the count so far
+     */
+    public static int failedWrites() {
+        return FAILED_WRITES.get();
     }
 }

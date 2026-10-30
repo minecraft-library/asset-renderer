@@ -6,6 +6,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,11 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * agrees with them agrees with vanilla rather than with itself. The drawn heights are the opaque
  * heights of the same textures.
  * <p>
- * A chest is scanned differently, because no sheet ships one: the client composes each row count from
- * two draws out of {@code generic_54}, the second reading from a source row past the one the first
- * ended on, so the panel a player sees is a pixel shorter than the sheet and everything below the
- * container rows sits a pixel higher. The chest rows below were scanned on that composition, which is
- * what a render has to reproduce.
+ * A chest is scanned differently, because no sheet ships one: the client composes each row count it
+ * opens from two draws out of {@code generic_54}, the second reading from a source row past the one
+ * the first ended on, so the panel a player sees is a pixel shorter than the sheet and everything
+ * below the container rows sits a pixel higher. The chest rows below were scanned on that
+ * composition, which is what a render has to reproduce.
+ * <p>
+ * The regions a shipped screen composes its sheet from are the client's own blits, written from its
+ * background draws rather than read off this class.
  */
 @DisplayName("ScreenMetrics lays cells where vanilla drew them")
 class ScreenMetricsTest {
@@ -66,7 +70,7 @@ class ScreenMetricsTest {
     }
 
     @Test
-    @DisplayName("one sheet composes every chest row count, each with its own scanned rows")
+    @DisplayName("one sheet composes each chest row count the client opens, each with its own scanned rows")
     void oneSheetComposesEveryChestRowCount() {
         record Chest(int rows, int height, int[] container, int[] player, int hotbar) {}
 
@@ -212,6 +216,41 @@ class ScreenMetricsTest {
     }
 
     @Test
+    @DisplayName("every shipped screen, a chest of one to six rows among them, composes its panel from exactly the regions of its sheet the client blits")
+    void everyShippedScreenComposesItsPanelFromRegionsOfItsSheet() {
+        // The client's own blits, from each screen's background draw: a chest's two out of generic_54,
+        // and every other screen's one, whole, at the size it declares. The shulker box's 167 is a row
+        // taller than the panel it draws, a row its art leaves clear.
+        record Blits(String name, ScreenMetrics screen, List<Rectangle> regions) {}
+
+        List<Blits> shipped = new ArrayList<>();
+        for (int rows = 1; rows <= 6; rows++) {
+            shipped.add(new Blits("a chest of " + rows + " rows", ScreenMetrics.chest(rows),
+                List.of(new Rectangle(0, 0, 176, 17 + rows * 18), new Rectangle(0, 126, 176, 96))));
+        }
+        shipped.add(new Blits("the shulker box", ScreenMetrics.shulkerBox(), List.of(new Rectangle(0, 0, 176, 167))));
+        shipped.add(new Blits("the hopper", ScreenMetrics.hopper(), List.of(new Rectangle(0, 0, 176, 133))));
+        shipped.add(new Blits("the dispenser", ScreenMetrics.dispenser(), List.of(new Rectangle(0, 0, 176, 166))));
+        shipped.add(new Blits("the crafting table", ScreenMetrics.craftingTable(), List.of(new Rectangle(0, 0, 176, 166))));
+        shipped.add(new Blits("the anvil", ScreenMetrics.anvil(), List.of(new Rectangle(0, 0, 176, 166))));
+
+        for (Blits blits : shipped) {
+            assertThat(blits.name() + " composes the regions the client blits",
+                new ArrayList<>(blits.screen().regions()), is(equalTo(blits.regions())));
+        }
+    }
+
+    @Test
+    @DisplayName("a screen the client ships no sheet for, a chest of other than one to six rows among them, composes none")
+    void aScreenTheClientShipsNoSheetForComposesNone() {
+        List<ScreenMetrics> unshipped = List.of(
+            ScreenMetrics.grid(4, 9), ScreenMetrics.grid(3, 7), ScreenMetrics.chest(0), ScreenMetrics.chest(7));
+
+        for (ScreenMetrics screen : unshipped)
+            assertThat("a " + screen.ownRows() + " by " + screen.ownColumns() + " composes none", screen.regions().isEmpty(), is(true));
+    }
+
+    @Test
     @DisplayName("a slot index reaches the container's cells and its result, and nothing else")
     void aSlotIndexReachesTheContainersCellsAndItsResult() {
         assertThat("a container's own cell", ScreenMetrics.Role.CONTAINER.addressed(), is(true));
@@ -257,6 +296,49 @@ class ScreenMetricsTest {
                 assertThat(mark.kind() + " closes inside it",
                     mark.x() + extent.width() <= layout.width()
                         && mark.y() + extent.height() <= layout.height(), is(true));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("the anvil places the field and the cross its slots call for, as the client's screen draws them")
+    void theAnvilPlacesTheFieldAndTheCrossItsSlotsCallFor() {
+        ScreenMetrics opened = ScreenMetrics.anvil();
+        assertThat("the anvil as it opens is the anvil with every slot empty",
+            opened, is(equalTo(ScreenMetrics.anvil(slot -> false))));
+
+        for (int state = 0; state < 8; state++) {
+            int held = state;
+            boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
+            ScreenMetrics anvil = ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0);
+            String at = "an anvil holding " + (first ? "the first input " : "") + (second ? "the second input " : "")
+                + (result ? "the result " : "") + (held == 0 ? "nothing " : "");
+
+            // AnvilScreen blits text_field at (59, 20) while its first input holds an item and
+            // text_field_disabled otherwise, and its error over the arrow at (99, 45) while either input
+            // holds one and the result holds none - after the sheet, so after the arrow the sheet carries.
+            List<Mark.Placement> marks = new ArrayList<>(List.of(Mark.HAMMER.at(17, 7),
+                (first ? Mark.FIELD : Mark.FIELD_DISABLED).at(59, 20), Mark.PLUS.at(53, 49), Mark.ARROW.at(102, 48)));
+            if ((first || second) && !result) marks.add(Mark.ERROR.at(99, 45));
+
+            assertThat(at + "places the marks its slots call for", new ArrayList<>(anvil.marks()), is(equalTo(marks)));
+            assertThat(at + "is otherwise the anvil as it opens",
+                new ScreenMetrics(anvil.topBand(), anvil.labelBand(), anvil.declaredSlack(), anvil.ownRows(),
+                    anvil.ownColumns(), anvil.ownOriginX(), anvil.panelColumns(), anvil.titleX(), anvil.extras(),
+                    opened.marks(), anvil.regions()),
+                is(equalTo(opened)));
+
+            for (boolean playerSection : new boolean[] { true, false }) {
+                MenuLayout layout = MenuLayout.of(anvil, playerSection);
+
+                for (Mark.Placement mark : layout.marks()) {
+                    Window.Extent extent = Window.Extent.of(mark.kind());
+                    assertThat(at + "sits its " + mark.kind() + " inside its panel, the player's section "
+                            + (playerSection ? "drawn" : "not"),
+                        mark.x() >= 0 && mark.y() >= 0
+                            && mark.x() + extent.width() <= layout.width()
+                            && mark.y() + extent.height() <= layout.height(), is(true));
+                }
             }
         }
     }

@@ -61,10 +61,11 @@ public final class PackAcquisition {
      * Compiles the full, fully-indexed pack stack for the given client assets: build the vanilla base
      * pack at the configured version, detect each user container by content, derive stable ids across
      * the supply order (collisions resolved loudly), resolve overlay roots, assemble the stack, scan it
-     * into the texture index, and merge the pack rule layer - so callers never receive a bare stack.
+     * into the texture index, merge the pack rule layer, and read the text palette - so callers never
+     * receive a bare stack.
      *
      * @param assets the client assets (options + vanilla pack)
-     * @return the resolved, texture-indexed, rule-carrying stack, vanilla first
+     * @return the resolved, texture-indexed, rule- and palette-carrying stack, vanilla first
      * @throws ContentException if a source is unreadable or a pack's metadata is malformed
      */
     public static @NotNull PackStack acquire(@NotNull ClientAssets assets) {
@@ -89,7 +90,8 @@ public final class PackAcquisition {
 
         PackStack base = PackStack.of(packs);
         PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
-        return indexed.withRules(RuleScanner.mergeAll(indexed.ascending()));
+        PackStack ruled = indexed.withRules(RuleScanner.mergeAll(indexed.ascending()));
+        return ruled.withTextPalette(TextPaletteLoader.load(ruled.ascending()));
     }
 
     /** Builds the vanilla base pack over the container the client assets hold it in, read in place. */

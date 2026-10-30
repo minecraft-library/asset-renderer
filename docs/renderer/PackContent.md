@@ -1,8 +1,9 @@
 # Pack content
 
 Load when touching `content/read` - `PackSubtree`, a loader walking a pack subtree, `pack.mcmeta`'s
-`filter.block` - or the value adapters under `content/json`. Indexed from
-[`CLAUDE.md`](../../CLAUDE.md).
+`filter.block` - the value adapters under `content/json`, a pack's text shader - `TextPaletteLoader`,
+`TextPalette` - or a texture sidecar's sections - `MCMetaParser`, `MCMeta.GuiScaling`,
+`MCMeta.TextureSampling`. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 ## The pack filter
 
@@ -32,6 +33,82 @@ enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root pat
 `BlockEntityShadows.report` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
+## A pack's text palette
+
+A pack can recolour text through its text shader: a switch over every text vertex colour that draws
+some colours as others. `TextPaletteLoader` reads that switch into the `TextPalette` the stack holds
+(`PackStack.textPalette`, answered by `RendererContext.findTextPalette`), at acquisition, once per
+stack.
+
+- **Which file.** The 26.1 program, `minecraft:shaders/core/rendertype_text.vsh`, where its winning
+  copy is a pack's above vanilla; otherwise `minecraft:shaders/core/text.vsh`, the program a newer
+  client runs, where a pack above vanilla ships it; otherwise none, and the palette is absent. The
+  winner is `PackSubtree`'s walk over every `.vsh`, `.fsh` and `.glsl` under `shaders/`, so the highest
+  pack, its overlays and `filter.block` decide it as the client's resource manager does. The newer name
+  is what makes a pack built for a newer client read in its own colours; where a pack ships the 26.1
+  name, the 26.1 program is the one read.
+- **Which shape.** Exactly one. Imports are followed as the 26.1 preprocessor follows them: `<ns:path>`
+  from `<ns>:shaders/include/`, `"path"` from the program's own directory, each file once and a repeat
+  importing nothing, and an import no pack ships refuses. `main` is vanilla's with one statement added,
+  `vec4 V = F(Color)`, outside every preprocessor condition and ahead of anything naming `V`, and every
+  `vertexColor` it writes reads `V`. `F` switches over `SEL(P.rgb)` with each case returning
+  `H(0xRRGGBB, P.a)` and the default the colour itself; `SEL` packs the red, green and blue into one
+  24-bit key; each `H` rebuilds the colour from its argument's channels over 255, or from those channels
+  each integer-divided by 4 first - the shadow form. The helpers are told apart by their bodies, never
+  their names, so a helper dividing by 3 is refused rather than read as one dividing by 4. A pack
+  shipping the program's fragment shader, or any directive but `#version` and the conditionals, is
+  another shape. A pack's copy of vanilla's own program reads as a table of no swaps.
+- **Another shape is reported, never guessed at.** One line on standard error names the pack, the
+  file and the first rule the shape broke, and the palette is empty - distinct from absent - so every
+  text draw keeps the colours it is given.
+- **Derive, then swap.** The client computes a glyph's shadow vertex colour before its shader runs and
+  the shader swaps each vertex after, so `TextKit` derives the shadow from the unswapped text colour and
+  swaps the text colour and the shadow colour each as a colour of its own. A run naming its own shadow
+  colour has it stand in for the derived one, swapped the same way, being that pass's vertex colour.
+  Swapping first and shadowing the swap agrees with the client only where a pack's shadow keys are its
+  quartered swaps. The strikethrough and underline bars take their pass's swapped colour, being text
+  vertices of that pass. A swap keeps every colour's top byte, so it moves no pixel's place or presence.
+- **Every text draw takes it.** The client draws a tooltip, a menu label, a field's text and a stack
+  count through one text program, so `TextRenderer`, `MenuRenderer`, `TextField` and `ItemRenderer` each
+  hand their context's palette to the kits, and no kit supplies one on a caller's behalf. A renderer
+  holding no context draws through `TextPalette.VANILLA`, which swaps nothing.
+- **What is no text keeps its colour.** The bar a full text field fills beside its text, and the chrome
+  every screen and tooltip paints, are no text vertex.
+- **Gradients swap per colour laid down.** A per-letter gradient swaps each letter's colour and its
+  shadow's; a per-pixel one swaps each band's colour and its shadow's, the shadow darkened from the
+  unswapped band. A shadow colour a gradient run names is swapped as a solid run's is, being that
+  pass's vertex colour. A gradient has no client twin, so this is the reading that agrees with the
+  client wherever one exists.
+
+## A sidecar's sections
+
+A `.png.mcmeta` sidecar is read once, and each of its sections as the client's codec reads that
+section. A document that is not JSON, or is blank, is held as there and yielding nothing, and every read
+of its texture loses it. A section the codec refuses is held as there and refused - its `Possible`
+empty - and the document's other sections stand, because each of the client's reads parses only the
+sections it asks for: an atlas sprite reads the animation and texture sections, the GUI atlas the `gui`
+section beside them, and the villager hat its own. So a refused animation or texture section loses the
+texture on every read, and leaves a villager hat declared beside it standing.
+
+The texture section, `MCMeta.TextureSampling`, holds `blur` and `clamp`, each a JSON boolean defaulting
+to false; `mipmap_strategy`, one of `auto`, `mean`, `cutout`, `strict_cutout` and `dark_cutout` spelled
+exactly, defaulting to `auto`; and `alpha_cutoff_bias`, a JSON number defaulting to 0. No render reads
+them. How the animation section is read, and the frame table it builds, is
+[Timelines](Timelines.md).
+
+## A sprite's gui section
+
+The `gui` section of a `.png.mcmeta` sidecar is read as the client's codec reads it, into
+`MCMeta.GuiScaling`: a stretch, which reads nothing beside its type; a tile, which requires a positive
+width and height; or a nine-slice, which requires those and a border - a positive integer setting all
+four sides, or an object naming all four, none negative - that leaves a centre slice on both axes, its
+inner stretch defaulting to false. A section with no `scaling` is a stretch, a `type` must be spelled
+exactly, and a member written `null` counts as missing.
+
+A section the codec refuses is held as there and refused - `MCMeta.gui()` empty - rather than failing
+the document, because the client's GUI atlas alone asks for the section: the sidecar's other sections,
+and the texture read as a block or item texture, stand.
+
 ## Decisions that stay closed
 
 - Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
@@ -43,3 +120,11 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
   byte-identical pair is byte-identical render input while no render code has changed. A decode
   change meant to move a value moves a dump row, and the parity gate's decision table says what
   that mover owes before it is registered.
+- Do not fall through to a lower pack's text shader when the winning one is refused - the client runs
+  the winning one.
+- Do not parse vanilla's own text program for a table - it swaps nothing, and a stack whose packs ship
+  no text shader answers absent.
+- Do not fail a sidecar's document over its `gui` section - the client's blocks and items atlases never
+  read it.
+- Do not fail a sidecar's document over a section its codec refuses - the client parses each section
+  only for the read that asks for it, and the villager hat reads its own.

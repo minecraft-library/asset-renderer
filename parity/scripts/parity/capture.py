@@ -177,7 +177,8 @@ def _mark_opened(root: Path) -> Path:
 def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str = "",
               mode: str | None = None, flags: Sequence[str] = (), runs: int | None = None,
               logs: Path | None = None, reference_tree: Path | None = None,
-              wall_time_ms: int | None = None, store: str | None = None) -> Path:
+              reference_artifact: str | None = None, wall_time_ms: int | None = None,
+              store: str | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path.
 
     An absent ``runs`` means the artifact's declared floor, which is the value the build has always
@@ -190,7 +191,9 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     because a fork inherits every ``-Dasset.*`` in force from a long-lived daemon; the flags are the
     only place that difference is ever written down. ``reference_tree`` is the ground truth a sweep
     diffed against, named as a directory rather than as a captured manifest so the record carries it
-    on every capture and not only on the one that also hashed the tree into the store.
+    on every capture and not only on the one that also hashed the tree into the store, and
+    ``reference_artifact`` is the stored manifest row that tree is the ground truth of - a pair, since
+    the row decides how the tree is digested, and a tree named without one is refused.
 
     ``wall_time_ms`` is how long this row's producers took, measured by the build and passed in
     rather than taken here: a capture step runs after its producers and can time itself alone, which
@@ -225,7 +228,8 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
         artifact, repo, producer=producer, mode=mode, runs=runs,
         flags=[*flags, *payload.pop("_flags", [])],
         counts=payload.pop("_counts", None), root=payload.pop("_root", None),
-        reference_tree=reference_tree, wall_time_ms=wall_time_ms)
+        reference_tree=reference_tree, reference_artifact=reference_artifact,
+        wall_time_ms=wall_time_ms)
     write_json(target, payload)
     return target
 

@@ -7,8 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from parity import manifest
-from parity.norm import ComparisonFailed, MissingInput, write_text
+from parity import manifest, store
+from parity.norm import ComparisonFailed, MissingInput, read_json, write_text
 
 
 class ExportedView(unittest.TestCase):
@@ -253,6 +253,53 @@ class RawRenderPair(unittest.TestCase):
         with self.assertRaises(MissingInput) as caught:
             manifest.build("manifest.player-raw", self.root)
         self.assertIn("armor-parity-vanilla", str(caught.exception))
+
+
+class PackTooltipDrawings(unittest.TestCase):
+    """One pack's tooltip drawings, and never the handshake the pack run writes beside them.
+
+    ``stack.json`` carries the pack folder's absolute path and the harness's module list, so a
+    manifest holding it would move between checkouts with no drawing changed. The asset side's
+    resolution check holds that file instead, before any pixel is compared.
+    """
+
+    ARTIFACT = "manifest.pack-tooltips"
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        write_text(self.root / "hypixel-skyblock" / "one_line.png", "whole")
+        write_text(self.root / "hypixel-skyblock" / "one_line_chrome.png", "box alone")
+        write_text(self.root / "hypixel-skyblock" / "stack.json", '{"pack_directory": "W:/one"}\n')
+
+    def test_the_drawings_are_hashed_keyed_by_their_pack_directory_and_the_handshake_is_not(self):
+        self.assertEqual(sorted(manifest.build(self.ARTIFACT, self.root).by_path()), [
+            "hypixel-skyblock/one_line.png",
+            "hypixel-skyblock/one_line_chrome.png",
+        ])
+
+    def test_rewriting_the_handshakes_pack_folder_moves_no_entry(self):
+        before = manifest.build(self.ARTIFACT, self.root).by_path()
+        write_text(self.root / "hypixel-skyblock" / "stack.json", '{"pack_directory": "C:/two"}\n')
+        self.assertEqual(manifest.build(self.ARTIFACT, self.root).by_path(), before)
+
+
+class EveryStoredManifestNamesItsGlobs(unittest.TestCase):
+    """Every manifest the store holds is digested under globs written down for it.
+
+    ``globs_for`` falls back to the image globs for an id ``DEFAULT_GLOBS`` does not carry, and that
+    fallback is silent: a manifest left out is hashed under it whatever its tree holds, and while the
+    tree holds only images the two readings agree, so nothing moves to say the decision was never
+    taken. The globs ARE the manifest's definition - the reference tree's admit the pack run's
+    handshake and the pack drawings' do not - so each stored one carries its own entry.
+    """
+
+    def test_every_manifest_row_of_the_index_has_an_entry(self):
+        index = read_json(store.repo_root() / store.PRODUCTION / "index.json")
+        stored = sorted(name for name, row in index["artifacts"].items()
+                        if row["kind"] == "manifest")
+        self.assertTrue(stored, "the index holds no manifest row, so the clause below holds over "
+                                "nothing")
+        self.assertEqual([name for name in stored if name not in manifest.DEFAULT_GLOBS], [])
 
 
 class DiagnosticsLogProjection(unittest.TestCase):

@@ -1,8 +1,8 @@
 # vanilla-reference-harness
 
-Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity sweeps diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. Nine sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, **container screens**, **animated entities**, and **walking entities**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity sweeps diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. The sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, **container screens**, **tooltips**, **animated entities**, and **walking entities**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
 
-**The last two lift the freeze the other seven are defined by, and all nine share one boot.** **The
+**The last two lift the freeze every other sweep is defined by, and all of them share one boot.** **The
 order is load-bearing**: `HarnessMode.resolve` sorts `BIND` before `IDLE` before `WALK`, because a
 freeze SKIPS `setupAnim` rather than undoing it, so a posed sweep ahead of a frozen one leaves every
 bone it touched posed and the frozen sub-trees record that. `-Drefharness.modes=a,b,c` is how a run
@@ -17,9 +17,9 @@ before you touch it. The renderer's side of every contract below is routed from
 | Working on | Read |
 |---|---|
 | A run mode - full, glint, animated, walk, armour - and the output tree; a run that hangs with no output or halts with exit 4 | [Running](../docs/harness/Running.md) |
-| The probes - `TexCoordProbeMixin`, `TexCoordProbeBlendMixin`, `SelectHarnessPacksMixin`, `PackSourceSweep`, `PackIconSweep` | [Probes](../docs/harness/Probes.md) |
+| The probes and the pack-tooltip run - `TexCoordProbeMixin`, `TexCoordProbeBlendMixin`, `SelectHarnessPacksMixin`, `PackSourceSweep`, `PackIconSweep` and `TooltipRenderUtilAccessor` | [Probes](../docs/harness/Probes.md) |
 | `HarnessMode`, `api.Sweep` and `SweepRunner`, `PipTarget`, the pacing, the posed sub-trees | [SweepArchitecture](../docs/harness/SweepArchitecture.md) |
-| `MenuSweep`, its three mixins, and capturing a container screen | [MenuCapture](../docs/harness/MenuCapture.md) |
+| `GuiFrameRenderer`, `MenuSweep`, `TooltipSweep`, the capture's three mixins, and capturing a GUI | [GuiCapture](../docs/harness/GuiCapture.md) |
 | `BlockSweep`, `ItemSweep`, `GlintSweep`; the block-render mixins and when one may be deleted | [BlockPipeline](../docs/harness/BlockPipeline.md) |
 | Writing or gating an entity pin or freeze mixin - the extraction call chain, the randomization sources | [EntityPins](../docs/harness/EntityPins.md) |
 | What each existing entity pin, freeze and `*IdleMixin` does, and when one may be deleted | [PinCatalog](../docs/harness/PinCatalog.md) |
@@ -28,13 +28,13 @@ before you touch it. The renderer's side of every contract below is routed from
 ## Build / run
 
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
-- Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew renderVanillaAllReferences` from asset-renderer, which passes `-PrefharnessModes=EVERY,ANIMATION,WALK`. The narrow modes stay for scoped iteration; relying on them is what left stale ground truth on disk twice. `renderVanillaReferences` - mode `FULL` - is one of them: it leaves `glint/`, `armor/`, `menus/`, `idle/` and `walk/` alone. Every mode, what each writes and what the whole-tree boot was measured at are [Running](../docs/harness/Running.md).
+- Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew renderVanillaAllReferences` from asset-renderer, which passes `-PrefharnessModes=EVERY,ANIMATION,WALK`. The narrow modes stay for scoped iteration; relying on them is what left stale ground truth on disk twice. `renderVanillaReferences` - mode `FULL` - is one of them: it leaves `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/` and `walk/` alone. Every mode, what each writes and what the whole-tree boot was measured at are [Running](../docs/harness/Running.md).
 - World corruption from a hard JVM exit: `./gradlew resetRefharnessWorld`.
 - **Nothing in this build is under a test** - it has `main` and `client` source sets and no test one, so a change here is caught by the compiler or by an actual run and by nothing in between.
 
 ## Adding a sweep
 
-Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree - and, for a narrowing mode, one `optionalProperty(...)?.let { property(...) }` line in `build.gradle.kts`. **Miss that last line and the mode silently runs `FULL`**: the `-P` never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
+Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, and one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree. A narrowing mode is named through `-PrefharnessModes`, which `build.gradle.kts` already forwards, so it needs no line of its own there. **A boolean property, where a mode has one, is the line whose omission silently runs `FULL`**: the `-P` never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
 
 The `api.Sweep` contract it implements, the per-tick pacing, and why a frame renderer retires a
 replaced texture rather than closing it are

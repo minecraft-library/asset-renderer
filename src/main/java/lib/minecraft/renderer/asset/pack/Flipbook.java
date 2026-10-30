@@ -30,26 +30,27 @@ import java.util.stream.Stream;
  *
  * @param frameWidth the frame width in pixels, as {@link FrameSize} sizes it
  * @param frameHeight the frame height in pixels, as {@link FrameSize} sizes it
- * @param entries the playback sequence, each entry carrying the strip index it draws clamped into
- *     range and its duration in ticks; the {@code -1} deferral an authored {@link MCMeta.Frame} may
- *     carry is already resolved against {@link MCMeta.Animation#frametime() frametime}
- * @param totalTicks the cycle length - the sum of every entry's duration
+ * @param entries the playback sequence, each entry the strip frame it draws and its duration in ticks,
+ *     an authored entry's missing time resolved against the section's frametime; empty where the section
+ *     leaves fewer than two entries, which does not animate
+ * @param totalTicks the cycle length - the sum of every entry's duration, 0 for a table that does not
+ *     animate
  * @param interpolate whether adjacent entries blend
  */
 public record Flipbook(
     int frameWidth,
     int frameHeight,
-    @NotNull ConcurrentList<MCMeta.Frame> entries,
+    @NotNull ConcurrentList<Entry> entries,
     int totalTicks,
     boolean interpolate
 ) {
 
     /**
-     * Resolves an animation sidecar against the strip it plays over. An animation declaring no
-     * explicit {@code frames} list takes the strip's implicit frames {@code 0..frameCount-1} in order,
-     * each lasting {@code frametime} floored at one tick; otherwise each authored entry contributes
-     * its own {@code time}, or {@code frametime} where it declares no positive override. An entry
-     * naming a strip index out of range is clamped into {@code 0..frameCount-1}.
+     * Resolves an animation section against the strip it plays over, as vanilla's sprite contents resolve
+     * it. A section declaring no frame list plays the strip's frames {@code 0..frameCount-1} in order, each
+     * for the frametime; a declared list plays each entry for its own time or the frametime, and drops an
+     * entry naming a frame the strip does not hold. A table left with fewer than two entries does not
+     * animate: it holds none, and shows the strip's first frame.
      * <p>
      * The frames counted are the whole ones the strip holds on both axes. A strip its frame size does
      * not divide is one vanilla's sprite loader refuses, and the pack stack serves such a texture with
@@ -69,17 +70,17 @@ public record Flipbook(
         int frameCount = (strip.width() / frame.width()) * (strip.height() / frame.height());
         if (frameCount <= 0) return Optional.empty();
 
-        int defaultTicks = Math.max(1, animation.frametime());
-        Stream<MCMeta.Frame> authored = animation.frames().isEmpty()
-            ? IntStream.range(0, frameCount).mapToObj(index -> new MCMeta.Frame(index, defaultTicks))
-            : animation.frames().stream().map(entry -> new MCMeta.Frame(
-                Math.clamp(entry.index(), 0, frameCount - 1),
-                entry.time() > 0 ? entry.time() : defaultTicks));
+        Stream<Entry> table = animation.frames().isPresent()
+            ? animation.frames().get().stream()
+                .map(declared -> new Entry(declared.index(), declared.time().orElse(animation.frametime())))
+                .filter(entry -> entry.index() < frameCount)
+            : IntStream.range(0, frameCount).mapToObj(index -> new Entry(index, animation.frametime()));
 
-        ConcurrentList<MCMeta.Frame> entries = authored.collect(Concurrent.toUnmodifiableList());
+        ConcurrentList<Entry> resolved = table.collect(Concurrent.toUnmodifiableList());
+        ConcurrentList<Entry> entries = resolved.size() < 2 ? Concurrent.newUnmodifiableList() : resolved;
         return Optional.of(new Flipbook(
             frame.width(), frame.height(), entries,
-            entries.stream().mapToInt(MCMeta.Frame::time).sum(), animation.interpolate()));
+            entries.stream().mapToInt(Entry::time).sum(), animation.interpolate()));
     }
 
     /**
@@ -156,7 +157,7 @@ public record Flipbook(
     private static int gcdCadence(@NotNull List<Flipbook> flipbooks) {
         long g = 0;
         for (Flipbook flipbook : flipbooks)
-            for (MCMeta.Frame entry : flipbook.entries()) g = Timeline.gcd(g, entry.time());
+            for (Entry entry : flipbook.entries()) g = Timeline.gcd(g, entry.time());
         return (int) Math.max(1, g);
     }
 
@@ -185,11 +186,10 @@ public record Flipbook(
      *
      * @param strip the vertically stacked frame strip this table was resolved against
      * @param tick the current tick, free-running and signed
-     * @return the frame at that tick, or the first frame when the cycle carries no duration
+     * @return the frame at that tick, or the strip's first frame when the table does not animate
      */
     public @NotNull PixelBuffer frameAt(@NotNull PixelBuffer strip, int tick) {
-        if (this.totalTicks <= 0)
-            return extractFrame(strip, this.entries.getFirst().index());
+        if (this.entries.isEmpty()) return extractFrame(strip, 0);
 
         int effectiveTick = Math.floorMod(tick, this.totalTicks);
 
@@ -241,6 +241,14 @@ public record Flipbook(
     }
 
     /**
+     * One resolved entry of a playback table: the strip frame it draws and the ticks it lasts.
+     *
+     * @param index the strip frame, numbered row by row from 0
+     * @param time the ticks the frame lasts, at least 1
+     */
+    public record Entry(int index, int time) {}
+
+    /**
      * The rectangle one frame of an animation occupies in the strip it plays over, sized as vanilla's
      * sprite loader sizes it. A side the animation declares is taken as declared. A side it leaves
      * undeclared is the strip's own where the other side is declared, and where neither is, the frame
@@ -259,12 +267,12 @@ public record Flipbook(
          * @return the frame rectangle
          */
         public static @NotNull FrameSize of(@NotNull MCMeta.Animation animation, @NotNull PixelBuffer strip) {
-            boolean declaresWidth = animation.width() > 0;
-            boolean declaresHeight = animation.height() > 0;
+            boolean declaresWidth = animation.width().isPresent();
+            boolean declaresHeight = animation.height().isPresent();
             int side = Math.min(strip.width(), strip.height());
             return new FrameSize(
-                declaresWidth ? animation.width() : declaresHeight ? strip.width() : side,
-                declaresHeight ? animation.height() : declaresWidth ? strip.height() : side);
+                declaresWidth ? animation.width().get() : declaresHeight ? strip.width() : side,
+                declaresHeight ? animation.height().get() : declaresWidth ? strip.height() : side);
         }
 
         /**

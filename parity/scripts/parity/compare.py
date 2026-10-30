@@ -293,6 +293,12 @@ def _registered(expected: dict | None, artifact: str) -> dict[str, set[str]]:
     this module is written without, arriving through the one device that replaces it. A row with no
     ``to`` is therefore refused rather than read as a wildcard.
 
+    An EMPTY ``to`` is a value, and it names the empty cell. A sweep writes one where a row has
+    nothing to say - a failed row's metric, a column its render drew nothing into - and a row moves
+    there like anywhere else. Membership is exact, so ``""`` licenses a field that landed on the
+    empty cell and nothing beside it; only a ``to`` that is absent or null would license any value,
+    and that is the one refused.
+
     A key carries a SET because a registration is per-row and additive while a row is one key and
     every column beside it - several on a sweep row, one on a manifest's. A row moving its canvas
     and its metric moves to two values and one registration cannot name both. Registering the key
@@ -311,7 +317,7 @@ def _registered(expected: dict | None, artifact: str) -> dict[str, set[str]]:
         if row.get("artifact") != artifact:
             continue
         key, to = row.get("key"), row.get("to")
-        if not key or to is None or str(to) == "":
+        if not key or to is None:
             raise Refused(
                 f"the expected-diff registers a mover on '{artifact}' with "
                 f"key={key!r} to={to!r}: a registration names the row AND the value it is expected "

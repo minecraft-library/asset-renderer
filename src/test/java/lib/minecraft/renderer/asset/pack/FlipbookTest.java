@@ -6,6 +6,8 @@ import dev.simplified.image.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -18,7 +20,8 @@ import static org.hamcrest.Matchers.is;
  * linear {@link MCMeta.Animation#interpolate() interpolation}, and explicit
  * {@link MCMeta.Frame} durations, plus {@link Flipbook#extractFrame} cropping row by row, the
  * {@link Flipbook.FrameSize frame rectangle} vanilla sizes and the strips it divides, and the
- * {@link Flipbook#of resolution} that decides a strip plays back at all. Each frame is authored as a
+ * {@link Flipbook#of resolution} that decides a strip plays back at all - the authored frames it drops
+ * and the short tables it holds still on the first frame. Each frame is authored as a
  * distinctive solid colour so the sampled pixel identifies which frame was selected.
  */
 class FlipbookTest {
@@ -120,8 +123,8 @@ class FlipbookTest {
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
 
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
-        frames.add(new MCMeta.Frame(0, 5));
-        frames.add(new MCMeta.Frame(1, 2));
+        frames.add(new MCMeta.Frame(0, Optional.of(5)));
+        frames.add(new MCMeta.Frame(1, Optional.of(2)));
         Flipbook flipbook = flipbook(strip, 1, false, frames);
 
         // Frame 0 holds for 5 ticks, frame 1 holds for 2 ticks
@@ -139,7 +142,7 @@ class FlipbookTest {
         // A 4x4 strip whose sidecar declares 8-pixel-tall frames holds no whole frame, and a caller
         // that resolves nothing renders the strip unchanged rather than cropping a partial row.
         PixelBuffer strip = PixelBuffer.of(new int[16], 4, 4);
-        assertThat(Flipbook.of(strip, new MCMeta.Animation(1, false, -1, 8, Concurrent.newList())).isPresent(), is(false));
+        assertThat(Flipbook.of(strip, new MCMeta.Animation(1, false, Optional.empty(), Optional.of(8), Optional.empty())).isPresent(), is(false));
         // A zero-width strip has no rectangle to crop either.
         assertThat(Flipbook.of(PixelBuffer.of(new int[0], 0, 0), animation(1, false, null)).isPresent(), is(false));
     }
@@ -155,7 +158,7 @@ class FlipbookTest {
         PixelBuffer strip = PixelBuffer.of(pixels, 2, 3);
 
         Flipbook table = Flipbook.of(strip,
-            new MCMeta.Animation(1, false, 2, 1, Concurrent.newList())).orElseThrow();
+            new MCMeta.Animation(1, false, Optional.of(2), Optional.of(1), Optional.empty())).orElseThrow();
 
         PixelBuffer row1 = table.extractFrame(strip, 1);
 
@@ -194,7 +197,7 @@ class FlipbookTest {
             c, c, d, d,
             c, c, d, d
         }, 4, 4);
-        Flipbook flipbook = Flipbook.of(strip, new MCMeta.Animation(1, false, 2, 2, Concurrent.newList())).orElseThrow();
+        Flipbook flipbook = Flipbook.of(strip, new MCMeta.Animation(1, false, Optional.of(2), Optional.of(2), Optional.empty())).orElseThrow();
 
         assertThat(flipbook.entries().size(), equalTo(4));
         assertThat(flipbook.extractFrame(strip, 0).getPixel(0, 0), equalTo(a));
@@ -209,13 +212,13 @@ class FlipbookTest {
         PixelBuffer strip = PixelBuffer.create(8, 4);
 
         assertThat("width alone takes the strip's height",
-            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, 2, -1, Concurrent.newList()), strip),
+            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, Optional.of(2), Optional.empty(), Optional.empty()), strip),
             equalTo(new Flipbook.FrameSize(2, 4)));
         assertThat("height alone takes the strip's width",
-            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, -1, 2, Concurrent.newList()), strip),
+            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, Optional.empty(), Optional.of(2), Optional.empty()), strip),
             equalTo(new Flipbook.FrameSize(8, 2)));
         assertThat("both declared are taken as declared",
-            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, 3, 5, Concurrent.newList()), strip),
+            Flipbook.FrameSize.of(new MCMeta.Animation(1, false, Optional.of(3), Optional.of(5), Optional.empty()), strip),
             equalTo(new Flipbook.FrameSize(3, 5)));
         assertThat("neither declared is a square of the shorter side",
             Flipbook.FrameSize.of(animation(1, false, null), strip), equalTo(new Flipbook.FrameSize(4, 4)));
@@ -245,23 +248,58 @@ class FlipbookTest {
         assertThat(flipbook(strip, 1, false, null).entries().size(), equalTo(2));
     }
 
+    @Test
+    @DisplayName("an authored frame the strip does not hold is dropped, as vanilla's sprite drops it")
+    void aFrameTheStripDoesNotHoldIsDropped() {
+        // A 1x4 strip of four distinct rows, playing frames [0, 7, 1]: the strip holds no frame 7.
+        int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        frames.add(new MCMeta.Frame(0, Optional.empty()));
+        frames.add(new MCMeta.Frame(7, Optional.empty()));
+        frames.add(new MCMeta.Frame(1, Optional.empty()));
+        Flipbook flipbook = flipbook(strip, 1, false, frames);
+
+        assertThat("tick 1 draws the entry after the dropped one", flipbook.frameAt(strip, 1).getPixel(0, 0), equalTo(0xFF000002));
+        assertThat(flipbook.entries().size(), equalTo(2));
+    }
+
+    @Test
+    @DisplayName("a table of fewer than two entries does not animate and shows the strip's first frame")
+    void aTableOfFewerThanTwoEntriesShowsTheFirstFrame() {
+        int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        frames.add(new MCMeta.Frame(3, Optional.empty()));
+        Flipbook one = flipbook(strip, 1, false, frames);
+
+        assertThat("a one-entry list shows the first frame, not its own", one.frameAt(strip, 0).getPixel(0, 0), equalTo(0xFF000001));
+        assertThat("at every tick", one.frameAt(strip, 5).getPixel(0, 0), equalTo(0xFF000001));
+        assertThat("and holds no entries", one.entries().isEmpty(), is(true));
+
+        // A declared list that is empty, as "frames": [] reads, not an undeclared one.
+        Flipbook none = flipbook(strip, 1, false, Concurrent.newList());
+        assertThat("an empty frames list shows the first frame", none.frameAt(strip, 1).getPixel(0, 0), equalTo(0xFF000001));
+        assertThat("and holds no entries", none.entries().isEmpty(), is(true));
+    }
+
     // --- fixtures ---
 
     /**
      * Resolves a {@link Flipbook} over the strip from the given frametime, interpolation flag and
-     * optional explicit frame list, raising where the strip holds no playable frame.
+     * explicit frame list, raising where the strip holds no playable frame.
      */
     private static Flipbook flipbook(PixelBuffer strip, int frametime, boolean interpolate, ConcurrentList<MCMeta.Frame> frames) {
         return Flipbook.of(strip, animation(frametime, interpolate, frames)).orElseThrow();
     }
 
     /**
-     * Builds {@link MCMeta.Animation} with the given frametime, interpolation flag, and optional
-     * explicit frame list ({@code null} yields an empty list so playback walks the strip in order).
-     * Width and height are left at {@code -1} so the frame dimensions are inferred from the strip.
+     * Builds {@link MCMeta.Animation} with the given frametime, interpolation flag, and explicit frame
+     * list ({@code null} declares none, so playback walks the strip in order). Width and height are left
+     * undeclared, so the frame dimensions are inferred from the strip.
      */
     private static MCMeta.Animation animation(int frametime, boolean interpolate, ConcurrentList<MCMeta.Frame> frames) {
-        return new MCMeta.Animation(frametime, interpolate, -1, -1, frames != null ? frames : Concurrent.newList());
+        return new MCMeta.Animation(frametime, interpolate, Optional.empty(), Optional.empty(), Optional.ofNullable(frames));
     }
 
 }

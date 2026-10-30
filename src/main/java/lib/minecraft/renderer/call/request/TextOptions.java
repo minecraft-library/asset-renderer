@@ -21,8 +21,11 @@ import java.util.function.UnaryOperator;
  * text ({@link Style#CHAT}).
  *
  * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
- * glyph rows alone. When any {@link #getLines() line} carries obfuscated text the renderer emits an
- * animated image of {@link #getFrameCount() frameCount} frames at {@link #getFramesPerSecond() fps}.
+ * glyph rows alone, on a canvas ending at the first pixel they draw. When any {@link #getLines() line}
+ * carries obfuscated text the renderer emits an animated image of {@link #getFrameCount() frameCount}
+ * frames at {@link #getFramesPerSecond() fps}, except that a render whose canvas holds no pixel - chat
+ * text drawing nothing, or a tooltip box of no width round lines that advance nothing - is the still,
+ * empty 1x1 image, obfuscated or not.
  *
  * @see lib.minecraft.renderer.TextRenderer
  */
@@ -31,9 +34,11 @@ import java.util.function.UnaryOperator;
 public class TextOptions implements RenderOptions {
 
     /**
-     * Default per-side inner padding between the tooltip border and the first glyph (mcPixels).
+     * The distance in mcPixels the client's tooltip box reaches past its text on every side - both
+     * tooltip sprites are drawn over the text plus 12 a side, and the background's first 8 texels are
+     * clear.
      */
-    public static final int TOOLTIP_PADDING_MCPX = 5;
+    public static final int TOOLTIP_PADDING_MCPX = 4;
 
     /**
      * Alpha component matching the vanilla 0xF0100010 tooltip background. {@code 0xF0 = 240}
@@ -69,16 +74,19 @@ public class TextOptions implements RenderOptions {
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
     /**
-     * Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling).
+     * The distance in mcPixels the code-drawn box reaches past the text on every side, its ring 1 inside
+     * the box's edge; the sprite box ends where its sprites draw and reads no padding.
      */
     private final int padding = TOOLTIP_PADDING_MCPX;
 
     /**
-     * The chrome the LORE background and border are drawn in. Defaults to
-     * {@link ChromeStyle#PROCEDURAL}, which needs no context; {@link ChromeStyle#SPRITE} asks the
-     * renderer to resolve the pack's sprite pair through the context it was constructed with.
+     * The chrome the LORE background and border are drawn in, empty for the renderer's own -
+     * {@link ChromeStyle#SPRITE} for a renderer holding a context, {@link ChromeStyle#PROCEDURAL} for one
+     * holding none. {@link ChromeStyle#SPRITE} resolves the pack's sprite pair through the context the
+     * renderer was constructed with, so a renderer holding none refuses it;
+     * {@link ChromeStyle#PROCEDURAL} needs no context.
      */
-    private final @NotNull ChromeStyle chromeStyle = ChromeStyle.PROCEDURAL;
+    private final @NotNull Optional<ChromeStyle> chromeStyle = Optional.empty();
 
     /**
      * The {@code minecraft:tooltip_style} key a {@link ChromeStyle#SPRITE} render resolves its sprite
@@ -91,14 +99,19 @@ public class TextOptions implements RenderOptions {
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to
      * {@link #VANILLA_TOOLTIP_BG_ALPHA}, matching the vanilla tooltip background
-     * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1.
+     * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1. The code-drawn fill is
+     * drawn at it, and the sprite box scales each background texel's alpha by it over 240 - one meaning,
+     * since vanilla's fill carries that alpha. A fill drawn at 0 draws nothing, so the canvas ends at the
+     * next part drawn.
      */
     private final int backgroundAlpha = VANILLA_TOOLTIP_BG_ALPHA;
 
     /**
      * Alpha channel for the LORE border gradient, in {@code [0, 255]}. Defaults to
      * {@link #VANILLA_TOOLTIP_BORDER_ALPHA}, matching the vanilla tooltip border endpoints
-     * {@code 0x505000FF} and {@code 0x5028007F}.
+     * {@code 0x505000FF} and {@code 0x5028007F}. The code-drawn ring is drawn at it, and the sprite box
+     * scales each frame texel's alpha by it over 80 - one meaning, since vanilla's ring carries that
+     * alpha. A ring drawn at 0 draws nothing, so the canvas ends at the next part drawn.
      */
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
@@ -127,9 +140,9 @@ public class TextOptions implements RenderOptions {
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     /**
-     * The default text options - an empty {@linkplain Style#LORE lore} tooltip with vanilla-matched
-     * padding, background/border alphas, and wrap width, ready to have {@linkplain #getLines() lines}
-     * appended.
+     * The default text options - an empty {@linkplain Style#LORE lore} tooltip naming no chrome, so drawn
+     * in the renderer's own, with vanilla-matched padding, background/border alphas, and wrap width, ready
+     * to have {@linkplain #getLines() lines} appended.
      *
      * @return the default options
      */
@@ -143,7 +156,8 @@ public class TextOptions implements RenderOptions {
     public enum Style {
 
         /**
-         * Plain text on a transparent background with uniform line spacing.
+         * Plain text on a transparent canvas that ends at the first pixel it draws, with uniform line
+         * spacing.
          */
         CHAT,
 

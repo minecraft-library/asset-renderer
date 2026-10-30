@@ -25,6 +25,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -362,7 +363,7 @@ public final class PipelineParityDump {
      * @param meta the mcmeta to emit
      * @return the mcmeta object
      */
-    private static @NotNull JsonObject meta(@NotNull MCMeta meta) {
+    static @NotNull JsonObject meta(@NotNull MCMeta meta) {
         JsonObject root = new JsonObject();
         root.addProperty("id", meta.id().id());
 
@@ -385,29 +386,34 @@ public final class PipelineParityDump {
             return section;
         });
 
-        CanonicalJson.put(root, "animation", meta.animation(), animation -> {
-            JsonObject section = new JsonObject();
-            section.addProperty("frametime", animation.frametime());
-            section.addProperty("interpolate", animation.interpolate());
-            section.addProperty("width", animation.width());
-            section.addProperty("height", animation.height());
-            section.add("frames", CanonicalJson.ordered(animation.frames(), frame -> {
-                JsonObject entry = new JsonObject();
-                entry.addProperty("index", frame.index());
-                entry.addProperty("time", frame.time());
-                return entry;
-            }));
-            return section;
-        });
+        switch (meta.animation().getState()) {
+            case PRESENT -> root.add("animation", animation(meta.animation().get()));
+            case EMPTY -> root.add("animation", emptyState());
+            case ABSENT -> { }
+        }
 
-        CanonicalJson.put(root, "gui", meta.gui(), gui -> {
-            JsonObject section = new JsonObject();
-            section.addProperty("type", gui.type().name());
-            section.addProperty("width", gui.width());
-            section.addProperty("height", gui.height());
-            section.addProperty("stretch_inner", gui.stretchInner());
-            return section;
-        });
+        switch (meta.gui().getState()) {
+            case PRESENT -> {
+                MCMeta.GuiScaling gui = meta.gui().get();
+                JsonObject section = new JsonObject();
+                section.addProperty("type", gui.type().name());
+                switch (gui) {
+                    case MCMeta.GuiScaling.Stretch stretch -> { }
+                    case MCMeta.GuiScaling.Tile tile -> {
+                        section.addProperty("width", tile.width());
+                        section.addProperty("height", tile.height());
+                    }
+                    case MCMeta.GuiScaling.NineSlice nineSlice -> {
+                        section.addProperty("width", nineSlice.width());
+                        section.addProperty("height", nineSlice.height());
+                        section.addProperty("stretch_inner", nineSlice.stretchInner());
+                    }
+                }
+                root.add("gui", section);
+            }
+            case EMPTY -> root.add("gui", emptyState());
+            case ABSENT -> { }
+        }
 
         return root;
     }
@@ -474,7 +480,7 @@ public final class PipelineParityDump {
      * re-keyed by plain id here. Its order is pinned separately, and deliberately, by the
      * {@code id_order} probe.
      * <p>
-     * A block that draws nothing holds no row, so its entry is its state alone ({@link #drawsNothing}).
+     * A block that draws nothing holds no row, so its entry is its state alone ({@link #emptyState}).
      * An id the list offers that {@code findBlock} does not know at all means the index and its key
      * source disagree, and fails the dump.
      *
@@ -488,7 +494,7 @@ public final class PipelineParityDump {
             Possible<Block> found = context.findBlock(id);
             root.add(id, switch (found.getState()) {
                 case PRESENT -> block(found.get());
-                case EMPTY -> drawsNothing();
+                case EMPTY -> emptyState();
                 case ABSENT -> throw new IllegalStateException("knownBlockIds offered '" + id + "' but findBlock "
                     + "could not resolve it - the index and its key source disagree");
             });
@@ -497,12 +503,13 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns the entry of a known block or item that draws nothing: it holds no row to write, so the
-     * entry is its state alone, {@code {"state": "empty"}}.
+     * Returns the entry of a key a lookup knows and holds nothing under - a block or item that draws
+     * nothing, a {@code gui} section or an animation section the client's codec refuses: its state alone,
+     * {@code {"state": "empty"}}.
      *
      * @return the entry
      */
-    private static @NotNull JsonObject drawsNothing() {
+    private static @NotNull JsonObject emptyState() {
         JsonObject entry = new JsonObject();
         entry.addProperty("state", "empty");
         return entry;
@@ -772,9 +779,9 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns one animation. Every {@code -1} here is loaded state - an inherited dimension, or a frame
-     * deferring to the sheet's frametime - so all of them are emitted. Omission is reserved strictly for
-     * {@code Optional.empty()}.
+     * Returns one animation section: its frametime and interpolation, and each of its width, height, frame
+     * list and frame times only where the section declares it - omission is reserved strictly for a member
+     * the section leaves undeclared.
      *
      * @param animation the animation to emit
      * @return the animation object
@@ -783,12 +790,12 @@ public final class PipelineParityDump {
         JsonObject root = new JsonObject();
         root.addProperty("frametime", animation.frametime());
         root.addProperty("interpolate", animation.interpolate());
-        root.addProperty("width", animation.width());
-        root.addProperty("height", animation.height());
-        root.add("frames", CanonicalJson.ordered(animation.frames(), frame -> {
+        CanonicalJson.put(root, "width", animation.width(), JsonPrimitive::new);
+        CanonicalJson.put(root, "height", animation.height(), JsonPrimitive::new);
+        CanonicalJson.put(root, "frames", animation.frames(), frames -> CanonicalJson.ordered(frames, frame -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("index", frame.index());
-            entry.addProperty("time", frame.time());
+            CanonicalJson.put(entry, "time", frame.time(), JsonPrimitive::new);
             return entry;
         }));
         return root;
@@ -805,9 +812,10 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns the miscellaneous section - the loaded tables each too small to own a file. Each is
-     * re-loaded from {@code stack} here (the context exposes no accessor for the raw maps); the loaders
-     * are pure functions of the stack, so this reproduces exactly what the context built from.
+     * Returns the miscellaneous section - the loaded tables each too small to own a file, and the text
+     * palette the stack carries. Each table is re-loaded from {@code stack} here (the context exposes no
+     * accessor for the raw maps); the loaders are pure functions of the stack, so this reproduces
+     * exactly what the context built from.
      *
      * @param stack the resolved pack stack
      * @return the misc section
@@ -859,6 +867,27 @@ public final class PipelineParityDump {
             return entry;
         }));
 
+        root.add("text_palette", textPalette(stack.textPalette()));
+        return root;
+    }
+
+    /**
+     * Returns the stack's text palette in one shape whatever the stack read, as {@link #rules} writes
+     * the colour overrides: the state of the read, and the table read - or, where none was, the one of
+     * the program vanilla draws text with, which swaps nothing.
+     *
+     * @param read the palette the stack holds
+     * @return the palette object - its state, the shader file and pack it was read from, and each
+     *     swapped colour's six-digit hex to the hex drawn in its place
+     */
+    private static @NotNull JsonObject textPalette(@NotNull Possible<TextPalette> read) {
+        TextPalette palette = read.orElse(TextPalette.VANILLA);
+        JsonObject root = new JsonObject();
+        root.addProperty("state", read.getState().name().toLowerCase(Locale.ROOT));
+        root.addProperty("id", palette.id().id());
+        root.addProperty("pack", palette.pack().value());
+        root.add("swaps", CanonicalJson.map(palette.swaps(), key -> String.format("%06X", key),
+            swap -> new JsonPrimitive(String.format("%06X", swap))));
         return root;
     }
 
@@ -1188,7 +1217,7 @@ public final class PipelineParityDump {
      * reason blocks are: the index itself is private. That list is complete but its order is a
      * case-insensitive sort whose ties fall through to hash order, so it is re-keyed by plain id here.
      * <p>
-     * An item that draws nothing holds no row, so its entry is its state alone ({@link #drawsNothing}),
+     * An item that draws nothing holds no row, so its entry is its state alone ({@link #emptyState}),
      * and an id {@code findItem} does not know at all fails the dump, as it does for blocks.
      *
      * @param context the loaded renderer context
@@ -1201,7 +1230,7 @@ public final class PipelineParityDump {
             Possible<Item> found = context.findItem(id);
             root.add(id, switch (found.getState()) {
                 case PRESENT -> item(found.get());
-                case EMPTY -> drawsNothing();
+                case EMPTY -> emptyState();
                 case ABSENT -> throw new IllegalStateException("knownItemIds offered '" + id + "' but findItem "
                     + "could not resolve it - the index and its key source disagree");
             });

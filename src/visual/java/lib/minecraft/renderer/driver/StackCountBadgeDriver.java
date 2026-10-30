@@ -3,6 +3,7 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.ItemStackKit;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
@@ -87,7 +88,7 @@ public final class StackCountBadgeDriver {
             for (int count : COUNTS) {
                 PixelBuffer buffer = PixelBuffer.create(size, size);
                 buffer.fill(BG_ARGB);
-                ItemStackKit.drawStackCount(buffer, count, MinecraftFont.Vanilla.REGULAR);
+                ItemStackKit.drawStackCount(buffer, count, MinecraftFont.Vanilla.REGULAR, TextPalette.VANILLA);
 
                 String name = "s%03d_c%02d.png".formatted(size, count);
                 Path out = labelDir.resolve(name);

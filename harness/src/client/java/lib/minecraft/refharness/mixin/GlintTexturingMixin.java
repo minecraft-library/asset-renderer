@@ -21,8 +21,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <em>exact</em> vanilla matrix ({@code translation(-u, v, 0).rotateZ(10 degrees).scale(scale)}) so
  * the only thing that changes is which deterministic glint time is sampled.
  *
- * <p>Gated on {@code refharness.headless} and {@code overrideT >= 0}; outside the glint sweep the
- * override is {@code -1} and vanilla's wall-clock behaviour is untouched.
+ * <p>Gated on {@code refharness.headless} and {@code overrideT >= 0}. Outside the glint sweep the
+ * override holds the instant the boot pinned - {@code 0} in every boot but a glint-only one, where it
+ * stays {@code -1} and vanilla's wall-clock behaviour runs untouched.
  */
 @Mixin(TextureTransform.class)
 public abstract class GlintTexturingMixin {

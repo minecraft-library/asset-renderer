@@ -19,7 +19,7 @@ from typing import Sequence
 
 from parity import VERSION
 from parity import manifest as manifest_mod
-from parity.norm import LF, canonical_json, read_text, sha256_text
+from parity.norm import LF, Refused, canonical_json, read_text, sha256_text
 
 #: The harness is a directory in this repo, not a repository of its own, so there is exactly one sha
 #: and one dirty flag. A `harness_sha` / `harness_dirty` pair beside the asset pair would equal it
@@ -37,18 +37,13 @@ REFERENCE_ROOT_TEMPLATE = "cache/asset-renderer/vanilla/{version}/references"
 #: Every sub-tree the reference tree holds, because the counts are the per-sub-tree evidence and a
 #: sub-tree left out of this tuple is one the record silently says nothing about. That reads exactly
 #: like a sub-tree the tree does not hold: ``reference_counts`` walks this list and skips what is not
-#: a directory, so an absent key means either, and a record naming six of nine understates the
-#: reference set every number in it was measured against. The build declares the same nine as
-#: ``referenceSubTrees`` so a partial run can name what it did NOT refresh; the two lists are written
-#: for different readers and nothing holds them to each other, so a sub-tree added to the tree is
-#: added to both.
-REFERENCE_SUBTREES = ("blocks", "items", "entities", "players", "glint", "armor", "menus", "idle",
-                      "walk")
-
-#: The artifact whose stored form the reference digest below IS. Named rather than spelled inline,
-#: because the two have to be the same manifest for the digest to identify anything: the globs, the
-#: exclusions and the entry grammar all come off this id.
-REFERENCES_ARTIFACT = "manifest.references"
+#: a directory, so an absent key means either, and a record naming part of the tree understates the
+#: reference set every number in it was measured against. The build declares the same list as
+#: ``referenceSubTrees`` so a partial run can name what it did NOT refresh; the two are written for
+#: different readers, and ``ParityTaskWiringTest`` holds them equal, in order, so a sub-tree added to
+#: the tree is added to both.
+REFERENCE_SUBTREES = ("blocks", "items", "entities", "players", "glint", "armor", "menus",
+                      "tooltips", "idle", "walk")
 
 #: Every key a record can carry, and whether ``gather`` writes it on every call. The suite asserts a
 #: real record against this rather than against a list of its own, so all three ways the two can
@@ -69,6 +64,7 @@ KEYS = {
     "parity_class": False,
     "producer": True,
     "reason": False,
+    "reference_artifact": False,
     "reference_counts": False,
     "reference_manifest_digest": False,
     "root": False,
@@ -206,7 +202,11 @@ def reference_root(repo: Path) -> Path | None:
 
 
 def reference_counts(repo: Path) -> dict:
-    """How many references each sub-tree holds - the per-sub-tree evidence a baseline carries.
+    """How many references each sub-tree of the vanilla reference tree holds.
+
+    A census of that tree, recorded on every artifact whatever the artifact read: a sweep measured
+    against the pack-tooltip drawings carries it too, beside a ``reference_artifact`` and digest that
+    name those drawings. Which ground truth a number was measured against is that pair, never this.
 
     An absent tree answers with nothing and **says so on stderr**. Silence there is the failure this
     is guarded against: a record missing its counts and a record whose counts are all zero read the
@@ -222,7 +222,7 @@ def reference_counts(repo: Path) -> dict:
         return {}
     if not root.is_dir():
         sys.stderr.write(f"provenance: no reference tree at {root}; recording no reference_counts, "
-                         "so this record cannot say which references it measured against\n")
+                         "so this record carries no census of the vanilla reference tree\n")
         return {}
     counts = {}
     for name in REFERENCE_SUBTREES:
@@ -232,7 +232,7 @@ def reference_counts(repo: Path) -> dict:
     return counts
 
 
-def reference_manifest_digest(root: Path | None) -> str | None:
+def reference_manifest_digest(root: Path | None, artifact: str) -> str | None:
     """One digest naming the reference SET a number was measured against, instead of 2311 lines.
 
     Derived from the tree rather than read off a captured manifest file, and both halves of that are
@@ -243,15 +243,23 @@ def reference_manifest_digest(root: Path | None) -> str | None:
     tree would name it with two different digests, which is the one thing this field must not do.
 
     ``provenance`` is out of the digested bytes and the manifest's paths are relative, so what is
-    left is exactly the identity of the stored ``manifest.references`` payload: a sweep's digest and
-    the store's copy of that row agree when and only when they describe the same reference set.
+    left is exactly the identity of the stored payload of ``artifact`` over that tree: a sweep's
+    digest and the store's copy of that row agree when and only when they describe the same
+    reference set.
+
+    The artifact is an argument because a tree alone does not say how to digest it: the globs, the
+    exclusions and the entry grammar all come off the manifest's id. One tree read as two manifests
+    is two sets - the pack-tooltip home holds 45 files under the reference tree's globs, its
+    handshake among them, and 44 under its own - so a digest taken under the wrong id could never
+    equal the stored row it is meant to name.
 
     An unnamed tree is None with no line, because nothing was asked for. A named one that is not
     there is None **and a warning**: the caller asked to tie this record to a reference set and the
     tie is not being made.
 
-    :param root: the reference tree, or None when the caller names none
-    :return: the digest of its manifest, or None
+    :param root: the ground-truth tree, or None when the caller names none
+    :param artifact: the stored manifest row the tree is the ground truth of
+    :return: the digest of that row's manifest over the tree, or None
     """
     if root is None:
         return None
@@ -260,7 +268,7 @@ def reference_manifest_digest(root: Path | None) -> str | None:
                          "reference_manifest_digest, so nothing ties this record to a reference "
                          "set\n")
         return None
-    stored = manifest_mod.to_artifact(manifest_mod.build(REFERENCES_ARTIFACT, root))
+    stored = manifest_mod.to_artifact(manifest_mod.build(artifact, root))
     return sha256_text(canonical_json(
         {name: value for name, value in stored.items() if name != "provenance"}))
 
@@ -269,7 +277,14 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
            flags: Sequence[str] = (), runs: int = 0, reason: str = "",
            parity_class: str = "", wall_time_ms: int | None = None,
            counts: dict | None = None, root: str | None = None,
-           reference_tree: Path | None = None, now: str | None = None) -> dict:
+           reference_tree: Path | None = None, reference_artifact: str | None = None,
+           now: str | None = None) -> dict:
+    # A tree with no artifact is refused rather than defaulted: with more than one ground truth, a
+    # default would digest a pack tree as the vanilla one, and a stored digest that does not say
+    # whose manifest it is cannot be re-derived.
+    if reference_tree is not None and not reference_artifact:
+        raise Refused(f"a reference tree ({reference_tree}) was named without the stored manifest "
+                      "row it is the ground truth of, which decides how the tree is digested")
     record = {
         "artifact": artifact,
         "determinism_runs": runs,
@@ -293,8 +308,10 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
         record["counts"] = counts
     if root:
         record["root"] = root
-    digest = reference_manifest_digest(reference_tree)
+    # The two always together: the digest identifies a stored row only beside the row's id.
+    digest = reference_manifest_digest(reference_tree, reference_artifact)
     if digest:
+        record["reference_artifact"] = reference_artifact
         record["reference_manifest_digest"] = digest
     found = reference_counts(repo)
     if found:

@@ -28,9 +28,9 @@ public interface Sweep<S> {
      * The {@link Gait} this sweep's references are ground truth for, which the runner arms before it
      * enumerates or renders anything.
      *
-     * <p>{@link Gait#BIND} for all but the two posed sweeps, which is what the seven static sub-trees
-     * are. A sweep declaring one rather than a run selecting one is what lets a single boot render
-     * both kinds - and {@link HarnessMode#sweeps} orders a run by it, because the freezes skip
+     * <p>{@link Gait#BIND} for all but the two posed sweeps, which is what every static sub-tree is.
+     * A sweep declaring one rather than a run selecting one is what lets a single boot render both
+     * kinds - and {@link HarnessMode#sweeps} orders a run by it, because the freezes skip
      * {@code setupAnim} rather than undoing it.
      *
      * @return the gait to render at

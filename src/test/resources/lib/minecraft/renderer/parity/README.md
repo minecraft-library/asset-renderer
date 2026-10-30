@@ -3,7 +3,7 @@
 Generated from `index.json`. **Do not edit** - regenerate with:
 
 ```
-./gradlew test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 Every artifact this store knows about is below. An artifact that is not `baselined`
@@ -18,15 +18,16 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `1ee3dbeacb2b62aad69bbaea539fd3554ebdb15a` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
+| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
+| `manifest.pack-tooltips` | `manifests/pack-tooltips.json` | 44 | 44 entries | `5f2174f3c4e0f23707ff31931da0659c7b298b4e` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 9776 | 9776 entries | `6e5de7f5099416cbd2ab266205407e699e117927` | yes |
+| `manifest.references` | `manifests/references.json` | 9827 | 9827 entries | `7ceea5b9302a0279d78a2369c6cac23b676ad9e6` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
+| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `38d8a81c5e39c0abc1cd0b3c8890af384a7ada8b` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -43,8 +44,10 @@ Values this store holds, one file each.
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 1.8886 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7353 | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
-| `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
+| `sweep.menu` | `sweeps/menu.json` | 15 | sum 9.6282 | `7ceea5b9302a0279d78a2369c6cac23b676ad9e6` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.tooltip` | `sweeps/tooltip.json` | 76 | sum 0.3274 | `4264daab8a17cbdd2dce01193c5d0838d58d75a8` | yes |
+| `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 0.0000 | `33935094db15adf57139f1790ec28fa311dfa634` | yes |
 
 ## Pointers
 

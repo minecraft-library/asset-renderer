@@ -213,7 +213,7 @@ public final class BlockParitySweep {
                     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
                     .context(ItemContext.ofStack(stateCaseStack(blockId)))
                     .build()).image();
-            BufferedImage javaImg = java.toBufferedImage();
+            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 

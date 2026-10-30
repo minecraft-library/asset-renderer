@@ -152,8 +152,8 @@ class EntityRendererVillagerHatTest {
      * @return the sidecar carrying it
      */
     private static MCMeta villagerMeta(Hat hat) {
-        return new MCMeta(new ResourceId("minecraft", "entity"), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.of(new MCMeta.Villager(hat)));
+        return new MCMeta(new ResourceId("minecraft", "entity"), Optional.empty(), Possible.absent(),
+            Possible.absent(), Possible.absent(), Optional.of(new MCMeta.Villager(hat)));
     }
 
     /**
@@ -187,7 +187,7 @@ class EntityRendererVillagerHatTest {
          */
         @Override
         public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
+            return findMeta(textureId).flatMap(meta -> meta.animation().orAbsent(Possible::empty));
         }
 
         /**

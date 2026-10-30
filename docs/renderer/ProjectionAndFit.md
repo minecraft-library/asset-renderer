@@ -2,8 +2,8 @@
 
 Load when touching `Projection`, `engine/light` - `LightingFrame`, `Shading` - the entity and player
 lighting fold, a renderer's `Placement`, `Rasterizer.rasterizeFitted` and `prepareFit`, the entity
-canvas pass and its family-fit pre-pass, or a bounds walk. Indexed from
-[`CLAUDE.md`](../../CLAUDE.md).
+canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's
+and chat text's included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
@@ -47,9 +47,9 @@ entry rather than the entity's.
 - Orthographic bakes the scale in 3D, because the window-depth grid is a function of the canvas scale
   and is not scale-invariant; perspective and oblique carry a 2D post-projection fit over
   unit-normalized geometry.
-- No canvas is odd-width, on either side. A symmetric subject's front corner lands exactly on the
-  anchor - a pixel centre at odd width, a boundary at even - and the placement is the harness's own
-  convention rather than vanilla's, which is what makes rounding it legitimate.
+- No fitted canvas is odd-width, on either side. A symmetric subject's front corner lands exactly on
+  the anchor - a pixel centre at odd width, a boundary at even - and the placement is the harness's
+  own convention rather than vanilla's, which is what makes rounding it legitimate.
 - Both bounds walks measure a face at its opaque-texel sub-rectangle, not per texel, so a face whose
   opaque texels touch all four edges of its UV box is measured to its full corners even where those
   corner texels are transparent. The elytra's outward wing face is the case the corpus shows: its
@@ -57,6 +57,15 @@ entry rather than the entity's.
   256 px/block, and a baby or a small stand 16. The strip is a canvas convention both sides share, as
   the even width is, and it is kept: the renderer's `EntityGeometryKit.contributeFaceAlphaTight` and
   the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
+- **A canvas sized to its subject ends at the subject's first pixel**, with no fixed transparent
+  margin even where the client reserves one: an entity's `UNION_BOUNDS` canvas at its silhouette,
+  which the bounds walk measures, and a tooltip's at what its chrome draws - the sprite pair over the
+  client's sprite rect, which `NineSliceKit.extent` answers before the draw, or the code-drawn box
+  round the text at the request's padding, less any part the request's alpha clears. Chat text's
+  canvas is what its lines draw over every frame, which `TextKit.inkBounds` answers before the draw,
+  and it ends inside a Minecraft pixel where the first or last output pixel drawn does.
+  `GROUP_BOUNDS`, the family fit, sizes a member to its group instead, and a fixed-scale or
+  caller-sized canvas is neither.
 
 ## Decisions that stay closed
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Sequence
 
 from parity.norm import ComparisonFailed, MissingInput, sha256_file
-from parity.sweep import DELTA, read_table
+from parity.sweep import DELTA, read_table, row_folders
 
 #: The first of these that exists is the subject's render, so the animated glint sweep is covered
 #: by the same walk as the five static ones.
@@ -39,19 +39,13 @@ class Verdict:
 
 
 def index(tree: Path, names: Sequence[str] = RENDER_NAMES) -> dict[str, Path]:
-    """Subject directory -> its render file, taking the first name that exists."""
+    """Row key -> its render file, taking the first name that exists, for every row folder of the
+    tree - one below the top keyed by its path, as the sweep's report keys it."""
     if not tree.is_dir():
         raise MissingInput(f"no render tree at {tree}")
-    found: dict[str, Path] = {}
-    for child in sorted(tree.iterdir()):
-        if not child.is_dir():
-            continue
-        for name in names:
-            candidate = child / name
-            if candidate.is_file():
-                found[child.name] = candidate
-                break
-    return found
+    folders = row_folders(tree, lambda folder: any((folder / name).is_file() for name in names))
+    return {key: next(folder / name for name in names if (folder / name).is_file())
+            for key, folder in folders.items()}
 
 
 def annotations(tree: Path) -> dict[str, str]:

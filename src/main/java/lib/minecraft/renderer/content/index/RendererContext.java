@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
@@ -37,7 +38,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -101,11 +101,11 @@ public interface RendererContext {
      *
      * @param textureId the namespaced texture identifier
      * @return the animation section; empty when the texture is served and ships no sidecar, a sidecar
-     *     that does not parse, or one with no animation section, and absent when {@link #resolveTexture}
-     *     answers absent
+     *     that does not parse, one with no animation section, or one whose section the client's codec
+     *     refuses, and absent when {@link #resolveTexture} answers absent
      */
     default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-        return this.findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
+        return this.findMeta(textureId).flatMap(meta -> meta.animation().orAbsent(Possible::empty));
     }
 
     /**
@@ -121,8 +121,9 @@ public interface RendererContext {
      *
      * @param textureId the namespaced texture identifier
      * @return the resolved playback table; empty when the texture is served and plays nothing - no
-     *     sidecar, a sidecar that does not parse or has no animation section, a strip that cannot be
-     *     read, or one holding no whole frame - and absent when {@link #resolveTexture} answers absent
+     *     sidecar, a sidecar that does not parse or has no animation section or one whose section the
+     *     client's codec refuses, a strip that cannot be read, or one holding no whole frame - and absent
+     *     when {@link #resolveTexture} answers absent
      */
     default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
         return Flipbook.of(this.findAnimation(textureId), () -> this.resolveTexture(textureId));
@@ -222,6 +223,20 @@ public interface RendererContext {
      * @return the ARGB override, or absent when the file read supplies no parseable colour for this key
      */
     default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        return Possible.absent();
+    }
+
+    /**
+     * Looks up the colours this context's text is drawn in, in place of the ones it is given - the table
+     * the text shader of its pack stack holds, which every glyph, shadow and decoration a text kit draws
+     * is swapped through. A stack has one text shader, so the lookup takes no key. The default answers
+     * absent so test stubs do not need to override it.
+     *
+     * @return the palette; empty where the pack whose text shader the stack takes ships one this renderer
+     *     does not read, and absent where no pack above vanilla ships one, vanilla's own program drawing
+     *     every colour as given
+     */
+    default @NotNull Possible<TextPalette> findTextPalette() {
         return Possible.absent();
     }
 
@@ -429,9 +444,9 @@ public interface RendererContext {
      *
      * @param textureId the namespaced texture identifier, e.g. {@code "minecraft:block/grass_block_top"}
      * @return the decoded texture; empty when the id is served and yields no pixels - a file a pack ships
-     *     whose bytes are empty or do not decode, whose sidecar does not parse, or whose animation's
-     *     frame size does not divide it, or a registered permutation that cannot be produced - and
-     *     absent when nothing serves the id
+     *     whose bytes are empty or do not decode, whose sidecar does not parse or carries an animation or
+     *     texture section the client's codec refuses, or whose animation's frame size does not divide it,
+     *     or a registered permutation that cannot be produced - and absent when nothing serves the id
      */
     @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId);
 
@@ -484,7 +499,7 @@ public interface RendererContext {
                 // delegate's absent answer becomes an empty one.
                 return delegate.findMeta(textureId)
                     .map(meta -> new MCMeta(
-                        meta.id(), meta.pack(), Optional.empty(),
+                        meta.id(), meta.pack(), Possible.absent(),
                         meta.texture(), meta.gui(), meta.villager()))
                     .orAbsent(Possible::empty);
             }
@@ -964,6 +979,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
             return delegate().findColorOverride(key);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Possible<TextPalette> findTextPalette() {
+            return delegate().findTextPalette();
         }
 
         /** {@inheritDoc} */

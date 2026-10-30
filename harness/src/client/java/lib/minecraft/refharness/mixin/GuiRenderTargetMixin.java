@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * Sends the GUI pipeline's draw to {@link GuiTarget#override} when the harness has armed one, so a
- * container screen can be captured offscreen at its own size.
+ * GUI capture lands offscreen at its own size.
  *
  * <p>This is the harness's first mixin that redirects a render target rather than freezing state, and
  * it exists because {@code GuiRenderer} is the one drawing path that cannot be redirected from
@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * <p>Inert whenever no target is armed, so an ordinary frame still draws to the window.
  */
 @Mixin(GuiRenderer.class)
-public abstract class MenuRenderTargetMixin {
+public abstract class GuiRenderTargetMixin {
 
     @Redirect(
         method = "draw",

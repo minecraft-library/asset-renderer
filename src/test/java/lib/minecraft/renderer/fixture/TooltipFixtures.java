@@ -29,12 +29,12 @@ public final class TooltipFixtures {
     private TooltipFixtures() {}
 
     /** The background sprite's sidecar, carrying the nine-slice scaling its shipped one declares */
-    public static final @NotNull MCMeta BG_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false));
+    public static final @NotNull MCMeta BG_META = guiMeta(new MCMeta.GuiScaling.NineSlice(
+        100, 100, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false));
 
     /** The frame sprite's sidecar, whose nine-slice scaling stretches its inner slices */
-    public static final @NotNull MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true));
+    public static final @NotNull MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling.NineSlice(
+        100, 100, new MCMeta.GuiScaling.NineSlice.Border(10, 10, 10, 10), true));
 
     /**
      * Wraps a GUI scaling in the sidecar document the context answers with, every other section absent -
@@ -44,8 +44,8 @@ public final class TooltipFixtures {
      * @return the sidecar carrying it
      */
     public static @NotNull MCMeta guiMeta(@NotNull MCMeta.GuiScaling scaling) {
-        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.of(scaling), Optional.empty());
+        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Possible.absent(),
+            Possible.absent(), Possible.of(scaling), Optional.empty());
     }
 
     /**

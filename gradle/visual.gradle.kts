@@ -268,6 +268,24 @@ register<JavaExec>("menuParityVanilla") {
     args = if (menuId != null) listOf(menuId) else listOf()
 }
 
+register<JavaExec>("tooltipParityVanilla") {
+    description = "Per-subject tooltip parity report comparing Java TextRenderer against the vanilla-reference-harness tooltip references at cache/.../references/tooltips/, every subject of the tracked roster whole and as its box alone, and every plain line as one line of chat text. Each reference - a tooltip's whole sprite rect, a plain line's text on nothing - is taken to its own first pixel and compared with the renderer's canvas as drawn, so this is a direct diff rather than a bbox-aligned one; a size that disagrees fails the row. Writes per-subject diff panels and a TSV to cache/visual/tooltip-parity-vanilla/. Run renderVanillaTooltipReferences first. -PtooltipId=one_line"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.sweep.TooltipParitySweep")
+    classpath = sourceSets["visual"].runtimeClasspath
+    val tooltipId = project.findProperty("tooltipId") as String?
+    args = listOf("vanilla") + listOfNotNull(tooltipId)
+}
+
+register<JavaExec>("tooltipHypixelSkyblockParityVanilla") {
+    description = "Per-subject tooltip parity report over the hypixel-skyblock pack: renders the tooltip roster's hypixel-skyblock section through Java TextRenderer with the packs the harness handshake at cache/.../pack-tooltips/hypixel-skyblock/stack.json names, against the client's drawings beside it, whole and as their box alone. Refuses first a configuration whose chrome sprites the renderer resolves from another pack, other bytes or another scaling than the client did. Writes per-subject diff panels and a TSV to cache/visual/tooltip-hypixel-skyblock-parity-vanilla/. Run renderVanillaPackTooltipsHypixelSkyblock first. -PtooltipId=one_line"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.sweep.TooltipParitySweep")
+    classpath = sourceSets["visual"].runtimeClasspath
+    val tooltipId = project.findProperty("tooltipId") as String?
+    args = listOf("hypixel-skyblock") + listOfNotNull(tooltipId)
+}
+
 register<JavaExec>("packIconParityVanilla") {
     description = "Per-stack parity report for the block items a resource pack shadows: the renderer's GUI_ICON of every pack-icon roster stack, the roster's packs loaded, against the client's slot drawing of the same stack at cache/.../pack-icons/. Writes per-subject diff panels and a TSV to cache/visual/pack-icon-parity-vanilla/. Run renderVanillaPackIcons first. -PitemId=minecraft:oak_log"
     group = "visual"

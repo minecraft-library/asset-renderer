@@ -49,15 +49,21 @@ public final class ParityMetrics {
      * pixel contributes up to {@code 3 * 255 = 765}. Coverage is the fraction of pixels with
      * non-zero alpha.
      *
+     * <p>The raw count is the same pass read without compositing: the pixels whose packed ARGB
+     * differ. Over-white hides the RGB under {@code a = 0} and lets two translucent pixels collide,
+     * so where both sides hold their pixels in one convention the raw count is the byte gate and the
+     * over-white numbers are what a person reads.
+     *
      * @param a the reference (vanilla) image
      * @param b the candidate (java) image
-     * @return mean delta, differing-pixel count, and per-side coverage
+     * @return mean delta, differing-pixel count, per-side coverage, and raw differing-pixel count
      */
     public static @NotNull Stats compareImages(@NotNull BufferedImage a, @NotNull BufferedImage b) {
         int w = Math.min(a.getWidth(), b.getWidth());
         int h = Math.min(a.getHeight(), b.getHeight());
         long totalDelta = 0L;
         long differing = 0L;
+        long rawDiffering = 0L;
         long javaCoveredPx = 0L;
         long vanillaCoveredPx = 0L;
         long count = (long) w * h;
@@ -70,12 +76,13 @@ public final class ParityMetrics {
                 int sum = compositeDiff(pa, aa, pb, ab);
                 totalDelta += sum;
                 if (sum > 0) differing++;
+                if (pa != pb) rawDiffering++;
                 if (aa > 0) vanillaCoveredPx++;
                 if (ab > 0) javaCoveredPx++;
             }
         }
         double mean = (double) totalDelta / (double) count;
-        return new Stats(mean, differing, (double) javaCoveredPx / count, (double) vanillaCoveredPx / count);
+        return new Stats(mean, differing, (double) javaCoveredPx / count, (double) vanillaCoveredPx / count, rawDiffering);
     }
 
     /**
@@ -535,7 +542,9 @@ public final class ParityMetrics {
      * @param differingPixels count of pixels with non-zero delta
      * @param javaCoverage fraction of pixels with non-zero alpha in the candidate image
      * @param vanillaCoverage fraction of pixels with non-zero alpha in the reference image
+     * @param rawDifferingPixels count of pixels whose packed ARGB differ, nothing composited
      */
-    public record Stats(double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage) {}
+    public record Stats(double meanDelta, long differingPixels, double javaCoverage, double vanillaCoverage,
+                        long rawDifferingPixels) {}
 
 }

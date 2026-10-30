@@ -146,7 +146,7 @@ public final class PlayerParitySweep {
                 .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
                 .build();
             ImageData java = javaRenderer.render(options).image();
-            BufferedImage javaRaw = java.toBufferedImage();
+            BufferedImage javaRaw = java.toPixelBuffer().toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output
             // of this sweep that is what a renderer actually produced and can therefore be hashed.

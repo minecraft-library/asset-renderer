@@ -257,9 +257,9 @@ public final class GridRenderer implements Renderer<GridOptions> {
     }
 
     /**
-     * Allocates a grid's buffer with its background laid down - which a fully transparent black fill
-     * leaves to the allocation, as a new buffer already holds transparent black in every pixel. A
-     * transparent fill of any other colour is still laid down, as its pixels carry that colour.
+     * Allocates a grid's buffer with its background laid down premultiplied, the convention of the
+     * finished tiles laid over it. A fill at alpha 0 premultiplies to transparent black, which a new
+     * buffer already holds in every pixel, so it is left to the allocation.
      *
      * @param width the buffer's width
      * @param height the buffer's height
@@ -268,8 +268,10 @@ public final class GridRenderer implements Renderer<GridOptions> {
      */
     private static @NotNull PixelBuffer blank(int width, int height, @NotNull Background background) {
         PixelBuffer buffer = PixelBuffer.create(width, height);
-        if (!(background instanceof Background.Solid(int argb) && argb == 0))
+        if (!background.isTransparent()) {
             background.fill(buffer);
+            buffer.premultiplyAlpha();
+        }
 
         return buffer;
     }

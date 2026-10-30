@@ -1,21 +1,31 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.Resample;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -33,7 +43,12 @@ import static org.hamcrest.Matchers.is;
  * drawn as well as its chrome. Everything the panel draws reproduces; what is left is the rectangle
  * of flat red the panel carries where its name field goes, which the client covers on every draw
  * and never once shows. That residual is the field being drawn from rules rather than read off art,
- * and a second test pins the red so the reason stays visible.
+ * and a second test pins the red so the reason stays visible. Against the client's frame - the sheet,
+ * the field sprite its first input picks and the cross where the client draws one - the theme paints
+ * the anvil whole in every state its slots give, field and cross included.
+ * <p>
+ * The crafting table's recipe-book button is pinned beside them: the theme's bevel with the item it
+ * carries is the client's button sprite.
  */
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
@@ -44,6 +59,21 @@ class WindowVanillaOracleTest {
 
     /** the vanilla slot cell's side, in Minecraft pixels */
     private static final int SLOT = 18;
+
+    /** the output pixels a Minecraft pixel is laid at on a side */
+    private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    private static final String ANVIL = "minecraft:gui/container/anvil";
+
+    private static final String TEXT_FIELD = "minecraft:gui/sprites/container/anvil/text_field";
+
+    private static final String TEXT_FIELD_DISABLED = "minecraft:gui/sprites/container/anvil/text_field_disabled";
+
+    private static final String ERROR = "minecraft:gui/sprites/container/anvil/error";
+
+    private static final String RECIPE_BUTTON = "minecraft:gui/sprites/recipe_book/button";
+
+    private static final String KNOWLEDGE_BOOK = "minecraft:item/knowledge_book";
 
     private static RendererContext textures;
 
@@ -58,7 +88,7 @@ class WindowVanillaOracleTest {
      * Every screen the client blits whole is named by the screen the renderer lays it out as, so this
      * asserts the roster's own numbers against the art rather than against a second table beside it.
      * The chest sheet is the exception and carries its cells by hand: no screen is that shape, one
-     * sheet serving every row count through a composition the client takes two draws over.
+     * sheet serving each row count the client opens through a composition it takes two draws over.
      *
      * @param id the texture id, without the {@code textures/} prefix and the extension
      * @param width the drawn width in Minecraft pixels
@@ -107,26 +137,37 @@ class WindowVanillaOracleTest {
         return of("minecraft:gui/container/crafting_table", ScreenMetrics.craftingTable());
     }
 
-    private static PixelBuffer paint(Container container, int scale) {
-        PixelBuffer buffer = PixelBuffer.create(container.width() * scale, container.height() * scale);
+    /** Paints a container's panel and every cell at the font's scale. */
+    private static PixelBuffer paint(Container container) {
+        PixelBuffer buffer = PixelBuffer.create(container.width() * S, container.height() * S);
         Window window = Window.Theme.VANILLA;
 
-        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height(), scale));
+        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height()));
         for (int[] cell : container.cells())
-            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2], scale));
+            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2]));
 
         return buffer;
     }
 
+    /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
+    private static PixelBuffer readDown(PixelBuffer painted) {
+        return painted.resize(painted.width() / S, painted.height() / S, Resample.NEAREST);
+    }
+
     private static PixelBuffer shipped(Container container) {
-        Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture(container.id()), textures.findFlipbook(container.id()), 0);
-        assertThat("shipped texture '" + container.id() + "' resolves", resolved.isPresent(), is(true));
+        return texture(container.id());
+    }
+
+    /** Resolves a shipped texture at tick zero, asserting that it resolves. */
+    private static PixelBuffer texture(String id) {
+        Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), 0);
+        assertThat("shipped texture '" + id + "' resolves", resolved.isPresent(), is(true));
         return resolved.get();
     }
 
     /** Counts pixels where the painted panel and the shipped texture disagree, over the drawn rect. */
     private static int differingPixels(Container container) {
-        PixelBuffer painted = paint(container, 1);
+        PixelBuffer painted = readDown(paint(container));
         PixelBuffer art = shipped(container);
         int differing = 0;
 
@@ -165,7 +206,7 @@ class WindowVanillaOracleTest {
     @DisplayName("the crafting table leaves only its craft arrow")
     void craftingTableLeavesOnlyItsArrow() {
         Container container = craftingTable();
-        PixelBuffer painted = paint(container, 1);
+        PixelBuffer painted = readDown(paint(container));
         PixelBuffer art = shipped(container);
 
         int differing = 0;
@@ -206,17 +247,18 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("every chest row count reproduces the panel the client composes for it")
+    @DisplayName("each chest row count the client opens reproduces the panel the client composes for it")
     void everyChestRowCountReproducesItsComposedPanel() {
         for (int rows : new int[] { 1, 2, 3, 6 }) {
             MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(rows), true);
-            PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
             Window window = Window.Theme.VANILLA;
 
-            window.paintPanel(painted, layout.box(1));
+            window.paintPanel(chrome, layout.box());
             for (ScreenMetrics.Cell cell : layout.cells())
-                window.paintCell(painted, Window.Box.of(cell, 1));
+                window.paintCell(chrome, Window.Box.of(cell));
 
+            PixelBuffer painted = readDown(chrome);
             PixelBuffer art = composedChest(rows);
             assertThat("a chest of " + rows + " rows is as tall as its composition",
                 layout.height(), is(equalTo(art.height())));
@@ -234,15 +276,16 @@ class WindowVanillaOracleTest {
     @DisplayName("the anvil leaves only the dead field its art carries and the client always covers")
     void theAnvilLeavesOnlyTheDeadFieldItsArtCarries() {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
-        PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+        PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
         Window window = Window.Theme.VANILLA;
 
-        window.paintPanel(painted, layout.box(1));
+        window.paintPanel(chrome, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
-            window.paintCell(painted, Window.Box.of(cell, 1));
+            window.paintCell(chrome, Window.Box.of(cell));
         for (Mark.Placement mark : layout.marks())
-            window.paintDecoration(painted, Window.Box.of(mark, 1), mark.kind());
+            window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
 
+        PixelBuffer painted = readDown(chrome);
         Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
@@ -270,15 +313,14 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the dead field really is flat red, so slicing that art would draw it")
+    @DisplayName("the dead field really is flat red, the hole the client covers with the field sprite")
     void theDeadFieldIsFlatRed() {
         Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
-        // This is what makes the field a decoration rather than something a sliced window could
-        // supply: a Window.Sliced over this texture paints the panel as authored, and the panel as
-        // authored has a red hole in it.
+        // This is the hole the client covers by blitting the field sprite over it on every draw, which
+        // is why a sliced window draws that sprite there rather than showing the art.
         int red = 0;
         for (int y = 20; y < 36; y++)
             for (int x = 59; x < 169; x++)
@@ -288,32 +330,106 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the field decoration is the shipped text-field sprite")
+    @DisplayName("each field decoration is the shipped text-field sprite of its form")
     void theFieldDecorationIsTheShippedSprite() {
-        Possible<PixelBuffer> resolved =
-            Flipbook.atTick(textures.resolveTexture("minecraft:gui/sprites/container/anvil/text_field_disabled"), textures.findFlipbook("minecraft:gui/sprites/container/anvil/text_field_disabled"), 0);
-        assertThat("the field sprite resolves", resolved.isPresent(), is(true));
-        PixelBuffer sprite = resolved.get();
+        Map<Mark, String> sprites = new EnumMap<>(Mark.class);
+        sprites.put(Mark.FIELD, TEXT_FIELD);
+        sprites.put(Mark.FIELD_DISABLED, TEXT_FIELD_DISABLED);
+        Map<Mark, Integer> differing = new EnumMap<>(Mark.class);
 
-        Mark field = Mark.FIELD;
-        int w = Window.Extent.of(field).width();
-        int h = Window.Extent.of(field).height();
+        sprites.forEach((field, id) -> {
+            PixelBuffer sprite = texture(id);
+            int w = Window.Extent.of(field).width();
+            int h = Window.Extent.of(field).height();
 
-        // On a panel-filled buffer, because the well hands two corners over the way the frame's own
-        // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
-        // there is the panel's own grey.
-        PixelBuffer painted = PixelBuffer.create(w, h);
+            // On a panel-filled buffer, because the well hands two corners over the way the frame's own
+            // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
+            // there is the panel's own grey.
+            PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+            chrome.fill(Window.Palette.VANILLA.panel());
+            Window.Theme.VANILLA.paintDecoration(chrome, Window.Box.of(field.at(0, 0)), field);
+            PixelBuffer painted = readDown(chrome);
+
+            int count = 0;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    if (painted.getPixel(x, y) != sprite.getPixel(x, y)) count++;
+            differing.put(field, count);
+        });
+
+        assertThat("Minecraft pixels from the sprite, each form", differing,
+            is(equalTo(Map.of(Mark.FIELD, 0, Mark.FIELD_DISABLED, 0))));
+    }
+
+    @Test
+    @DisplayName("the anvil in each state its slots give is the client's frame, its field and cross included")
+    void theAnvilInEachStateItsSlotsGiveIsTheClientsFrame() {
+        PixelBuffer sheet = texture(ANVIL);
+        List<Integer> differing = new ArrayList<>();
+
+        for (int state = 0; state < 8; state++) {
+            int held = state;
+            boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
+            MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0), true);
+            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
+            Window window = Window.Theme.VANILLA;
+
+            window.paintPanel(chrome, layout.box());
+            for (ScreenMetrics.Cell cell : layout.cells())
+                window.paintCell(chrome, Window.Box.of(cell));
+            for (Mark.Placement mark : layout.marks())
+                window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
+            PixelBuffer painted = readDown(chrome);
+
+            // The client's frame, from AnvilScreen's own draws: the sheet, then text_field at (59, 20)
+            // while the first input holds an item and text_field_disabled otherwise, then error at
+            // (99, 45) while either input holds one and the result holds none.
+            PixelBuffer frame = PixelBuffer.create(176, 166);
+            frame.blit(sheet.crop(0, 0, 176, 166), 0, 0, BlendMode.REPLACE);
+            frame.blit(texture(first ? TEXT_FIELD : TEXT_FIELD_DISABLED), 59, 20, BlendMode.NORMAL);
+            if ((first || second) && !result)
+                frame.blit(texture(ERROR), 99, 45, BlendMode.NORMAL);
+
+            int count = 0;
+            for (int y = 0; y < frame.height(); y++)
+                for (int x = 0; x < frame.width(); x++)
+                    if (painted.getPixel(x, y) != frame.getPixel(x, y)) count++;
+            differing.add(count);
+        }
+
+        assertThat("Minecraft pixels from the client's frame, slot states 0 to 7 by bit (first input, second, result)",
+            differing, is(equalTo(Collections.nCopies(8, 0))));
+    }
+
+    @Test
+    @DisplayName("the theme's recipe-book button with the knowledge book on its face is the client's sprite")
+    void theThemesRecipeButtonIsTheClientsSprite() {
+        Window.Extent extent = Window.Extent.of(Mark.BUTTON);
+        int w = extent.width();
+        int h = extent.height();
+
+        // Both on a panel-filled buffer, because each leaves its chamfered corners to what it stands on.
+        // The theme's bevel takes the item on its face as the menu lays an icon there.
+        PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+        chrome.fill(Window.Palette.VANILLA.panel());
+        Window.Theme.VANILLA.paintDecoration(chrome, new Window.Box(0, 0, w, h), Mark.BUTTON);
+        PixelBuffer theme = readDown(chrome);
+        Mark.Inset face = Mark.BUTTON.iconInset().orElseThrow();
+        theme.blit(texture(KNOWLEDGE_BOOK), face.x(), face.y(), BlendMode.NORMAL);
+
+        PixelBuffer client = PixelBuffer.create(w, h);
+        client.fill(Window.Palette.VANILLA.panel());
+        client.blit(texture(RECIPE_BUTTON), 0, 0, BlendMode.NORMAL);
+
+        Set<List<Integer>> differing = new HashSet<>();
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
-                painted.setPixel(x, y, Window.Palette.VANILLA.panel());
-        Window.Theme.VANILLA.paintDecoration(painted, Window.Box.of(field.at(0, 0), 1), field);
+                if (theme.getPixel(x, y) != client.getPixel(x, y)) differing.add(List.of(x, y));
 
-        int differing = 0;
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                if (painted.getPixel(x, y) != sprite.getPixel(x, y)) differing++;
-
-        assertThat(differing, is(equalTo(0)));
+        // The frame's two right-hand chamfers take the palette's ink for them, and the two face texels
+        // closing the sprite's book are painted beneath the item, which leaves them clear.
+        assertThat("the texels where the theme's button and its item are not the client's sprite", differing,
+            is(empty()));
     }
 
     @Test
@@ -340,8 +456,9 @@ class WindowVanillaOracleTest {
         assertThat("slot sprite resolves", resolved.isPresent(), is(true));
 
         PixelBuffer sprite = resolved.get();
-        PixelBuffer painted = PixelBuffer.create(SLOT, SLOT);
-        Window.Theme.VANILLA.paintCell(painted, Window.Box.of(SLOT, SLOT));
+        PixelBuffer chrome = PixelBuffer.create(SLOT * S, SLOT * S);
+        Window.Theme.VANILLA.paintCell(chrome, new Window.Box(0, 0, SLOT, SLOT));
+        PixelBuffer painted = readDown(chrome);
 
         int differing = 0;
         for (int y = 0; y < SLOT; y++)
@@ -352,16 +469,15 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("painting at scale replicates rather than resamples")
-    void paintingAtScaleReplicatesRatherThanResamples() {
-        Container container = shulkerBox();
-        PixelBuffer one = paint(container, 1);
-        PixelBuffer three = paint(container, 3);
+    @DisplayName("painting at the font's scale lays each Minecraft pixel as a block")
+    void paintingAtTheFontsScaleLaysEachMinecraftPixelAsABlock() {
+        PixelBuffer painted = paint(shulkerBox());
+        PixelBuffer blocks = readDown(painted).resize(painted.width(), painted.height(), Resample.NEAREST);
 
         int differing = 0;
-        for (int y = 0; y < container.height() * 3; y++)
-            for (int x = 0; x < container.width() * 3; x++)
-                if (three.getPixel(x, y) != one.getPixel(x / 3, y / 3)) differing++;
+        for (int y = 0; y < painted.height(); y++)
+            for (int x = 0; x < painted.width(); x++)
+                if (painted.getPixel(x, y) != blocks.getPixel(x, y)) differing++;
 
         assertThat(differing, is(equalTo(0)));
     }
@@ -371,8 +487,9 @@ class WindowVanillaOracleTest {
     void theMinimumPanelIsTheSmallestThatPaintsAWholeFrame() {
         Window.Extent minimum = Window.Theme.VANILLA.minimum();
 
-        PixelBuffer atFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Theme.VANILLA.paintPanel(atFloor, Window.Box.of(minimum.width(), minimum.height()));
+        PixelBuffer chromeAtFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        Window.Theme.VANILLA.paintPanel(chromeAtFloor, new Window.Box(0, 0, minimum.width(), minimum.height()));
+        PixelBuffer atFloor = readDown(chromeAtFloor);
 
         int painted = 0;
         for (int y = 0; y < minimum.height(); y++)
@@ -385,8 +502,9 @@ class WindowVanillaOracleTest {
         // that hand the highlight over to the shadow cut 6 each.
         assertThat("painted at the floor", painted, is(equalTo(minimum.width() * minimum.height() - 18)));
 
-        PixelBuffer belowFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Theme.VANILLA.paintPanel(belowFloor, Window.Box.of(minimum.width() - 1, minimum.height()));
+        PixelBuffer chromeBelowFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        Window.Theme.VANILLA.paintPanel(chromeBelowFloor, new Window.Box(0, 0, minimum.width() - 1, minimum.height()));
+        PixelBuffer belowFloor = readDown(chromeBelowFloor);
 
         int under = 0;
         for (int y = 0; y < minimum.height(); y++)

@@ -6,26 +6,44 @@ Load when touching a texture, model or subject lookup that can miss - `withMissi
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once. A face whose texture a pack ships but which cannot be read - zero bytes, a body the image
-reader refuses, a `.png.mcmeta` sidecar that does not parse, or an animation whose frame size does not
-divide the strip on both axes - draws it the same way, and is reported as unreadable rather than
-missing, because vanilla draws its missing sprite for all of them and a texture has no lower pack to
-show through. A sidecar that does not parse loses only its own texture: the index captures it as there
-and yielding nothing rather than failing the context load. The same holds for every texture an entity,
-a player or an item names beyond its own faces - an entity's base, overlay, carried-block and
-group-member textures, the equipment and armour layers and their pack-rule tiles, the elytra wings,
-the cape and the skin, the banner patterns, the trims and the glint - and for the textures that are
-no block's or item's: a fluid's still and flow faces, the two textures the portal shader samples, and
-a menu's named chrome art, which is sliced as the checkerboard rather than falling back to the
-vanilla panel. No option turns it off: a broken asset is drawn as broken, so a viewer can see it,
-rather than leaving a hole or dropping the subject - and that holds for a batch as well, so an atlas
-tile shows the checkerboard where a single render would.
+reader refuses, a `.png.mcmeta` sidecar that does not parse or carries an animation or texture section
+the client's codec refuses, or an animation whose frame size does not divide the strip on both axes -
+draws it the same way, and is reported as unreadable rather than missing, because vanilla draws its
+missing sprite for all of them and a texture has no lower pack to show through. A sidecar that does not
+parse loses only its own texture: the index captures it as there and yielding nothing rather than
+failing the context load; a refused section loses the texture too, its sidecar's other sections
+standing. A sidecar whose `gui` section the client's codec refuses loses its texture only where a GUI
+sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name field or
+cross or the recipe-book button - as the client's GUI atlas alone reads that section; read as a block
+or item texture it draws.
+The same holds for every texture an entity, a player or an item names beyond its own faces - an
+entity's base, overlay, carried-block and group-member textures, the equipment and armour layers and
+their pack-rule tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the
+glint - and for the textures that are no block's or item's: a fluid's still and flow faces, the two
+textures the portal shader samples, a menu's named chrome art, which is the checkerboard read across
+the sheet the client composes a shipped screen's panel from, and resized like any other art for a
+screen it ships no sheet for, rather than falling back to the vanilla panel, and a tooltip's
+background and frame, a menu's cell sprite and the anvil's name field or cross or the recipe-book
+button, each stretched over the client's whole sprite rect rather than falling back to a default. No
+option turns it off: a broken asset is drawn as broken, so a viewer can see it, rather than leaving a
+hole or dropping the subject - and that holds for a batch as well, so an atlas tile shows the
+checkerboard where a single render would.
 
 - **The seam is each texture read.** Each reads through the context's `withMissingTexture()`
   wrapper, which draws the checkerboard and reports the id, while the context's own `resolveTexture`
   keeps its three states - absent for a texture no pack ships, empty for one a pack ships that cannot
   be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
   never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
-  and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
+  and elytra kits, and the nine-slice kit's GUI-sprite read - wrap whatever they are handed, so a kit
+  draws the checkerboard whoever calls it.
+- **A GUI sprite's stand-in stretches.** The client's missing sprite carries no `gui.scaling`, so it
+  stretches over the rect whatever the sprite it stands for would have been sliced as, and a file that
+  cannot be read never reaches its atlas, sidecar and all. The context keeps such a file's sidecar, so
+  `NineSliceKit`'s GUI-sprite read takes the scaling from the sidecar only for a sprite that was read.
+  A tooltip style naming art no pack ships draws a box filling the whole rect, the text plus twelve
+  Minecraft pixels a side, and that is the canvas. A sprite whose `gui` section the client refuses is
+  not in the client's GUI atlas either, so `NineSliceKit`'s GUI-sprite read serves it with no pixels:
+  it is the stand-in, stretched, and reported unreadable.
 - **A report has two halves.** A line on stderr, which vanilla's missing item model alone does not
   print, and a `Substitution` in the result of every render that drew the stand-in - a second render
   of the same id records it again even where the log stays quiet, and a composite carries its
@@ -117,9 +135,12 @@ tile shows the checkerboard where a single render would.
   `(y < height / 2) ^ (x < width / 2)` with both halves integer division, so an odd dimension splits
   unevenly - seventeen texels is eight then nine. A literal that happens to equal it at even sizes is
   not it.
-- **Nothing misses on a vanilla-only stack**, which is why no gate can see any of this and why a
-  texture cannot be made missing by deleting the file - the renderer re-extracts it. Forcing the id to
-  answer empty is the only way in, and the visual drivers take `-PhideTextures` for exactly that.
-  A capture therefore sees the missing picture only where a driver is told to hide a texture, and
-  `AtlasRenderer` reaches **zero** artifacts, so `AtlasRendererMissingTextureTest` is not a supplement
-  to a gate there - it is the gate.
+- **Nothing a subject names misses on a vanilla-only stack**, which is why no gate can see most of
+  this and why a texture cannot be made missing by deleting the file - the renderer re-extracts it.
+  Forcing the id to answer empty is the only way in, and the visual drivers take `-PhideTextures` for
+  exactly that. A tooltip style is the exception: it names its own sprite ids, so a style naming a
+  namespace no selected pack ships misses on any stack, and the tooltip sweep's styled vanilla row
+  compares the stretched checkerboard against the client's own. A capture therefore sees the missing
+  picture only where a driver is told to hide a texture or a tooltip style names art no pack ships,
+  and `AtlasRenderer` reaches **zero** artifacts, so `AtlasRendererMissingTextureTest` is not a
+  supplement to a gate there - it is the gate.

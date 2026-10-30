@@ -1,11 +1,11 @@
 """Authors the chrome slicer corpus that ChromeSlicerCorpusTest reads.
 
-Every fixture is drawn from a six-colour palette and geometric primitives, so its intended
-nine-slice and its resize ground truth - corner rects, motifs with their anchor and count, periods,
-monotone bands - come from the drawing code rather than from a decomposition read back off the
-slicer. Each fixture's row in manifest.json carries that truth beside the border, kind and
-stretch_inner it declares in vanilla's own ``gui.scaling`` shape, and the manifest's ``steps`` map
-names the fixtures that exercise each detector step. The test holds every step to a fixture and
+Every fixture is drawn from a six-colour palette and geometric primitives, so its resize ground
+truth - corner rects, motifs with their anchor and count, periods, monotone bands - comes from the
+drawing code rather than from a decomposition read back off the slicer, which derives every depth
+from the fixture's pixels. Each fixture's row in manifest.json carries that truth beside the
+stretch_inner the test decomposes it with, and the manifest's ``steps`` map names the fixtures that
+exercise each detector step. The test holds every step to a fixture and
 every fixture to a step, so a new fixture is a function here, its call in ``author``, and its
 ``steps`` row.
 
@@ -92,25 +92,26 @@ def frame(px, w, h, c, inset=0):
     rect(px, w - 1 - inset, inset, w - 1 - inset, h - 1 - inset, c)
 
 
-def emit(name, im, border=None, kind="nine_slice", stretch_inner=None, note="", target=None,
-         corner=None, motifs=None, periods=None, monotone=None, step=""):
+def emit(name, im, corner=None, stretch_inner=None, note="", target=None,
+         motifs=None, periods=None, monotone=None, step=""):
     """Encodes one fixture and records its manifest row.
 
-    ``border``, ``kind`` and ``stretch_inner`` are the declaration, which the test reads off the
-    row. ``corner``, ``motifs``, ``periods`` and ``monotone`` are the resize ground truth - authored
-    here from the generator's own geometry, never read back off a slicer. They are what the resize
-    tier asserts; the declaration alone asserts nothing about a resize.
+    ``stretch_inner`` is what the test decomposes the fixture with, read off the row. ``corner``,
+    ``motifs``, ``periods`` and ``monotone`` are the resize ground truth - authored here from the
+    generator's own geometry, never read back off a slicer - and are what the resize tier asserts.
+    ``corner`` is the corner art the drawing puts in each corner, one depth for all four sides or a
+    dict naming each, and none where the fixture has no corner to keep.
     """
     buffer = io.BytesIO()
     im.save(buffer, format="PNG", optimize=True)
     data = buffer.getvalue()
-    if corner is None and isinstance(border, int):
-        corner = [border] * 4
-    elif corner is None and isinstance(border, dict):
-        corner = [border["left"], border["top"], border["right"], border["bottom"]]
+    if isinstance(corner, int):
+        corner = [corner] * 4
+    elif isinstance(corner, dict):
+        corner = [corner["left"], corner["top"], corner["right"], corner["bottom"]]
     FIXTURES.append((name + ".png", im, data, {
         "name": name + ".png", "size": "%dx%d" % im.size, "bytes": len(data),
-        "border": border, "kind": kind, "stretch_inner": stretch_inner,
+        "stretch_inner": stretch_inner,
         "targets": target or [], "note": note, "step": step,
         "resize": {"corner": corner, "motifs": motifs or [], "periods": periods or {},
                    "monotone": monotone or []},
@@ -127,7 +128,7 @@ def bevel():
     rect(px, 1, 1, 1, h - 2, LIT)
     rect(px, 2, h - 2, w - 2, h - 2, DIM)
     rect(px, w - 2, 2, w - 2, h - 2, DIM)
-    emit("a01_plain_bevel", im, border=3, note="symmetric 3 px bevel, constant middle",
+    emit("a01_plain_bevel", im, corner=3, note="symmetric 3 px bevel, constant middle",
          target=[[24, 24], [176, 222], [40, 24], [24, 200]])
 
 
@@ -146,7 +147,7 @@ def chamfer():
             for j in range(4 - i):
                 px[cx + sx * j, cy + sy * i] = NIL
             px[cx + sx * (4 - i), cy + sy * i] = INK
-    emit("a02_chamfer_corner", im, border=6, note="4 px diagonal staircase, alpha cut outside it",
+    emit("a02_chamfer_corner", im, corner=6, note="4 px diagonal staircase, alpha cut outside it",
          target=[[32, 32], [200, 60], [60, 200]])
 
 
@@ -165,7 +166,7 @@ def ornate():
             px[cx + sx * 3, cy + sy * j] = ACC
         px[cx + sx * 3, cy + sy * 3] = LIT
         px[cx + sx * 6, cy + sy * 6] = LIT
-    emit("a03_ornate_corner", im, border=12, note="10 px two-colour corner glyph, 1 px edge line",
+    emit("a03_ornate_corner", im, corner=12, note="10 px two-colour corner glyph, 1 px edge line",
          target=[[40, 40], [180, 40], [40, 180], [26, 26]])
 
 
@@ -180,7 +181,7 @@ def centred_top():
     for i in range(7):
         rect(px, cx - i, 0 + (6 - i), cx + i, 6 - i, ACC)
     px[cx, 0] = LIT
-    emit("a04_centred_top_ornament", im, border=8,
+    emit("a04_centred_top_ornament", im, corner=8,
          note="7 px tall crest centred on the top edge; no nine-slice cell can hold it",
          target=[[64, 24], [128, 24], [200, 24], [30, 24]],
          step="anchor CENTER, self-mirrored and on the band midpoint",
@@ -201,7 +202,7 @@ def stud_period():
         if y % 7 == 3:
             rect(px, 1, y, 4, y, ACC)
             rect(px, w - 5, y, w - 2, y, ACC)
-    emit("a05_stud_period_7_of_100", im, border=6,
+    emit("a05_stud_period_7_of_100", im, corner=6,
          note="stud every 7 px; 100 % 7 == 2 so the sprite itself already truncates a stud",
          target=[[100, 20], [107, 20], [103, 20], [176, 20]],
          step="stage-1 exact tiling at a period the band length does not divide",
@@ -220,7 +221,7 @@ def asymmetric():
     rect(px, 0, 0, w - 1, 4, LIT)
     rect(px, 0, 0, w - 1, 1, INK)
     rect(px, 0, h - 1, w - 1, h - 1, INK)
-    emit("a06_asymmetric_sides", im, border={"left": 9, "top": 5, "right": 2, "bottom": 1},
+    emit("a06_asymmetric_sides", im, corner={"left": 9, "top": 5, "right": 2, "bottom": 1},
          note="left art 9 px, right 2 px, top 5 px, bottom 1 px; no square border reproduces it",
          target=[[48, 32], [200, 32], [48, 120], [14, 8]])
 
@@ -237,7 +238,7 @@ def straddle():
                 x, y = 6 + dx, 6 + dy
                 if 0 <= x < w and 0 <= y < h:
                     px[x, y] = ACC if abs(dx) + abs(dy) > 4 else LIT
-    emit("a07_corner_straddle", im, border=14,
+    emit("a07_corner_straddle", im, corner=14,
          note="a 17 px diamond centred at (6,6); its lower-right lobe reaches into the edge cells",
          target=[[36, 36], [120, 36], [36, 120], [24, 24]])
 
@@ -255,7 +256,7 @@ def gradient_len():
     rect(px, 0, 0, w - 1, 2, (48, 24, 216, 255))
     rect(px, 0, h - 3, w - 1, h - 1, (228, 84, 96, 255))
     rect(px, 3, 3, w - 4, h - 4, (20, 20, 28, 200))
-    emit("a08_gradient_along_length", im, border=3, stretch_inner=True,
+    emit("a08_gradient_along_length", im, corner=3, stretch_inner=True,
          note="vertical ramp #3018D8 -> #E45460 down both side edges; a repeated row flattens it",
          target=[[32, 64], [32, 200], [32, 20], [120, 64]],
          step="period-0 band: a ramp has no repeat, and tiling it restarts the ramp",
@@ -280,7 +281,7 @@ def tall_repeat():
         depth = (1, 2, 3, 4, 3, 2, 1, 1, 1, 1, 1, 1)[phase]
         rect(px, 1, y, depth, y, ACC)
         rect(px, w - 1 - depth, y, w - 2, y, ACC)
-    emit("a09_repeat_taller_than_border", im, border=4,
+    emit("a09_repeat_taller_than_border", im, corner=4,
          note="wave of period 12 whose crest is 4 px deep; the repeat unit is 3x the border depth",
          target=[[96, 48], [100, 48], [180, 48], [48, 180]],
          step="stage-1 exact tiling where the repeat unit is deeper than one slice",
@@ -288,7 +289,7 @@ def tall_repeat():
 
 
 def whole_sprite_border():
-    """A10 - declared border leaves a 1 px middle in each axis."""
+    """A10 - a 7 px border that leaves a 1 px middle in each axis."""
     w = h = 15
     im = new(w, h, MID)
     px = im.load()
@@ -300,24 +301,23 @@ def whole_sprite_border():
     rect(px, 5, 5, w - 6, h - 6, INK)
     rect(px, 6, 6, w - 7, h - 7, LIT)
     rect(px, 7, 7, 7, 7, ACC)
-    emit("a10_border_leaves_one_px", im, border=7,
+    emit("a10_border_leaves_one_px", im, corner=7,
          note="15 px sprite, border 7, middle exactly 1 px; six concentric rings",
          target=[[15, 15], [15, 90], [90, 15], [8, 8], [200, 200]])
 
 
 def over_constrained():
-    """A11 - declared border sum exceeds the sprite, as defrosted's slider_handle does at draw."""
+    """A11 - corner art summing past the sprite, as defrosted's slider_handle border does at draw."""
     w, h = 40, 40
     im = new(w, h, MID)
     px = im.load()
     frame(px, w, h, INK)
     rect(px, 1, 1, 24, 24, ACC)
     rect(px, w - 25, h - 25, w - 2, h - 2, LIT)
-    emit("a11_over_constrained_border", im, border=25,
+    emit("a11_over_constrained_border", im, corner=25,
          note="border 25 + 25 = 50 > 40; every target smaller than 50 px overlaps two corners",
          target=[[40, 40], [8, 20], [50, 50], [200, 200]],
-         step="a declaration vanilla's own validate refuses, so there is nothing to honour",
-         corner=None)
+         step="corner art reaching past half the sprite, which no depth the sanity bound allows can hold")
 
 
 def zero_side():
@@ -331,7 +331,7 @@ def zero_side():
     rect(px, w - 1, 0, w - 1, h - 1, (0, 0, 0, 191))
     rect(px, 1, 1, w - 2, 1, (255, 255, 255, 51))
     rect(px, 1, 1, 1, h - 1, (255, 255, 255, 51))
-    emit("a12_zero_bottom_border", im, border={"left": 2, "top": 2, "right": 2, "bottom": 0},
+    emit("a12_zero_bottom_border", im, corner={"left": 2, "top": 2, "right": 2, "bottom": 0},
          note="bottom edge and both bottom corners are zero-height cells",
          target=[[40, 24], [130, 24], [20, 24], [40, 60]])
 
@@ -350,7 +350,7 @@ def noise_interior():
     frame(px, w, h, INK)
     rect(px, 1, 1, w - 2, 1, LIT)
     rect(px, 1, h - 2, w - 2, h - 2, DIM)
-    emit("a13_noise_interior", im, border=3,
+    emit("a13_noise_interior", im, corner=3,
          note="no two columns are equal; a border inferred from where the art stops finds nothing",
          target=[[100, 20], [200, 20], [40, 20], [100, 60]])
 
@@ -363,7 +363,7 @@ def inset_margin():
     frame(px, w, h, MID, inset=6)
     frame(px, w, h, ACC, inset=7)
     rect(px, 8, 8, w - 9, h - 9, (16, 16, 24, 216))
-    emit("a14_transparent_inset_margin", im, border=9,
+    emit("a14_transparent_inset_margin", im, corner=9,
          note="edge columns 0..5 are alpha 0 and identical, so a first-difference scan answers 0",
          target=[[40, 40], [160, 40], [40, 160], [20, 20]])
 
@@ -388,7 +388,7 @@ def alpha_graded():
         for j in range(5):
             px[cx + sx * j, cy] = (186, 148, 81, 255)
             px[cx, cy + sy * j] = (186, 148, 81, 255)
-    emit("a15_alpha_graded_edge", im, border=14, stretch_inner=True,
+    emit("a15_alpha_graded_edge", im, corner=14, stretch_inner=True,
          note="alpha ramps 255 -> 184 over columns 5..12; a repeated edge column hard-cuts the fade",
          target=[[48, 48], [200, 48], [48, 200], [28, 28]])
 
@@ -404,7 +404,7 @@ def diagonal_hatch():
                 px[x, y] = ACC
     frame(px, w, h, INK)
     rect(px, 8, 8, w - 9, h - 9, MID)
-    emit("a16_diagonal_hatch_border", im, border=8,
+    emit("a16_diagonal_hatch_border", im, corner=8,
          note="hatch phase is (x+y) % 6; horizontal and vertical repeats disagree at every corner",
          target=[[64, 64], [64, 70], [130, 64], [64, 130]],
          step="one period per band, where the two axes disagree about phase",
@@ -421,7 +421,7 @@ def double_ring():
     frame(px, w, h, LIT, inset=2)
     frame(px, w, h, MID, inset=3)
     frame(px, w, h, ACC, inset=4)
-    emit("a17_double_ring", im, border=5,
+    emit("a17_double_ring", im, corner=5,
          note="rings at inset 0, 2 and 4; a scan stopping at the first constant column answers 1",
          target=[[40, 40], [160, 40], [40, 160], [12, 12]])
 
@@ -438,7 +438,7 @@ def corner_l_shape():
                 px[x0 + sx * j, y0 + sy * 1] = ACC
             for j in range(3):
                 px[x0 + sx * 1, y0 + sy * j] = LIT
-    emit("a18_l_shaped_corner", im, border={"left": 16, "top": 3, "right": 16, "bottom": 3},
+    emit("a18_l_shaped_corner", im, corner={"left": 16, "top": 3, "right": 16, "bottom": 3},
          note="the corner cell must be 16 wide and 3 tall; one square border cannot hold it",
          target=[[64, 32], [200, 32], [64, 120], [30, 8]])
 
@@ -451,7 +451,7 @@ def tile_not_dividing():
     frame(px, w, h, INK)
     rect(px, 3, 3, 9, 9, ACC)
     px[6, 6] = LIT
-    emit("a19_tile_13", im, border=None, kind="tile",
+    emit("a19_tile_13", im,
          note="13 px tile; every target below clips the last column and row mid-motif",
          target=[[13, 13], [176, 222], [100, 100], [7, 7]])
 
@@ -459,7 +459,7 @@ def tile_not_dividing():
 def flat_fill():
     """A20 - a single colour at 64 px square; any border reproduces it."""
     im = new(64, 64, (58, 52, 70, 255))
-    emit("a20_flat_fill", im, border=4,
+    emit("a20_flat_fill", im, corner=4,
          note="one colour; the slicer must not invent a border from an image that has none",
          target=[[64, 64], [3, 3], [400, 60]])
 
@@ -467,12 +467,12 @@ def flat_fill():
 def one_pixel():
     """A21 - the degenerate 1x1 and 3x3 pair."""
     im = new(1, 1, ACC)
-    emit("a21_one_pixel", im, border=0,
+    emit("a21_one_pixel", im, corner=0,
          note="1x1 with border 0; every cell but the centre is empty", target=[[1, 1], [40, 40]])
     im = new(3, 3, MID)
     px = im.load()
     frame(px, 3, 3, INK)
-    emit("a22_three_px_ring", im, border=1,
+    emit("a22_three_px_ring", im, corner=1,
          note="3x3 with border 1; the middle is a single pixel", target=[[3, 3], [176, 222], [2, 2]])
 
 
@@ -485,7 +485,7 @@ def notch_into_interior():
     rect(px, 1, 1, w - 2, 2, DIM)
     rect(px, 1, h - 3, w - 2, h - 2, DIM)
     rect(px, 58, 0, 69, 8, ACC)                        # 12 wide, 6 px past a 3 px border
-    emit("a23_notch_into_interior", im, border={"left": 3, "top": 9, "right": 3, "bottom": 3},
+    emit("a23_notch_into_interior", im, corner={"left": 3, "top": 9, "right": 3, "bottom": 3},
          note="a 12 px centred notch reaching 6 px past the top border into the interior",
          target=[[128, 64], [256, 64], [128, 128], [40, 64]],
          step="band depth from both seed orders, scored by interior area",
@@ -500,7 +500,7 @@ def majority_edge_feature():
     frame(px, w, h, INK)
     rect(px, 1, 1, w - 2, 4, DIM)
     rect(px, 18, 0, 77, 4, ACC)                        # 60 of the band's 90 slices
-    emit("a24_majority_edge_feature", im, border={"left": 3, "top": 5, "right": 3, "bottom": 3},
+    emit("a24_majority_edge_feature", im, corner={"left": 3, "top": 5, "right": 3, "bottom": 3},
          note="the per-residue modal slice is the feature's, not the background's",
          target=[[96, 32], [192, 32], [300, 32], [40, 32]],
          step="stage-2 tile candidates: modal versus band-start versus band-end",
@@ -518,7 +518,7 @@ def gutter_merge():
     # band so the background stays modal, and 7 conforming slices between - one short of the gap.
     for x0, x1, c in ((39, 52, ACC), (60, 69, LIT), (77, 88, ALT)):
         rect(px, x0, 0, x1, 2, c)
-    emit("a25_gutter_merge", im, border=3,
+    emit("a25_gutter_merge", im, corner=3,
          note="three runs of 14, 10 and 12 slices with 7-slice conforming gutters; the gap merges them",
          target=[[128, 32], [200, 32], [256, 32], [90, 32]],
          step="deviation runs merged across a gap shorter than CONFORM_GAP",
@@ -534,7 +534,7 @@ def two_centres():
     rect(px, 1, 1, w - 2, 2, DIM)
     rect(px, 57, 0, 62, 2, ACC)                        # band-local 54, the true centre
     rect(px, 37, 0, 40, 2, ALT)                        # band-local 34, a third along
-    emit("a26_two_centres", im, border=3,
+    emit("a26_two_centres", im, corner=3,
          note="one centred feature and one at a third; one sample cannot tell START+34 from a third",
          target=[[120, 32], [240, 32], [180, 32], [60, 32]],
          step="anchor fallback to the nearer end when a feature is neither mirrored nor centred",
@@ -554,7 +554,7 @@ def dual_period():
         rect(px, 0, y, 2, y + 1, ACC)                  # period 4 along the left band
     for y in range(9, 86, 23):
         rect(px, 0, y, 2, y + 2, ALT)                  # period 23, co-existing
-    emit("a27_dual_period", im, border=3,
+    emit("a27_dual_period", im, corner=3,
          note="dashes every 4 px and tabs every 23 px in one band; lcm 92 exceeds the search bound",
          target=[[64, 92], [64, 184], [64, 138], [64, 46]],
          step="one period per band - the declared model limit",
@@ -574,7 +574,7 @@ def corner_bracket():
     # mirror twin, because the twin rule compares spans and never pixels.
     rect(px, 0, 0, 13, 2, ACC); rect(px, 0, 0, 2, 13, ACC)
     rect(px, w - 14, 0, w - 1, 2, ALT); rect(px, w - 3, 0, w - 1, 13, ALT)
-    emit("a28_corner_bracket", im, border=3,
+    emit("a28_corner_bracket", im, corner=3,
          note="the bracket is a corner rect plus a START feature in two bands, adjacent at any size",
          target=[[96, 64], [192, 64], [96, 128], [40, 40]],
          step="mirror-twin anchoring, and a tile index taken from outside every feature",
@@ -596,7 +596,7 @@ def twin_lattice():
     for y in range(56, 88):
         if y % 8 < 2:
             rect(px, 3, y, w - 4, y, LIT)              # lattice B, rows 56..87, same period
-    emit("a29_twin_lattice", im, border=3,
+    emit("a29_twin_lattice", im, corner=3,
          note="two period-8 row lattices of 32 rows each; the tie is real and area breaks it",
          target=[[96, 96], [192, 96], [96, 192], [48, 48]],
          step="equally long periodic runs are candidates, not one winner")
@@ -610,7 +610,7 @@ def odd_centre():
     frame(px, w, h, INK)
     rect(px, 1, 1, w - 2, 1, DIM)
     rect(px, 46, 0, 49, 1, ACC)
-    emit("a30_odd_centre", im, border=2,
+    emit("a30_odd_centre", im, corner=2,
          note="a 4 px feature in a 93 slice band; both centring parities are wrong at once",
          target=[[97, 32], [194, 32], [151, 32], [51, 32]],
          step="CENTER placement carries a signed nudge off the left-biased floor",
@@ -624,7 +624,7 @@ def one_px_border():
     px = im.load()
     frame(px, w, h, INK)
     rect(px, 38, 0, 41, 0, ACC)
-    emit("a31_one_px_border", im, border=1,
+    emit("a31_one_px_border", im, corner=1,
          note="1 px deep bands and 1x1 corner rects, with a 4 px centred feature in the top band",
          target=[[80, 40], [160, 40], [80, 80], [20, 20]],
          step="a band one pixel deep, and 1x1 corner rects",
@@ -657,8 +657,8 @@ def write(out, manifest):
     # would put CRLF into a file whose blob is LF.
     (out / "manifest.json").write_text(manifest_text(manifest), encoding="utf-8", newline="\n")
     for m in manifest["fixtures"]:
-        print("%-32s %-8s %5d B  border=%-34s %s" % (
-            m["name"], m["size"], m["bytes"], json.dumps(m["border"]), m["note"]))
+        print("%-32s %-8s %5d B  corner=%-16s %s" % (
+            m["name"], m["size"], m["bytes"], json.dumps(m["resize"]["corner"]), m["note"]))
     print("%d files, %d bytes of PNG, written to %s" % (
         len(FIXTURES), sum(len(data) for _, _, data, _ in FIXTURES), out))
 

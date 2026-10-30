@@ -6,31 +6,38 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.menu",
-    "asset_dirty": false,
-    "asset_sha": "f7aa87338a8bc20907a03f0db6cba69c7a22cbdc",
+    "asset_content_digest": "d2533076bf16cb9f897a709d923ddc46011b8a58b5ba864fd23cf8728a235ab3",
+    "asset_dirty": true,
+    "asset_sha": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
     "counts": {
       "failed": 0,
-      "rows": 10
+      "rows": 15
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "menuParityVanilla",
-    "reason": "the anvil drawn with its four marks, its name field and both caret forms; two rows each, both byte-identical to the client, so the sum holds at 0.0407 and the whole of it is still the crafting table's four authored specks",
+    "reason": "86ad2430 adds anvil_apple (an enchanted golden apple named by the client's setValue) and anvil_highlight (a name whose three scroll passes leave the cursor out of view, the blue band drawn); two whole-tree boots and a menus-only boot agree on both and hold the other 9825; sweep.menu gains 2 rows at 1978 and 1772 output px against today's renderer, 13 held; a second root reads 0 movers over 15 rows",
+    "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
-      "entities": 402,
+      "blocks": 1096,
+      "entities": 406,
       "glint": 330,
+      "idle": 2547,
       "items": 479,
-      "players": 2
+      "menus": 15,
+      "players": 2,
+      "tooltips": 46,
+      "walk": 4896
     },
-    "reference_manifest_digest": "f1ebd44e1d0736ee7b24836e6fcd98339f5eead4994134440fc0486aea52d668",
-    "timestamp": "2026-08-15T15:31:44Z",
+    "reference_manifest_digest": "30d1347e7cf5028a7729b972f0297318898e8f15225092d3d1da8476e8410182",
+    "timestamp": "2026-10-30T19:06:03Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13757
+    "wall_time_ms": 4614
   },
   "rows": [
     {
@@ -42,11 +49,51 @@
       "vanilla_coverage": "0.9994"
     },
     {
+      "differing_pixels": "1978",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "4.4620",
+      "status": "ok",
+      "subject": "anvil_apple",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "anvil_error",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "1772",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "5.1662",
+      "status": "ok",
+      "subject": "anvil_highlight",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "anvil_input",
+      "vanilla_coverage": "0.9994"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9994",
       "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "anvil_named",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "0",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "0.0000",
+      "status": "ok",
+      "subject": "anvil_result",
       "vanilla_coverage": "0.9994"
     },
     {
@@ -82,9 +129,9 @@
       "vanilla_coverage": "0.9995"
     },
     {
-      "differing_pixels": "16",
+      "differing_pixels": "0",
       "java_coverage": "0.9994",
-      "mean_argb_delta": "0.0407",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "crafting_table",
       "vanilla_coverage": "0.9994"
@@ -116,15 +163,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 10,
-      "<0.50": 10,
-      "<0.75": 10,
-      "<1.00": 10,
+      "<0.25": 13,
+      "<0.50": 13,
+      "<0.75": 13,
+      "<1.00": 13,
       "failed": 0,
-      "total": 10
+      "total": 15
     },
     "failed": 0,
-    "rows": 10,
-    "sum": "0.0407"
+    "rows": 15,
+    "sum": "9.6282"
   }
 }

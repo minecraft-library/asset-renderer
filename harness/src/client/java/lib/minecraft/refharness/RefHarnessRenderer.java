@@ -7,6 +7,7 @@ import lib.minecraft.refharness.api.SweepRunner;
 import lib.minecraft.refharness.api.TargetFilter;
 import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
 import lib.minecraft.refharness.frame.BlockFrameRenderer;
+import lib.minecraft.refharness.pip.TextureReadback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -113,17 +114,22 @@ public final class RefHarnessRenderer {
     }
 
     /**
-     * Total subjects whose render or write threw, across every sweep this run drove.
+     * Total subjects whose render or write failed, across every sweep this run drove.
      *
      * <p>A failed subject writes no PNG and leaves the previous run's file standing, so a partial
      * sweep produces a tree that hashes cleanly minus the files it did not refresh - which is
      * indistinguishable, in a manifest, from a whole one. The count was reachable only by reading
      * {@code failed=} out of a log nobody kept; it is the run's exit status now.
      *
+     * <p>It sums two sources, because a subject can fail on either side of its copy. The runners'
+     * tallies count a render that threw and a PNG directory that could not be made;
+     * {@link TextureReadback#failedWrites()} counts a PNG write that failed inside the copy's callback,
+     * a frame or more after the runner had counted that subject rendered.
+     *
      * @return the summed failure tally
      */
     static int failedSubjects() {
-        return runners.stream().mapToInt(runner -> runner.tally().failed()).sum();
+        return runners.stream().mapToInt(runner -> runner.tally().failed()).sum() + TextureReadback.failedWrites();
     }
 
     static void tick(Minecraft client) {

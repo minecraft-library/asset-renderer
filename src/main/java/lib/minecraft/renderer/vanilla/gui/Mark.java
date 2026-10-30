@@ -10,7 +10,8 @@ import java.util.Optional;
 
 /**
  * A mark a screen places beside its cells - the arrow between a crafting grid and its result, the
- * raised button that opens a recipe book, the plus between an anvil's two inputs.
+ * raised button that opens a recipe book, the plus between an anvil's two inputs, the cross over an
+ * anvil's arrow.
  * <p>
  * Each constant is a kind rather than a placement: what a mark holds - where an icon opens on its
  * face, the text run its well takes - is a property of the shape, so every arrow is one arrow and
@@ -35,11 +36,13 @@ public enum Mark {
     ARROW,
 
     /**
-     * A raised button carrying an item's icon.
+     * The raised button that opens a recipe book, carrying an item's icon on its face.
      * <p>
-     * Its face carries an item rather than a sprite, because the client's own button is that: the
-     * sprite is a frame with an item's texture composited onto it, so naming the item hands a pack
-     * that redraws it a redrawn button in the same move.
+     * The client draws it as one sprite, a raised frame with that item's picture on it and two texels
+     * of the book the item's own texture leaves clear. The item is named so a button a window draws
+     * from rules carries it on its face, over those two texels, and a pack that redraws the item
+     * redraws that button's book in the same move; a window drawing the client's sprite draws the
+     * sprite's own book in its place, which the item does not reach.
      */
     BUTTON {
 
@@ -60,19 +63,42 @@ public enum Mark {
     /** The hammer above an anvil's title. */
     HAMMER,
 
-    /** The text field an anvil renames through. */
+    /**
+     * The text field an anvil renames through, as the client draws it while the first input holds an
+     * item.
+     */
     FIELD {
-
-        /** where the text opens, how far it runs, how much it holds and what draws it */
-        private static final @NotNull TextWell WELL = new TextWell(new Inset(3, 4), 103, 50, 0xFFFFFFFF);
 
         /** {@inheritDoc} */
         @Override
         public @NotNull Optional<TextWell> textWell() {
-            return Optional.of(WELL);
+            return Optional.of(NAME_WELL);
         }
 
-    };
+    },
+
+    /**
+     * The same field while the first input is empty, in the darker inks the client draws it in then;
+     * it holds the same text run, the client's one field drawing its text alike editable or not.
+     */
+    FIELD_DISABLED {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<TextWell> textWell() {
+            return Optional.of(NAME_WELL);
+        }
+
+    },
+
+    /** The cross an anvil draws over its arrow while an input holds an item and its result holds none. */
+    ERROR;
+
+    /**
+     * where the name field's text opens, how far it runs, how much it holds and what draws it, which
+     * both of the field's forms share
+     */
+    private static final @NotNull TextWell NAME_WELL = new TextWell(new Inset(3, 4), 103, 50, 0xFFFFFFFF);
 
     /**
      * Where an icon opens on this mark's face, empty where the mark is drawn whole.
@@ -108,7 +134,7 @@ public enum Mark {
      *
      * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
      * @param y the top edge of its box
-     * @param icon the item drawn on its face
+     * @param icon the item the mark's face carries, laid on it where a window draws the mark from rules
      * @return the placed mark
      */
     public @NotNull Placement at(int x, int y, @NotNull ResourceId icon) {
@@ -145,7 +171,8 @@ public enum Mark {
      * @param kind which mark
      * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
      * @param y the top edge of its box
-     * @param icon the item drawn on its face, empty where the mark is drawn whole
+     * @param icon the item the mark's face carries, laid on it where a window draws the mark from rules,
+     *     empty where the mark is drawn whole
      */
     public record Placement(@NotNull Mark kind, int x, int y, @NotNull Optional<ResourceId> icon) {
 

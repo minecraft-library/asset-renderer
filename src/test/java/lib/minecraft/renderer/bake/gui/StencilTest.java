@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.vanilla.gui.Mark;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +29,14 @@ class StencilTest {
         default -> throw new IllegalArgumentException("Unknown code '%c'".formatted(code));
     };
 
+    /** the output pixels a Minecraft pixel is laid at on a side */
+    private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
+    private static PixelBuffer readDown(PixelBuffer painted) {
+        return painted.resize(painted.width() / S, painted.height() / S, Resample.NEAREST);
+    }
+
     private static PixelBuffer filled(int w, int h, int argb) {
         PixelBuffer buffer = PixelBuffer.create(w, h);
         for (int y = 0; y < h; y++)
@@ -50,13 +60,13 @@ class StencilTest {
     @Test
     @DisplayName("a clear cell leaves the destination alone")
     void aClearCellLeavesTheDestinationAlone() {
-        PixelBuffer buffer = filled(4, 2, 0xFF123456);
-        Stencil.of("....", "....").stamp(buffer, Window.Box.of(4, 2), 0, 0, LETTERS);
+        PixelBuffer buffer = filled(4 * S, 2 * S, 0xFF123456);
+        Stencil.of("....", "....").stamp(buffer, new Window.Box(0, 0, 4, 2), 0, 0, LETTERS);
 
         // Resolved before any table is consulted, so the table above - which raises on every code it
         // does not know - is never asked about it.
-        for (int y = 0; y < 2; y++)
-            for (int x = 0; x < 4; x++)
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
                 assertThat(buffer.getPixel(x, y), is(equalTo(0xFF123456)));
     }
 
@@ -75,8 +85,9 @@ class StencilTest {
     @Test
     @DisplayName("each authored pixel is stamped as a square of the picture's own scale")
     void eachAuthoredPixelIsStampedAsASquare() {
-        PixelBuffer buffer = PixelBuffer.create(4, 4);
-        Stencil.of(2, "AB").stamp(buffer, Window.Box.of(4, 4), 0, 0, LETTERS);
+        PixelBuffer stamped = PixelBuffer.create(4 * S, 4 * S);
+        Stencil.of(2, "AB").stamp(stamped, new Window.Box(0, 0, 4, 4), 0, 0, LETTERS);
+        PixelBuffer buffer = readDown(stamped);
 
         for (int y = 0; y < 2; y++) {
             for (int x = 0; x < 2; x++) {
@@ -91,8 +102,9 @@ class StencilTest {
     @Test
     @DisplayName("an offset moves the whole picture within the box")
     void anOffsetMovesTheWholePicture() {
-        PixelBuffer buffer = PixelBuffer.create(4, 4);
-        Stencil.of("A").stamp(buffer, Window.Box.of(4, 4), 3, 2, LETTERS);
+        PixelBuffer stamped = PixelBuffer.create(4 * S, 4 * S);
+        Stencil.of("A").stamp(stamped, new Window.Box(0, 0, 4, 4), 3, 2, LETTERS);
+        PixelBuffer buffer = readDown(stamped);
 
         assertThat(buffer.getPixel(3, 2), is(equalTo(0xFFAAAAAA)));
         assertThat(buffer.getPixel(0, 0), is(equalTo(0)));

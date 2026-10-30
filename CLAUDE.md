@@ -21,11 +21,11 @@ check it against source before honouring one.
 | Touching | Read |
 |---|---|
 | `call/**` - the `*Options` bags, `RenderResult` and the composite results, `LayerSlot`; laying a finished render down (`BlendMode`); `ItemContext` and an item definition's walk; the `vanilla/appearance` vocabulary | [RequestsAndResults](docs/renderer/RequestsAndResults.md) |
-| `content/read` and `filter.block`; the `content/json` value adapters | [PackContent](docs/renderer/PackContent.md) |
+| `content/read` and `filter.block`; the `content/json` value adapters; a pack's text shader, `TextPaletteLoader` and `TextPalette`; a texture sidecar's sections, `MCMetaParser` | [PackContent](docs/renderer/PackContent.md) |
 | A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
 | `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
 | `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |
-| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
+| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's and chat text's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
 | Depth in `engine/raster` - `DepthMath`, the snapped depth plane, coplanar ties, draw order, the sort, the fill rule | [Depth](docs/renderer/Depth.md) |
 | The texel fetch - `RasterMath.texelOf`, `faceTexel`, `lastTexel`, a pass's wrap; the corner snap's grid and tie rule; the GPU's own coordinate | [TexelFetch](docs/renderer/TexelFetch.md), [TexCoordProbe](docs/renderer/TexCoordProbe.md) |
 | `bake/armor` - `Shell`, `ShellIndex`, the armour kits, `WornBox`, the wings; `ArmorSlot` and `ArmorForm` | [Armour](docs/renderer/Armour.md) |
@@ -164,7 +164,7 @@ with `named` on THIS project.
 
 The [harness] is `harness/`, its own Gradle build with its own `gradlew`. It
 renders every subject through the real Minecraft client at a locked iso pose; those PNGs are the
-byte-stable ground truth the nine sweeps diff against, one sub-tree each under
+byte-stable ground truth the parity sweeps diff against, one sub-tree each under
 `cache/asset-renderer/vanilla/<mc>/references/`. Internals live in
 [harness/CLAUDE.md]. The Java side walks vanilla model bytecode into
 `entity_models.json` and `entity_geometry.json`.
@@ -174,11 +174,13 @@ byte-stable ground truth the nine sweeps diff against, one sub-tree each under
 - **The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge.**
   Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
   and `aligned_*.png` is the resample the delta, the diff and the panel come from.
-- **`renderVanillaAllReferences` writes the whole tree in ONE boot**, all nine sweeps, `idle/`
+- **`renderVanillaAllReferences` writes the whole tree in ONE boot**, every sweep, `idle/`
   and `walk/` included. Every narrower run still leaves the sub-trees it does not name exactly as
   it found them.
 - Re-rendering refreshes ground truth and does not fix a regression, and only
   `renderVanillaAllReferences` refreshes the whole tree.
+- One pack's tooltip drawings are ground truth beside the tree, not in it: the pack-tooltip run
+  draws them, the whole-tree boot does not, and a capture of their gate re-runs it.
 - A reference that moves on a re-render with your change stashed was stale, not moved.
 
 Why the boot orders its sweeps, the two posed sub-trees, and the roster they are rendered at are

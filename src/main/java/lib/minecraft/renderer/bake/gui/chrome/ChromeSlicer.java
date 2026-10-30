@@ -8,7 +8,6 @@ import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Anchor;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Band;
-import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Border;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Edge;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Feature;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Interior;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -34,8 +32,8 @@ import java.util.stream.IntStream;
  * to the middle, when it is centred and mirrors itself. Growing the band restates the period and
  * puts the features back where their anchors say.
  * <p>
- * Nothing here is vanilla-specific. It works on the container backgrounds, which declare no border,
- * and on pack tooltip art, which does.
+ * Nothing here is vanilla-specific. It works on container background art, which the client blits in
+ * regions of its sheet at their authored size and has no op to resize.
  *
  * @see ChromeDecomposition
  */
@@ -69,47 +67,25 @@ public final class ChromeSlicer {
     private static final int MIN_REPEATS = 3;
 
     /**
-     * Decomposes an image.
-     * <p>
-     * A declared border, where the art has one, <b>is</b> the four band depths: the client's own
-     * nine-slice blit reads the declaration and never inspects a pixel, so deriving a different
-     * depth would render the sprite at cell boundaries the client does not use. Period, features
-     * and the interior class are always derived, inside whatever depths are in force.
+     * Decomposes an image, every part of it derived from its own pixels: the four band depths
+     * together with the interior's period along each axis, and inside those depths each band's
+     * period and features and the interior's class.
      *
      * @param source the image to take apart
-     * @param declared the border its sidecar declares, empty when it has none or when the client's
-     *                 own validation would refuse the one it has
      * @param stretchInner whether an unmodelled run resamples when it grows rather than repeating
      * @return the decomposition
      */
-    public static @NotNull ChromeDecomposition decompose(
-        @NotNull PixelBuffer source,
-        @NotNull Optional<Border> declared,
-        boolean stretchInner
-    ) {
+    public static @NotNull ChromeDecomposition decompose(@NotNull PixelBuffer source, boolean stretchInner) {
         int w = source.width();
         int h = source.height();
 
-        int left, top, right, bottom, periodX, periodY;
-        Optional<Border> hint = declared.filter(border -> border.loadableAt(w, h));
-
-        if (hint.isPresent()) {
-            Border border = hint.get();
-            left = border.left();
-            top = border.top();
-            right = border.right();
-            bottom = border.bottom();
-            periodX = minPeriod(source, left, top, w - right, h - bottom, true);
-            periodY = minPeriod(source, left, top, w - right, h - bottom, false);
-        } else {
-            int[] derived = bandDepths(source);
-            left = derived[0];
-            top = derived[1];
-            right = derived[2];
-            bottom = derived[3];
-            periodX = derived[4];
-            periodY = derived[5];
-        }
+        int[] derived = bandDepths(source);
+        int left = derived[0];
+        int top = derived[1];
+        int right = derived[2];
+        int bottom = derived[3];
+        int periodX = derived[4];
+        int periodY = derived[5];
 
         ConcurrentMap<Edge, Band> bands = Arrays.stream(Edge.values())
             .collect(Concurrent.toUnmodifiableLinkedMap(
@@ -129,9 +105,8 @@ public final class ChromeSlicer {
      * Rebuilds the art at a new size from its decomposition.
      * <p>
      * A target narrower than the two opposing bands is not undefined behaviour but a disagreement:
-     * the client clamps each band to the destination and lets the corner blits overlap. That is what
-     * happens here, and a clamped band keeps its <b>outermost</b> pixels, which are the half that
-     * touches the frame.
+     * each band is clamped to the destination and the corners overlap, a clamped band keeping its
+     * <b>outermost</b> pixels, which are the half that touches the frame.
      *
      * @param decomposition the decomposition of {@code source}
      * @param source the image it was taken from
@@ -554,29 +529,6 @@ public final class ChromeSlicer {
                 if (a.getPixel(x, y) != a.getPixel(x0 + (x - x0) % px, y0 + (y - y0) % py)) return false;
 
         return true;
-    }
-
-    private static int minPeriod(@NotNull PixelBuffer a, int x0, int y0, int x1, int y1, boolean across) {
-        int iw = x1 - x0, ih = y1 - y0;
-        if (iw <= 0 || ih <= 0) return 1;
-        int n = across ? iw : ih;
-
-        for (int p = 1; p <= n; p++) {
-            boolean ok = true;
-            for (int i = 0; i < n && ok; i++) {
-                int src = i % p;
-                for (int j = 0; j < (across ? ih : iw); j++) {
-                    int mine = across ? a.getPixel(x0 + i, y0 + j) : a.getPixel(x0 + j, y0 + i);
-                    int theirs = across ? a.getPixel(x0 + src, y0 + j) : a.getPixel(x0 + j, y0 + src);
-                    if (mine != theirs) {
-                        ok = false;
-                        break;
-                    }
-                }
-            }
-            if (ok) return p;
-        }
-        return n;
     }
 
     // ------------------------------------------------------------------ assembly

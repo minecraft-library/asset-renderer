@@ -79,3 +79,44 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
+
+## The tooltip frame's stretched side ramp reads the next texel on some exact-boundary rows
+
+The tooltip frame sprite stretches its centre slice (`stretch_inner`), and `NineSliceKit` maps each
+output row of that slice to a sprite row with a pixel-centred integer sample: row `off` of the centre
+reads sprite row `border + (2 * off + 1) * centreSprite / (2 * centreDest)`, `border` being the near
+border in sprite rows (10 for the frame) and the quotient rounded down. Where that quotient is a whole
+number the output pixel's centre sits exactly on the edge between two texels, and the kit takes the
+next one. The client draws the same sprite as a quad whose texture coordinate the GPU interpolates
+in float, and on such a row it lands on either side of the edge - not always the same side, even
+across the two output columns of one Minecraft pixel.
+
+Against the 26.1 client's tooltip references, with the sprites blended as the client blends them, this
+is all the tooltip sweep's box-alone rows over the sprite box still differ by: 18 pixels, one ramp level
+each, every one on the frame's side ramp at an exact-boundary row and none near a corner.
+`hex_colours_chrome` differs by 1 (80 centre sprite px over 88 output px, row 9), `item_like_chrome` by
+16 (80 over 168, rows 14, 56, 98, 140 and 161) and `narrow_chrome` by 1 (80 over 24, row 5), and the
+full rows carry the same pixels. At each the renderer already shows the next ramp texel - `F5220058`
+where the client still shows `F5230058`, at `item_like_chrome` row 14. Not every exact-boundary row
+differs: five of the eight at `item_like_chrome` do, rows 98 and 140 on the left side only. At
+`hex_colours_chrome` row 9 the client's two output columns of one Minecraft pixel disagree with each
+other, column 96 matching the renderer and column 97 not.
+
+A pixel-centred integer sample gives one answer per output row, so it cannot follow a coordinate that
+lands differently per pixel - and no rule stated over the quad follows it either. The rows whose
+centre slice is 24 output px tall - `long_line_chrome`, `mixed_segments_chrome`, `narrow_chrome`,
+`one_line_chrome`, `unstyled_chrome` and `width_glyphs_chrome` - draw the same side quads, with the
+same texture coordinates, over the same rows of a render target of the same height, and differ only in
+where the right-hand quad sits across the target. Five read the texel after the edge at every visible
+boundary; `narrow_chrome` reads the one before at one pixel, in that quad's upper triangle, where the
+other five read the one after at the same row, column and triangle. The pick follows the quad's place
+in the client's target, which is consistent with the card carrying a triangle's plane value from a
+corner chosen by its position (see [Texel rules](renderer/TexelFetch.md)), applied to corner
+coordinates that are the sprite's place in the stitched GUI atlas rounded to float.
+
+The renderer's raster rule is the wrong reading here. Across the 172 visible exact-boundary pixels of
+the box-alone rows over the sprite box the client reads the texel after the edge at 154 and the one
+before at 18, so reading the texel below an exact boundary, as the entity raster does, would turn the 18
+differing pixels into 154. Closing the 18 needs the card's interpolation setup at the client's screen
+position and the GUI atlas's layout, and modelling the card is refused in
+[Texel rules](renderer/TexelFetch.md). Nobody has taken it on.

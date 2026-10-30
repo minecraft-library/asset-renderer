@@ -456,6 +456,37 @@ class TheShippedMap(unittest.TestCase):
             ["harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java"])
         self.assertIn("manifest.references", reach.sees)
 
+    def test_the_pack_tooltip_rows_are_planned_by_the_paths_that_reach_them_and_no_others(self):
+        """The pack run's drawings and their sweep, each resolved against its neighbours.
+
+        The pack-source probe's selection block writes the pack run's handshake, so it reaches those
+        two and nothing else stored, where the other probes reach nothing; the tooltip sweep's
+        harness side and the roster reach both; a CIT grammar type reaches neither tooltip sweep, the
+        pack shipping no CIT rule; and the root build file, whose pins the pack run never reads,
+        reaches the sweep and not the drawings.
+        """
+        drawings, pack_sweep = "manifest.pack-tooltips", "sweep.tooltip-hypixel-skyblock"
+        sweeps = "harness/src/client/java/lib/minecraft/refharness/sweep/"
+        with self.subTest(path="PackSourceSweep.java"):
+            self.assertEqual(sorted(self._reach([sweeps + "PackSourceSweep.java"]).sees),
+                             [drawings, pack_sweep])
+        with self.subTest(path="PitchRollSweep.java"):
+            self.assertEqual(self._reach([sweeps + "PitchRollSweep.java"]).sees, [])
+        for path in (sweeps + "TooltipSweep.java",
+                     "src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json"):
+            with self.subTest(path=path):
+                sees = self._reach([path]).sees
+                self.assertIn(drawings, sees)
+                self.assertIn(pack_sweep, sees)
+        with self.subTest(path="CitRule.java"):
+            sees = self._reach(["src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java"]).sees
+            self.assertNotIn("sweep.tooltip", sees)
+            self.assertNotIn(pack_sweep, sees)
+        with self.subTest(path="build.gradle.kts"):
+            sees = self._reach(["build.gradle.kts"]).sees
+            self.assertIn(pack_sweep, sees)
+            self.assertNotIn(drawings, sees)
+
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
         """B33's claim - the test tree asserts rather than emits - is false for these two."""
         for path in ("src/visual/java/lib/minecraft/renderer/store/SelfCapture.java",

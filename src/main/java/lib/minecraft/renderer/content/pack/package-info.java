@@ -35,6 +35,8 @@
  * ships a vanilla-form model or blockstate for an id code-driven block-entity geometry renders, and
  * {@link lib.minecraft.renderer.content.pack.TextureSynthesizer TextureSynthesizer} generates the
  * paletted-permutation sprites no pack ships, on the miss that asks for one.
+ * {@link lib.minecraft.renderer.content.pack.TextPaletteLoader TextPaletteLoader} reads the colour swap
+ * out of the text shader the winning pack ships, refusing any shader of another shape.
  *
  * <p>A type that reads a bundled resource - one of the tables the generator shipped into the JAR -
  * does not belong here; that is {@link lib.minecraft.renderer.content.table}.
