@@ -10,7 +10,8 @@ import java.util.Optional;
 
 /**
  * A mark a screen places beside its cells - the arrow between a crafting grid and its result, the
- * raised button that opens a recipe book, the plus between an anvil's two inputs.
+ * raised button that opens a recipe book, the plus between an anvil's two inputs, the cross over an
+ * anvil's arrow.
  * <p>
  * Each constant is a kind rather than a placement: what a mark holds - where an icon opens on its
  * face, the text run its well takes - is a property of the shape, so every arrow is one arrow and
@@ -60,19 +61,42 @@ public enum Mark {
     /** The hammer above an anvil's title. */
     HAMMER,
 
-    /** The text field an anvil renames through. */
+    /**
+     * The text field an anvil renames through, as the client draws it while the first input holds an
+     * item.
+     */
     FIELD {
-
-        /** where the text opens, how far it runs, how much it holds and what draws it */
-        private static final @NotNull TextWell WELL = new TextWell(new Inset(3, 4), 103, 50, 0xFFFFFFFF);
 
         /** {@inheritDoc} */
         @Override
         public @NotNull Optional<TextWell> textWell() {
-            return Optional.of(WELL);
+            return Optional.of(NAME_WELL);
         }
 
-    };
+    },
+
+    /**
+     * The same field while the first input is empty, in the darker inks the client draws it in then;
+     * it holds the same text run, the client's one field drawing its text alike editable or not.
+     */
+    FIELD_DISABLED {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<TextWell> textWell() {
+            return Optional.of(NAME_WELL);
+        }
+
+    },
+
+    /** The cross an anvil draws over its arrow while an input holds an item and its result holds none. */
+    ERROR;
+
+    /**
+     * where the name field's text opens, how far it runs, how much it holds and what draws it, which
+     * both of the field's forms share
+     */
+    private static final @NotNull TextWell NAME_WELL = new TextWell(new Inset(3, 4), 103, 50, 0xFFFFFFFF);
 
     /**
      * Where an icon opens on this mark's face, empty where the mark is drawn whole.

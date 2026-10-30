@@ -500,6 +500,76 @@ class MenuRendererGeometryTest {
             anvil.chrome(), containsInAnyOrder(
                 Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
                 Substitution.texture("minecraft:gui/sprites/container/anvil/text_field_disabled", Possible.State.ABSENT)));
+
+        // A render in the first input alone is the anvil the client draws with its enabled field and the
+        // cross, so those are the sprites read - and the disabled field, which it does not draw, is not.
+        MenuResult filled = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.ANVIL).chromeSprite(missing).slots(slots).build());
+        assertThat("an anvil whose first input holds an item names the panel art, the enabled field and the cross the client blits over it",
+            filled.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/text_field", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/error", Possible.State.ABSENT)));
+    }
+
+    /**
+     * Paints an anvil's chrome in the vanilla theme and counts the output pixels it moves by from the
+     * chrome of the anvil with every slot empty - inside the name field's box, inside the cross's, and
+     * anywhere else.
+     *
+     * @param options the anvil
+     * @return the moved pixels in the field's box, in the cross's and elsewhere
+     */
+    private static List<Integer> chromeMoved(MenuOptions options) {
+        MenuOptions empty = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
+        PixelBuffer before = MenuRenderer.paintChrome(Window.Theme.VANILLA, MenuRenderer.layoutOf(empty));
+        PixelBuffer after = MenuRenderer.paintChrome(Window.Theme.VANILLA, MenuRenderer.layoutOf(options));
+        // AnvilScreen blits its field 110x16 at (59, 20) and its error 28x21 at (99, 45).
+        Rectangle field = new Rectangle(59 * SCALE, 20 * SCALE, 110 * SCALE, 16 * SCALE);
+        Rectangle cross = new Rectangle(99 * SCALE, 45 * SCALE, 28 * SCALE, 21 * SCALE);
+
+        int inField = 0, inCross = 0, elsewhere = 0;
+        for (int y = 0; y < before.height(); y++) {
+            for (int x = 0; x < before.width(); x++) {
+                if (before.getPixel(x, y) == after.getPixel(x, y)) continue;
+                if (field.contains(x, y)) inField++;
+                else if (cross.contains(x, y)) inCross++;
+                else elsewhere++;
+            }
+        }
+
+        return List.of(inField, inCross, elsewhere);
+    }
+
+    @Test
+    @DisplayName("an anvil's chrome follows what its slots hold, a render and the fill holding as an item does and air holding nothing")
+    void anAnvilsChromeFollowsWhatItsSlotsHold() {
+        MenuOptions anvil = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
+        MenuOptions.MenuSlotContent render = MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
+            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+        // The client's two field sprites differ in 1512 Minecraft pixels and its cross covers 81.
+        int field = 1512 * SCALE * SCALE;
+        int cross = 81 * SCALE * SCALE;
+
+        assertThat("a render in the second input alone draws the cross and leaves the field disabled",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(1, render))).build()),
+            is(equalTo(List.of(0, cross, 0))));
+        assertThat("renders in the first input and the result enable the field and draw no cross",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, render), Map.entry(2, render))).build()),
+            is(equalTo(List.of(field, 0, 0))));
+        assertThat("an item in the first input alone enables the field and draws the cross",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:diamond")))).build()),
+            is(equalTo(List.of(field, cross, 0))));
+        assertThat("a fill naming an item holds every slot, so the field is enabled and no cross is drawn",
+            chromeMoved(anvil.mutate().fill(MenuOptions.Fill.of("minecraft:stone")).build()),
+            is(equalTo(List.of(field, 0, 0))));
+        // The client's slot holds an item unless its stack is empty, which air always is.
+        assertThat("air named in the first input holds nothing, so the field stays disabled",
+            chromeMoved(anvil.mutate().slots(Concurrent.newMap(Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:air")))).build()),
+            is(equalTo(List.of(0, 0, 0))));
+        assertThat("and a fill naming air holds none either",
+            chromeMoved(anvil.mutate().fill(MenuOptions.Fill.of("minecraft:air")).build()),
+            is(equalTo(List.of(0, 0, 0))));
     }
 
     @Test

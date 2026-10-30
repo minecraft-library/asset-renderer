@@ -300,4 +300,47 @@ class ScreenMetricsTest {
         }
     }
 
+    @Test
+    @DisplayName("the anvil places the field and the cross its slots call for, as the client's screen draws them")
+    void theAnvilPlacesTheFieldAndTheCrossItsSlotsCallFor() {
+        ScreenMetrics opened = ScreenMetrics.anvil();
+        assertThat("the anvil as it opens is the anvil with every slot empty",
+            opened, is(equalTo(ScreenMetrics.anvil(slot -> false))));
+
+        for (int state = 0; state < 8; state++) {
+            int held = state;
+            boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
+            ScreenMetrics anvil = ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0);
+            String at = "an anvil holding " + (first ? "the first input " : "") + (second ? "the second input " : "")
+                + (result ? "the result " : "") + (held == 0 ? "nothing " : "");
+
+            // AnvilScreen blits text_field at (59, 20) while its first input holds an item and
+            // text_field_disabled otherwise, and its error over the arrow at (99, 45) while either input
+            // holds one and the result holds none - after the sheet, so after the arrow the sheet carries.
+            List<Mark.Placement> marks = new ArrayList<>(List.of(Mark.HAMMER.at(17, 7),
+                (first ? Mark.FIELD : Mark.FIELD_DISABLED).at(59, 20), Mark.PLUS.at(53, 49), Mark.ARROW.at(102, 48)));
+            if ((first || second) && !result) marks.add(Mark.ERROR.at(99, 45));
+
+            assertThat(at + "places the marks its slots call for", new ArrayList<>(anvil.marks()), is(equalTo(marks)));
+            assertThat(at + "is otherwise the anvil as it opens",
+                new ScreenMetrics(anvil.topBand(), anvil.labelBand(), anvil.declaredSlack(), anvil.ownRows(),
+                    anvil.ownColumns(), anvil.ownOriginX(), anvil.panelColumns(), anvil.titleX(), anvil.extras(),
+                    opened.marks(), anvil.regions()),
+                is(equalTo(opened)));
+
+            for (boolean playerSection : new boolean[] { true, false }) {
+                MenuLayout layout = MenuLayout.of(anvil, playerSection);
+
+                for (Mark.Placement mark : layout.marks()) {
+                    Window.Extent extent = Window.Extent.of(mark.kind());
+                    assertThat(at + "sits its " + mark.kind() + " inside its panel, the player's section "
+                            + (playerSection ? "drawn" : "not"),
+                        mark.x() >= 0 && mark.y() >= 0
+                            && mark.x() + extent.width() <= layout.width()
+                            && mark.y() + extent.height() <= layout.height(), is(true));
+                }
+            }
+        }
+    }
+
 }

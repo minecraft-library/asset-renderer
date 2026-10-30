@@ -9,7 +9,7 @@
  * count over a GUI item icon. Sprites are drawn by
  * {@link lib.minecraft.renderer.bake.gui.NineSliceKit NineSliceKit}, which reads a sprite as the
  * client's GUI atlas holds it and blits it into a destination rect by its {@code gui.scaling}, for the
- * tooltip chrome and for a sliced window's cells and name field, and
+ * tooltip chrome and for a sliced window's cells and the anvil's name field and cross, and
  * {@link lib.minecraft.renderer.bake.gui.TooltipChrome TooltipChrome} contributes a tooltip's background
  * and border layers, from the pack's sprite pair or procedurally.
  *

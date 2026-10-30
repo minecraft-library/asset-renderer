@@ -3,6 +3,8 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.Resample;
@@ -60,10 +62,10 @@ public interface Window {
      * Paints one of a screen's marks over the box.
      * <p>
      * A window that draws from rules paints the mark, in its own inks wherever the mark is one the
-     * panel owns; a window sliced from art paints the field as the GUI sprite the client blits over
-     * the anvil's art, and no other mark, the arrow, the plus and the hammer being drawn into the art
-     * it slices. What a mark's face holds is not painted here - a button's item and a field's text are
-     * renders, and the renderer places them.
+     * panel owns; a window sliced from art paints the anvil's name field and cross as the GUI sprites
+     * the client blits over its art, and no other mark, the arrow, the plus and the hammer being drawn
+     * into the art it slices. What a mark's face holds is not painted here - a button's item and a
+     * field's text are renders, and the renderer places them.
      *
      * @param dest the buffer to paint into
      * @param box the mark's rect in Minecraft pixels
@@ -215,11 +217,12 @@ public interface Window {
      * its own size cut to what it draws, which the slicer resizes to the layout. The slicer reassembles
      * art at its own size unchanged, so one path paints both.
      * <p>
-     * The cells and the anvil's name field are GUI sprites: each is read as the client's GUI atlas holds
-     * it and drawn by {@link NineSliceKit} with its {@code gui.scaling}, as the client draws a GUI
+     * The cells, and the marks the client draws as widgets over the art - the anvil's name field in the
+     * form its first input gives and its cross - are GUI sprites: each is read as the client's GUI atlas
+     * holds it and drawn by {@link NineSliceKit} with its {@code gui.scaling}, as the client draws a GUI
      * sprite - a cell over each cell exactly where one is drawn, which is where the caller names one and
      * over a panel resized for a screen the client ships no sheet for, the slicer not moving the art's
-     * own cells onto the layout's, and the field where the screen places one.
+     * own cells onto the layout's, and each mark where the screen places it.
      * <p>
      * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
      * different operation from re-inking drawn geometry and is not one this offers.
@@ -228,16 +231,17 @@ public interface Window {
      * @param panel its decomposition
      * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
      * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
-     * @param fieldArt the GUI sprite drawn over the name field, present exactly where the screen places one
-     * @param fieldScaling its {@code gui.scaling}, present exactly when {@code fieldArt} is
+     * @param markArt the GUI sprite drawn at each mark the screen places that the client blits, keyed by
+     *     the mark
+     * @param markScaling each one's {@code gui.scaling}, for exactly the marks {@code markArt} holds
      */
     record Sliced(
         @NotNull PixelBuffer panelArt,
         @NotNull ChromeDecomposition panel,
         @NotNull Optional<PixelBuffer> cellArt,
         @NotNull Optional<MCMeta.GuiScaling> cellScaling,
-        @NotNull Optional<PixelBuffer> fieldArt,
-        @NotNull Optional<MCMeta.GuiScaling> fieldScaling
+        @NotNull ConcurrentMap<Mark, PixelBuffer> markArt,
+        @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
     ) implements Window {
 
         /**
@@ -246,11 +250,17 @@ public interface Window {
          */
         private static final @NotNull ResourceId SLOT_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/slot");
 
+        /** The sprite the client blits at an anvil's name field while its first input holds an item. */
+        private static final @NotNull ResourceId TEXT_FIELD_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/text_field");
+
+        /** The sprite the client blits at an anvil's name field while its first input is empty. */
+        private static final @NotNull ResourceId TEXT_FIELD_DISABLED_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/text_field_disabled");
+
         /**
-         * The sprite the client blits over an anvil's name field while its first input is empty, drawn
-         * over the field a screen places.
+         * The sprite the client blits over an anvil's arrow while an input holds an item and its result
+         * holds none.
          */
-        private static final @NotNull ResourceId FIELD_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/text_field_disabled");
+        private static final @NotNull ResourceId ERROR_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/error");
 
         /**
          * Constructs a new {@code Sliced}, refusing a GUI sprite that comes apart from its scaling.
@@ -261,8 +271,12 @@ public interface Window {
         public Sliced {
             if (cellArt.isPresent() != cellScaling.isPresent())
                 throw new IllegalArgumentException("Sliced window carries a '%s' sprite exactly when it carries its scaling".formatted("cell"));
-            if (fieldArt.isPresent() != fieldScaling.isPresent())
-                throw new IllegalArgumentException("Sliced window carries a '%s' sprite exactly when it carries its scaling".formatted("field"));
+            if (!markArt.keySet().equals(markScaling.keySet()))
+                throw new IllegalArgumentException("Sliced window carries sprites for marks '%s' and scalings for '%s'"
+                    .formatted(markArt.keySet(), markScaling.keySet()));
+
+            markArt = Concurrent.newUnmodifiableMap(markArt);
+            markScaling = Concurrent.newUnmodifiableMap(markScaling);
         }
 
         /**
@@ -274,8 +288,9 @@ public interface Window {
          * @param panelArt the panel the art draws at its own size
          * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
          * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
-         * @param fieldArt the GUI sprite drawn over the name field, empty where the screen places none
-         * @param fieldScaling its {@code gui.scaling}, present exactly when {@code fieldArt} is
+         * @param markArt the GUI sprite drawn at each mark the screen places that the client blits, keyed
+         *     by the mark
+         * @param markScaling each one's {@code gui.scaling}, for exactly the marks {@code markArt} holds
          * @return the window
          * @throws IllegalArgumentException where a sprite comes without its scaling or a scaling without
          *     its sprite
@@ -283,9 +298,28 @@ public interface Window {
         public static @NotNull Sliced of(
             @NotNull PixelBuffer panelArt,
             @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<MCMeta.GuiScaling> cellScaling,
-            @NotNull Optional<PixelBuffer> fieldArt, @NotNull Optional<MCMeta.GuiScaling> fieldScaling
+            @NotNull ConcurrentMap<Mark, PixelBuffer> markArt, @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
         ) {
-            return new Sliced(panelArt, ChromeSlicer.decompose(panelArt, true), cellArt, cellScaling, fieldArt, fieldScaling);
+            return new Sliced(panelArt, ChromeSlicer.decompose(panelArt, true), cellArt, cellScaling, markArt, markScaling);
+        }
+
+        /**
+         * Answers the GUI sprite this window draws at a mark, as the client blits it there, and empty
+         * for every other mark, none of which this window draws.
+         * <p>
+         * The switch has no default, so a mark added later does not compile until it says which sprite,
+         * if any, is drawn at it.
+         *
+         * @param mark the mark
+         * @return the sprite's id, empty where this window draws nothing at the mark
+         */
+        private static @NotNull Optional<ResourceId> spriteOf(@NotNull Mark mark) {
+            return switch (mark) {
+                case FIELD -> Optional.of(TEXT_FIELD_SPRITE);
+                case FIELD_DISABLED -> Optional.of(TEXT_FIELD_DISABLED_SPRITE);
+                case ERROR -> Optional.of(ERROR_SPRITE);
+                case ARROW, BUTTON, PLUS, HAMMER -> Optional.empty();
+            };
         }
 
         /**
@@ -308,10 +342,11 @@ public interface Window {
          * honour - absence and failure are different states and only the first is expressible, by naming
          * nothing. The panel's sidecar is not read, the client reading none for a container blit.
          * <p>
-         * The cell sprite, and on a screen placing a name field the field sprite, are read after the panel
-         * through {@link NineSliceKit}'s GUI-sprite read, as the client's GUI atlas holds them, so a
-         * sprite no pack supplies, one that cannot be read and one whose {@code gui} section the client's
-         * codec refuses is the missing texture, stretched.
+         * The cell sprite, and the sprite of each mark the screen places that the client blits over the
+         * art - the anvil's name field in the form its first input gives and its cross - are read after
+         * the panel, in the order the screen places them, through {@link NineSliceKit}'s GUI-sprite read,
+         * as the client's GUI atlas holds them, so a sprite no pack supplies, one that cannot be read and
+         * one whose {@code gui} section the client's codec refuses is the missing texture, stretched.
          *
          * @param context the renderer context resolving textures and their sidecars
          * @param panelId the container sheet
@@ -331,14 +366,19 @@ public interface Window {
                 ? Optional.of(SLOT_SPRITE)
                 : Optional.empty());
             Optional<PixelBuffer> cellArt = cell.map(id -> NineSliceKit.sprite(context, id));
-            Optional<ResourceId> field = screen.marks().stream().anyMatch(mark -> mark.kind() == Mark.FIELD)
-                ? Optional.of(FIELD_SPRITE)
-                : Optional.empty();
-            Optional<PixelBuffer> fieldArt = field.map(id -> NineSliceKit.sprite(context, id));
+            ConcurrentMap<Mark, PixelBuffer> markArt = Concurrent.newMap();
+            ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling = Concurrent.newMap();
+            for (Mark.Placement mark : screen.marks()) {
+                spriteOf(mark.kind()).ifPresent(id -> {
+                    PixelBuffer art = NineSliceKit.sprite(context, id);
+                    markArt.put(mark.kind(), art);
+                    markScaling.put(mark.kind(), NineSliceKit.scaling(context, id, art));
+                });
+            }
 
             return of(panel,
                 cellArt, cellArt.map(art -> NineSliceKit.scaling(context, cell.orElseThrow(), art)),
-                fieldArt, fieldArt.map(art -> NineSliceKit.scaling(context, field.orElseThrow(), art)));
+                markArt, markScaling);
         }
 
         /**
@@ -404,17 +444,15 @@ public interface Window {
         /**
          * {@inheritDoc}
          * <p>
-         * The name field as the GUI sprite the client blits there, over the flat-red hole the sheet
-         * leaves for it; no other mark, the arrow, the plus and the hammer being drawn into the art - a
-         * second arrow here would be drawn over the first.
+         * The GUI sprite the client blits at the mark - the anvil's name field, in the form its first
+         * input gives, over the flat-red hole the sheet leaves for it, and its cross over the arrow - and
+         * nothing at any other mark, the arrow, the plus and the hammer being drawn into the art: a second
+         * arrow here would be drawn over the first.
          */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
-            switch (decoration) {
-                case FIELD -> this.fieldArt.ifPresent(art ->
-                    NineSliceKit.draw(dest, art, this.fieldScaling.orElseThrow(), box.x(), box.y(), box.width(), box.height(), 1.0f));
-                case ARROW, BUTTON, PLUS, HAMMER -> {}
-            }
+            this.markArt.getOptional(decoration).ifPresent(art ->
+                NineSliceKit.draw(dest, art, this.markScaling.get(decoration), box.x(), box.y(), box.width(), box.height(), 1.0f));
         }
 
         /** {@inheritDoc} */
@@ -432,10 +470,11 @@ public interface Window {
      * the measured vanilla one and a theme is a re-inking of it rather than a shape of its own.
      * Nothing here reads a texture.
      * <p>
-     * Two marks are drawn in inks the theme does not own, and both carry their own rather than
-     * borrowing a role: a {@link Mark#HAMMER} is a picture, and the inside of a
-     * {@link Mark#FIELD} is an input widget's. Neither is something a panel would have drawn
-     * itself, which is the line - what re-inks is what the panel owns.
+     * Four marks are drawn in inks the theme does not own, and each carries its own rather than
+     * borrowing a role: a {@link Mark#HAMMER} and the anvil's {@link Mark#ERROR} cross are pictures,
+     * and the inside of either name field, {@link Mark#FIELD} or {@link Mark#FIELD_DISABLED}, is an
+     * input widget's. None is something a panel would have drawn itself, which is the line - what
+     * re-inks is what the panel owns.
      */
     @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor

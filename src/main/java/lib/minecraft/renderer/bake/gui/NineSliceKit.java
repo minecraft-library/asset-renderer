@@ -26,9 +26,9 @@ import java.util.Optional;
  * The reusable GUI-sprite compositor matching the {@link GlintKit} / {@link TextKit} static-kit
  * convention. Every {@code gui/sprites/**} widget scales through the same {@link MCMeta.GuiScaling}
  * system, and the themable tooltip chrome draws its sprite pair through it, and a menu window sliced
- * from art its cells and the anvil's name field. A sprite read by id is the one the client's GUI atlas
- * holds, the missing texture standing in, stretched, for one no pack supplies, one that cannot be read
- * and one whose {@code gui} section the client's codec refuses.
+ * from art its cells and the anvil's name field and cross. A sprite read by id is the one the client's
+ * GUI atlas holds, the missing texture standing in, stretched, for one no pack supplies, one that cannot
+ * be read and one whose {@code gui} section the client's codec refuses.
  * <p>
  * Each texel is laid down as the client lays a GUI sprite: its alpha scaled by the caller's
  * multiplier, a texel left at alpha 0 discarded so the destination pixel stays as it was, and every

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -36,23 +37,20 @@ class MenuRendererItemBoxTest {
     /** what one Minecraft pixel comes to on a side */
     private static final int SCALE = MenuRenderer.PX_SCALE;
 
-    private static ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slot(int index, String itemId) {
-        ConcurrentMap<Integer, MenuOptions.MenuSlotContent> map = Concurrent.newMap();
-        map.put(index, MenuOptions.MenuSlotContent.of(itemId));
-        return map;
-    }
-
     private static PixelBuffer render(MenuOptions options) {
         return new MenuRenderer(ClientAssetsExtension.context()).render(options).image().getFrames().getFirst().pixels();
     }
 
     /**
-     * Renders a menu twice, once with the slot populated and once without, and returns every pixel
-     * the item is responsible for.
+     * Renders a menu twice over the slots both renders share, once with the slot populated as well and
+     * once without, and returns every pixel the item is responsible for.
      */
-    private static List<int[]> inkOf(MenuOptions.Type type, int index, String itemId) {
-        MenuOptions empty = MenuOptions.builder().type(type).build();
-        MenuOptions populated = empty.mutate().slots(slot(index, itemId)).build();
+    private static List<int[]> inkOf(MenuOptions.Type type, ConcurrentMap<Integer, MenuOptions.MenuSlotContent> shared,
+                                     int index, String itemId) {
+        MenuOptions empty = MenuOptions.builder().type(type).slots(shared).build();
+        ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap(shared);
+        slots.put(index, MenuOptions.MenuSlotContent.of(itemId));
+        MenuOptions populated = empty.mutate().slots(slots).build();
 
         PixelBuffer bare = render(empty);
         PixelBuffer drawn = render(populated);
@@ -86,7 +84,7 @@ class MenuRendererItemBoxTest {
     @DisplayName("an item in a chest slot draws inside that slot and nowhere else")
     void anItemInAChestSlotStaysInIt() {
         MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.CHEST).build());
-        assertInsideCell(inkOf(MenuOptions.Type.CHEST, 4, "minecraft:diamond"),
+        assertInsideCell(inkOf(MenuOptions.Type.CHEST, Concurrent.newMap(), 4, "minecraft:diamond"),
             layout.slotCells().get(4), "a diamond in the fifth chest slot");
     }
 
@@ -94,7 +92,7 @@ class MenuRendererItemBoxTest {
     @DisplayName("an item in a crafting result draws inside the sixteen its cell of 26 centres")
     void anItemInACraftingResultStaysInTheSixteen() {
         MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).build());
-        assertInsideCell(inkOf(MenuOptions.Type.CRAFTING_TABLE, 9, "minecraft:diamond_sword"),
+        assertInsideCell(inkOf(MenuOptions.Type.CRAFTING_TABLE, Concurrent.newMap(), 9, "minecraft:diamond_sword"),
             layout.slotCells().get(9), "a sword in the crafting result");
     }
 
@@ -102,7 +100,12 @@ class MenuRendererItemBoxTest {
     @DisplayName("an item in an anvil slot draws where the anvil's own menu declares it")
     void anItemInAnAnvilSlotStaysInIt() {
         MenuLayout layout = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.ANVIL).build());
-        assertInsideCell(inkOf(MenuOptions.Type.ANVIL, 1, "minecraft:iron_ingot"),
+        // The anvil's chrome follows its slots, the cross covering its arrow while an input holds an item
+        // and the result none, so both renders hold a result and their chrome is one state: what they
+        // differ in is the ingot alone.
+        ConcurrentMap<Integer, MenuOptions.MenuSlotContent> result =
+            Concurrent.newMap(Map.entry(2, MenuOptions.MenuSlotContent.of("minecraft:diamond_sword")));
+        assertInsideCell(inkOf(MenuOptions.Type.ANVIL, result, 1, "minecraft:iron_ingot"),
             layout.slotCells().get(1), "an ingot in the anvil's second input");
     }
 

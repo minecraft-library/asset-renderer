@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.Resample;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -14,8 +15,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +40,9 @@ import static org.hamcrest.Matchers.is;
  * drawn as well as its chrome. Everything the panel draws reproduces; what is left is the rectangle
  * of flat red the panel carries where its name field goes, which the client covers on every draw
  * and never once shows. That residual is the field being drawn from rules rather than read off art,
- * and a second test pins the red so the reason stays visible.
+ * and a second test pins the red so the reason stays visible. Against the client's frame - the sheet,
+ * the field sprite its first input picks and the cross where the client draws one - the theme paints
+ * the anvil whole in every state its slots give, field and cross included.
  */
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
@@ -49,6 +56,14 @@ class WindowVanillaOracleTest {
 
     /** the output pixels a Minecraft pixel is laid at on a side */
     private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    private static final String ANVIL = "minecraft:gui/container/anvil";
+
+    private static final String TEXT_FIELD = "minecraft:gui/sprites/container/anvil/text_field";
+
+    private static final String TEXT_FIELD_DISABLED = "minecraft:gui/sprites/container/anvil/text_field_disabled";
+
+    private static final String ERROR = "minecraft:gui/sprites/container/anvil/error";
 
     private static RendererContext textures;
 
@@ -130,8 +145,13 @@ class WindowVanillaOracleTest {
     }
 
     private static PixelBuffer shipped(Container container) {
-        Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture(container.id()), textures.findFlipbook(container.id()), 0);
-        assertThat("shipped texture '" + container.id() + "' resolves", resolved.isPresent(), is(true));
+        return texture(container.id());
+    }
+
+    /** Resolves a shipped texture at tick zero, asserting that it resolves. */
+    private static PixelBuffer texture(String id) {
+        Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), 0);
+        assertThat("shipped texture '" + id + "' resolves", resolved.isPresent(), is(true));
         return resolved.get();
     }
 
@@ -300,31 +320,75 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the field decoration is the shipped text-field sprite")
+    @DisplayName("each field decoration is the shipped text-field sprite of its form")
     void theFieldDecorationIsTheShippedSprite() {
-        Possible<PixelBuffer> resolved =
-            Flipbook.atTick(textures.resolveTexture("minecraft:gui/sprites/container/anvil/text_field_disabled"), textures.findFlipbook("minecraft:gui/sprites/container/anvil/text_field_disabled"), 0);
-        assertThat("the field sprite resolves", resolved.isPresent(), is(true));
-        PixelBuffer sprite = resolved.get();
+        Map<Mark, String> sprites = new EnumMap<>(Mark.class);
+        sprites.put(Mark.FIELD, TEXT_FIELD);
+        sprites.put(Mark.FIELD_DISABLED, TEXT_FIELD_DISABLED);
+        Map<Mark, Integer> differing = new EnumMap<>(Mark.class);
 
-        Mark field = Mark.FIELD;
-        int w = Window.Extent.of(field).width();
-        int h = Window.Extent.of(field).height();
+        sprites.forEach((field, id) -> {
+            PixelBuffer sprite = texture(id);
+            int w = Window.Extent.of(field).width();
+            int h = Window.Extent.of(field).height();
 
-        // On a panel-filled buffer, because the well hands two corners over the way the frame's own
-        // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
-        // there is the panel's own grey.
-        PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
-        chrome.fill(Window.Palette.VANILLA.panel());
-        Window.Theme.VANILLA.paintDecoration(chrome, Window.Box.of(field.at(0, 0)), field);
-        PixelBuffer painted = readDown(chrome);
+            // On a panel-filled buffer, because the well hands two corners over the way the frame's own
+            // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
+            // there is the panel's own grey.
+            PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+            chrome.fill(Window.Palette.VANILLA.panel());
+            Window.Theme.VANILLA.paintDecoration(chrome, Window.Box.of(field.at(0, 0)), field);
+            PixelBuffer painted = readDown(chrome);
 
-        int differing = 0;
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                if (painted.getPixel(x, y) != sprite.getPixel(x, y)) differing++;
+            int count = 0;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    if (painted.getPixel(x, y) != sprite.getPixel(x, y)) count++;
+            differing.put(field, count);
+        });
 
-        assertThat(differing, is(equalTo(0)));
+        assertThat("Minecraft pixels from the sprite, each form", differing,
+            is(equalTo(Map.of(Mark.FIELD, 0, Mark.FIELD_DISABLED, 0))));
+    }
+
+    @Test
+    @DisplayName("the anvil in each state its slots give is the client's frame, its field and cross included")
+    void theAnvilInEachStateItsSlotsGiveIsTheClientsFrame() {
+        PixelBuffer sheet = texture(ANVIL);
+        List<Integer> differing = new ArrayList<>();
+
+        for (int state = 0; state < 8; state++) {
+            int held = state;
+            boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
+            MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0), true);
+            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
+            Window window = Window.Theme.VANILLA;
+
+            window.paintPanel(chrome, layout.box());
+            for (ScreenMetrics.Cell cell : layout.cells())
+                window.paintCell(chrome, Window.Box.of(cell));
+            for (Mark.Placement mark : layout.marks())
+                window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
+            PixelBuffer painted = readDown(chrome);
+
+            // The client's frame, from AnvilScreen's own draws: the sheet, then text_field at (59, 20)
+            // while the first input holds an item and text_field_disabled otherwise, then error at
+            // (99, 45) while either input holds one and the result holds none.
+            PixelBuffer frame = PixelBuffer.create(176, 166);
+            frame.blit(sheet.crop(0, 0, 176, 166), 0, 0, BlendMode.REPLACE);
+            frame.blit(texture(first ? TEXT_FIELD : TEXT_FIELD_DISABLED), 59, 20, BlendMode.NORMAL);
+            if ((first || second) && !result)
+                frame.blit(texture(ERROR), 99, 45, BlendMode.NORMAL);
+
+            int count = 0;
+            for (int y = 0; y < frame.height(); y++)
+                for (int x = 0; x < frame.width(); x++)
+                    if (painted.getPixel(x, y) != frame.getPixel(x, y)) count++;
+            differing.add(count);
+        }
+
+        assertThat("Minecraft pixels from the client's frame, slot states 0 to 7 by bit (first input, second, result)",
+            differing, is(equalTo(Collections.nCopies(8, 0))));
     }
 
     @Test

@@ -13,19 +13,20 @@ missing sprite for all of them and a texture has no lower pack to show through. 
 parse loses only its own texture: the index captures it as there and yielding nothing rather than
 failing the context load; a refused section loses the texture too, its sidecar's other sections
 standing. A sidecar whose `gui` section the client's codec refuses loses its texture only where a GUI
-sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name field - as
-the client's GUI atlas alone reads that section; read as a block or item texture it draws. The same
-holds for every texture an entity, a player or an item names beyond its own faces - an entity's base,
-overlay, carried-block and group-member textures, the equipment and armour layers and their pack-rule
-tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the glint - and for
-the textures that are no block's or item's: a fluid's still and flow faces, the two textures the
-portal shader samples, a menu's named chrome art, which is the checkerboard read across the sheet the
-client composes a shipped screen's panel from, and resized like any other art for a screen it ships no
-sheet for, rather than falling back to the vanilla panel, and a tooltip's background and frame, a
-menu's cell sprite and the anvil's name field, each stretched over the client's whole sprite rect
-rather than falling back to a default. No option turns it off: a broken asset is drawn as broken, so a
-viewer can see it, rather than leaving a hole or dropping the subject - and that holds for a batch as
-well, so an atlas tile shows the checkerboard where a single render would.
+sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name field or
+cross - as the client's GUI atlas alone reads that section; read as a block or item texture it draws.
+The same holds for every texture an entity, a player or an item names beyond its own faces - an
+entity's base, overlay, carried-block and group-member textures, the equipment and armour layers and
+their pack-rule tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the
+glint - and for the textures that are no block's or item's: a fluid's still and flow faces, the two
+textures the portal shader samples, a menu's named chrome art, which is the checkerboard read across
+the sheet the client composes a shipped screen's panel from, and resized like any other art for a
+screen it ships no sheet for, rather than falling back to the vanilla panel, and a tooltip's
+background and frame, a menu's cell sprite and the anvil's name field or cross, each stretched over
+the client's whole sprite rect rather than falling back to a default. No option turns it off: a broken
+asset is drawn as broken, so a viewer can see it, rather than leaving a hole or dropping the subject -
+and that holds for a batch as well, so an atlas tile shows the checkerboard where a single render
+would.
 
 - **The seam is each texture read.** Each reads through the context's `withMissingTexture()`
   wrapper, which draws the checkerboard and reports the id, while the context's own `resolveTexture`

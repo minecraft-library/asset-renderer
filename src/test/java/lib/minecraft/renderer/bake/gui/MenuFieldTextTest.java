@@ -127,6 +127,8 @@ class MenuFieldTextTest {
         assertThat("the run fits between the bevels",
             WELL.inset().x() + WELL.innerWidth(),
             is(lessThanOrEqualTo(Window.Extent.of(field.kind()).width() - 2)));
+        assertThat("the client's one field draws its text in the same white editable or not",
+            Mark.FIELD_DISABLED.textWell(), is(equalTo(Mark.FIELD.textWell())));
     }
 
     @Test

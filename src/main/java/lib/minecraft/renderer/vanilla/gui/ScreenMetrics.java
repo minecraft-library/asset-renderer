@@ -12,6 +12,7 @@ import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Rectangle;
+import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 /**
@@ -189,15 +190,25 @@ public record ScreenMetrics(
      * The anvil, whose row is two inputs and a result at their own spacing rather than a grid, so it
      * has one row of no columns and carries its three cells as extras.
      * <p>
-     * It carries the most marks of any shipped screen, and one of them the art cannot supply. The
+     * It carries the most marks of any shipped screen, and two of them the art cannot supply. The
      * plus and the arrow are painted into the panel's own texture, and its arrow is the crafting
      * table's to the pixel. The hammer above its title is a picture. Where its name field goes the
      * texture holds a rectangle of flat red, which the client covers on every draw with a blitted
      * field and never once shows - so the field is declared here for the same reason the others are
      * and with the opposite justification: not because reading it off the art would freeze its ink,
-     * but because reading it off the art would draw the red.
+     * but because reading it off the art would draw the red. The cross the client blits over the
+     * arrow is in the texture nowhere, so it is declared here too.
+     * <p>
+     * Two of its marks follow what its slots hold, as the client's screen draws them: the name field
+     * is the client's enabled field while the first input holds an item and its disabled field
+     * otherwise, and the cross covers the arrow, after it, while either input holds an item and the
+     * result holds none.
+     *
+     * @param hasItem whether the slot at an index holds an item, as the client's menu answers it - the
+     * inputs are slots 0 and 1 and the result slot 2
+     * @return the screen
      */
-    public static @NotNull ScreenMetrics anvil() {
+    public static @NotNull ScreenMetrics anvil(@NotNull IntPredicate hasItem) {
         ConcurrentList<Cell> extras = Concurrent.newList();
         extras.add(new Cell(26, 46, CELL, Role.CONTAINER));
         extras.add(new Cell(75, 46, CELL, Role.CONTAINER));
@@ -205,12 +216,23 @@ public record ScreenMetrics(
 
         ConcurrentList<Mark.Placement> marks = Concurrent.newList();
         marks.add(Mark.HAMMER.at(17, 7));
-        marks.add(Mark.FIELD.at(59, 20));
+        marks.add((hasItem.test(0) ? Mark.FIELD : Mark.FIELD_DISABLED).at(59, 20));
         marks.add(Mark.PLUS.at(53, 49));
         marks.add(Mark.ARROW.at(102, 48));
+        if ((hasItem.test(0) || hasItem.test(1)) && !hasItem.test(2))
+            marks.add(Mark.ERROR.at(99, 45));
 
         return new ScreenMetrics(46, 19, 0, 1, 0, MARGIN, COLUMNS, new TitleX.Inset(60), extras, marks,
             Concurrent.newList(new Rectangle(0, 0, width(COLUMNS), 166)));
+    }
+
+    /**
+     * The anvil as it opens, every slot empty.
+     *
+     * @return the screen
+     */
+    public static @NotNull ScreenMetrics anvil() {
+        return anvil(slot -> false);
     }
 
     /**

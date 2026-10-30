@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
@@ -27,9 +29,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,9 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <p>
  * The client's blits are written here from its own draws rather than read off
  * {@link ScreenMetrics#regions()}, so a composition that agrees with them agrees with the client and
- * not with itself. Where the client draws over the sheet, the anvil is held to the client's frame with
- * its first input empty - the sheet blit and the field sprite over it - and the crafting table to its
- * sheet blit alone, the recipe-book widget the client draws over it being no part of the panel.
+ * not with itself. Where the client draws over the sheet, the anvil is held to the client's frame in
+ * every state its slots give - the sheet blit, the field sprite its first input picks and the cross
+ * where the client draws one - and the crafting table to its sheet blit alone, the recipe-book widget
+ * the client draws over it being no part of the panel.
  */
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Sliced paints a panel from art")
@@ -66,7 +72,11 @@ class WindowSlicedTest {
 
     private static final String SLOT = "minecraft:gui/sprites/container/slot";
 
-    private static final String FIELD = "minecraft:gui/sprites/container/anvil/text_field_disabled";
+    private static final String TEXT_FIELD = "minecraft:gui/sprites/container/anvil/text_field";
+
+    private static final String TEXT_FIELD_DISABLED = "minecraft:gui/sprites/container/anvil/text_field_disabled";
+
+    private static final String ERROR = "minecraft:gui/sprites/container/anvil/error";
 
     /** the rows the client's margin takes below the last cell, which close a panel cut to fit */
     private static final int MARGIN_ROWS = 7;
@@ -120,7 +130,7 @@ class WindowSlicedTest {
             ScreenMetrics.craftingTable(), List.of(new Rectangle(0, 0, 176, 166)), Map.of(), 70));
         // AnvilScreen blits text_field_disabled at (59, 20), 110x16, while its first input is empty.
         out.add(new Shipped("the anvil, against its sheet blit and the field the client blits over it", ANVIL,
-            ScreenMetrics.anvil(), List.of(new Rectangle(0, 0, 176, 166)), Map.of(FIELD, new Point(59, 20)), 64));
+            ScreenMetrics.anvil(), List.of(new Rectangle(0, 0, 176, 166)), Map.of(TEXT_FIELD_DISABLED, new Point(59, 20)), 64));
         return out;
     }
 
@@ -255,6 +265,41 @@ class WindowSlicedTest {
             if (shulker.getPixel(x, 166) >>> 24 != 0) drawn++;
 
         assertThat("the shulker box's last blitted row draws nothing", drawn, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("named anvil art in each state its slots give is the client's frame, reading only the sprites it draws")
+    void namedAnvilArtInEachStateIsTheClientsFrame() {
+        Shipped anvil = shipped(ANVIL);
+        List<Integer> differing = new ArrayList<>();
+        List<Set<Mark>> drawn = new ArrayList<>();
+        List<Set<Mark>> read = new ArrayList<>();
+
+        for (int state = 0; state < 8; state++) {
+            int held = state;
+            boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
+            ScreenMetrics screen = ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0);
+            MenuLayout layout = MenuLayout.of(screen, true);
+            Window.Sliced window = Window.Sliced.resolve(textures, ResourceId.parse(ANVIL), Optional.empty(), screen, layout);
+
+            // AnvilScreen blits text_field at (59, 20) while its first input holds an item and
+            // text_field_disabled otherwise, and error at (99, 45) while either input holds one and the
+            // result holds none.
+            boolean cross = (first || second) && !result;
+            PixelBuffer frame = clientBlits(anvil);
+            frame.blit(resolve(first ? TEXT_FIELD : TEXT_FIELD_DISABLED), 59, 20, BlendMode.NORMAL);
+            if (cross) frame.blit(resolve(ERROR), 99, 45, BlendMode.NORMAL);
+            differing.add(differing(paint(window, layout), frame));
+
+            Set<Mark> kinds = EnumSet.of(first ? Mark.FIELD : Mark.FIELD_DISABLED);
+            if (cross) kinds.add(Mark.ERROR);
+            drawn.add(kinds);
+            read.add(EnumSet.copyOf(window.markArt().keySet()));
+        }
+
+        assertThat("Minecraft pixels from the client's frame, slot states 0 to 7 by bit (first input, second, result)",
+            differing, is(equalTo(Collections.nCopies(8, 0))));
+        assertThat("the marks a sprite is read for are the ones the client draws one at", read, is(equalTo(drawn)));
     }
 
     @Test
@@ -453,7 +498,7 @@ class WindowSlicedTest {
     @DisplayName("a cell drawn from the shipped slot sprite is what the drawn arm draws")
     void aSlicedCellMatchesTheDrawnCell() {
         Window window = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.of(resolve(SLOT)),
-            Optional.of(MCMeta.GuiScaling.DEFAULT), Optional.empty(), Optional.empty());
+            Optional.of(MCMeta.GuiScaling.DEFAULT), Concurrent.newMap(), Concurrent.newMap());
         Window.Box box = new Window.Box(0, 0, 18, 18);
 
         PixelBuffer fromArt = PixelBuffer.create(18 * S, 18 * S);
@@ -469,7 +514,7 @@ class WindowSlicedTest {
     @DisplayName("a panel with no cell art paints no cell, and a GUI sprite is carried exactly with its scaling")
     void aPanelWithNoCellArtPaintsNoCell() {
         Window window = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty());
+            Concurrent.newMap(), Concurrent.newMap());
 
         PixelBuffer painted = PixelBuffer.create(18 * S, 18 * S);
         window.paintCell(painted, new Window.Box(0, 0, 18, 18));
@@ -483,10 +528,19 @@ class WindowSlicedTest {
 
         PixelBuffer slot = resolve(SLOT);
         assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.create(8, 8),
-            Optional.of(slot), Optional.empty(), Optional.empty(), Optional.empty()), "a cell sprite without its scaling");
+            Optional.of(slot), Optional.empty(), Concurrent.newMap(), Concurrent.newMap()), "a cell sprite without its scaling");
         assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.create(8, 8),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(MCMeta.GuiScaling.DEFAULT)),
-            "a field scaling without its sprite");
+            Optional.empty(), Optional.empty(), Concurrent.newMap(Map.entry(Mark.FIELD, slot)), Concurrent.newMap()),
+            "a field sprite without its scaling");
+
+        // The pair is checked once, so the window keeps the maps it was built with rather than the
+        // caller's, which could come apart after.
+        ConcurrentMap<Mark, PixelBuffer> art = Concurrent.newMap(Map.entry(Mark.FIELD, slot));
+        Window.Sliced held = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+            art, Concurrent.newMap(Map.entry(Mark.FIELD, MCMeta.GuiScaling.DEFAULT)));
+        art.remove(Mark.FIELD);
+        assertThat("a mark's sprite stays with its scaling whatever the caller does with its map",
+            held.markArt().keySet(), is(equalTo(held.markScaling().keySet())));
     }
 
     @Test
@@ -523,7 +577,7 @@ class WindowSlicedTest {
             art.setPixel(x, 0, inks[x]);
         PixelBuffer byPanel = PixelBuffer.create(inks.length * S, S);
         byPanel.fill(under);
-        Window.Sliced.of(art, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty())
+        Window.Sliced.of(art, Optional.empty(), Optional.empty(), Concurrent.newMap(), Concurrent.newMap())
             .paintPanel(byPanel, box);
 
         for (int y = 0; y < S; y++) {

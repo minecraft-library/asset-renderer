@@ -181,12 +181,22 @@ public class MenuOptions implements RenderOptions {
     private static final int PLAYER_VIEW_ROWS = 4;
 
     /**
+     * The item whose stack the client holds as empty, so a slot or a fill naming it holds nothing.
+     */
+    private static final @NotNull ResourceId AIR = ResourceId.parse("minecraft:air");
+
+    /**
      * Returns the screen this menu is laid out as.
      * <p>
      * The roster lives here rather than in the renderer because a {@link Type} is what selects one
      * and this is what owns the type - and because the chest's arm reads {@link #rows} and
-     * {@link #columns}, which is a question only these options can answer. Every number a screen
-     * carries stays on {@link ScreenMetrics}; what is chosen here is which of them.
+     * {@link #columns}, and the anvil's {@link #slots} and {@link #fill}, which are questions only
+     * these options can answer. Every number a screen carries stays on {@link ScreenMetrics}; what is
+     * chosen here is which of them.
+     * <p>
+     * The anvil is answered in the state its slots give it, which picks the name field and the cross
+     * the client draws: a slot holds an item where the slot map names one, an item or a render, or
+     * where the fill names one, the fill drawing in every slot the map leaves - and air holds nothing.
      *
      * @return the screen
      */
@@ -200,7 +210,26 @@ public class MenuOptions implements RenderOptions {
             case HOPPER -> ScreenMetrics.hopper();
             case DISPENSER -> ScreenMetrics.dispenser();
             case CRAFTING_TABLE -> ScreenMetrics.craftingTable();
-            case ANVIL -> ScreenMetrics.anvil();
+            case ANVIL -> ScreenMetrics.anvil(this::holdsItem);
+        };
+    }
+
+    /**
+     * Answers whether a slot holds an item, as the client's menu answers it - by what the stack is,
+     * not by whether its model draws anything.
+     * <p>
+     * The slot map's content answers where it names the slot, and the fill where it does not, the fill
+     * drawing in every slot the map leaves. A render holds the slot, and an item or a fill holds it
+     * unless it names air, whose stack the client holds as empty.
+     *
+     * @param slot the slot index
+     * @return whether the slot holds an item
+     */
+    private boolean holdsItem(int slot) {
+        return switch (this.slots.get(slot)) {
+            case null -> this.fill.itemId().filter(id -> !id.equals(AIR)).isPresent();
+            case MenuSlotContent.Item item -> !ResourceId.parse(item.options().getItemId()).equals(AIR);
+            case MenuSlotContent.Rendered ignored -> true;
         };
     }
 

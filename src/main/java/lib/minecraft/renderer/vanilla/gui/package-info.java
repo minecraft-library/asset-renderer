@@ -12,7 +12,8 @@
  * with or without the player's inventory below it.
  *
  * <p>{@link lib.minecraft.renderer.vanilla.gui.Mark Mark} is each kind of mark a screen places beside
- * its cells - which mark, where an icon opens on its face and the text run its well takes - and
+ * its cells, the anvil placing two of them by what its slots hold, as the client's screen draws them -
+ * which mark, where an icon opens on its face and the text run its well takes - and
  * {@link lib.minecraft.renderer.vanilla.gui.Mark.Placement Mark.Placement} is one of them at its
  * position on one screen. What a mark paints and how big it comes out are
  * {@link lib.minecraft.renderer.bake.gui bake.gui}'s, keyed by the mark.
