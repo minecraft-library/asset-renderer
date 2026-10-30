@@ -33,6 +33,7 @@ from typing import Any
 
 from parity import pixels
 from parity.norm import MissingInput
+from parity.sweep import row_folders
 
 #: Per-channel threshold separating a "big" disagreement from the sub-LSB floor. This is the split
 #: the ">= 1.0 is a recoverable bug, < 1.0 is the sub-texel floor" rule actually turns on.
@@ -117,10 +118,11 @@ def delta_over_white(vanilla: Any, java: Any) -> Any:
     return total
 
 
-def stats(directory: Path, columns: bool = False, bbox: bool = False) -> dict:
+def stats(directory: Path, columns: bool = False, bbox: bool = False, key: str | None = None) -> dict:
     """Every number over the pair padded onto its union canvas, which is what the sweep's mean is
     taken over. ``canvases`` keeps each side's own size, and the content box is taken on that side's
-    own canvas, where its renderer put the content."""
+    own canvas, where its renderer put the content. ``key`` is the row's key, the folder's path below
+    its sweep directory, and the folder's name where it is not given."""
     numpy = pixels.numpy_module()
     vanilla_own, java_own = _pair(directory)
     vanilla, java = _pad(vanilla_own, java_own)
@@ -138,7 +140,7 @@ def stats(directory: Path, columns: bool = False, bbox: bool = False) -> dict:
 
     mass = int(delta.sum())
     out = {
-        "subject": directory.name,
+        "subject": key or directory.name,
         "canvas": {"height": height, "width": width},
         "canvases": {
             "java": {"height": int(java_own.shape[0]), "width": int(java_own.shape[1])},
@@ -286,13 +288,9 @@ def walk(source: Path, subjects: list[str] | None = None, columns: bool = False,
     if not source.is_dir():
         raise MissingInput(f"no sweep output tree at {source}")
     wanted = set(subjects or [])
-    out = []
-    for child in sorted(source.iterdir()):
-        if not child.is_dir() or (wanted and child.name not in wanted):
-            continue
-        if not ((child / "vanilla.png").is_file() and (child / "java.png").is_file()):
-            continue
-        out.append(stats(child, columns=columns, bbox=bbox))
+    folders = row_folders(source, lambda folder: (folder / "vanilla.png").is_file() and (folder / "java.png").is_file())
+    out = [stats(folder, columns=columns, bbox=bbox, key=key)
+           for key, folder in folders.items() if not wanted or key in wanted]
     if not out:
         raise MissingInput(f"no subject with a vanilla/java pair under {source}")
     return out
@@ -408,7 +406,7 @@ def _region(xs: Any, ys: Any, origin: tuple[int, int], shape: tuple[int, ...]) -
     return [x0, y0, x1, y1] if x0 <= x1 and y0 <= y1 else None
 
 
-def frames(directory: Path, after: Path | None = None) -> dict:
+def frames(directory: Path, after: Path | None = None, key: str | None = None) -> dict:
     """An animated row frame by frame, and the four numbers its sweep row carries.
 
     Each frame pair is padded and scored as the sweep scores it, so ``mean_argb_delta``,
@@ -424,9 +422,12 @@ def frames(directory: Path, after: Path | None = None) -> dict:
 
     :param directory: the subject directory holding ``vanilla/`` and ``java/`` frame trees
     :param after: a sweep output tree holding the second java render, or ``None``
+    :param key: the row's key, the subject directory's path below its sweep directory, which is
+        where ``after`` holds the row too; the directory's name where it is not given
     :return: the row's four numbers, the per-frame readings and, given ``after``, its four numbers
     :raises MissingInput: if the two sides, or the second java render, hold different frames
     """
+    key = key or directory.name
     vanilla_frames = _frame_files(directory / "vanilla")
     java_frames = _frame_files(directory / "java")
     if not vanilla_frames or sorted(vanilla_frames) != sorted(java_frames):
@@ -434,9 +435,9 @@ def frames(directory: Path, after: Path | None = None) -> dict:
                            f"frames {sorted(java_frames)}; a row is scored over one set")
     after_frames = None
     if after is not None:
-        after_frames = _frame_files(after / directory.name / "java")
+        after_frames = _frame_files(after / key / "java")
         if sorted(after_frames) != sorted(java_frames):
-            raise MissingInput(f"{after / directory.name / 'java'} holds frames "
+            raise MissingInput(f"{after / key / 'java'} holds frames "
                                f"{sorted(after_frames)}, not the {sorted(java_frames)} it is "
                                f"scored beside")
 
@@ -449,7 +450,7 @@ def frames(directory: Path, after: Path | None = None) -> dict:
             row["after"] = _moved(vanilla_own, java_own, pixels.load_rgba(after_frames[number]))
         rows.append(row)
     numbers = [row["frame"] for row in rows]
-    out = {"frames": rows, "subject": directory.name,
+    out = {"frames": rows, "subject": key,
            **_row([row["mean_over_white"] for row in rows], numbers)}
     if after_frames is not None:
         out["after"] = _row([row["after"]["mean_over_white"] for row in rows], numbers)
@@ -463,13 +464,8 @@ def frames_walk(source: Path, subjects: list[str] | None = None,
     if after is not None and not after.is_dir():
         raise MissingInput(f"no second sweep output tree at {after}")
     wanted = set(subjects or [])
-    out = []
-    for child in sorted(source.iterdir()):
-        if not child.is_dir() or (wanted and child.name not in wanted):
-            continue
-        if not ((child / "vanilla").is_dir() and (child / "java").is_dir()):
-            continue
-        out.append(frames(child, after))
+    folders = row_folders(source, lambda folder: (folder / "vanilla").is_dir() and (folder / "java").is_dir())
+    out = [frames(folder, after, key=key) for key, folder in folders.items() if not wanted or key in wanted]
     if not out:
         raise MissingInput(f"no subject with vanilla/ and java/ frame trees under {source}")
     return out

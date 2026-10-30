@@ -55,7 +55,8 @@ public enum HarnessMode {
     MENUS,
     /**
      * Only the tooltip references - every subject of asset-renderer's tooltip roster drawn through the
-     * client's own tooltip call, and its box alone.
+     * client's own tooltip call, and its box alone, and every plain line through the text draw of the
+     * client's hotbar-name call.
      */
     TOOLTIPS,
     /**

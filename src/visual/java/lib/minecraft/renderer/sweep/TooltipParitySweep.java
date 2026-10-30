@@ -64,6 +64,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -73,8 +74,8 @@ import java.util.stream.Stream;
  * roster against the reference tree's {@code tooltips/}, or a pack label the roster's {@code packs}
  * section keys, that section against the harness's pack run beside the tree.
  *
- * <p>The harness draws every subject of the configuration through the client's own tooltip call onto
- * the box's whole sprite rect - the client's measurement of the lines plus {@link #CLIENT_MARGIN_MCPX}
+ * <p>The harness draws every tooltip subject of the configuration through the client's own tooltip call
+ * onto the box's whole sprite rect - the client's measurement of the lines plus {@link #CLIENT_MARGIN_MCPX}
  * on every side. This sweep reads the same roster off its own classpath and renders each subject the
  * way a caller would: lore lines over the chrome the subject names, the subject's tooltip style named,
  * through a renderer bound to the client's assets. A pack subject names a vanilla subject by key and
@@ -93,7 +94,7 @@ import java.util.stream.Stream;
  * bytes, refuses it too. A row compared over chrome or text colours the two sides resolved differently
  * would measure the resolution rather than the drawing.
  *
- * <p><b>Each subject is two rows.</b> The full row renders through {@link TextRenderer}, so it measures
+ * <p><b>Each tooltip subject is two rows.</b> The full row renders through {@link TextRenderer}, so it measures
  * the renderer whole. The box-alone row, keyed {@code _chrome} as the harness keys its twin, draws the
  * production chrome for the CLIENT's box - the content size read off the reference - through the same
  * calls {@code TextRenderer} makes, so it measures whether the chrome draws that box whatever width the
@@ -109,9 +110,16 @@ import java.util.stream.Stream;
  * not its twin - and a pack configuration has none, because the code-drawn box reads nothing from a
  * pack.
  *
- * <p><b>Both sides end at their first pixel.</b> The reference is the whole sprite rect, so the sweep
- * takes it to the bounds of every pixel the client drew; the renderer's canvas ends at the first pixel
- * its chrome draws. The two must be equal, and a size that disagrees is the finding rather than
+ * <p><b>The vanilla configuration measures the roster's plain lines too.</b> Each is one line of text
+ * the harness draws as the client's hotbar draws an item's name - the line and its shadow on nothing -
+ * into the reference tree's {@code tooltips/plain/}, and this side renders it as one line of
+ * {@link TextOptions.Style#CHAT} text. A plain line is one row, keyed {@code plain/<key>} as its drawing
+ * is filed, and has no box, so no box-alone row; its row folder is {@code plain/<key>}.
+ *
+ * <p><b>Both sides end at their first pixel.</b> The reference is the whole sprite rect, or a plain
+ * line's canvas, so the sweep takes it to the bounds of every pixel the client drew; the renderer's
+ * canvas ends at the first pixel its chrome draws, or a plain line's at the first pixel its text draws.
+ * The two must be equal, and a size that disagrees is the finding rather than
  * something to align away, so its row fails.
  *
  * <p><b>The byte gate.</b> Both sides are read as held - the reference through {@link ImageIO}, which
@@ -127,7 +135,8 @@ import java.util.stream.Stream;
  * <p>Usage: {@code TooltipParitySweep <vanilla | pack label> [tooltipId]} - {@code ./gradlew
  * tooltipParityVanilla} after {@code renderVanillaTooltipReferences}, or {@code ./gradlew
  * tooltipHypixelSkyblockParityVanilla} after {@code renderVanillaPackTooltipsHypixelSkyblock}, either
- * taking {@code -PtooltipId=one_line} for the subjects one roster key names.
+ * taking {@code -PtooltipId=one_line} for the subjects one roster key names, among the tooltip subjects
+ * and the plain lines alike.
  */
 @UtilityClass
 public final class TooltipParitySweep {
@@ -154,22 +163,45 @@ public final class TooltipParitySweep {
     private static final int CLIENT_MARGIN_MCPX = 12;
 
     /**
+     * The roster's section of plain lines, the directory below the tooltip references the harness draws
+     * them into, and the head of their rows' keys.
+     */
+    private static final @NotNull String PLAIN = "plain";
+
+    /**
      * One roster subject, named exactly as the harness names it.
      *
-     * @param key the roster key, which each of the subject's reference stems begins with, ahead of
-     *     the box-alone qualifier and the style token
+     * @param key the key the roster lists the subject under, among its tooltip subjects or its plain
+     *     lines, which each of the subject's reference stems carries ahead of the box-alone qualifier and
+     *     the style token
      * @param style the tooltip style the subject names, empty for the default box
-     * @param options the options the Java side renders it from, which name the chrome it is drawn over
+     * @param options the options the Java side renders it from - a tooltip's name the chrome it is drawn
+     *     over, a plain line's draw it as one line of chat text
      */
     record Subject(@NotNull String key, @NotNull Optional<ResourceId> style, @NotNull TextOptions options) {
 
         /**
-         * Answers the stem of the client drawing one of this subject's rows is compared with - the roster
-         * key, {@code _chrome} for the box alone, and the style token. The client draws one tooltip box,
-         * so a row over the code-drawn box reads the drawing its sprite row reads.
+         * Answers whether the subject is a tooltip, drawn by the client with a box its box-alone row
+         * measures, rather than a plain line, which the client draws on nothing.
          *
-         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @return whether the subject is a tooltip
+         */
+        boolean hasBox() {
+            return switch (this.options.getStyle()) {
+                case LORE -> true;
+                case CHAT -> false;
+            };
+        }
+
+        /**
+         * Answers the stem of the client drawing one of this subject's rows is compared with - the roster
+         * key, {@code _chrome} for the box alone, and the style token; a plain line's is its key under
+         * {@code plain/}, where the harness files the hotbar name's drawing of it. The client draws one
+         * tooltip box, so a row over the code-drawn box reads the drawing its sprite row reads.
+         *
+         * @param boxAlone whether the row is the subject's box alone rather than the subject whole
          * @return the reference stem, without its {@code .png}
+         * @throws IllegalArgumentException if the box alone is asked of a plain line
          */
         @NotNull String referenceStem(boolean boxAlone) {
             return this.stem(boxAlone, "");
@@ -178,28 +210,34 @@ public final class TooltipParitySweep {
         /**
          * Answers the key one of this subject's rows is reported under - its reference stem, with a
          * {@code chrome} token ahead of the style token for a row over the code-drawn box, the order the
-         * parity toolkit sorts a stem's tokens in.
+         * parity toolkit sorts a stem's tokens in; a plain line's is its reference stem.
          *
-         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @param boxAlone whether the row is the subject's box alone rather than the subject whole
          * @return the row's key, which also names its output folder
+         * @throws IllegalArgumentException if the box alone is asked of a plain line
          */
         @NotNull String rowKey(boolean boxAlone) {
-            return this.stem(boxAlone, switch (this.options.getChromeStyle().orElseThrow()) {
+            String chromeToken = !this.hasBox() ? "" : switch (this.options.getChromeStyle().orElseThrow()) {
                 case SPRITE -> "";
                 case PROCEDURAL -> "~chrome=procedural";
-            });
+            };
+            return this.stem(boxAlone, chromeToken);
         }
 
         /**
          * Spells a stem from the roster key, the box-alone qualifier, a chrome token and the style token,
-         * in that order.
+         * in that order, a plain line's under {@code plain/}.
          *
-         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @param boxAlone whether the row is the subject's box alone rather than the subject whole
          * @param chromeToken the chrome token, empty for none
          * @return the stem
+         * @throws IllegalArgumentException if the box alone is asked of a plain line
          */
         private @NotNull String stem(boolean boxAlone, @NotNull String chromeToken) {
-            return this.key + (boxAlone ? "_chrome" : "") + chromeToken
+            if (boxAlone && !this.hasBox())
+                throw new IllegalArgumentException(String.format("Plain subject '%s' has no box to draw alone", this.key));
+
+            return (this.hasBox() ? "" : PLAIN + "/") + this.key + (boxAlone ? "_chrome" : "") + chromeToken
                 + this.style.map(id -> "~style=" + id.namespace() + "__" + id.name()).orElse("");
         }
 
@@ -215,7 +253,7 @@ public final class TooltipParitySweep {
      * @param options the client options the renderer is bound by - vanilla's own, or the handshake's
      *     packs stacked over them
      * @param subjects the subjects the configuration renders - in roster order, and for {@code vanilla}
-     *     its code-drawn ones after its sprite ones
+     *     its code-drawn ones after its sprite ones and its plain lines last
      * @param handshake the pack run's {@code stack.json}, empty for {@code vanilla}
      */
     record Configuration(@NotNull String label, @NotNull Path references, @NotNull Path output,
@@ -287,19 +325,20 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Reads one configuration's subjects off the roster, each line a text component drawn as lore over
-     * a chrome in the style the subject names. {@code vanilla} reads the roster's own subjects over the
-     * sprite box, then each unstyled one again over the code-drawn box, which draws no style; a pack
-     * label reads its section over the sprite box alone, since the code-drawn box reads nothing from a
-     * pack, each subject taking the lines of the unstyled roster subject its key names and its style
-     * from the section.
+     * Reads one configuration's subjects off the roster, each tooltip line a text component drawn as lore
+     * over a chrome in the style the subject names. {@code vanilla} reads the roster's own subjects over
+     * the sprite box, then each unstyled one again over the code-drawn box, which draws no style, then the
+     * roster's plain lines, each one line of chat text; a pack label reads its section over the sprite box
+     * alone, since the code-drawn box reads nothing from a pack, each subject taking the lines of the
+     * unstyled roster subject its key names and its style from the section.
      *
      * @param roster the roster
      * @param label {@code vanilla} or a label the roster's {@code packs} section keys
      * @return the subjects, in roster order, and for {@code vanilla} its code-drawn ones after its
-     *     sprite ones
+     *     sprite ones and its plain lines last
      * @throws IllegalArgumentException if the label is neither
-     * @throws IllegalStateException if a pack subject's key names no unstyled roster subject
+     * @throws IllegalStateException if a pack subject's key names no unstyled roster subject, or a plain
+     *     line is more than one line
      */
     static @NotNull List<Subject> subjects(@NotNull JsonObject roster, @NotNull String label) {
         List<JsonObject> listed = new ArrayList<>();
@@ -312,7 +351,11 @@ public final class TooltipParitySweep {
             Stream<Subject> codeDrawn = listed.stream()
                 .filter(entry -> !entry.has("style"))
                 .map(entry -> subject(entry.get("key").getAsString(), Optional.empty(), entry.getAsJsonArray("lines"), ChromeStyle.PROCEDURAL));
-            return Stream.concat(sprite, codeDrawn).toList();
+            List<JsonObject> plainListed = new ArrayList<>();
+            roster.getAsJsonObject(PLAIN).getAsJsonArray("subjects").forEach(element -> plainListed.add(element.getAsJsonObject()));
+            Stream<Subject> plain = plainListed.stream()
+                .map(entry -> plain(entry.get("key").getAsString(), entry.get("line")));
+            return Stream.of(sprite, codeDrawn, plain).flatMap(Function.identity()).toList();
         }
 
         JsonObject packs = roster.has("packs") ? roster.getAsJsonObject("packs") : new JsonObject();
@@ -566,7 +609,7 @@ public final class TooltipParitySweep {
         List<Row> rows = new ArrayList<>();
         for (Subject subject : subjects) {
             rows.add(renderAndCompare(configuration, subject, false, javaRenderer, context));
-            rows.add(renderAndCompare(configuration, subject, true, javaRenderer, context));
+            if (subject.hasBox()) rows.add(renderAndCompare(configuration, subject, true, javaRenderer, context));
         }
 
         rows.sort(SweepReport.byDelta(Row::meanDelta));
@@ -765,6 +808,28 @@ public final class TooltipParitySweep {
     }
 
     /**
+     * Builds one plain subject: its line drawn as one line of chat text, the renderer's twin of the
+     * client's hotbar drawing of an item's name, which names no tooltip style and no chrome.
+     *
+     * @param key the key the roster's plain section lists the line under
+     * @param line the line as the roster spells it
+     * @return the subject
+     * @throws IllegalStateException if the line breaks into more than one
+     */
+    private static @NotNull Subject plain(@NotNull String key, @NotNull JsonElement line) {
+        ConcurrentList<LineSegment> lines = TextSegment.fromJson(line).toLines();
+        if (lines.size() != 1) {
+            throw new IllegalStateException(String.format(
+                "Plain subject '%s' breaks into %d lines, and a plain subject is one", key, lines.size()));
+        }
+
+        return new Subject(key, Optional.empty(), TextOptions.builder()
+            .style(TextOptions.Style.CHAT)
+            .lines(lines)
+            .build());
+    }
+
+    /**
      * Reads the tooltip style a roster entry names.
      *
      * @param entry the roster entry
@@ -775,16 +840,16 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Renders one row - the subject whole through the Java pipeline, or its box alone - takes the
-     * reference to its first pixel, diffs the two, writes the per-row PNGs and returns the comparison
-     * {@link Row}.
+     * Renders one row - the subject whole through the Java pipeline, a tooltip or a plain line's text, or
+     * its box alone - takes the reference to its first pixel, diffs the two, writes the per-row PNGs and
+     * returns the comparison {@link Row}.
      *
      * <p>A failed row keeps the facts it has: the reference's first-pixel bounds whenever the reference
      * was read, and the renderer's canvas and the stand-ins it drew whenever one was drawn.
      *
      * @param configuration the configuration, which names the references and the output
      * @param subject the roster subject
-     * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+     * @param boxAlone whether the row is the subject's box alone rather than the subject whole
      * @param javaRenderer the text renderer drawing the whole tooltip
      * @param context the context the box alone resolves its sprites through
      * @return the comparison row, its delta {@code POSITIVE_INFINITY} on failure
@@ -808,7 +873,8 @@ public final class TooltipParitySweep {
                 return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
-            // The reference is the whole sprite rect; the region compared is every pixel the client drew.
+            // The reference is the whole sprite rect, or a plain line's canvas; the region compared is
+            // every pixel the client drew.
             PixelBuffer whole = PixelBuffer.wrap(reference);
             Rectangle drawn = whole.opaqueBounds();
             vanillaW = drawn.width;

@@ -282,7 +282,7 @@ src/
     │   │   ├── GlintSweep.java             # Animated-glint frame sequences + atlas-UV dump
     │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
     │   │   ├── MenuSweep.java              # Container screens, each laid out at its panel's own size
-    │   │   ├── TooltipSweep.java           # The tooltip roster, each subject whole and as its box alone
+    │   │   ├── TooltipSweep.java           # The tooltip roster, each subject whole and as its box alone, and its plain lines
     │   │   ├── PitchRollSweep.java         # Diagnostic pitch × roll pose sweep (outside the tree)
     │   │   ├── PackSourceSweep.java        # Diagnostic: which pack the client takes each resource from (outside the tree)
     │   │   ├── PackIconSweep.java          # Diagnostic: the slot drawing of each pack-icon roster stack (outside the tree)

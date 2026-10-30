@@ -1175,7 +1175,8 @@ tasks {
     registerHarnessRun("renderVanillaTooltipReferences", "refharnessModes=TOOLTIPS", "TOOLTIPS", false,
         listOf("tooltips"),
         "Runs the harness in TOOLTIPS mode: references/tooltips/ only - every subject of the tracked " +
-        "tooltip roster drawn through the client's own tooltip call, and its box alone. Then run " +
+        "tooltip roster drawn through the client's own tooltip call, and its box alone, and every plain " +
+        "line through the text draw of the client's hotbar-name call, into tooltips/plain/. Then run " +
         "tooltipParityVanilla.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,

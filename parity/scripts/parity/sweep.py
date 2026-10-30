@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 from parity import ids as ids_mod
-from parity.norm import MissingInput, fixed, fsum, read_json, read_lines
+from parity.norm import MissingInput, fixed, fsum, posix, read_json, read_lines
 
 #: Every parity sweep, by the name its ``sweep.<name>`` artifact id and its output directory carry.
 SWEEPS = ("entity", "entity-animation", "entity-walk", "block", "item", "player", "armor", "glint",
@@ -196,6 +196,30 @@ def discover(source: Path) -> dict[str, Path]:
     if not found:
         raise MissingInput(f"no sweep tables under {source}")
     return found
+
+
+def row_folders(source: Path, holds: Callable[[Path], bool]) -> dict[str, Path]:
+    """Every row folder of a sweep's output directory, keyed by its POSIX path below it, in key order.
+
+    A row writes its folder at its key, so a key naming a directory - the tooltip sweep's
+    ``plain/<key>`` - puts the folder below the top. A folder that holds a row's files is a row and
+    is not looked inside; any other folder is walked for the rows below it.
+
+    :param source: the sweep's output directory
+    :param holds: whether a folder holds a row's files
+    :return: each row's key and its folder
+    """
+    found: dict[str, Path] = {}
+    pending = [source]
+    while pending:
+        for child in pending.pop().iterdir():
+            if not child.is_dir():
+                continue
+            if holds(child):
+                found[posix(child, source)] = child
+            else:
+                pending.append(child)
+    return dict(sorted(found.items()))
 
 
 def total(table: Table) -> float:

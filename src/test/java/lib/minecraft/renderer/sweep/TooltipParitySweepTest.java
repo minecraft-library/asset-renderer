@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.ChromeStyle;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
@@ -41,7 +42,8 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link TooltipParitySweep} short of a client: the rows each configuration draws, the keys
+ * Coverage of {@link TooltipParitySweep} short of a client: the rows each configuration draws - its
+ * tooltip subjects whole and as their box alone and the vanilla configuration's plain lines - the keys
  * and drawings they are compared under and the folder and drawing a row's comparison takes from them,
  * the resolution check that holds the renderer's chrome to the sprites the client drew with, the scaling
  * form both sides write, the roster's pack sections, and the pack run's handshake.
@@ -341,37 +343,45 @@ class TooltipParitySweepTest {
      * Describes a subject as the row-set case compares it.
      *
      * @param subject the subject
-     * @return its key, the style it names as {@code namespace:name} where it names one, and the name of
-     *     the chrome it is drawn over
+     * @return its key, the style it names as {@code namespace:name} where it names one, the name of the
+     *     request style it is rendered in, and the name of the chrome it is drawn over or {@code none}
      */
     private static List<String> described(TooltipParitySweep.Subject subject) {
         List<String> described = new ArrayList<>();
         described.add(subject.key());
         subject.style().ifPresent(style -> described.add(style.namespace() + ":" + style.name()));
+        described.add(subject.options().getStyle().name());
         described.add(subject.options().getChromeStyle().map(ChromeStyle::name).orElse("none"));
         return described;
     }
 
     @Test
     @DisplayName("the vanilla configuration draws every roster subject over the sprite box, then every unstyled one "
-        + "over the code-drawn box, which draws no tooltip style")
-    void vanillaDrawsEveryUnstyledSubjectOverTheCodeDrawnBoxAsWell() throws IOException {
+        + "over the code-drawn box, which draws no tooltip style, then every plain line as one line of chat text")
+    void vanillaDrawsEachChromeThenThePlainLines() throws IOException {
         JsonObject roster = TooltipParitySweep.roster();
         List<JsonObject> entries = new ArrayList<>();
         roster.getAsJsonArray("subjects").forEach(element -> entries.add(element.getAsJsonObject()));
+        List<JsonObject> plain = new ArrayList<>();
+        if (roster.has("plain"))
+            roster.getAsJsonObject("plain").getAsJsonArray("subjects").forEach(element -> plain.add(element.getAsJsonObject()));
 
+        assertThat("the roster has no plain line, which would leave the plain rows unexercised", plain, is(not(empty())));
         assertThat("the roster has no styled subject, which would leave the code-drawn box's exclusion unexercised",
             entries.stream().anyMatch(entry -> entry.has("style")), is(true));
 
+        String lore = TextOptions.Style.LORE.name();
         List<List<String>> expected = new ArrayList<>();
         for (JsonObject entry : entries) {
             String key = entry.get("key").getAsString();
             expected.add(entry.has("style")
-                ? List.of(key, entry.get("style").getAsString(), ChromeStyle.SPRITE.name())
-                : List.of(key, ChromeStyle.SPRITE.name()));
+                ? List.of(key, entry.get("style").getAsString(), lore, ChromeStyle.SPRITE.name())
+                : List.of(key, lore, ChromeStyle.SPRITE.name()));
         }
         for (JsonObject entry : entries)
-            if (!entry.has("style")) expected.add(List.of(entry.get("key").getAsString(), ChromeStyle.PROCEDURAL.name()));
+            if (!entry.has("style")) expected.add(List.of(entry.get("key").getAsString(), lore, ChromeStyle.PROCEDURAL.name()));
+        for (JsonObject entry : plain)
+            expected.add(List.of(entry.get("key").getAsString(), TextOptions.Style.CHAT.name(), "none"));
 
         assertThat(TooltipParitySweep.subjects(roster, "vanilla").stream().map(TooltipParitySweepTest::described).toList(),
             equalTo(expected));
@@ -392,10 +402,11 @@ class TooltipParitySweepTest {
         Set<String> spriteDrawings = new HashSet<>();
         Set<String> codeDrawnDrawings = new HashSet<>();
         for (TooltipParitySweep.Subject subject : subjects) {
-            for (boolean boxAlone : List.of(false, true)) {
+            for (boolean boxAlone : subject.hasBox() ? List.of(false, true) : List.of(false)) {
                 String key = subject.rowKey(boxAlone);
                 String drawing = subject.referenceStem(boxAlone);
                 if (!keys.add(key)) repeatedKeys.add(key);
+                if (!subject.hasBox()) continue;
                 if (subject.options().getChromeStyle().equals(Optional.of(ChromeStyle.SPRITE))) {
                     spriteDrawings.add(drawing);
                     if (!key.equals(drawing)) movedSpriteKeys.add(key);
@@ -456,6 +467,57 @@ class TooltipParitySweepTest {
             .filter(subject -> subject.key().equals(key) && subject.options().getChromeStyle().equals(Optional.of(ChromeStyle.PROCEDURAL)))
             .findFirst()
             .orElseThrow();
+    }
+
+    /**
+     * Finds the vanilla configuration's plain line under a key of the roster's plain section.
+     *
+     * @param subjects the vanilla configuration's subjects
+     * @param key the key the plain section lists the line under
+     * @return the subject
+     */
+    private static TooltipParitySweep.Subject plainLine(List<TooltipParitySweep.Subject> subjects, String key) {
+        return subjects.stream()
+            .filter(subject -> subject.key().equals(key) && subject.options().getStyle() == TextOptions.Style.CHAT)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    @Test
+    @DisplayName("a plain line is one row of one line of chat text, keyed and read at plain/ where the harness files its "
+        + "drawing, with no box to draw alone")
+    void plainLinesAreOneRowEachFiledUnderPlain() throws IOException {
+        List<TooltipParitySweep.Subject> subjects = TooltipParitySweep.subjects(TooltipParitySweep.roster(), "vanilla");
+        TooltipParitySweep.Subject oneLine = plainLine(subjects, "one_line");
+
+        assertThat("the plain one_line has a box", oneLine.hasBox(), is(false));
+        assertThat(List.of(oneLine.rowKey(false), oneLine.referenceStem(false)), contains("plain/one_line", "plain/one_line"));
+        assertThrows(IllegalArgumentException.class, () -> oneLine.rowKey(true));
+
+        List<TooltipParitySweep.Subject> plain = subjects.stream()
+            .filter(subject -> subject.options().getStyle() == TextOptions.Style.CHAT)
+            .toList();
+        assertThat("no subject drawn as chat text, which would leave this case vacuous", plain, is(not(empty())));
+        for (TooltipParitySweep.Subject subject : plain) {
+            String key = subject.key();
+            assertThat(key + ": its lines", subject.options().getLines().size(), is(1));
+            assertThat(key + ": its chrome", subject.options().getChromeStyle(), is(Optional.empty()));
+            assertThat(key + ": its tooltip style", subject.options().getTooltipStyle(), is(Optional.empty()));
+            assertThat(key + ": the style the roster names", subject.style(), is(Optional.empty()));
+            assertThat(key + ": its box", subject.hasBox(), is(false));
+            assertThat(key + ": its row key, which is its drawing", subject.rowKey(false),
+                allOf(equalTo(subject.referenceStem(false)), startsWith("plain/")));
+        }
+    }
+
+    @Test
+    @DisplayName("a plain line that breaks into two lines is refused - a plain subject is one line")
+    void aPlainLineOfTwoLinesIsRefused() {
+        JsonObject roster = JsonParser.parseString(
+            "{\"subjects\": [], \"plain\": {\"subjects\": [{\"key\": \"two\", \"line\": {\"text\": \"a\\nb\"}}]}}").getAsJsonObject();
+
+        IllegalStateException refusal = assertThrows(IllegalStateException.class, () -> TooltipParitySweep.subjects(roster, "vanilla"));
+        assertThat(refusal.getMessage(), containsString("'two'"));
     }
 
     @Test

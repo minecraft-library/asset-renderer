@@ -475,7 +475,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew playerParityVanilla                                           # FULL + SKULL scopes
 ./gradlew armorParityVanilla                                            # worn-armor shells
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
-./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone
+./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone, and the plain lines
 ./gradlew tooltipHypixelSkyblockParityVanilla -PtooltipId=one_line      # the same under the hypixel-skyblock pack
 ```
 

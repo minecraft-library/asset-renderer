@@ -1,5 +1,5 @@
 {
-  "//": "The tooltips the harness draws into references/tooltips/, each line a vanilla text component as an item tooltip carries one, every colour and format spelled out except on the one subject that tests the default. One subject names a tooltip style no pack ships, which the client draws as the missing texture. Two subjects name a font of the client's own, minecraft:alt and minecraft:illageralt, and draw every glyph each font's sheet holds and no codepoint outside it, where the client draws its missing glyph. No line is obfuscated: the client's obfuscation random is unseeded, so such a line would not reproduce. The packs section is what a pack run draws into pack-tooltips/<label>/ beside the reference tree: each of its subjects names an unstyled subject above by key and draws that subject's lines under the pack's sprites, in one of the pack's tooltip styles where it names one. Every line a pack subject reaches is printable ASCII, because the pack's font adds icon glyphs the client would draw and the renderer draws no font from a pack; TooltipParitySweepTest holds that. Only hypixel-skyblock has a section: defrosted redraws only the letters, for the same reason; eureka.cats.zip and FurSky Reborn.cats.zip are Catharsis containers the client cannot read; and Hypixel+ ships no text or tooltip file.",
+  "//": "The tooltips the harness draws into references/tooltips/, each line a vanilla text component as an item tooltip carries one, every colour and format spelled out except on the one subject that tests the default. One subject names a tooltip style no pack ships, which the client draws as the missing texture. Two subjects name a font of the client's own, minecraft:alt and minecraft:illageralt, and draw every glyph each font's sheet holds and no codepoint outside it, where the client draws its missing glyph. No line is obfuscated: the client's obfuscation random is unseeded, so such a line would not reproduce. The plain section is what the harness draws into references/tooltips/plain/: each of its subjects is one line, drawn as the client's hotbar draws an item's name - the text and its shadow on nothing, opaque white where the line names no colour - and asset-renderer draws it as one line of chat text. A plain subject is one line because the client's other plain text, chat, adds a backdrop, a line height of its own and a fade. The packs section is what a pack run draws into pack-tooltips/<label>/ beside the reference tree: each of its subjects names an unstyled subject above by key and draws that subject's lines under the pack's sprites, in one of the pack's tooltip styles where it names one. Every line a pack subject reaches is printable ASCII, because the pack's font adds icon glyphs the client would draw and the renderer draws no font from a pack; TooltipParitySweepTest holds that. Only hypixel-skyblock has a section: defrosted redraws only the letters, for the same reason; eureka.cats.zip and FurSky Reborn.cats.zip are Catharsis containers the client cannot read; and Hypixel+ ships no text or tooltip file.",
   "format": 1,
   "subjects": [
     {"key": "one_line", "lines": [{"text": "Stone", "color": "white"}]},
@@ -64,6 +64,26 @@
       {"text": "abcdefghijklmnopqrstuvwxyz !?,.-", "color": "white", "font": "minecraft:illageralt"}]},
     {"key": "one_line", "style": "hypixel_skyblock:legendary", "lines": [{"text": "Stone", "color": "white"}]}
   ],
+  "plain": {
+    "subjects": [
+      {"key": "one_line", "line": {"text": "Stone", "color": "white"}},
+      {"key": "narrow", "line": {"text": "It", "color": "white"}},
+      {"key": "spaces", "line": {"text": "  Stone  ", "color": "white"}},
+      {"key": "no_capital", "line": {"text": "acemnorsuvwxz", "color": "white"}},
+      {"key": "accented", "line": {"text": "\u00c9lan", "color": "white"}},
+      {"key": "descenders", "line": {"text": "Spyglass", "color": "white"}},
+      {"key": "underlined", "line": {"text": "Underlined", "color": "white", "underlined": true}},
+      {"key": "bold", "line": {"text": "Bold", "color": "white", "bold": true}},
+      {"key": "italic", "line": {"text": "Italic text", "color": "white", "italic": true}},
+      {"key": "mixed_segments", "line": {"text": "", "color": "white", "extra": [
+        {"text": "Damage: ", "color": "gray"}, {"text": "+120", "color": "red", "bold": true},
+        {"text": " (+20)", "color": "dark_gray"}]}},
+      {"key": "unstyled", "line": {"text": "No colour given"}},
+      {"key": "translucent_shadow", "line": {"text": "Translucent shadow", "color": "white", "shadow_color": -2130771968}},
+      {"key": "no_shadow", "line": {"text": "Stone", "color": "white", "shadow_color": 0}},
+      {"key": "alt_font", "line": {"text": "Stone", "color": "white", "font": "minecraft:alt"}}
+    ]
+  },
   "packs": {
     "hypixel-skyblock": {
       "subjects": [

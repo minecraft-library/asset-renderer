@@ -38,6 +38,7 @@ import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.ARGB;
 import org.joml.Vector2i;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,12 +58,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Tooltip sweep. Draws every subject of asset-renderer's tooltip roster through the client's own
- * {@code GuiGraphicsExtractor#tooltip} call, and the same subject's box alone, into the shared GUI
- * capture, so the reference is the tooltip as the client composes it - the box's two sprites and the
- * text over them.
+ * Tooltip sweep. Draws every tooltip subject of asset-renderer's tooltip roster through the client's
+ * own {@code GuiGraphicsExtractor#tooltip} call, and the same subject's box alone, and every plain line
+ * of the roster through the text draw of the client's hotbar-name call, into the shared GUI capture, so
+ * each reference is what the client composes - a tooltip's two box sprites and the text over them, or a
+ * plain line's text and its shadow alone.
  *
  * <p>The roster is the file {@link HarnessConfig#TOOLTIP_ROSTER} names, the tracked one under
  * asset-renderer's {@code src/visual/resources} unless a run names another. Each line is a text
@@ -80,10 +83,18 @@ import java.util.stream.Collectors;
  * client's own measurement of the lines, the loop the tooltip call runs, plus {@link #MARGIN} on every
  * side - so nothing the client draws for a tooltip falls off it.
  *
- * <p>Every subject is drawn twice, the full tooltip and then its <b>box alone</b> through
+ * <p>Every tooltip subject is drawn twice, the full tooltip and then its <b>box alone</b> through
  * {@code TooltipRenderUtil.extractTooltipBackground} at the same measurement, so a pair costs one
  * target resize and a mover is attributable without a mask: one in the box-alone twin is the box,
  * one in the full tooltip alone is the text.
+ *
+ * <p><b>The vanilla roster's plain lines are drawn as the hotbar draws an item's name.</b> Each line of
+ * the roster's plain section is drawn by the text draw of the client's hotbar-name call into
+ * {@code plain/} - the line's text and its shadow on nothing, opaque white where it names no colour -
+ * at the same fixed origin, on a canvas of the client's width of the line and the font's line height
+ * with {@link #MARGIN} on every side. The call fills a backdrop first only where the text background is
+ * not for chat only, which it is by default, so the draw is that text alone. A plain line has no box,
+ * so no box-alone twin, and a pack run draws its section alone.
  *
  * <p><b>A pack run draws the roster's section for its packs.</b> Constructed with the packs a run
  * selects, the sweep reads the roster's {@code packs} section keyed by their file names and draws it
@@ -102,7 +113,7 @@ import java.util.stream.Collectors;
  * with it.
  */
 @Parity(claim = "harness-tooltip-sweep", mode = Mode.DEMOTE, subject = Subject.TEXT)
-public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
+public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -112,9 +123,21 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     /**
      * GUI pixels between the content origin and the canvas edge on every side - the margin the
      * client's tooltip box draws its sprites over, which is what puts the box's sprite rect at the
-     * canvas origin.
+     * canvas origin, and more than any pixel the hotbar name's text draw lays round a plain line.
      */
     private static final int MARGIN = 12;
+
+    /**
+     * The roster's section of plain lines, and the directory below this sweep's own that their drawings
+     * are written into.
+     */
+    private static final String PLAIN = "plain";
+
+    /**
+     * The colour the hotbar draws a freshly selected item's name in - opaque white, the alpha its
+     * highlight timer clamps to.
+     */
+    private static final int HOTBAR_NAME_COLOR = ARGB.white(255);
 
     /** The built-in packs that redraw a tooltip, and that a reference run therefore never selects. */
     private static final Set<String> REDRAWING_PACKS = Set.of("high_contrast", "programmer_art");
@@ -173,6 +196,14 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
         this.pack = Optional.of(packIds.stream().map(id -> id.substring(FILE_PREFIX.length())).collect(Collectors.joining(",")));
     }
 
+    /** One drawing the sweep writes - a roster subject's tooltip or its box alone, or one of its plain lines. */
+    public sealed interface Drawing permits TooltipSubject, PlainSubject {
+
+        /** The key the roster lists the drawing's subject under. */
+        String key();
+
+    }
+
     /**
      * One tooltip to render.
      *
@@ -184,7 +215,16 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      * @param chrome whether this is the box-alone twin rather than the full tooltip
      */
     public record TooltipSubject(String key, Optional<Identifier> style, List<ClientTooltipComponent> lines,
-                                 int width, int height, boolean chrome) {}
+                                 int width, int height, boolean chrome) implements Drawing {}
+
+    /**
+     * One of the roster's plain lines to render.
+     *
+     * @param key the line's key in the roster's plain section, the stem of its file under {@code plain/}
+     * @param line the line as the client's text component
+     * @param width the line's width as the client's font measures it, in GUI pixels
+     */
+    public record PlainSubject(String key, Component line, int width) implements Drawing {}
 
     /**
      * One subject as the roster lists it, before its lines are parsed.
@@ -208,18 +248,20 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     }
 
     /**
-     * Reads the roster and measures every subject with the client's font, each roster subject
-     * yielding its full tooltip and then its box-alone twin.
+     * Reads the roster and measures every subject with the client's font, each tooltip subject
+     * yielding its full tooltip and then its box-alone twin, and for the vanilla roster each plain line
+     * after them.
      *
      * @param ctx the sweep context
-     * @return the subjects, in roster order
+     * @return the drawings, in roster order
      * @throws IllegalStateException if a redrawing pack is selected, a requested pack is not, or the
      *     roster is unnamed, absent, malformed, of another format, has no section for a pack run's
      *     packs, lists a pack subject naming no unstyled subject, carries a line the client's codec
+     *     refuses, has no plain section for a vanilla run, carries a plain line the client's codec
      *     refuses, or names two subjects that would write one file
      */
     @Override
-    public List<TooltipSubject> enumerate(SweepContext ctx) {
+    public List<Drawing> enumerate(SweepContext ctx) {
         Collection<String> selected = ctx.client().getResourcePackRepository().getSelectedIds();
         List<String> redrawing = selected.stream().filter(REDRAWING_PACKS::contains).toList();
         if (!redrawing.isEmpty()) {
@@ -245,8 +287,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
 
         Font font = ctx.client().font;
         DynamicOps<JsonElement> ops = ctx.level().registryAccess().createSerializationContext(JsonOps.INSTANCE);
-        List<TooltipSubject> subjects = new ArrayList<>();
-        Set<String> files = new HashSet<>();
+        List<Drawing> drawings = new ArrayList<>();
         for (Listed entry : listed(roster, file)) {
             String key = entry.key();
             List<ClientTooltipComponent> lines = new ArrayList<>();
@@ -265,19 +306,24 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
                 height += line.getHeight(font);
             }
 
-            for (boolean chrome : new boolean[] { false, true }) {
-                TooltipSubject subject = new TooltipSubject(key, entry.style(), List.copyOf(lines), width, height, chrome);
-                String name = key(subject).fileName();
-                if (!files.add(name)) {
-                    throw new IllegalStateException(String.format(
-                        "Tooltip subject '%s' writes '%s', which another subject of the roster writes too", key, name));
-                }
-                subjects.add(subject);
+            for (boolean chrome : new boolean[] { false, true })
+                drawings.add(new TooltipSubject(key, entry.style(), List.copyOf(lines), width, height, chrome));
+        }
+        if (pack.isEmpty()) drawings.addAll(plainSubjects(roster, file, ops, font));
+
+        // The path below the sweep's directory, not the file name alone: a plain line's file sits in
+        // plain/, so it and the tooltip of the same key are two files under one name.
+        Set<Path> files = new HashSet<>();
+        for (Drawing drawing : drawings) {
+            Path name = key(drawing).resolve(Path.of(""));
+            if (!files.add(name)) {
+                throw new IllegalStateException(String.format(
+                    "Tooltip roster subject '%s' writes '%s', which another subject of the roster writes too", drawing.key(), name));
             }
         }
 
-        LOG.info("TooltipSweep built: {} targets from {}", subjects.size(), file);
-        return subjects;
+        LOG.info("TooltipSweep built: {} targets from {}", drawings.size(), file);
+        return drawings;
     }
 
     /**
@@ -294,7 +340,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      * @throws UncheckedIOException if a pack run's handshake cannot be written
      */
     @Override
-    public void prepare(SweepContext ctx, List<TooltipSubject> subjects) {
+    public void prepare(SweepContext ctx, List<Drawing> subjects) {
         Options options = ctx.client().options;
         boolean highContrast = options.highContrast().get();
         boolean unicode = options.forceUnicodeFont().get();
@@ -310,46 +356,60 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
 
     /**
      * Answers the roster key, {@code _chrome} for the box-alone twin, and a {@code style} token for a
-     * subject naming a tooltip style, spelled with the {@code __} separator an identifier's key takes.
+     * subject naming a tooltip style, spelled with the {@code __} separator an identifier's key takes; a
+     * plain line's is its key in {@code plain/}.
      *
-     * @param subject the subject
+     * @param drawing the drawing
      * @return the key its file is named by
      */
     @Override
-    public RefKey key(TooltipSubject subject) {
-        RefKey named = RefKey.named(subject.key());
-        RefKey kind = subject.chrome() ? named.with("chrome") : named;
-        return subject.style()
-            .map(style -> kind.token("style", style.getNamespace() + "__" + style.getPath()))
-            .orElse(kind);
+    public RefKey key(Drawing drawing) {
+        return switch (drawing) {
+            case TooltipSubject subject -> {
+                RefKey named = RefKey.named(subject.key());
+                RefKey kind = subject.chrome() ? named.with("chrome") : named;
+                yield subject.style()
+                    .map(style -> kind.token("style", style.getNamespace() + "__" + style.getPath()))
+                    .orElse(kind);
+            }
+            case PlainSubject subject -> RefKey.named(subject.key()).in(PLAIN);
+        };
     }
 
     /**
-     * Sizes the canvas to the tooltip's whole sprite rect at the GUI scale - the measured content and
-     * {@link #MARGIN} on every side.
+     * Sizes the canvas to the tooltip's whole sprite rect, or a plain line's width and the font's line
+     * height, at the GUI scale, with {@link #MARGIN} on every side.
      *
      * @param ctx the sweep context
-     * @param subject the subject
+     * @param drawing the drawing
      * @return the canvas
      */
     @Override
-    public Canvas canvas(SweepContext ctx, TooltipSubject subject) {
+    public Canvas canvas(SweepContext ctx, Drawing drawing) {
         int scale = GuiFrameRenderer.GUI_SCALE;
-        return new Canvas((subject.width() + 2 * MARGIN) * scale, (subject.height() + 2 * MARGIN) * scale,
-            Optional.empty());
+        return switch (drawing) {
+            case TooltipSubject subject -> new Canvas((subject.width() + 2 * MARGIN) * scale,
+                (subject.height() + 2 * MARGIN) * scale, Optional.empty());
+            case PlainSubject subject -> new Canvas((subject.width() + 2 * MARGIN) * scale,
+                (ctx.client().font.lineHeight + 2 * MARGIN) * scale, Optional.empty());
+        };
     }
 
     @Override
-    public boolean render(SweepContext ctx, TooltipSubject subject, Canvas canvas, Path out) throws IOException {
+    public boolean render(SweepContext ctx, Drawing drawing, Canvas canvas, Path out) throws IOException {
         Minecraft client = ctx.client();
-        Identifier style = subject.style().orElse(null);
-
-        if (subject.chrome())
-            return capture.render(client, canvas, out, extractor -> TooltipRenderUtil.extractTooltipBackground(
-                extractor, MARGIN, MARGIN, subject.width(), subject.height(), style));
-
-        return capture.render(client, canvas, out, extractor ->
-            extractor.tooltip(client.font, subject.lines(), MARGIN, MARGIN, AT_THE_ORIGIN, style));
+        return switch (drawing) {
+            case TooltipSubject subject when subject.chrome() -> capture.render(client, canvas, out, extractor ->
+                TooltipRenderUtil.extractTooltipBackground(extractor, MARGIN, MARGIN, subject.width(), subject.height(),
+                    subject.style().orElse(null)));
+            case TooltipSubject subject -> capture.render(client, canvas, out, extractor ->
+                extractor.tooltip(client.font, subject.lines(), MARGIN, MARGIN, AT_THE_ORIGIN, subject.style().orElse(null)));
+            // The text draw of the hotbar's name call, textWithBackdrop: the backdrop it fills first is the
+            // text background at the 0 opacity the call passes, clear while that background is for chat
+            // only, as it is by default, so the line is all it draws.
+            case PlainSubject subject -> capture.render(client, canvas, out, extractor ->
+                extractor.text(client.font, subject.line(), MARGIN, MARGIN, HOTBAR_NAME_COLOR, true));
+        };
     }
 
     /**
@@ -407,6 +467,30 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
     }
 
     /**
+     * Reads the roster's plain lines, each parsed by the client's own component codec and measured by
+     * its font as the hotbar measures an item's name.
+     *
+     * @param roster the roster
+     * @param file the roster's path, for the refusals
+     * @param ops the registries' serialization context the lines are parsed against
+     * @param font the client's font
+     * @return the plain lines, in roster order
+     * @throws IllegalStateException if the roster has no plain section, the section lists no subjects,
+     *     or a line is one the client's codec refuses
+     */
+    private static List<PlainSubject> plainSubjects(JsonObject roster, Path file, DynamicOps<JsonElement> ops, Font font) {
+        List<PlainSubject> plain = new ArrayList<>();
+        for (JsonElement element : subjects(asObject(roster.get(PLAIN), "the plain section"), "The plain section", file)) {
+            JsonObject entry = asObject(element, "a plain subject");
+            String key = member(entry, "key", "a plain subject").getAsString();
+            Component line = ComponentSerialization.CODEC.parse(ops, member(entry, "line", key)).getOrThrow(message ->
+                new IllegalStateException(String.format("Plain subject '%s' carries a line the client refuses: '%s'", key, message)));
+            plain.add(new PlainSubject(key, line, font.width(line)));
+        }
+        return plain;
+    }
+
+    /**
      * Writes a pack run's handshake beside its drawings: the client's pack selection, and for every
      * tooltip sprite the subjects reach - keyed by the id the client's own tooltip draws, sorted - the
      * file the client's GUI atlas reads it from, the stack of packs supplying that file and the scaling
@@ -418,7 +502,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
      * @param subjects the enumerated work list
      * @throws UncheckedIOException if a supplied file cannot be read or the handshake cannot be written
      */
-    private void writeStack(SweepContext ctx, List<TooltipSubject> subjects) {
+    private void writeStack(SweepContext ctx, List<Drawing> subjects) {
         Minecraft client = ctx.client();
         JsonObject root = new JsonObject();
         root.addProperty("format", STACK_FORMAT);
@@ -429,7 +513,11 @@ public final class TooltipSweep implements Sweep<TooltipSweep.TooltipSubject> {
         Path target = ctx.outputRoot().resolve(outputDir()).resolve(STACK);
         try {
             Map<String, JsonObject> sources = new TreeMap<>();
-            for (Optional<Identifier> style : subjects.stream().map(TooltipSubject::style).distinct().toList()) {
+            List<Optional<Identifier>> styles = subjects.stream()
+                .flatMap(drawing -> drawing instanceof TooltipSubject subject ? Stream.of(subject.style()) : Stream.empty())
+                .distinct()
+                .toList();
+            for (Optional<Identifier> style : styles) {
                 Identifier key = style.orElse(null);
                 List<Identifier> sprites = List.of(
                     TooltipRenderUtilAccessor.refharness$backgroundSprite(key), TooltipRenderUtilAccessor.refharness$frameSprite(key));

@@ -120,9 +120,9 @@ public final class ParityArtifacts {
         // are the only subjects this row is the gate for. Same floor, a sweep being a pure function of
         // two file sets.
         Registration.store("sweep.entity-walk", 2, "entityWalkParityVanilla"),
-        // The tooltip references diffed at an equal canvas, each roster subject whole and as its box
-        // alone, so a mover says whether the box or the text moved. Same floor, a sweep being a pure
-        // function of two file sets.
+        // The tooltip references diffed at an equal canvas, each tooltip subject whole and as its box
+        // alone, so a mover says whether the box or the text moved, and each plain line as one line of
+        // chat text. Same floor, a sweep being a pure function of two file sets.
         Registration.store("sweep.tooltip", 2, "tooltipParityVanilla"),
         // The tooltip sweep under the hypixel-skyblock pack, measured against the client's drawings
         // under that pack beside the reference tree rather than against the tree. Same floor, a sweep
