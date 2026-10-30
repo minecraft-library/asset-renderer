@@ -306,12 +306,12 @@
     "sweep.tooltip": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 32,
+      "entries": 62,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 3935,
-      "promoted_at": "33935094db15adf57139f1790ec28fa311dfa634",
-      "sha256": "b856d141c42290d12789f3c50c5176945445e633c0d1fb5385d5b05ccc3cc7ab",
+      "last_duration_ms": 4007,
+      "promoted_at": "aa1fe84511cea2e2cda79074f806f060c105b138",
+      "sha256": "8630d495fb9bcc88aec8f2b288224ad22e26f010b0e23cb101d05245de2a11cd",
       "sum": "0.0030"
     },
     "sweep.tooltip-hypixel-skyblock": {

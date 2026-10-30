@@ -46,7 +46,7 @@ Values this store holds, one file each.
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.tooltip` | `sweeps/tooltip.json` | 32 | sum 0.0030 | `33935094db15adf57139f1790ec28fa311dfa634` | yes |
+| `sweep.tooltip` | `sweeps/tooltip.json` | 62 | sum 0.0030 | `aa1fe84511cea2e2cda79074f806f060c105b138` | yes |
 | `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 0.0000 | `33935094db15adf57139f1790ec28fa311dfa634` | yes |
 
 ## Pointers

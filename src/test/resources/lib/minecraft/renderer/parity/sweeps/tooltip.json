@@ -5,21 +5,22 @@
   "key": "subject",
   "kind": "sweep-table",
   "provenance": {
+    "allow_partial": true,
     "artifact": "sweep.tooltip",
-    "asset_content_digest": "b7f90d9865519626dc3d5378aa000993396382282cf84e981f81c3c1edf3d3d3",
+    "asset_content_digest": "5dafb3cabb2857eb196ac2d28eed241a0f50ccb52ec23af13453586a6831444b",
     "asset_dirty": true,
-    "asset_sha": "33935094db15adf57139f1790ec28fa311dfa634",
+    "asset_sha": "aa1fe84511cea2e2cda79074f806f060c105b138",
     "counts": {
-      "failed": 0,
-      "rows": 32
+      "failed": 30,
+      "rows": 62
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY,ANIMATION,WALK",
-    "parity_class": "moving",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "tooltipParityVanilla",
-    "reason": "18a008fd draws with the regenerated bold and italic faces (font-generator 51188db: the client's quarter slant about 3 mcPx above the baseline, bold as two copies a pixel wider, the space 5) and leans gradient bands by the drawn font's slant (minecraft-text 1071351). sweep.tooltip formats 717 -> 0 and item_like 3034 -> 16 (the frame side-ramp gap), sweep.tooltip-hypixel-skyblock item_like 3018 -> 0, and six lore-tooltip renders move: accessory.png and the four weapon files by the bold space, gradient_italic_shear.png by the italic face and its bands. Eleven values registered before the capture; the other 26 planned artifacts held.",
+    "reason": "a3a82cd7 measures the code-drawn tooltip box: the 15 unstyled roster subjects drawn over it, whole and as the box alone, keyed <key>~chrome=procedural and compared with the client's drawings of <key>. All 30 fail on canvas today - the code-drawn box pads the text by 5 mcPx where the client's box ends 4 out, every canvas 4 output px wider and taller (one_line 76x36 against 72x32) - which the partial-run exception records; the redraw that follows moves them. The 32 sprite rows held.",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -34,9 +35,9 @@
       "walk": 4896
     },
     "reference_manifest_digest": "51baf16163b93d6354b7d2d6f55a4145814ecfdd054e0f8b5c09aabe9cee69dd",
-    "timestamp": "2026-10-29T23:36:44Z",
+    "timestamp": "2026-10-30T00:36:32Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 3935
+    "wall_time_ms": 4007
   },
   "rows": [
     {
@@ -64,6 +65,34 @@
       "status": "ok",
       "subject": "alt_font_chrome",
       "vanilla_coverage": "0.9990",
+      "vanilla_h": "56",
+      "vanilla_w": "278"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "282",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "alt_font_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "56",
+      "vanilla_w": "278"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "282",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "alt_font~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "56",
       "vanilla_w": "278"
     },
@@ -96,6 +125,34 @@
       "vanilla_w": "214"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "120",
+      "java_w": "218",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "five_lines_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "116",
+      "vanilla_w": "214"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "120",
+      "java_w": "218",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "five_lines~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "116",
+      "vanilla_w": "214"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9996",
       "java_h": "136",
@@ -120,6 +177,34 @@
       "status": "ok",
       "subject": "formats_chrome",
       "vanilla_coverage": "0.9996",
+      "vanilla_h": "136",
+      "vanilla_w": "272"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "140",
+      "java_w": "276",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "formats_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "136",
+      "vanilla_w": "272"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "140",
+      "java_w": "276",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "formats~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "136",
       "vanilla_w": "272"
     },
@@ -152,6 +237,34 @@
       "vanilla_w": "100"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "100",
+      "java_w": "104",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "hex_colours_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "96",
+      "vanilla_w": "100"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "100",
+      "java_w": "104",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "hex_colours~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "96",
+      "vanilla_w": "100"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9993",
       "java_h": "56",
@@ -176,6 +289,34 @@
       "status": "ok",
       "subject": "illageralt_font_chrome",
       "vanilla_coverage": "0.9993",
+      "vanilla_h": "56",
+      "vanilla_w": "424"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "428",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "illageralt_font_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "56",
+      "vanilla_w": "424"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "428",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "illageralt_font~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "56",
       "vanilla_w": "424"
     },
@@ -208,6 +349,34 @@
       "vanilla_w": "286"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "180",
+      "java_w": "290",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "item_like_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "176",
+      "vanilla_w": "286"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "180",
+      "java_w": "290",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "item_like~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "176",
+      "vanilla_w": "286"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9997",
       "java_h": "336",
@@ -232,6 +401,34 @@
       "status": "ok",
       "subject": "legacy_colours_chrome",
       "vanilla_coverage": "0.9997",
+      "vanilla_h": "336",
+      "vanilla_w": "140"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "340",
+      "java_w": "144",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "legacy_colours_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "336",
+      "vanilla_w": "140"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "340",
+      "java_w": "144",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "legacy_colours~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "336",
       "vanilla_w": "140"
     },
@@ -264,6 +461,34 @@
       "vanilla_w": "618"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "622",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "long_line_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "618"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "622",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "long_line~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "618"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9977",
       "java_h": "32",
@@ -288,6 +513,34 @@
       "status": "ok",
       "subject": "mixed_segments_chrome",
       "vanilla_coverage": "0.9977",
+      "vanilla_h": "32",
+      "vanilla_w": "216"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "220",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "mixed_segments_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "216"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "220",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "mixed_segments~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "32",
       "vanilla_w": "216"
     },
@@ -320,6 +573,34 @@
       "vanilla_w": "32"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "36",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "narrow_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "32"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "36",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "narrow~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "32"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9931",
       "java_h": "32",
@@ -348,6 +629,20 @@
       "vanilla_w": "72"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "76",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "one_line_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "72"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "1.0000",
       "java_h": "64",
@@ -360,6 +655,20 @@
       "vanilla_coverage": "1.0000",
       "vanilla_h": "64",
       "vanilla_w": "104"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "76",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "one_line~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "72"
     },
     {
       "differing_pixels": "0",
@@ -404,6 +713,34 @@
       "vanilla_w": "218"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "120",
+      "java_w": "222",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "shadow_color_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "116",
+      "vanilla_w": "218"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "120",
+      "java_w": "222",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "shadow_color~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "116",
+      "vanilla_w": "218"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9987",
       "java_h": "56",
@@ -428,6 +765,34 @@
       "status": "ok",
       "subject": "two_lines_chrome",
       "vanilla_coverage": "0.9987",
+      "vanilla_h": "56",
+      "vanilla_w": "226"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "230",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "two_lines_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "56",
+      "vanilla_w": "226"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "60",
+      "java_w": "230",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "two_lines~chrome=procedural",
+      "vanilla_coverage": "0.0000",
       "vanilla_h": "56",
       "vanilla_w": "226"
     },
@@ -460,6 +825,34 @@
       "vanilla_w": "174"
     },
     {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "178",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "unstyled_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "174"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "178",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "unstyled~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "174"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9926",
       "java_h": "32",
@@ -486,6 +879,34 @@
       "vanilla_coverage": "0.9926",
       "vanilla_h": "32",
       "vanilla_w": "68"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "72",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "width_glyphs_chrome~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "68"
+    },
+    {
+      "differing_pixels": "",
+      "java_coverage": "0.0000",
+      "java_h": "36",
+      "java_w": "72",
+      "mean_argb_delta": "",
+      "raw_differing_pixels": "",
+      "stand_ins": "",
+      "status": "failed",
+      "subject": "width_glyphs~chrome=procedural",
+      "vanilla_coverage": "0.0000",
+      "vanilla_h": "32",
+      "vanilla_w": "68"
     }
   ],
   "summary": {
@@ -494,11 +915,11 @@
       "<0.50": 32,
       "<0.75": 32,
       "<1.00": 32,
-      "failed": 0,
-      "total": 32
+      "failed": 30,
+      "total": 62
     },
-    "failed": 0,
-    "rows": 32,
+    "failed": 30,
+    "rows": 62,
     "sum": "0.0030"
   }
 }
