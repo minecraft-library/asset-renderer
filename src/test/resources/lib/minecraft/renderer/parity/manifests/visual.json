@@ -756,7 +756,7 @@
     },
     {
       "path": "menu-render/crafting_table.png",
-      "sha256": "cd3b9268b024723618ecb55000908c68add8099202a6218c3f632b7ce97f64bf"
+      "sha256": "c1f2dfe3ed281a4cb94584e94bc6d14af216ff1e051d954b420c8fb5d8a77cd7"
     },
     {
       "path": "menu-render/dispenser.png",
@@ -764,7 +764,7 @@
     },
     {
       "path": "menu-render/glinted_crafting.webp",
-      "sha256": "fd182f2c5c048898fac8e99cc0b315eb57ef6842278d44056817f1c207ff4131"
+      "sha256": "15c01def1ce530b163d5fd2a0e66c2fd5fce7df7d04c9d5c8d92493d4e075e4a"
     },
     {
       "path": "menu-render/hopper.png",
@@ -852,9 +852,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "e0e824fee590f766d7b103ea2cfe9c012b9c4b7da6b633656a5a592d26a6213c",
+    "asset_content_digest": "9463e2a03e8c24cad3c2ad5c3073bbfbeb9b17a94cb1fda30f35fc1c0021ac62",
     "asset_dirty": true,
-    "asset_sha": "1d767a914237852bb1cfbcbb894a5c54a451c092",
+    "asset_sha": "38d8a81c5e39c0abc1cd0b3c8890af384a7ada8b",
     "counts": {
       "files": 211
     },
@@ -863,7 +863,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "ac5fc318 walks the anvil field's pen as the client's EditBox: the appended caret one past the text's advance; anvil.png caret from output x 218 to 220 (16 px, LOOKED); anvil_result and anvil_input 16 to 0",
+    "reason": "fce15c3f inks the theme's recipe-book button's right-hand chamfers and the book's two texels as the client's sprite: crafting_table.png and glinted_crafting.webp (60 frames) 0 px from the client in the button rect; sweep.menu crafting_table 16 to 0",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -877,8 +877,8 @@
       "walk": 4896
     },
     "root": "cache/visual",
-    "timestamp": "2026-10-30T16:33:17Z",
+    "timestamp": "2026-10-30T17:54:34Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 39139
+    "wall_time_ms": 36137
   }
 }
