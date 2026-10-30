@@ -182,12 +182,11 @@ public record ScreenMetrics(
     /**
      * The item the recipe-book button carries on its face.
      * <p>
-     * The client's button sprite is a raised frame with this item's texture composited onto it, and four
-     * near-black {@code FF0C0500} texels besides: the frame's two right-hand chamfers, (18, 1) and
-     * (18, 16), where the vanilla theme paints its outline {@code FF000000}, and two face texels, (17, 8)
-     * and (17, 9), closing the sprite's book where this item leaves them clear. Naming the item rather
-     * than the sprite draws all of the button from rules but those four texels, and hands a pack that
-     * redraws the item a redrawn button at the same time.
+     * The client's button sprite is a raised frame with this item's texture composited onto it and two
+     * near-black {@code FF0C0500} texels of its book, (17, 8) and (17, 9), that this item's texture
+     * leaves clear. Naming the item rather than the sprite draws the button from rules - its frame, and
+     * those two texels beneath the item - and hands a pack that redraws the item a redrawn book at the
+     * same time, the two texels showing only where its item leaves them clear.
      */
     private static final @NotNull ResourceId RECIPE_BOOK_ITEM = ResourceId.parse("minecraft:knowledge_book");
 

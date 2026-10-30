@@ -106,13 +106,16 @@ laid by `NineSliceKit` at output-pixel resolution.
   one - the shipped art and the client's own screen.
 - **A mark the panel would have drawn itself re-inks; anything else carries its own inks.** The
   arrow, the plus and a button's bevel are shapes in the palette's roles, so a re-inked panel carries
-  re-inked marks. The anvil's hammer and the cross over its arrow are pictures and the inside of its
-  name field, in either form, is an input widget, and a palette has nothing to say about any of them -
-  the same line a button's face already sits on, its item being full-colour over a bevel that
-  re-inks. The cross is stamped over the arrow the panel has already painted, so a re-inked panel
-  keeps its own arrow under it. The field's **outer** ring is what proves the line rather than
-  breaking it: those two inks are a cell's own bit for bit in both forms, so the well sinks into
-  whatever panel it is cut into while its inside stays the widget's.
+  re-inked marks - the button's outline with them, whose two right-hand chamfers the palette inks
+  in a role of their own, `FF0C0500` in vanilla where the rest of the outline is `FF000000`, as the
+  client's highlighted button re-inks them with its outline. The anvil's hammer and the cross over
+  its arrow are pictures, as are the two texels of the client's book a button paints beneath its
+  item, and the inside of the anvil's name field, in either form, is an input widget, and a palette
+  has nothing to say about any of them - the same line a button's face already sits on, its item
+  being full-colour over a bevel that re-inks. The cross is stamped over the arrow the panel has
+  already painted, so a re-inked panel keeps its own arrow under it. The field's **outer** ring is
+  what proves the line rather than breaking it: those two inks are a cell's own bit for bit in both
+  forms, so the well sinks into whatever panel it is cut into while its inside stays the widget's.
 - **A mark's identity is a measurement and its paint is the window's.** `Mark` - which mark, where an
   icon opens on its face, the text run its well takes, and where a screen places one - sits beside
   `ScreenMetrics`, whose factories name it. What a mark paints and how big it comes out are
@@ -131,17 +134,18 @@ laid by `NineSliceKit` at output-pixel resolution.
   one, and air holds nothing, the client's stack of it being empty - so the theme, the sliced window
   and the field text read one screen. The field's text and caret are white in both states, as the
   client draws its one field.
-- **Under named art the recipe-book button is the client's sprite; in a theme it is a bevel and an
-  item.** The client's crafting screen adds a 20x18 `ImageButton` at
+- **Under named art the recipe-book button is the client's sprite; in a theme it is a bevel, the
+  book's two texels and an item.** The client's crafting screen adds a 20x18 `ImageButton` at
   `(leftPos + 5, height / 2 - 49)` - (5, 34) on its panel at any screen height - drawing
   `recipe_book/button`, and `recipe_book/button_highlighted` while it is hovered or focused, which a
   screen as it opens is not. A window sliced from art draws `recipe_book/button` there and the menu
   places no icon over it, the sprite carrying its own book. A theme paints the button's bevel in its
-  own inks and the menu places the knowledge book on its face, which in the vanilla theme is the
-  client's sprite but for four near-black `FF0C0500` texels the sprite carries: the frame's two
-  right-hand chamfers, (18, 1) and (18, 16), where the theme paints its outline `FF000000`, and two
-  face texels, (17, 8) and (17, 9), closing the sprite's book where the item leaves them clear. Which
-  a menu does is the window's answer, `Window.paintsIcon`, never the renderer's.
+  own inks and, beneath where the item goes, the two texels of the client's book that the item
+  leaves clear, (17, 8) and (17, 9), in the book's `FF0C0500`; the menu places the knowledge book on
+  its face. In the vanilla theme that is the client's sprite exactly. Under a pack that redraws the
+  knowledge book the two texels show only where its item leaves them clear, where the client's
+  sprite shows them too. Which a menu does is the window's answer, `Window.paintsIcon`, never the
+  renderer's.
 - A field is chrome and content split: the window draws the well and the renderer puts the text in
   it, in either window. The text is drawn plain rather than parsed for format codes, because the
   client's own field filters them out of what can be typed, and it carries the drop shadow a

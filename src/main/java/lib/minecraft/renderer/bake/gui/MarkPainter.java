@@ -18,8 +18,9 @@ import org.jetbrains.annotations.NotNull;
  * Four are not, and each says so by carrying its own inks. {@link #HAMMER} and {@link #ERROR} are
  * pictures, and the inside of either name field, {@link #FIELD} or {@link #FIELD_DISABLED}, is an
  * input widget, and none is a shape a palette has anything to say about - the same reason
- * {@link #BUTTON}'s face carries a full-colour item over a bevel that does re-ink. What re-inks is what
- * the panel would have drawn itself.
+ * {@link #BUTTON}'s face carries a full-colour item over a bevel that does re-ink, and beneath that
+ * item the two texels of the client's book the item leaves clear, in the book's own ink. What re-inks
+ * is what the panel would have drawn itself.
  * <p>
  * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art calls no
  * painter: the arrow, the plus and the hammer are drawn into its art, and its name field, cross and
@@ -75,12 +76,25 @@ enum MarkPainter {
     /**
      * A raised button, which is a cell's bevel the other way up - the light on the top and left
      * where a cell puts its shadow, and the shadow on the bottom and right. The item on its face is
-     * a render the renderer places, not something painted here.
+     * a render the renderer places, not something painted here; what is painted here beneath it is
+     * the two texels of the client's book that the item leaves clear, in that book's own ink.
      */
     BUTTON {
 
         /** the extent every button paints, which is the icon it holds inside its own bevel */
         private static final @NotNull Window.Extent EXTENT = new Window.Extent(20, 18);
+
+        /**
+         * The two texels of the client's book that the knowledge book's own texture leaves clear,
+         * closing the book's right-hand edge beside its pages, one character per Minecraft pixel.
+         */
+        private static final @NotNull Stencil BOOK = Stencil.of("K", "K");
+
+        /** The table the book's code resolves through, which reads no palette. */
+        private static final @NotNull Stencil.Ink INK = code -> switch (code) {
+            case 'K' -> 0xFF0C0500;
+            default -> throw new IllegalArgumentException("Unknown book role '%c'".formatted(code));
+        };
 
         /** {@inheritDoc} */
         @Override
@@ -91,9 +105,11 @@ enum MarkPainter {
         /**
          * {@inheritDoc}
          * <p>
-         * An outline chamfered a pixel at each corner, the light along the inside of the top and
-         * left, the shadow along the bottom and right, and the panel's own fill between them. This
-         * is {@link Window#paintCell} the other way up - a cell is sunk into the panel and a button
+         * An outline chamfered a pixel at each corner, the right-hand two in the palette's ink for a
+         * button's right-hand chamfers, the light along the inside of the top and left, the shadow
+         * along the bottom and right, and the panel's own fill between them, with the book's two
+         * texels stamped on the face at (17, 8) where the client's sprite holds them. The bevel is
+         * {@link Window#paintCell} the other way up - a cell is sunk into the panel and a button
          * stands off it, which is one bevel read in two directions rather than two shapes.
          */
         @Override
@@ -120,12 +136,16 @@ enum MarkPainter {
                 box.put(dest, w - 1, y, palette.outline());
             }
 
-            // The chamfer: one pixel of outline closing each corner, which is what leaves the corner
-            // itself unpainted so the panel shows through as it does under the frame's own corners.
+            // The chamfer: one pixel closing each corner, which is what leaves the corner itself
+            // unpainted so the panel shows through as it does under the frame's own corners - the
+            // left-hand two in the outline and the right-hand two in the palette's ink for them, as the
+            // client's button is inked.
             box.put(dest, 1, 1, palette.outline());
-            box.put(dest, w - 2, 1, palette.outline());
+            box.put(dest, w - 2, 1, palette.buttonRightChamfer());
             box.put(dest, 1, h - 2, palette.outline());
-            box.put(dest, w - 2, h - 2, palette.outline());
+            box.put(dest, w - 2, h - 2, palette.buttonRightChamfer());
+
+            BOOK.stamp(dest, box, 17, 8, INK);
         }
 
     },

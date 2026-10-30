@@ -87,15 +87,16 @@ class WindowThemeTest {
     }
 
     /**
-     * The six inks the vanilla theme paints in, which are read off the shipped container art and are
-     * what the oracle's byte assertion rests on. Every other theme is free to be authored; this one
-     * answers to a texture, so its palette is pinned here rather than left to the constant.
+     * The seven inks the vanilla theme paints in, which are read off the shipped art - the container
+     * sheets, and the recipe-book button's sprite for its right-hand chamfers - and are what the
+     * oracle's byte assertions rest on. Every other theme is free to be authored; this one answers to a
+     * texture, so its palette is pinned here rather than left to the constant.
      */
     @Test
     @DisplayName("the vanilla theme paints in the ink the shipped art is drawn in")
     void theVanillaThemePaintsInTheShippedInk() {
         assertThat(Window.Theme.VANILLA.palette(), is(equalTo(new Window.Palette(
-            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737))));
+            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737, 0xFF0C0500))));
     }
 
     @Test
@@ -156,10 +157,11 @@ class WindowThemeTest {
     }
 
     @Test
-    @DisplayName("a button is a cell's bevel the other way up")
+    @DisplayName("a button is a cell's bevel the other way up, closed in its palette's inks, with two texels of the client's book no theme re-inks")
     void aButtonIsACellsBevelTheOtherWayUp() {
         Window.Palette palette = Window.Palette.VANILLA;
         PixelBuffer button = mark(Window.Theme.VANILLA, Mark.BUTTON);
+        PixelBuffer dark = mark(Window.Theme.DARK, Mark.BUTTON);
 
         // A cell sinks into the panel - shadow along its top and left, light along its bottom and
         // right. A button stands off it, so every one of those four reads the other way.
@@ -170,6 +172,26 @@ class WindowThemeTest {
         assertThat("the face is the panel's own fill", button.getPixel(10, 8), is(equalTo(palette.panel())));
         assertThat("the outline rings it", button.getPixel(10, 0), is(equalTo(palette.outline())));
         assertThat("and the corner is chamfered away", button.getPixel(0, 0), is(equalTo(0)));
+
+        // The client's highlighted button re-inks its whole frame and keeps these two texels, which
+        // close the sprite's book beside the item's pages: they are a picture, not the frame.
+        assertThat("the book's two texels are the same in every theme, a picture no palette re-inks",
+            List.of(dark.getPixel(17, 8), dark.getPixel(17, 9)),
+            is(equalTo(List.of(button.getPixel(17, 8), button.getPixel(17, 9)))));
+
+        // The client's sprite closes its left-hand corners in its outline and its right-hand ones in an
+        // ink of their own, and its highlighted form re-inks those two with its outline.
+        int darkChamfer = Window.Palette.DARK.buttonRightChamfer();
+        assertThat("the left-hand chamfers are the outline",
+            List.of(button.getPixel(1, 1), button.getPixel(1, 16)),
+            is(equalTo(List.of(palette.outline(), palette.outline()))));
+        assertThat("the right-hand ones the palette's ink for them",
+            List.of(button.getPixel(18, 1), button.getPixel(18, 16)),
+            is(equalTo(List.of(palette.buttonRightChamfer(), palette.buttonRightChamfer()))));
+        assertThat("a re-inked button closes them in its own palette's ink",
+            List.of(dark.getPixel(18, 1), dark.getPixel(18, 16)), is(equalTo(List.of(darkChamfer, darkChamfer))));
+        assertThat("which in the dark palette is its outline, as the client's highlighted button closes them in its own",
+            darkChamfer, is(equalTo(Window.Palette.DARK.outline())));
     }
 
     @Test

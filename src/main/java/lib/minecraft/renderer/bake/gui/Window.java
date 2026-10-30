@@ -78,8 +78,9 @@ public interface Window {
      * Answers whether this window's own paint of a mark carries the icon on its face, so the renderer
      * places none over it.
      * <p>
-     * A window that draws from rules paints a button's bevel and leaves its face to the item the screen
-     * names there; a window sliced from art draws the client's widget sprite whole, the recipe-book
+     * A window that draws from rules paints a button's bevel, and beneath the item the screen names
+     * there the two texels of the client's book that item leaves clear, and leaves the item to the
+     * renderer; a window sliced from art draws the client's widget sprite whole, the recipe-book
      * button's carrying its own book.
      *
      * @param decoration the mark
@@ -193,7 +194,7 @@ public interface Window {
     }
 
     /**
-     * The six inks a window paints in.
+     * The seven inks a window paints in.
      *
      * @param outline the panel's outermost line
      * @param light the raised bevel, and a cell's lower and right edges
@@ -201,23 +202,30 @@ public interface Window {
      * @param panel the interior fill behind the cells
      * @param cellFill a cell's interior
      * @param cellShadow a cell's upper and left edges
+     * @param buttonRightChamfer the outline closing a raised button's two right-hand corners
      */
-    record Palette(int outline, int light, int shadow, int panel, int cellFill, int cellShadow) {
+    record Palette(
+        int outline, int light, int shadow, int panel, int cellFill, int cellShadow, int buttonRightChamfer
+    ) {
 
         /**
-         * The palette the vanilla container textures are drawn in, read off the shipped art.
+         * The palette the vanilla container textures are drawn in, read off the shipped art - the
+         * container sheets, and the recipe-book button's sprite for the ink its two right-hand chamfers
+         * take apart from the rest of its outline.
          */
         public static final @NotNull Palette VANILLA =
-            new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737);
+            new Palette(0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737, 0xFF0C0500);
 
         /**
          * A dark palette for the same geometry. Only {@code panel} and {@code cellFill} carry over
          * from anything measured; the three bevel roles are authored, because neither scaling
          * vanilla's ratios nor preserving its differences survives a panel this dark - the first
-         * flattens the bevel to a few levels and the second clamps three roles to black.
+         * flattens the bevel to a few levels and the second clamps three roles to black. A button's
+         * right-hand chamfers are its outline, as the client's own re-inked button, the highlighted one,
+         * closes them in that sprite's outline.
          */
         public static final @NotNull Palette DARK =
-            new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D);
+            new Palette(0xFF000000, 0xFF606060, 0xFF141414, 0xFF303030, 0xFF1A1A1A, 0xFF0D0D0D, 0xFF000000);
 
     }
 
@@ -505,11 +513,12 @@ public interface Window {
      * the measured vanilla one and a theme is a re-inking of it rather than a shape of its own.
      * Nothing here reads a texture.
      * <p>
-     * Four marks are drawn in inks the theme does not own, and each carries its own rather than
-     * borrowing a role: a {@link Mark#HAMMER} and the anvil's {@link Mark#ERROR} cross are pictures,
-     * and the inside of either name field, {@link Mark#FIELD} or {@link Mark#FIELD_DISABLED}, is an
-     * input widget's. None is something a panel would have drawn itself, which is the line - what
-     * re-inks is what the panel owns.
+     * Four marks are drawn in inks the theme does not own, and a fifth in part, each carrying its own
+     * rather than borrowing a role: a {@link Mark#HAMMER} and the anvil's {@link Mark#ERROR} cross are
+     * pictures, the inside of either name field, {@link Mark#FIELD} or {@link Mark#FIELD_DISABLED}, is
+     * an input widget's, and the two texels of the client's book a {@link Mark#BUTTON} paints beneath
+     * its item are that book's. None is something a panel would have drawn itself, which is the line -
+     * what re-inks is what the panel owns.
      */
     @Getter(style = NamingStyle.FLUENT)
     @RequiredArgsConstructor
@@ -518,7 +527,8 @@ public interface Window {
         /**
          * The palette the shipped container textures are drawn in. Reproduces them pixel for pixel:
          * the frame's four corner blocks and four one-pixel edge periods are the same in every
-         * container texture that ships, and a cell's edges follow one rule at every cell size.
+         * container texture that ships, and a cell's edges follow one rule at every cell size. With the
+         * knowledge book on its face, its recipe-book button is the client's button sprite.
          */
         VANILLA(Palette.VANILLA),
         /**
@@ -647,7 +657,8 @@ public interface Window {
         /**
          * {@inheritDoc}
          * <p>
-         * A theme paints a button's bevel and never its face, so every icon is the renderer's to place.
+         * A theme paints a button's bevel and, beneath the item, two texels of the client's book, but
+         * never the item itself, so every icon is the renderer's to place.
          */
         @Override
         public boolean paintsIcon(@NotNull Mark decoration) {

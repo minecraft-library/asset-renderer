@@ -327,10 +327,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * returning whether any of them animated.
      * <p>
      * Where a window paints a mark's frame alone, the frame is chrome and the icon a render, drawn by
-     * different parties: the theme paints the raised button in its own inks and this places the item on
-     * its face. That split is what gives a pack its say - the item resolves through the pack stack like
-     * any other, so redrawing it redraws the button. A window sliced from art draws the client's button
-     * sprite, which carries its own book, so nothing is placed over it.
+     * different parties: the theme paints the raised button - its bevel in its own inks, and beneath the
+     * item the two texels of the client's book the item leaves clear - and this places the item on its
+     * face. That split is what gives a pack its say - the item resolves through the pack stack like any
+     * other, so redrawing it redraws the button's book. A window sliced from art draws the client's
+     * button sprite, which carries its own book, so nothing is placed over it.
      *
      * @param window the window that painted the chrome, which answers which marks' icons its paint carries
      * @param layout the laid-out panel

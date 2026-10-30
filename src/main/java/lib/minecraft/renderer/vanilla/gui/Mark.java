@@ -38,10 +38,11 @@ public enum Mark {
     /**
      * The raised button that opens a recipe book, carrying an item's icon on its face.
      * <p>
-     * The client draws it as one sprite, a raised frame with that item's picture on it. The item is
-     * named so a button a window draws from rules carries it on its face, and a pack that redraws the
-     * item redraws that button in the same move; a window drawing the client's sprite draws the sprite's
-     * own book in its place, which the item does not reach.
+     * The client draws it as one sprite, a raised frame with that item's picture on it and two texels
+     * of the book the item's own texture leaves clear. The item is named so a button a window draws
+     * from rules carries it on its face, over those two texels, and a pack that redraws the item
+     * redraws that button's book in the same move; a window drawing the client's sprite draws the
+     * sprite's own book in its place, which the item does not reach.
      */
     BUTTON {
 
