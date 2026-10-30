@@ -19475,8 +19475,16 @@
       "sha256": "0e2502b60a752491325d3939d23a7543cc86e86d9b7ac3f7a6096fe41944e7cc"
     },
     {
+      "path": "menus/anvil_apple.png",
+      "sha256": "5c9e849344cf02bd9f90e23732f6888c854a68aca8ac325a9a616587f5df6ba6"
+    },
+    {
       "path": "menus/anvil_error.png",
       "sha256": "ba581f6da680c99841c2c7f5ca90e843a2a436071ed4c34c7eb80e598ed2e49f"
+    },
+    {
+      "path": "menus/anvil_highlight.png",
+      "sha256": "8192691571fe437dc841f079252072f8ba288228a4412b29b22c9ccfa7018f96"
     },
     {
       "path": "menus/anvil_input.png",
@@ -39308,11 +39316,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "5fc94c32c7bd9dd9f1925960e67e428de12eeafb7b3334fc14c0fa6cd2f1f1a8",
+    "asset_content_digest": "d2533076bf16cb9f897a709d923ddc46011b8a58b5ba864fd23cf8728a235ab3",
     "asset_dirty": true,
-    "asset_sha": "6433a1c468b4dab5bef41eee546e6fb95add35d4",
+    "asset_sha": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
     "counts": {
-      "files": 9825
+      "files": 9827
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39321,7 +39329,7 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "faa85f7a adds three anvils the client's own AnvilMenu fills (anvil_result, anvil_error, anvil_input); two whole-tree boots agree on the 3 new references and hold the other 9822; sweep.menu gains 3 rows read against today's renderer (4860, 324, 5184 output px: the field, the cross, the caret), 10 held; a second root reads 0 movers over 13 rows",
+    "reason": "86ad2430 adds anvil_apple (an enchanted golden apple named by the client's setValue) and anvil_highlight (a name whose three scroll passes leave the cursor out of view, the blue band drawn); two whole-tree boots and a menus-only boot agree on both and hold the other 9825; sweep.menu gains 2 rows at 1978 and 1772 output px against today's renderer, 13 held; a second root reads 0 movers over 15 rows",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -39329,14 +39337,14 @@
       "glint": 330,
       "idle": 2547,
       "items": 479,
-      "menus": 13,
+      "menus": 15,
       "players": 2,
       "tooltips": 46,
       "walk": 4896
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-30T14:56:45Z",
+    "timestamp": "2026-10-30T19:05:27Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 127750
+    "wall_time_ms": 127322
   }
 }

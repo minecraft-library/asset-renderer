@@ -6,19 +6,21 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.menu",
-    "asset_content_digest": "9463e2a03e8c24cad3c2ad5c3073bbfbeb9b17a94cb1fda30f35fc1c0021ac62",
+    "asset_content_digest": "d2533076bf16cb9f897a709d923ddc46011b8a58b5ba864fd23cf8728a235ab3",
     "asset_dirty": true,
-    "asset_sha": "38d8a81c5e39c0abc1cd0b3c8890af384a7ada8b",
+    "asset_sha": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
     "counts": {
       "failed": 0,
-      "rows": 13
+      "rows": 15
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "mode": "EVERY,ANIMATION,WALK",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "menuParityVanilla",
-    "reason": "fce15c3f inks the theme's recipe-book button's right-hand chamfers and the book's two texels as the client's sprite: crafting_table.png and glinted_crafting.webp (60 frames) 0 px from the client in the button rect; sweep.menu crafting_table 16 to 0",
+    "reason": "86ad2430 adds anvil_apple (an enchanted golden apple named by the client's setValue) and anvil_highlight (a name whose three scroll passes leave the cursor out of view, the blue band drawn); two whole-tree boots and a menus-only boot agree on both and hold the other 9825; sweep.menu gains 2 rows at 1978 and 1772 output px against today's renderer, 13 held; a second root reads 0 movers over 15 rows",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -27,15 +29,15 @@
       "glint": 330,
       "idle": 2547,
       "items": 479,
-      "menus": 13,
+      "menus": 15,
       "players": 2,
       "tooltips": 46,
       "walk": 4896
     },
-    "reference_manifest_digest": "ba53afdfc99bb6992b9bcbf16649bcdb0c15e83c52d7fe4a2324997af918e31b",
-    "timestamp": "2026-10-30T17:54:35Z",
+    "reference_manifest_digest": "30d1347e7cf5028a7729b972f0297318898e8f15225092d3d1da8476e8410182",
+    "timestamp": "2026-10-30T19:06:03Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 4130
+    "wall_time_ms": 4614
   },
   "rows": [
     {
@@ -47,11 +49,27 @@
       "vanilla_coverage": "0.9994"
     },
     {
+      "differing_pixels": "1978",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "4.4620",
+      "status": "ok",
+      "subject": "anvil_apple",
+      "vanilla_coverage": "0.9994"
+    },
+    {
       "differing_pixels": "0",
       "java_coverage": "0.9994",
       "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "anvil_error",
+      "vanilla_coverage": "0.9994"
+    },
+    {
+      "differing_pixels": "1772",
+      "java_coverage": "0.9994",
+      "mean_argb_delta": "5.1662",
+      "status": "ok",
+      "subject": "anvil_highlight",
       "vanilla_coverage": "0.9994"
     },
     {
@@ -150,10 +168,10 @@
       "<0.75": 13,
       "<1.00": 13,
       "failed": 0,
-      "total": 13
+      "total": 15
     },
     "failed": 0,
-    "rows": 13,
-    "sum": "0.0000"
+    "rows": 15,
+    "sum": "9.6282"
   }
 }
