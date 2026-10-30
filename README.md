@@ -396,7 +396,7 @@ ImageData scene = new LayoutRenderer().render(options).image();   // each child 
 
 ### MenuRenderer
 
-Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized. `render` answers a `MenuResult`, which places each slot's content under `SLOT` and the fill under `CONTENT`, names each button's icon, and lists the stand-ins the menu's own chrome drew.
+Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized. `render` answers a `MenuResult`, which places each slot's content under `SLOT` and the fill under `CONTENT`, names each icon it places on a button, and lists the stand-ins the menu's own chrome drew.
 
 <div align="center">
 <img src="docs/images/menu-crafting-table.png" width="352" alt="Crafting table screen holding the diamond sword recipe, with the player inventory band drawn">

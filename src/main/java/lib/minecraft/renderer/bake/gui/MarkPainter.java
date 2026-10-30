@@ -22,9 +22,9 @@ import org.jetbrains.annotations.NotNull;
  * the panel would have drawn itself.
  * <p>
  * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art calls no
- * painter: the arrow, the plus and the hammer are drawn into its art, and its name field and cross are
- * the GUI sprites the client blits there. Nothing handed to {@link #paint} says which window is asking,
- * so the window keeps that decision.
+ * painter: the arrow, the plus and the hammer are drawn into its art, and its name field, cross and
+ * recipe-book button are the GUI sprites the client blits there. Nothing handed to {@link #paint} says
+ * which window is asking, so the window keeps that decision.
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 enum MarkPainter {

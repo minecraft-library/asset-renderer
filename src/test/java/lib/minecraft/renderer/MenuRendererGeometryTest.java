@@ -510,6 +510,16 @@ class MenuRendererGeometryTest {
                 Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
                 Substitution.texture("minecraft:gui/sprites/container/anvil/text_field", Possible.State.ABSENT),
                 Substitution.texture("minecraft:gui/sprites/container/anvil/error", Possible.State.ABSENT)));
+
+        // The crafting table's recipe-book button is a sprite the client blits whole, its book drawn in,
+        // so the menu renders no knowledge book over it and names no stand-in for one.
+        MenuResult crafting = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).chromeSprite(missing).build());
+        assertThat("a crafting table names the panel art and the recipe-book button the client blits over it",
+            crafting.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/recipe_book/button", Possible.State.ABSENT)));
+        assertThat("and the menu names the chrome's alone", crafting.substitutions(), is(equalTo(crafting.chrome())));
     }
 
     /**
@@ -769,6 +779,35 @@ class MenuRendererGeometryTest {
         assertThat("and a menu no caller filled names no slot", menu.slots(), is(empty()));
     }
 
+    @Test
+    @DisplayName("a crafting table drawn from named art places no icon over the button sprite its window draws, and a theme's places the knowledge book")
+    void aButtonItsWindowDrawsAsASpriteTakesNoIcon() {
+        RendererContext context = RendererContext.builder().build();
+        MenuOptions themed = MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).build();
+        MenuOptions sliced = themed.mutate()
+            .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/crafting_table")))
+            .build();
+
+        MenuResult theme = new MenuRenderer(context).render(themed);
+        assertThat("a theme's button takes the knowledge book on its face",
+            theme.icons().stream().map(MenuResult.Icon::mark).toList(), is(equalTo(List.of(Mark.BUTTON))));
+
+        MenuResult menu = new MenuRenderer(context).render(sliced);
+        assertThat("a sliced window's button sprite carries its own book, so no icon is placed", menu.icons(), is(empty()));
+        assertThat("and no knowledge book's stand-in is named",
+            menu.substitutions().contains(Substitution.subject("minecraft:knowledge_book")), is(false));
+
+        // Inside the button's box at scale, the menu is the chrome its window painted, with nothing laid over it.
+        PixelBuffer rendered = menu.image().getFrames().getFirst().pixels();
+        PixelBuffer chrome = MenuRenderer.paintChrome(MenuRenderer.windowOf(context, sliced), MenuRenderer.layoutOf(sliced));
+        int over = 0;
+        for (int y = 34 * SCALE; y < (34 + 18) * SCALE; y++)
+            for (int x = 5 * SCALE; x < (5 + 20) * SCALE; x++)
+                if (rendered.getPixel(x, y) != chrome.getPixel(x, y)) over++;
+
+        assertThat("output pixels in the button's box that are not the chrome's", over, is(equalTo(0)));
+    }
+
     /**
      * A window whose art wants more room than any menu's content floor would ask for, which is what a
      * panel sliced from art with anchored features along its bands comes to.
@@ -788,6 +827,12 @@ class MenuRendererGeometryTest {
         /** {@inheritDoc} */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {}
+
+        /** {@inheritDoc} */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return false;
+        }
 
         /** {@inheritDoc} */
         @Override

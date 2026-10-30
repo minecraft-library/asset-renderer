@@ -43,7 +43,7 @@
  *       answering where each child was drawn.</li>
  *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory-style screens (player, chest,
  *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons, answering where
- *       each cell's content and each mark's icon was drawn.</li>
+ *       each cell's content and each icon placed on a mark was drawn.</li>
  *   <li>{@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} - player skin renders at three body
  *       scopes ({@code SKULL}, {@code BUST}, {@code FULL}) and two perspectives, with optional
  *       armor and trim layers.</li>

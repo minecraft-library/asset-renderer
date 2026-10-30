@@ -46,9 +46,10 @@ import java.util.stream.IntStream;
 
 /**
  * Renders an inventory-style menu by laying its cells out as a {@link ScreenMetrics} and painting them
- * through a {@link Window}, then placing the caller's slot content on the cells that layout produced,
- * and answers a {@link MenuResult} naming where each cell's content and each mark's icon was drawn,
- * beside the stand-ins its chrome drew.
+ * through a {@link Window}, then placing the caller's slot content on the cells that layout produced
+ * and an icon on each mark whose face the window's own paint leaves bare, and answers a
+ * {@link MenuResult} naming where each cell's content and each icon it placed was drawn, beside the
+ * stand-ins its chrome drew.
  * <p>
  * There is one flow, because a menu is one arithmetic and one painter. What a caller chooses is which
  * screen the client ships, what goes in its cells and what paints its chrome; none of the three is a
@@ -95,12 +96,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Lays the menu's screen out, paints its chrome through the window the options select, and places
      * every populated cell on it. The menu draws on a renderer built over a context recording the
-     * stand-ins its chrome draws; each cell's content and each mark's icon is a render of its own,
-     * carrying its own.
+     * stand-ins its chrome draws; each cell's content and each icon placed on a mark is a render of its
+     * own, carrying its own, and a mark whose icon the window's own paint carries is chrome whole.
      *
      * @param options the menu render options
      * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
-     *     mark's icon was drawn
+     *     icon placed on a mark was drawn
      */
     @Override
     public @NotNull MenuResult render(@NotNull MenuOptions options) {
@@ -116,7 +117,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param chrome the collector this renderer's context records into, which the chrome's stand-ins
      *     reach
      * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
-     *     mark's icon was drawn
+     *     icon placed on a mark was drawn
      */
     @NotNull MenuResult draw(@NotNull MenuOptions options, @NotNull SubstitutionCollector chrome) {
         validateScale(options);
@@ -133,7 +134,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ConcurrentList<MenuResult.Icon> icons = Concurrent.newList();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer, icons);
+        boolean anyAnimated = placeDecorationIcons(window, layout, stack, itemRenderer, icons);
         anyAnimated |= placeSlots(options, layout, stack, itemRenderer, slots);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, slots);
         TextPalette palette = this.context.findTextPalette().orElse(TextPalette.VANILLA);
@@ -322,13 +323,16 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Draws the icon each of a screen's marks carries, returning whether any of them animated.
+     * Draws the icon on each of a screen's marks that the window's own paint leaves to the renderer,
+     * returning whether any of them animated.
      * <p>
-     * A mark's frame is chrome and its icon is a render, so the two are drawn by different parties:
-     * the window paints the raised button in its own inks and this places the item on its face. That
-     * split is what gives a pack its say - the item resolves through the pack stack like any other,
-     * so redrawing it redraws the button.
+     * Where a window paints a mark's frame alone, the frame is chrome and the icon a render, drawn by
+     * different parties: the theme paints the raised button in its own inks and this places the item on
+     * its face. That split is what gives a pack its say - the item resolves through the pack stack like
+     * any other, so redrawing it redraws the button. A window sliced from art draws the client's button
+     * sprite, which carries its own book, so nothing is placed over it.
      *
+     * @param window the window that painted the chrome, which answers which marks' icons its paint carries
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an icon goes through
@@ -336,6 +340,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @return whether any icon resolved to animated content
      */
     static boolean placeDecorationIcons(
+        @NotNull Window window,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer,
@@ -347,7 +352,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         for (int index = 0; index < marks.size(); index++) {
             Mark.Placement mark = marks.get(index);
             Optional<ResourceId> icon = mark.icon();
-            if (icon.isEmpty()) continue;
+            if (icon.isEmpty() || window.paintsIcon(mark.kind())) continue;
 
             RenderResult rendered = itemRenderer.render(ItemOptions.builder()
                 .itemId(icon.get().id())

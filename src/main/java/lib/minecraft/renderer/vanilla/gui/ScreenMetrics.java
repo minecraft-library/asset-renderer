@@ -160,10 +160,12 @@ public record ScreenMetrics(
      * left of where a dispenser's do - plus a result cell of 26 rather than 18, and a title starting
      * where a recipe book's tab would end.
      * <p>
-     * It is the one shipped screen carrying marks: the arrow between its grid and its result, which
-     * the shipped panel paints into its own texture, and the button that opens a recipe book, which
-     * the client blits over the panel as a widget. Both are declared here rather than read off art,
-     * so both are re-inked with the panel they sit on.
+     * It carries two marks: the arrow between its grid and its result, which the shipped panel paints
+     * into its own texture, and the button that opens a recipe book, which the client blits over the
+     * panel as a widget 20 by 18 at (5, 34) - placed half the screen's height less 49 down, which is
+     * that row of a panel 166 tall on a screen of any height. Both are declared rather than read off
+     * art: the arrow so a theme re-inks it with its panel, the button because the art does not carry
+     * it.
      */
     public static @NotNull ScreenMetrics craftingTable() {
         ConcurrentList<Cell> extras = Concurrent.newList();
@@ -178,11 +180,14 @@ public record ScreenMetrics(
     }
 
     /**
-     * The item the recipe-book button draws on its face.
+     * The item the recipe-book button carries on its face.
      * <p>
-     * The client's own button sprite is a raised frame with this item's texture composited onto it,
-     * pixel for pixel, so naming the item rather than the sprite reproduces the button and hands a
-     * pack that redraws the item a redrawn button at the same time.
+     * The client's button sprite is a raised frame with this item's texture composited onto it, and four
+     * near-black {@code FF0C0500} texels besides: the frame's two right-hand chamfers, (18, 1) and
+     * (18, 16), where the vanilla theme paints its outline {@code FF000000}, and two face texels, (17, 8)
+     * and (17, 9), closing the sprite's book where this item leaves them clear. Naming the item rather
+     * than the sprite draws all of the button from rules but those four texels, and hands a pack that
+     * redraws the item a redrawn button at the same time.
      */
     private static final @NotNull ResourceId RECIPE_BOOK_ITEM = ResourceId.parse("minecraft:knowledge_book");
 

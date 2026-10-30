@@ -53,8 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link ScreenMetrics#regions()}, so a composition that agrees with them agrees with the client and
  * not with itself. Where the client draws over the sheet, the anvil is held to the client's frame in
  * every state its slots give - the sheet blit, the field sprite its first input picks and the cross
- * where the client draws one - and the crafting table to its sheet blit alone, the recipe-book widget
- * the client draws over it being no part of the panel.
+ * where the client draws one - and the crafting table to its sheet blit and the recipe-book button the
+ * client draws over it.
  */
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Sliced paints a panel from art")
@@ -78,6 +78,8 @@ class WindowSlicedTest {
 
     private static final String ERROR = "minecraft:gui/sprites/container/anvil/error";
 
+    private static final String RECIPE_BUTTON = "minecraft:gui/sprites/recipe_book/button";
+
     /** the rows the client's margin takes below the last cell, which close a panel cut to fit */
     private static final int MARGIN_ROWS = 7;
 
@@ -93,14 +95,15 @@ class WindowSlicedTest {
 
     /**
      * One screen the client ships, the sheet it draws it from, the regions of that sheet it blits and the
-     * GUI sprites it blits over them with every input empty.
+     * GUI sprites it draws over them with every input empty.
      *
      * @param name what the assertions call it
      * @param sheet the sheet's texture id
      * @param screen the screen it is laid out as
      * @param blits the regions the client's {@code extractBackground} blits, each laid under the one before
-     * @param sprites the GUI sprites the client's {@code extractBackground} blits over the sheet with every
-     *     input empty, each at its own size and keyed to where it opens on the panel
+     * @param sprites the GUI sprites the client draws over the sheet with every input empty and nothing
+     *     hovered or focused - its {@code extractBackground}'s and its widgets' - each at its own size and
+     *     keyed to where it opens on the panel
      * @param ownEnd the row the screen's own cells end on, which is where a panel without the player's
      *     section is cut
      */
@@ -126,8 +129,11 @@ class WindowSlicedTest {
             List.of(new Rectangle(0, 0, 176, 133)), Map.of(), 37));
         out.add(new Shipped("the dispenser", "minecraft:gui/container/dispenser", ScreenMetrics.dispenser(),
             List.of(new Rectangle(0, 0, 176, 166)), Map.of(), 70));
-        out.add(new Shipped("the crafting table, against its sheet blits alone", CRAFTING_TABLE,
-            ScreenMetrics.craftingTable(), List.of(new Rectangle(0, 0, 176, 166)), Map.of(), 70));
+        // CraftingScreen's ImageButton blits recipe_book/button 20x18 at (leftPos + 5, height / 2 - 49),
+        // (5, 34) on the panel, while neither hovered nor focused.
+        out.add(new Shipped("the crafting table, against its sheet blit and the recipe-book button the client draws over it",
+            CRAFTING_TABLE, ScreenMetrics.craftingTable(), List.of(new Rectangle(0, 0, 176, 166)),
+            Map.of(RECIPE_BUTTON, new Point(5, 34)), 70));
         // AnvilScreen blits text_field_disabled at (59, 20), 110x16, while its first input is empty.
         out.add(new Shipped("the anvil, against its sheet blit and the field the client blits over it", ANVIL,
             ScreenMetrics.anvil(), List.of(new Rectangle(0, 0, 176, 166)), Map.of(TEXT_FIELD_DISABLED, new Point(59, 20)), 64));
@@ -172,8 +178,9 @@ class WindowSlicedTest {
     }
 
     /**
-     * Lays the GUI sprites the client blits over a screen's sheet with every input empty over its sheet
-     * blits, each at its own size and as the client lays a GUI texel - the client's frame in that state.
+     * Lays the GUI sprites the client draws over a screen's sheet with every input empty and nothing
+     * hovered or focused - its {@code extractBackground}'s and its widgets' - over its sheet blits, each at
+     * its own size and as the client lays a GUI texel - the client's frame in that state.
      *
      * @param shipped the screen, the client's blits of its sheet and the sprites it blits over them
      * @return the panel the client draws with every input empty
@@ -300,6 +307,25 @@ class WindowSlicedTest {
         assertThat("Minecraft pixels from the client's frame, slot states 0 to 7 by bit (first input, second, result)",
             differing, is(equalTo(Collections.nCopies(8, 0))));
         assertThat("the marks a sprite is read for are the ones the client draws one at", read, is(equalTo(drawn)));
+    }
+
+    @Test
+    @DisplayName("named crafting-table art reads the client's recipe-book button sprite at that mark alone, and its paint carries the button's icon")
+    void namedCraftingTableArtReadsTheRecipeButtonSprite() {
+        Window.Sliced window = named(shipped(CRAFTING_TABLE), true);
+
+        assertThat("the button is the one mark a sprite is read for, the arrow being the art's",
+            window.markArt().keySet(), is(equalTo(EnumSet.of(Mark.BUTTON))));
+        assertThat("and it is the client's button as a screen opens, not its highlighted form",
+            differing(window.markArt().get(Mark.BUTTON), resolve(RECIPE_BUTTON)), is(equalTo(0)));
+        assertThat("drawn with the scaling the client gives a sidecar-less sprite",
+            window.markScaling().get(Mark.BUTTON), is(equalTo(MCMeta.GuiScaling.DEFAULT)));
+        assertThat("so the window's paint carries the button's icon", window.paintsIcon(Mark.BUTTON), is(true));
+        assertThat("and carries none at a mark it draws no sprite at", window.paintsIcon(Mark.ARROW), is(false));
+        assertThat("nor at the button where it draws no sprite there",
+            Window.Sliced.of(window.panelArt(), Optional.empty(), Optional.empty(), Concurrent.newMap(), Concurrent.newMap())
+                .paintsIcon(Mark.BUTTON), is(false));
+        assertThat("while a theme's paint carries no icon",Window.Theme.VANILLA.paintsIcon(Mark.BUTTON), is(false));
     }
 
     @Test

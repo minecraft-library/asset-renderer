@@ -31,21 +31,22 @@ laid by `NineSliceKit` at output-pixel resolution.
   still the art's. Either way the cells are the art's own and no slot sprite is drawn over them unless
   the caller names one. The panel is the sheet blits alone: what the client draws over them - the
   anvil's name field and error sprite, the crafting table's recipe-book button - is a widget and no
-  part of it. The window draws two of them, the anvil's name field and its cross, as the GUI sprites
-  the client blits over the sheet for what the anvil's slots hold. A screen the client ships no sheet
-  for - a grid, a chest of other than one to six rows, the player's view - resizes the named texture,
-  read at its own size and cut to the pixels it draws, and every cell is drawn with the named sprite
-  or the client's `container/slot`; the 256-texel space is a property of the client's blits, and
-  such a screen has none. The panel's own sidecar is never read, container art being blitted rather
-  than nine-sliced. A sheet authored at another size for a shipped screen is read at one texel per
-  Minecraft pixel, where the client draws it at full resolution.
+  part of it. The window draws all three as the GUI sprites the client blits over the sheet - the
+  anvil's name field and its cross for what the anvil's slots hold, and the recipe-book button. A
+  screen the client ships no sheet for - a grid, a chest of other than one to six rows, the player's
+  view - resizes the named texture, read at its own size and cut to the pixels it draws, and every
+  cell is drawn with the named sprite or the client's `container/slot`; the 256-texel space is a
+  property of the client's blits, and such a screen has none. The panel's own sidecar is never read,
+  container art being blitted rather than nine-sliced. A sheet authored at another size for a shipped
+  screen is read at one texel per Minecraft pixel, where the client draws it at full resolution.
 - **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite, the
-  anvil's field and its cross are read as the client's GUI atlas holds them - the missing texture for
-  one no pack supplies, one that cannot be read and one whose `gui` section the client refuses - and
-  laid by `NineSliceKit` with their `gui.scaling`. A sprite named over a cell the client never draws
-  one at, such as the crafting table's result cell of 26, is stretched as the client stretches a GUI
-  sprite, which no client screen shows. Every pixel a window lays itself, drawn or cut from art, is
-  laid as the client lays a GUI texel: alpha 0 leaves what is under it and the rest blends `NORMAL`.
+  anvil's field and its cross, and the recipe-book button are read as the client's GUI atlas holds
+  them - the missing texture for one no pack supplies, one that cannot be read and one whose `gui`
+  section the client refuses - and laid by `NineSliceKit` with their `gui.scaling`. A sprite named
+  over a cell the client never draws one at, such as the crafting table's result cell of 26, is
+  stretched as the client stretches a GUI sprite, which no client screen shows. Every pixel a window
+  lays itself, drawn or cut from art, is laid as the client lays a GUI texel: alpha 0 leaves what is
+  under it and the rest blends `NORMAL`.
 - The frame is four 4x4 corner blocks and four bars of a **1 mcPx period**, and nothing about it is
   per-menu - one frame reproduces the 4 px ring of every shipped container at its own height with no
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
@@ -130,8 +131,19 @@ laid by `NineSliceKit` at output-pixel resolution.
   one, and air holds nothing, the client's stack of it being empty - so the theme, the sliced window
   and the field text read one screen. The field's text and caret are white in both states, as the
   client draws its one field.
-- A field is chrome and content split the way a button is: the window draws the well, the renderer
-  puts the text in it. The text is drawn plain rather than parsed for format codes, because the
+- **Under named art the recipe-book button is the client's sprite; in a theme it is a bevel and an
+  item.** The client's crafting screen adds a 20x18 `ImageButton` at
+  `(leftPos + 5, height / 2 - 49)` - (5, 34) on its panel at any screen height - drawing
+  `recipe_book/button`, and `recipe_book/button_highlighted` while it is hovered or focused, which a
+  screen as it opens is not. A window sliced from art draws `recipe_book/button` there and the menu
+  places no icon over it, the sprite carrying its own book. A theme paints the button's bevel in its
+  own inks and the menu places the knowledge book on its face, which in the vanilla theme is the
+  client's sprite but for four near-black `FF0C0500` texels the sprite carries: the frame's two
+  right-hand chamfers, (18, 1) and (18, 16), where the theme paints its outline `FF000000`, and two
+  face texels, (17, 8) and (17, 9), closing the sprite's book where the item leaves them clear. Which
+  a menu does is the window's answer, `Window.paintsIcon`, never the renderer's.
+- A field is chrome and content split: the window draws the well and the renderer puts the text in
+  it, in either window. The text is drawn plain rather than parsed for format codes, because the
   client's own field filters them out of what can be typed, and it carries the drop shadow a
   container's labels decline - it is a widget's text and not the panel's.
 - **A field shows the end of what was typed rather than the start**, and its caret has two forms the

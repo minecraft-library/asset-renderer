@@ -62,16 +62,30 @@ public interface Window {
      * Paints one of a screen's marks over the box.
      * <p>
      * A window that draws from rules paints the mark, in its own inks wherever the mark is one the
-     * panel owns; a window sliced from art paints the anvil's name field and cross as the GUI sprites
-     * the client blits over its art, and no other mark, the arrow, the plus and the hammer being drawn
-     * into the art it slices. What a mark's face holds is not painted here - a button's item and a
-     * field's text are renders, and the renderer places them.
+     * panel owns; a window sliced from art paints the anvil's name field and cross and the crafting
+     * table's recipe-book button as the GUI sprites the client blits over its art, and no other mark,
+     * the arrow, the plus and the hammer being drawn into the art it slices. A field's text is never
+     * painted here, and a button's icon only where {@link #paintsIcon} says this window's paint carries
+     * it - otherwise each is a render, and the renderer places it.
      *
      * @param dest the buffer to paint into
      * @param box the mark's rect in Minecraft pixels
      * @param decoration which mark to paint
      */
     void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration);
+
+    /**
+     * Answers whether this window's own paint of a mark carries the icon on its face, so the renderer
+     * places none over it.
+     * <p>
+     * A window that draws from rules paints a button's bevel and leaves its face to the item the screen
+     * names there; a window sliced from art draws the client's widget sprite whole, the recipe-book
+     * button's carrying its own book.
+     *
+     * @param decoration the mark
+     * @return whether the mark's icon is part of this window's own paint
+     */
+    boolean paintsIcon(@NotNull Mark decoration);
 
     /**
      * Returns the smallest panel this window can paint, in Minecraft pixels - the size at which the
@@ -218,11 +232,12 @@ public interface Window {
      * art at its own size unchanged, so one path paints both.
      * <p>
      * The cells, and the marks the client draws as widgets over the art - the anvil's name field in the
-     * form its first input gives and its cross - are GUI sprites: each is read as the client's GUI atlas
-     * holds it and drawn by {@link NineSliceKit} with its {@code gui.scaling}, as the client draws a GUI
-     * sprite - a cell over each cell exactly where one is drawn, which is where the caller names one and
-     * over a panel resized for a screen the client ships no sheet for, the slicer not moving the art's
-     * own cells onto the layout's, and each mark where the screen places it.
+     * form its first input gives and its cross, and the crafting table's recipe-book button - are GUI
+     * sprites: each is read as the client's GUI atlas holds it and drawn by {@link NineSliceKit} with
+     * its {@code gui.scaling}, as the client draws a GUI sprite - a cell over each cell exactly where one
+     * is drawn, which is where the caller names one and over a panel resized for a screen the client
+     * ships no sheet for, the slicer not moving the art's own cells onto the layout's, and each mark
+     * where the screen places it.
      * <p>
      * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
      * different operation from re-inking drawn geometry and is not one this offers.
@@ -261,6 +276,12 @@ public interface Window {
          * holds none.
          */
         private static final @NotNull ResourceId ERROR_SPRITE = ResourceId.parse("minecraft:gui/sprites/container/anvil/error");
+
+        /**
+         * The sprite the client's recipe-book button draws while it is neither hovered nor focused,
+         * which is how a screen opens.
+         */
+        private static final @NotNull ResourceId RECIPE_BUTTON_SPRITE = ResourceId.parse("minecraft:gui/sprites/recipe_book/button");
 
         /**
          * Constructs a new {@code Sliced}, refusing a GUI sprite that comes apart from its scaling.
@@ -318,7 +339,8 @@ public interface Window {
                 case FIELD -> Optional.of(TEXT_FIELD_SPRITE);
                 case FIELD_DISABLED -> Optional.of(TEXT_FIELD_DISABLED_SPRITE);
                 case ERROR -> Optional.of(ERROR_SPRITE);
-                case ARROW, BUTTON, PLUS, HAMMER -> Optional.empty();
+                case BUTTON -> Optional.of(RECIPE_BUTTON_SPRITE);
+                case ARROW, PLUS, HAMMER -> Optional.empty();
             };
         }
 
@@ -343,10 +365,11 @@ public interface Window {
          * nothing. The panel's sidecar is not read, the client reading none for a container blit.
          * <p>
          * The cell sprite, and the sprite of each mark the screen places that the client blits over the
-         * art - the anvil's name field in the form its first input gives and its cross - are read after
-         * the panel, in the order the screen places them, through {@link NineSliceKit}'s GUI-sprite read,
-         * as the client's GUI atlas holds them, so a sprite no pack supplies, one that cannot be read and
-         * one whose {@code gui} section the client's codec refuses is the missing texture, stretched.
+         * art - the anvil's name field in the form its first input gives, its cross, and the crafting
+         * table's recipe-book button - are read after the panel, in the order the screen places them,
+         * through {@link NineSliceKit}'s GUI-sprite read, as the client's GUI atlas holds them, so a sprite
+         * no pack supplies, one that cannot be read and one whose {@code gui} section the client's codec
+         * refuses is the missing texture, stretched.
          *
          * @param context the renderer context resolving textures and their sidecars
          * @param panelId the container sheet
@@ -445,14 +468,26 @@ public interface Window {
          * {@inheritDoc}
          * <p>
          * The GUI sprite the client blits at the mark - the anvil's name field, in the form its first
-         * input gives, over the flat-red hole the sheet leaves for it, and its cross over the arrow - and
-         * nothing at any other mark, the arrow, the plus and the hammer being drawn into the art: a second
-         * arrow here would be drawn over the first.
+         * input gives, over the flat-red hole the sheet leaves for it, its cross over the arrow, and the
+         * crafting table's recipe-book button over the sheet's plain grey, its sprite carrying its book -
+         * and nothing at any other mark, the arrow, the plus and the hammer being drawn into the art: a
+         * second arrow here would be drawn over the first.
          */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
             this.markArt.getOptional(decoration).ifPresent(art ->
                 NineSliceKit.draw(dest, art, this.markScaling.get(decoration), box.x(), box.y(), box.width(), box.height(), 1.0f));
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * A mark this window draws a GUI sprite at carries its own face, as the client's widget sprite
+         * does - the recipe-book button's its book - and no other mark carries an icon of this window's.
+         */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return this.markArt.containsKey(decoration);
         }
 
         /** {@inheritDoc} */
@@ -607,6 +642,16 @@ public interface Window {
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
             MarkPainter.of(decoration).paint(dest, box, this.palette);
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * A theme paints a button's bevel and never its face, so every icon is the renderer's to place.
+         */
+        @Override
+        public boolean paintsIcon(@NotNull Mark decoration) {
+            return false;
         }
 
         /** {@inheritDoc} */

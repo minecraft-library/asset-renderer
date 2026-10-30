@@ -25,9 +25,9 @@ import java.util.Optional;
  * The widget an editable screen field is: what the caller's text cuts down to, the tail of it the
  * well shows, and the caret marking where typing would continue.
  * <p>
- * The field's well is chrome and its text is a render, the same split a button's face takes: the
- * {@link Window} draws the well - from rules in its own inks, or as the GUI sprite the client blits
- * over named art - and this puts the text in it.
+ * The field's well is chrome and its text is a render: the {@link Window} draws the well - from rules
+ * in its own inks, or as the GUI sprite the client blits over named art - and this puts the text in it
+ * in either window, as the client draws its field's text over the field's sprite.
  */
 @UtilityClass
 @Parity(claim = "menu-closure", mode = Mode.DEMOTE)

@@ -21,7 +21,7 @@ public enum MenuSlot implements LayerSlot {
     CHROME,
     /** What a caller put in a cell. */
     SLOT,
-    /** What covers the cells a caller put nothing in, and the icon a mark's face carries. */
+    /** What covers the cells a caller put nothing in, and the icon placed on a mark's face. */
     CONTENT,
     /** Both of a container's labels, and the text a screen's own field holds. */
     TEXT

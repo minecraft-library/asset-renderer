@@ -36,11 +36,12 @@ public enum Mark {
     ARROW,
 
     /**
-     * A raised button carrying an item's icon.
+     * The raised button that opens a recipe book, carrying an item's icon on its face.
      * <p>
-     * Its face carries an item rather than a sprite, because the client's own button is that: the
-     * sprite is a frame with an item's texture composited onto it, so naming the item hands a pack
-     * that redraws it a redrawn button in the same move.
+     * The client draws it as one sprite, a raised frame with that item's picture on it. The item is
+     * named so a button a window draws from rules carries it on its face, and a pack that redraws the
+     * item redraws that button in the same move; a window drawing the client's sprite draws the sprite's
+     * own book in its place, which the item does not reach.
      */
     BUTTON {
 
@@ -132,7 +133,7 @@ public enum Mark {
      *
      * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
      * @param y the top edge of its box
-     * @param icon the item drawn on its face
+     * @param icon the item the mark's face carries, laid on it where a window draws the mark from rules
      * @return the placed mark
      */
     public @NotNull Placement at(int x, int y, @NotNull ResourceId icon) {
@@ -169,7 +170,8 @@ public enum Mark {
      * @param kind which mark
      * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
      * @param y the top edge of its box
-     * @param icon the item drawn on its face, empty where the mark is drawn whole
+     * @param icon the item the mark's face carries, laid on it where a window draws the mark from rules,
+     *     empty where the mark is drawn whole
      */
     public record Placement(@NotNull Mark kind, int x, int y, @NotNull Optional<ResourceId> icon) {
 

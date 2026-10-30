@@ -19,8 +19,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +45,9 @@ import static org.hamcrest.Matchers.is;
  * and a second test pins the red so the reason stays visible. Against the client's frame - the sheet,
  * the field sprite its first input picks and the cross where the client draws one - the theme paints
  * the anvil whole in every state its slots give, field and cross included.
+ * <p>
+ * The crafting table's recipe-book button is pinned beside them: the theme's bevel with the item it
+ * carries makes the client's button sprite but for four texels the sprite adds.
  */
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
@@ -64,6 +69,10 @@ class WindowVanillaOracleTest {
     private static final String TEXT_FIELD_DISABLED = "minecraft:gui/sprites/container/anvil/text_field_disabled";
 
     private static final String ERROR = "minecraft:gui/sprites/container/anvil/error";
+
+    private static final String RECIPE_BUTTON = "minecraft:gui/sprites/recipe_book/button";
+
+    private static final String KNOWLEDGE_BOOK = "minecraft:item/knowledge_book";
 
     private static RendererContext textures;
 
@@ -389,6 +398,43 @@ class WindowVanillaOracleTest {
 
         assertThat("Minecraft pixels from the client's frame, slot states 0 to 7 by bit (first input, second, result)",
             differing, is(equalTo(Collections.nCopies(8, 0))));
+    }
+
+    @Test
+    @DisplayName("the theme's recipe-book button with the knowledge book on its face is the client's sprite but for the four near-black texels the sprite adds")
+    void theThemesRecipeButtonIsTheClientsSpriteButForFourTexels() {
+        Window.Extent extent = Window.Extent.of(Mark.BUTTON);
+        int w = extent.width();
+        int h = extent.height();
+
+        // Both on a panel-filled buffer, because each leaves its chamfered corners to what it stands on.
+        // The theme's bevel takes the item on its face as the menu lays an icon there.
+        PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+        chrome.fill(Window.Palette.VANILLA.panel());
+        Window.Theme.VANILLA.paintDecoration(chrome, new Window.Box(0, 0, w, h), Mark.BUTTON);
+        PixelBuffer theme = readDown(chrome);
+        Mark.Inset face = Mark.BUTTON.iconInset().orElseThrow();
+        theme.blit(texture(KNOWLEDGE_BOOK), face.x(), face.y(), BlendMode.NORMAL);
+
+        PixelBuffer client = PixelBuffer.create(w, h);
+        client.fill(Window.Palette.VANILLA.panel());
+        client.blit(texture(RECIPE_BUTTON), 0, 0, BlendMode.NORMAL);
+
+        Set<List<Integer>> differing = new HashSet<>();
+        Set<Integer> clientInk = new HashSet<>();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if (theme.getPixel(x, y) == client.getPixel(x, y)) continue;
+                differing.add(List.of(x, y));
+                clientInk.add(client.getPixel(x, y));
+            }
+        }
+
+        // The frame's two right-hand chamfers, which the theme inks as its outline, and two face texels
+        // closing the sprite's book, which the item leaves clear.
+        assertThat("the texels the client's sprite holds that the theme's button and its item do not", differing,
+            is(equalTo(Set.of(List.of(18, 1), List.of(18, 16), List.of(17, 8), List.of(17, 9)))));
+        assertThat("each the sprite's near-black", clientInk, is(equalTo(Set.of(0xFF0C0500))));
     }
 
     @Test
