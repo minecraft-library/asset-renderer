@@ -33,7 +33,7 @@ Most BEs render raw - skull/chest/shulker_box/conduit/decorated_pot/beacon alrea
 - **copper_golem_statue** - entity-convention model (y-down/mirrored), 180° Z flip to stand upright, then fit.
 
 ## Glint
-`GlintSweep` renders each foil subject as `FRAME_COUNT = 30` frames, stepping `GlintClock.overrideT` by `STEP_MILLIS = 1000` (both **must match asset-renderer `GlintParitySweep`**). `GlintTexturingMixin` substitutes `overrideT` for vanilla's wall-clock glint time, rebuilding the exact scroll matrix. Subjects: 7 always-foil GUI items (item glint, via `ItemFrameRenderer`) + 4 worn leather-armor diagnostics (armor glint, via an `armor_stand` through `EntityFrameRenderer`). Also dumps `glint/atlas_uv.json` (each item's items-atlas sprite-UV rect) so the asset side samples the glint through vanilla's exact `UV0`.
+`GlintSweep` renders each foil subject as `FRAME_COUNT = 30` frames, stepping `GlintClock.overrideT` by `STEP_MILLIS = 1000` (both **must match asset-renderer `GlintParitySweep`**). `GlintTexturingMixin` substitutes `overrideT` for vanilla's wall-clock glint time, rebuilding the exact scroll matrix. The sweep hands the clock back as it found it, so a later sweep in the same boot draws a foil subject at the instant the boot pinned rather than at the wall clock. Subjects: 7 always-foil GUI items (item glint, via `ItemFrameRenderer`) + 4 worn leather-armor diagnostics (armor glint, via an `armor_stand` through `EntityFrameRenderer`). Also dumps `glint/atlas_uv.json` (each item's items-atlas sprite-UV rect) so the asset side samples the glint through vanilla's exact `UV0`.
 
 ## Block-render mixins
 | Mixin | Target | Effect |

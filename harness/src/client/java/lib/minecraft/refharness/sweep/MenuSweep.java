@@ -43,16 +43,19 @@ import java.util.function.Consumer;
  * Container-screen sweep. Renders each shipped menu through the client's own GUI pipeline, so the
  * reference is the composed screen - panel, labels and slots - rather than the panel's texture.
  *
- * <p>The roster is hand-written and it is the thirteen menus asset-renderer draws a vanilla shape or
+ * <p>The roster is hand-written and it is the fifteen menus asset-renderer draws a vanilla shape or
  * state for: the four row counts one chest sheet composes, the five screens the client ships whole, and
- * the anvil four more times - the four subjects that are states rather than shapes. One has a name
- * typed into its field, the only ground truth there is for what a container draws text into. Three
- * have slots the client's own menu fills - the sword alone in the first input, the diamond alone in
- * the second, and both with the sword as the result - because the anvil's screen picks its name field
- * by the first input and draws its error cross by the inputs and the result, and between them and the
- * empty anvil every one of those conditions is told apart. It is not derived from a registry, because
- * a menu is not a registry entry - which is also why the target allowlist does not apply: filtering
- * menu names against block and entity ids would render nothing.
+ * the anvil six more times - the six subjects that are states rather than shapes. One has a name set
+ * into its field whole, at the fifty characters the field caps it to. Three have slots the client's own
+ * menu fills - the sword alone in the first input, the diamond alone in the second, and both with the
+ * sword as the result - because the anvil's screen picks its name field by the first input and draws
+ * its error cross by the inputs and the result, and between them and the empty anvil every one of those
+ * conditions is told apart. One holds the enchanted golden apple alone in the first input, whose name
+ * the client's field scrolls by its own steps rather than to the widest tail that fits. And one is
+ * named so those steps leave the cursor out of view, the only ground truth for the field's highlight
+ * band. It is not derived from a registry, because a menu is not a registry entry - which is also why
+ * the target allowlist does not apply: filtering menu names against block and entity ids would render
+ * nothing.
  *
  * <p>Every subject is drawn with the player's own section, because that is the panel the client draws
  * and the one both of asset-renderer's gates compare against. The canvas is the screen's <b>drawn</b>
@@ -136,7 +139,13 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
                 screen -> holdItems(screen, Items.AIR, Items.DIAMOND, Items.AIR)),
             new MenuSubject("anvil_input", 166,
                 (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
-                screen -> holdItems(screen, Items.DIAMOND_SWORD, Items.AIR, Items.AIR)));
+                screen -> holdItems(screen, Items.DIAMOND_SWORD, Items.AIR, Items.AIR)),
+            new MenuSubject("anvil_apple", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> holdItems(screen, Items.ENCHANTED_GOLDEN_APPLE, Items.AIR, Items.AIR)),
+            new MenuSubject("anvil_highlight", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> nameAnvil(screen, HIGHLIGHT_NAME)));
 
         LOG.info("MenuSweep built: {} targets", subjects.size());
         return subjects;
@@ -151,7 +160,21 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
     private static final String ANVIL_NAME = "The Quick Brown Fox Jumps Over The Lazy Dog 123456";
 
     /**
-     * Types a name into an anvil's field.
+     * The name the highlight anvil carries, which the client's field, set to it whole, scrolls without
+     * bringing its cursor into view. Its narrow characters stand ahead of its wide ones, so each of
+     * {@code setValue}'s three passes moves the field's start past only as many characters as the head
+     * shown from it left over - narrow ones, which free too little room for the wide ones still left -
+     * and the head shown after the third still stops short of the end. The field then draws no caret
+     * and adds its highlight band from a pixel inside the shown text's end to its right edge. Two passes
+     * would show other text and four would bring the cursor into view, so the subject pins the count as
+     * well. No vanilla item's name ends out of view, so it is set as the named anvil's is.
+     */
+    private static final String HIGHLIGHT_NAME = "lil' MAMMOTH WARHAMMER";
+
+    /**
+     * Sets an anvil's field to a name whole, through the field's own {@code setValue} - the call the
+     * screen names the field through when an item is placed in the first input. It does not type the
+     * name, which would scroll the field by other steps.
      *
      * <p>The screen's own responder sends a rename packet on every change, and a subject setting the
      * text is describing what the field shows rather than renaming anything, so it is dropped first.

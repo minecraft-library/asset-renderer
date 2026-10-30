@@ -406,9 +406,11 @@ class ReferenceCounts(unittest.TestCase):
         self.assertEqual(counts.get("players"), 2)
         # The ones the sum alone would not speak for: a key each, so a sub-tree dropping back out
         # of the roster fails as itself rather than as a total nobody can read a cause out of.
-        # Thirteen since three anvils are drawn with slots their own menu fills - the sword alone in
-        # the first input, the diamond alone in the second, and both with the sword as the result.
-        self.assertEqual(counts.get("menus"), 13)
+        # Fifteen since two anvils are drawn for the field's scroll - an enchanted golden apple placed
+        # in the first input, and a name whose scroll leaves the cursor out of view - beside the three
+        # whose slots their own menu fills: the sword alone in the first input, the diamond alone in
+        # the second, and both with the sword as the result.
+        self.assertEqual(counts.get("menus"), 15)
         # Sixteen tooltip roster subjects, each drawn whole and as its box alone, and fourteen plain
         # lines, each drawn alone under plain/.
         self.assertEqual(counts.get("tooltips"), 46)
@@ -417,11 +419,13 @@ class ReferenceCounts(unittest.TestCase):
         # so these move whenever a derived strip does.
         self.assertEqual(counts.get("idle"), 2547)
         self.assertEqual(counts.get("walk"), 4896)
-        # 9822 since the menu sweep draws three anvils whose slots their own menu fills, on top of the
-        # tooltip sweep's 46 - sixteen roster subjects, each one's box alone, and fourteen plain lines -
-        # and the block sweep's reference for each block_state case of a dispatch-rooted icon -
-        # beehive and bee_nest at honey_level=5, test_block at mode log, fail and accept.
-        self.assertEqual(sum(counts.values()), 9822)
+        # 9824 since the menu sweep draws two anvils for the field's scroll, an enchanted golden apple
+        # placed and a name whose scroll leaves the cursor out of view, on top of the three whose
+        # slots their own menu fills, the tooltip sweep's 46 - sixteen roster subjects, each one's box
+        # alone, and fourteen plain lines - and the block sweep's reference for each block_state case
+        # of a dispatch-rooted icon - beehive and bee_nest at honey_level=5, test_block at mode log,
+        # fail and accept.
+        self.assertEqual(sum(counts.values()), 9824)
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):

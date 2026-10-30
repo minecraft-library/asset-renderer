@@ -10,6 +10,8 @@ import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import lib.minecraft.refharness.frame.ItemFrameRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -32,8 +34,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Animated-glint reference sweep. Renders each glint subject as a deterministic sequence of
@@ -107,6 +107,9 @@ public final class GlintSweep implements Sweep<GlintSweep.Frame> {
     /** The armor stand each armor subject is rendered on, built once and reused across its frames. */
     private final Map<String, Entity> armorStands = new java.util.HashMap<>();
 
+    /** The glint time the clock held when the sweep began, handed back when it is done. */
+    private long heldGlintT;
+
     /**
      * One frame of one glint subject.
      *
@@ -144,12 +147,14 @@ public final class GlintSweep implements Sweep<GlintSweep.Frame> {
     }
 
     /**
-     * Dumps the GUI glint items' real items-atlas sprite-UV rects before the first frame. The atlas
-     * is stitched by then, and writing the rects lets the asset side reproduce vanilla's exact
-     * sampling UV offline, isolating every other glint factor from that one unknown.
+     * Stores the glint time the clock holds before the first frame, which the sweep hands back when
+     * it is done, and dumps the GUI glint items' real items-atlas sprite-UV rects. The atlas is
+     * stitched by then, and writing the rects lets the asset side reproduce vanilla's exact sampling
+     * UV offline, isolating every other glint factor from that one unknown.
      */
     @Override
     public void prepare(SweepContext ctx, List<Frame> subjects) {
+        heldGlintT = GlintClock.overrideT;
         dumpAtlasUv(ctx.client());
     }
 
@@ -159,10 +164,13 @@ public final class GlintSweep implements Sweep<GlintSweep.Frame> {
         GlintClock.overrideT = (long) subject.frame() * STEP_MILLIS;
     }
 
-    /** Releases the pinned glint phase back to the wall clock. */
+    /**
+     * Hands the glint clock back as the sweep found it - the instant the boot pinned for every other
+     * sweep, or the wall clock in a boot that runs this sweep alone.
+     */
     @Override
     public void afterSweep(SweepContext ctx) {
-        GlintClock.overrideT = -1;
+        GlintClock.overrideT = heldGlintT;
     }
 
     @Override

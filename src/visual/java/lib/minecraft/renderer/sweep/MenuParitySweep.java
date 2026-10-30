@@ -42,7 +42,7 @@ import java.util.Map;
  * and are LOOK gauges for that reason; this one is not, and a canvas that disagrees is itself the
  * finding rather than something to resample away.
  *
- * <p>The roster is the thirteen menus the harness renders, and each subject's title is its own name
+ * <p>The roster is the fifteen menus the harness renders, and each subject's title is its own name
  * on both sides - one string, so a label divergence is a real one rather than two rosters disagreeing.
  * Every subject draws the player's section, because that is the panel the client draws.
  *
@@ -75,7 +75,7 @@ public final class MenuParitySweep {
 
     /**
      * The roster, which is the harness's own. A chest is the four row counts one sheet composes; the
-     * other five are screens the client ships whole, and the anvil comes back in four states.
+     * other five are screens the client ships whole, and the anvil comes back in six states.
      */
     private static @NotNull List<Subject> roster() {
         List<Subject> subjects = new ArrayList<>();
@@ -88,7 +88,7 @@ public final class MenuParitySweep {
         subjects.add(subject("crafting_table", MenuOptions.Type.CRAFTING_TABLE, 0));
         subjects.add(subject("anvil", MenuOptions.Type.ANVIL, 0));
 
-        // The anvil four more times, because it is the one screen with a text field and the one whose
+        // The anvil six more times, because it is the one screen with a text field and the one whose
         // chrome follows its slots. The named one is for the text: fifty characters is the field's own
         // cap, which is also what selects the second of the caret's two forms - below it the caret is
         // an appended glyph and at it a filled bar.
@@ -128,6 +128,26 @@ public final class MenuParitySweep {
             .slots(Concurrent.newMap(
                 Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:diamond_sword"))))
             .build()));
+
+        // The last two are for the field's scroll. The apple alone in the first input names the field
+        // after it, as placing an item to rename it does, and the client's field, set to that name
+        // whole, scrolls it by its own steps rather than to the widest tail that fits. The highlight
+        // one is named so those steps leave the cursor out of view, where the client draws no caret and
+        // its highlight band instead.
+        subjects.add(new Subject("anvil_apple", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_apple")
+            .fieldText(APPLE_NAME)
+            .slots(Concurrent.newMap(
+                Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:enchanted_golden_apple"))))
+            .build()));
+        subjects.add(new Subject("anvil_highlight", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_highlight")
+            .fieldText(HIGHLIGHT_NAME)
+            .build()));
         return subjects;
     }
 
@@ -139,6 +159,15 @@ public final class MenuParitySweep {
      * the harness's field holds it, so it has to stay it.
      */
     private static final @NotNull String SWORD_NAME = "Diamond Sword";
+
+    /**
+     * The name the client's field takes from the enchanted golden apple in the first input - its hover
+     * name, as the harness's field holds it, so it has to stay it.
+     */
+    private static final @NotNull String APPLE_NAME = "Enchanted Golden Apple";
+
+    /** The name the highlight anvil carries, which is the harness's own string and has to stay it. */
+    private static final @NotNull String HIGHLIGHT_NAME = "lil' MAMMOTH WARHAMMER";
 
     /**
      * Builds one subject. A row count is read by the chest alone, so every other screen is handed the
