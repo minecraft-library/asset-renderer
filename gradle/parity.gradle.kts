@@ -1169,8 +1169,8 @@ tasks {
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
     registerHarnessRun("renderVanillaMenuReferences", "refharnessMenusOnly", "MENUS", false, listOf("menus"),
-        "Runs the harness in MENUS mode: references/menus/ only - the ten menu subjects, " +
-        "each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
+        "Runs the harness in MENUS mode: references/menus/ only - every subject of MenuSweep's " +
+        "roster, each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
     registerHarnessRun("renderVanillaTooltipReferences", "refharnessModes=TOOLTIPS", "TOOLTIPS", false,
         listOf("tooltips"),

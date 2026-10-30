@@ -19,12 +19,16 @@ import net.minecraft.client.gui.screens.inventory.HopperScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.DispenserMenu;
 import net.minecraft.world.inventory.HopperMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,12 +43,16 @@ import java.util.function.Consumer;
  * Container-screen sweep. Renders each shipped menu through the client's own GUI pipeline, so the
  * reference is the composed screen - panel, labels and slots - rather than the panel's texture.
  *
- * <p>The roster is hand-written and it is the ten menus asset-renderer draws a vanilla shape for: the
- * four row counts one chest sheet composes, the five screens the client ships whole, and the anvil a
- * second time with a name typed into its field - the one subject that is a state rather than a shape,
- * and the only ground truth there is for what a container draws text into. It is not derived from a
- * registry, because a menu is not a registry entry - which is also why the target allowlist does not
- * apply: filtering menu names against block and entity ids would render nothing.
+ * <p>The roster is hand-written and it is the thirteen menus asset-renderer draws a vanilla shape or
+ * state for: the four row counts one chest sheet composes, the five screens the client ships whole, and
+ * the anvil four more times - the four subjects that are states rather than shapes. One has a name
+ * typed into its field, the only ground truth there is for what a container draws text into. Three
+ * have slots the client's own menu fills - the sword alone in the first input, the diamond alone in
+ * the second, and both with the sword as the result - because the anvil's screen picks its name field
+ * by the first input and draws its error cross by the inputs and the result, and between them and the
+ * empty anvil every one of those conditions is told apart. It is not derived from a registry, because
+ * a menu is not a registry entry - which is also why the target allowlist does not apply: filtering
+ * menu names against block and entity ids would render nothing.
  *
  * <p>Every subject is drawn with the player's own section, because that is the panel the client draws
  * and the one both of asset-renderer's gates compare against. The canvas is the screen's <b>drawn</b>
@@ -66,7 +74,9 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
      * @param height the panel's drawn height in Minecraft pixels, which is what the canvas is sized to
      * @param screen builds the screen from the player's inventory and the title
      * @param afterInit says whatever the subject has to say to a widget the screen's own {@code init}
-     * builds, which is the only point at which one both exists and has not yet been read
+     * builds, or to its menu once {@code init} has made the screen that menu's slot listener - the only
+     * point at which a widget both exists and has not yet been read, and at which the screen hears of
+     * a slot its menu fills as the client's screen does
      */
     public record MenuSubject(
         String name, int height,
@@ -117,7 +127,16 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
                 (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title)),
             new MenuSubject("anvil_named", 166,
                 (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
-                screen -> nameAnvil(screen, ANVIL_NAME)));
+                screen -> nameAnvil(screen, ANVIL_NAME)),
+            new MenuSubject("anvil_result", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> holdItems(screen, Items.DIAMOND_SWORD, Items.DIAMOND, Items.DIAMOND_SWORD)),
+            new MenuSubject("anvil_error", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> holdItems(screen, Items.AIR, Items.DIAMOND, Items.AIR)),
+            new MenuSubject("anvil_input", 166,
+                (inv, title) -> new AnvilScreen(new AnvilMenu(CONTAINER_ID, inv), inv, title),
+                screen -> holdItems(screen, Items.DIAMOND_SWORD, Items.AIR, Items.AIR)));
 
         LOG.info("MenuSweep built: {} targets", subjects.size());
         return subjects;
@@ -143,6 +162,42 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
         EditBox field = ((AnvilScreenAccessor) screen).refharness$name();
         field.setResponder(ignored -> {});
         field.setValue(name);
+    }
+
+    /**
+     * Fills an anvil's slots through its own menu, so the screen draws them as the client does with
+     * those items placed.
+     *
+     * <p>Each input is set through its slot, and the menu answers the change as it does in play:
+     * {@code ItemCombinerMenu.slotsChanged} reports every changed slot to its listeners through
+     * {@code broadcastChanges}, and then runs {@code createResult}. {@code init} made the screen that
+     * listener, so the report on the first input is the screen's own {@code slotChanged}, which names
+     * the field after the item placed and makes it editable - the field the client then draws enabled.
+     * Naming the field runs its responder, which would rename through the menu, run
+     * {@code createResult} again and send a rename packet, so the responder is dropped before the
+     * first set and the field holds only what {@code slotChanged} put there.
+     *
+     * <p>The result goes in last, because every input set runs {@code createResult} and none of these
+     * inputs makes one. Each leaves the cost at 0 on one of its paths: an empty first input empties the
+     * result and sets the cost to 0, as does a repair material against an undamaged first input, and a
+     * first input alone, with nothing to repair or combine and no name the menu was told of, counts no
+     * work and so costs 0 and makes nothing. The result's own set is reported to the listeners and runs
+     * nothing, the menu recomputing for its input container alone. So a filled result stands at a cost
+     * of 0, which draws no cost label - a state the menu's own rules never produce, and the one whose
+     * field, cross and cells a renderer drawing no cost can be measured against.
+     *
+     * @param screen the anvil screen, after its {@code init}
+     * @param first the item in the first input, air for none
+     * @param second the item in the second input, air for none
+     * @param result the item in the result slot, air for none
+     */
+    private static void holdItems(AbstractContainerScreen<?> screen, Item first, Item second, Item result) {
+        ((AnvilScreenAccessor) screen).refharness$name().setResponder(ignored -> {});
+
+        AbstractContainerMenu menu = screen.getMenu();
+        menu.getSlot(AnvilMenu.INPUT_SLOT).set(new ItemStack(first));
+        menu.getSlot(AnvilMenu.ADDITIONAL_SLOT).set(new ItemStack(second));
+        menu.getSlot(AnvilMenu.RESULT_SLOT).set(new ItemStack(result));
     }
 
     @Override
@@ -173,8 +228,9 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
             // init sizes the screen to the panel itself, which is what makes leftPos and topPos zero.
             screen.init(canvas.width() / GuiFrameRenderer.GUI_SCALE, canvas.height() / GuiFrameRenderer.GUI_SCALE);
 
-            // A screen builds its widgets in init, so anything a subject wants to say about one has
-            // to be said here - before the extract reads them and after they exist.
+            // A screen builds its widgets in init, and an anvil's screen becomes its menu's slot
+            // listener there, so anything a subject wants to say to either has to be said here -
+            // before the extract reads them and after they exist.
             subject.afterInit().accept(screen);
 
             // The panel is the screen's background, and it is the caller that draws one - the two

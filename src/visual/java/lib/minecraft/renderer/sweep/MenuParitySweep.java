@@ -2,6 +2,7 @@ package lib.minecraft.renderer.sweep;
 
 import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.DiffType;
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Per-subject container-screen parity report comparing {@link MenuRenderer} against the
@@ -40,8 +42,8 @@ import java.util.List;
  * and are LOOK gauges for that reason; this one is not, and a canvas that disagrees is itself the
  * finding rather than something to resample away.
  *
- * <p>The roster is the ten menus the harness renders, and each subject's title is its own name on
- * both sides - one string, so a label divergence is a real one rather than two rosters disagreeing.
+ * <p>The roster is the thirteen menus the harness renders, and each subject's title is its own name
+ * on both sides - one string, so a label divergence is a real one rather than two rosters disagreeing.
  * Every subject draws the player's section, because that is the panel the client draws.
  *
  * <p>Output: one folder per subject under {@code cache/visual/menu-parity-vanilla/} holding
@@ -73,7 +75,7 @@ public final class MenuParitySweep {
 
     /**
      * The roster, which is the harness's own. A chest is the four row counts one sheet composes; the
-     * other four are screens the client ships whole.
+     * other five are screens the client ships whole, and the anvil comes back in four states.
      */
     private static @NotNull List<Subject> roster() {
         List<Subject> subjects = new ArrayList<>();
@@ -86,20 +88,57 @@ public final class MenuParitySweep {
         subjects.add(subject("crafting_table", MenuOptions.Type.CRAFTING_TABLE, 0));
         subjects.add(subject("anvil", MenuOptions.Type.ANVIL, 0));
 
-        // The anvil twice, because it is the one screen with a text field and the text is the
-        // subject. Fifty characters is the field's own cap, which is also what selects the second of
-        // the caret's two forms - below it the caret is an appended glyph and at it a filled bar.
+        // The anvil four more times, because it is the one screen with a text field and the one whose
+        // chrome follows its slots. The named one is for the text: fifty characters is the field's own
+        // cap, which is also what selects the second of the caret's two forms - below it the caret is
+        // an appended glyph and at it a filled bar.
         subjects.add(new Subject("anvil_named", MenuOptions.builder()
             .type(MenuOptions.Type.ANVIL)
             .playerInventory(true)
             .title("anvil_named")
             .fieldText(ANVIL_NAME)
             .build()));
+
+        // The three filled ones are for the name field and the error cross their slots pick, as the
+        // client's own menu fills them: both inputs with the sword as the result, the diamond alone in
+        // the second input, and the sword alone in the first. Wherever the sword is in the first input
+        // the field holds its name, which the client's field takes from the item placed there.
+        subjects.add(new Subject("anvil_result", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_result")
+            .fieldText(SWORD_NAME)
+            .slots(Concurrent.newMap(
+                Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:diamond_sword")),
+                Map.entry(1, MenuOptions.MenuSlotContent.of("minecraft:diamond")),
+                Map.entry(2, MenuOptions.MenuSlotContent.of("minecraft:diamond_sword"))))
+            .build()));
+        subjects.add(new Subject("anvil_error", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_error")
+            .slots(Concurrent.newMap(
+                Map.entry(1, MenuOptions.MenuSlotContent.of("minecraft:diamond"))))
+            .build()));
+        subjects.add(new Subject("anvil_input", MenuOptions.builder()
+            .type(MenuOptions.Type.ANVIL)
+            .playerInventory(true)
+            .title("anvil_input")
+            .fieldText(SWORD_NAME)
+            .slots(Concurrent.newMap(
+                Map.entry(0, MenuOptions.MenuSlotContent.of("minecraft:diamond_sword"))))
+            .build()));
         return subjects;
     }
 
     /** The name the named anvil carries, which is the harness's own string and has to stay it. */
     private static final @NotNull String ANVIL_NAME = "The Quick Brown Fox Jumps Over The Lazy Dog 123456";
+
+    /**
+     * The name the client's field takes from the sword in the first input - the sword's hover name, as
+     * the harness's field holds it, so it has to stay it.
+     */
+    private static final @NotNull String SWORD_NAME = "Diamond Sword";
 
     /**
      * Builds one subject. A row count is read by the chest alone, so every other screen is handed the
