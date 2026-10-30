@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Per-subject tooltip parity report comparing {@link TextRenderer} against the
@@ -75,9 +76,9 @@ import java.util.stream.Collectors;
  * <p>The harness draws every subject of the configuration through the client's own tooltip call onto
  * the box's whole sprite rect - the client's measurement of the lines plus {@link #CLIENT_MARGIN_MCPX}
  * on every side. This sweep reads the same roster off its own classpath and renders each subject the
- * way a caller would: lore lines over the sprite chrome, the subject's tooltip style named, through a
- * renderer bound to the client's assets. A pack subject names a vanilla subject by key and renders
- * that subject's lines, so a pack row and the vanilla row of its key carry one text.
+ * way a caller would: lore lines over the chrome the subject names, the subject's tooltip style named,
+ * through a renderer bound to the client's assets. A pack subject names a vanilla subject by key and
+ * renders that subject's lines, so a pack row and the vanilla row of its key carry one text.
  *
  * <p><b>A pack configuration reads the run's handshake first.</b> The pack run writes
  * {@code stack.json} beside its drawings: the packs the client selected, and for every tooltip sprite
@@ -99,6 +100,14 @@ import java.util.stream.Collectors;
  * renderer's font would have given. A mover in a box-alone row is the box; one in the full row alone is
  * the text. Each row names the stand-ins its render drew in {@code stand_ins} - the result's for the
  * full row, the box's own for the box-alone row - so a row whose chrome is the missing texture says so.
+ *
+ * <p><b>The vanilla configuration measures the code-drawn box as well.</b> Each unstyled subject is
+ * drawn again over {@link ChromeStyle#PROCEDURAL}, its two rows keyed {@code ~chrome=procedural} after
+ * the key and box-alone qualifier its sprite rows carry, and read against the same two drawings,
+ * because the client draws one tooltip box whichever chrome the renderer is asked for. A styled subject
+ * has no such row - the code-drawn box draws no tooltip style, so the client's drawing of the style is
+ * not its twin - and a pack configuration has none, because the code-drawn box reads nothing from a
+ * pack.
  *
  * <p><b>Both sides end at their first pixel.</b> The reference is the whole sprite rect, so the sweep
  * takes it to the bounds of every pixel the client drew; the renderer's canvas ends at the first pixel
@@ -150,9 +159,51 @@ public final class TooltipParitySweep {
      * @param key the roster key, which each of the subject's reference stems begins with, ahead of
      *     the box-alone qualifier and the style token
      * @param style the tooltip style the subject names, empty for the default box
-     * @param options the options the Java side renders it from
+     * @param options the options the Java side renders it from, which name the chrome it is drawn over
      */
-    record Subject(@NotNull String key, @NotNull Optional<ResourceId> style, @NotNull TextOptions options) {}
+    record Subject(@NotNull String key, @NotNull Optional<ResourceId> style, @NotNull TextOptions options) {
+
+        /**
+         * Answers the stem of the client drawing one of this subject's rows is compared with - the roster
+         * key, {@code _chrome} for the box alone, and the style token. The client draws one tooltip box,
+         * so a row over the code-drawn box reads the drawing its sprite row reads.
+         *
+         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @return the reference stem, without its {@code .png}
+         */
+        @NotNull String referenceStem(boolean boxAlone) {
+            return this.stem(boxAlone, "");
+        }
+
+        /**
+         * Answers the key one of this subject's rows is reported under - its reference stem, with a
+         * {@code chrome} token ahead of the style token for a row over the code-drawn box, the order the
+         * parity toolkit sorts a stem's tokens in.
+         *
+         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @return the row's key, which also names its output folder
+         */
+        @NotNull String rowKey(boolean boxAlone) {
+            return this.stem(boxAlone, switch (this.options.getChromeStyle()) {
+                case SPRITE -> "";
+                case PROCEDURAL -> "~chrome=procedural";
+            });
+        }
+
+        /**
+         * Spells a stem from the roster key, the box-alone qualifier, a chrome token and the style token,
+         * in that order.
+         *
+         * @param boxAlone whether the row is the subject's box alone rather than the whole tooltip
+         * @param chromeToken the chrome token, empty for none
+         * @return the stem
+         */
+        private @NotNull String stem(boolean boxAlone, @NotNull String chromeToken) {
+            return this.key + (boxAlone ? "_chrome" : "") + chromeToken
+                + this.style.map(id -> "~style=" + id.namespace() + "__" + id.name()).orElse("");
+        }
+
+    }
 
     /**
      * What one run renders, against what, and where it writes.
@@ -163,12 +214,13 @@ public final class TooltipParitySweep {
      * @param output the directory the per-row folders and the report are written into
      * @param options the client options the renderer is bound by - vanilla's own, or the handshake's
      *     packs stacked over them
-     * @param subjects the subjects the configuration renders, in roster order
+     * @param subjects the subjects the configuration renders - in roster order, and for {@code vanilla}
+     *     its code-drawn ones after its sprite ones
      * @param handshake the pack run's {@code stack.json}, empty for {@code vanilla}
      */
-    private record Configuration(@NotNull String label, @NotNull Path references, @NotNull Path output,
-                                 @NotNull ClientOptions options, @NotNull List<Subject> subjects,
-                                 @NotNull Optional<JsonObject> handshake) {
+    record Configuration(@NotNull String label, @NotNull Path references, @NotNull Path output,
+                         @NotNull ClientOptions options, @NotNull List<Subject> subjects,
+                         @NotNull Optional<JsonObject> handshake) {
 
         /**
          * Builds the vanilla configuration: the roster's own subjects against the reference tree's
@@ -236,13 +288,16 @@ public final class TooltipParitySweep {
 
     /**
      * Reads one configuration's subjects off the roster, each line a text component drawn as lore over
-     * the sprite chrome in the style the subject names. {@code vanilla} reads the roster's own
-     * subjects; a pack label reads its section, each subject taking the lines of the unstyled roster
-     * subject its key names and its style from the section.
+     * a chrome in the style the subject names. {@code vanilla} reads the roster's own subjects over the
+     * sprite box, then each unstyled one again over the code-drawn box, which draws no style; a pack
+     * label reads its section over the sprite box alone, since the code-drawn box reads nothing from a
+     * pack, each subject taking the lines of the unstyled roster subject its key names and its style
+     * from the section.
      *
      * @param roster the roster
      * @param label {@code vanilla} or a label the roster's {@code packs} section keys
-     * @return the subjects, in roster order
+     * @return the subjects, in roster order, and for {@code vanilla} its code-drawn ones after its
+     *     sprite ones
      * @throws IllegalArgumentException if the label is neither
      * @throws IllegalStateException if a pack subject's key names no unstyled roster subject
      */
@@ -250,9 +305,14 @@ public final class TooltipParitySweep {
         List<JsonObject> listed = new ArrayList<>();
         roster.getAsJsonArray("subjects").forEach(element -> listed.add(element.getAsJsonObject()));
         if (label.equals(VANILLA)) {
-            return listed.stream()
-                .map(entry -> subject(entry.get("key").getAsString(), style(entry), entry.getAsJsonArray("lines")))
-                .toList();
+            Stream<Subject> sprite = listed.stream()
+                .map(entry -> subject(entry.get("key").getAsString(), style(entry), entry.getAsJsonArray("lines"), ChromeStyle.SPRITE));
+            // The code-drawn box draws no tooltip style, and the client draws a styled tooltip in its style's
+            // sprites, so only an unstyled subject has a client drawing to measure that box against.
+            Stream<Subject> codeDrawn = listed.stream()
+                .filter(entry -> !entry.has("style"))
+                .map(entry -> subject(entry.get("key").getAsString(), Optional.empty(), entry.getAsJsonArray("lines"), ChromeStyle.PROCEDURAL));
+            return Stream.concat(sprite, codeDrawn).toList();
         }
 
         JsonObject packs = roster.has("packs") ? roster.getAsJsonObject("packs") : new JsonObject();
@@ -273,7 +333,7 @@ public final class TooltipParitySweep {
                 throw new IllegalStateException(String.format(
                     "Pack subject '%s' of '%s' names no unstyled subject of the roster", key, label));
             }
-            subjects.add(subject(key, style(entry), lines));
+            subjects.add(subject(key, style(entry), lines, ChromeStyle.SPRITE));
         }
         return subjects;
     }
@@ -682,21 +742,23 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Builds one subject: its lines as lore over the sprite chrome, in the style it names.
+     * Builds one subject: its lines as lore over the given chrome, in the style it names.
      *
      * @param key the roster key
      * @param style the tooltip style, empty for the default box
      * @param lines the subject's lines as the roster spells them
+     * @param chrome the chrome the subject is drawn over
      * @return the subject
      */
-    private static @NotNull Subject subject(@NotNull String key, @NotNull Optional<ResourceId> style, @NotNull JsonArray lines) {
+    private static @NotNull Subject subject(@NotNull String key, @NotNull Optional<ResourceId> style, @NotNull JsonArray lines,
+                                            @NotNull ChromeStyle chrome) {
         ConcurrentList<LineSegment> segments = Concurrent.newList();
         for (JsonElement line : lines)
             segments.addAll(TextSegment.fromJson(line).toLines());
 
         return new Subject(key, style, TextOptions.builder()
             .style(TextOptions.Style.LORE)
-            .chromeStyle(ChromeStyle.SPRITE)
+            .chromeStyle(chrome)
             .tooltipStyle(style)
             .lines(segments)
             .build());
@@ -727,11 +789,10 @@ public final class TooltipParitySweep {
      * @param context the context the box alone resolves its sprites through
      * @return the comparison row, its delta {@code POSITIVE_INFINITY} on failure
      */
-    private static @NotNull Row renderAndCompare(@NotNull Configuration configuration, @NotNull Subject subject, boolean boxAlone,
-                                                 @NotNull TextRenderer javaRenderer, @NotNull RendererContext context) {
-        String stem = subject.key() + (boxAlone ? "_chrome" : "")
-            + subject.style().map(id -> "~style=" + id.namespace() + "__" + id.name()).orElse("");
-        Path subjectDir = configuration.output().resolve(stem);
+    static @NotNull Row renderAndCompare(@NotNull Configuration configuration, @NotNull Subject subject, boolean boxAlone,
+                                         @NotNull TextRenderer javaRenderer, @NotNull RendererContext context) {
+        String key = subject.rowKey(boxAlone);
+        Path subjectDir = configuration.output().resolve(key);
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int javaW = 0;
         int javaH = 0;
@@ -740,11 +801,11 @@ public final class TooltipParitySweep {
         String standIns = "";
         try {
             Files.createDirectories(subjectDir);
-            Path vanillaPng = configuration.references().resolve(stem + ".png");
+            Path vanillaPng = configuration.references().resolve(subject.referenceStem(boxAlone) + ".png");
             BufferedImage reference = ImageIO.read(vanillaPng.toFile());
             if (reference == null) {
-                System.err.printf("       %-50s vanilla PNG unreadable: %s%n", stem, vanillaPng);
-                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
+                System.err.printf("       %-50s vanilla PNG unreadable: %s%n", key, vanillaPng);
+                return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
             // The reference is the whole sprite rect; the region compared is every pixel the client drew.
@@ -775,8 +836,8 @@ public final class TooltipParitySweep {
 
             if (vanillaW != javaW || vanillaH != javaH) {
                 System.err.printf("       %-50s canvas %dx%d against the client's %dx%d to its first pixel - not comparable%n",
-                    stem, javaW, javaH, vanillaW, vanillaH);
-                return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
+                    key, javaW, javaH, vanillaW, vanillaH);
+                return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
             ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",
@@ -786,13 +847,13 @@ public final class TooltipParitySweep {
 
             ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaImg, javaImg);
             System.out.printf("  %-50s mean delta %.2f  diff-px %d  raw-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%n",
-                stem, stats.meanDelta(), stats.differingPixels(), stats.rawDifferingPixels(),
+                key, stats.meanDelta(), stats.differingPixels(), stats.rawDifferingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);
-            return new Row(stem, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(),
+            return new Row(key, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(),
                 stats.rawDifferingPixels(), javaW, javaH, vanillaW, vanillaH, standIns);
         } catch (Exception ex) {
-            System.err.printf("       %-50s FAILED: %s%n", stem, ex.getMessage());
-            return Row.failed(stem, javaW, javaH, vanillaW, vanillaH, standIns);
+            System.err.printf("       %-50s FAILED: %s%n", key, ex.getMessage());
+            return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
         }
     }
 
@@ -841,7 +902,8 @@ public final class TooltipParitySweep {
     /**
      * Per-row line in the TSV report.
      *
-     * @param subject the row's reference stem
+     * @param subject the row's key - its reference stem, with the chrome token for a row over the
+     *     code-drawn box
      * @param meanDelta the mean over-white delta, {@code POSITIVE_INFINITY} when the comparison did not happen
      * @param differingPixels the count of pixels whose over-white delta is non-zero
      * @param javaCoverage the fraction of the renderer's pixels with non-zero alpha
@@ -856,14 +918,15 @@ public final class TooltipParitySweep {
      * @param standIns the stand-ins the render drew, each its kind, state and id, then the item that named
      *     it where there is one, joined by {@code "; "}; empty where it drew none or nothing was drawn
      */
-    private record Row(@NotNull String subject, double meanDelta, long differingPixels, double javaCoverage,
-                       double vanillaCoverage, long rawDifferingPixels,
-                       int javaW, int javaH, int vanillaW, int vanillaH, @NotNull String standIns) {
+    record Row(@NotNull String subject, double meanDelta, long differingPixels, double javaCoverage,
+               double vanillaCoverage, long rawDifferingPixels,
+               int javaW, int javaH, int vanillaW, int vanillaH, @NotNull String standIns) {
 
         /**
          * Builds a row whose comparison did not happen, keeping the facts it has.
          *
-         * @param subject the row's reference stem
+         * @param subject the row's key - its reference stem, with the chrome token for a row over the
+         *     code-drawn box
          * @param javaW the renderer's canvas width, 0 when nothing was drawn
          * @param javaH the renderer's canvas height, 0 when nothing was drawn
          * @param vanillaW the reference's first-pixel bounds width, 0 when it was not read

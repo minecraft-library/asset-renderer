@@ -4,16 +4,31 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.call.request.ChromeStyle;
+import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
 
+import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -26,9 +41,10 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link TooltipParitySweep}'s pure halves: the resolution check that holds the
- * renderer's chrome to the sprites the client drew with, the scaling form both sides write, the
- * roster's pack sections, and the pack run's handshake.
+ * Coverage of {@link TooltipParitySweep} short of a client: the rows each configuration draws, the keys
+ * and drawings they are compared under and the folder and drawing a row's comparison takes from them,
+ * the resolution check that holds the renderer's chrome to the sprites the client drew with, the scaling
+ * form both sides write, the roster's pack sections, and the pack run's handshake.
  */
 @DisplayName("TooltipParitySweep resolution check and roster")
 class TooltipParitySweepTest {
@@ -321,9 +337,125 @@ class TooltipParitySweepTest {
         assertThat(TooltipParitySweep.scalingJson(nineSlice), equalTo(JsonParser.parseString(NINE_SLICE).getAsJsonObject()));
     }
 
+    /**
+     * Describes a subject as the row-set case compares it.
+     *
+     * @param subject the subject
+     * @return its key, the style it names as {@code namespace:name} where it names one, and the name of
+     *     the chrome it is drawn over
+     */
+    private static List<String> described(TooltipParitySweep.Subject subject) {
+        List<String> described = new ArrayList<>();
+        described.add(subject.key());
+        subject.style().ifPresent(style -> described.add(style.namespace() + ":" + style.name()));
+        described.add(subject.options().getChromeStyle().name());
+        return described;
+    }
+
+    @Test
+    @DisplayName("the vanilla configuration draws every roster subject over the sprite box, then every unstyled one "
+        + "over the code-drawn box, which draws no tooltip style")
+    void vanillaDrawsEveryUnstyledSubjectOverTheCodeDrawnBoxAsWell() throws IOException {
+        JsonObject roster = TooltipParitySweep.roster();
+        List<JsonObject> entries = new ArrayList<>();
+        roster.getAsJsonArray("subjects").forEach(element -> entries.add(element.getAsJsonObject()));
+
+        assertThat("the roster has no styled subject, which would leave the code-drawn box's exclusion unexercised",
+            entries.stream().anyMatch(entry -> entry.has("style")), is(true));
+
+        List<List<String>> expected = new ArrayList<>();
+        for (JsonObject entry : entries) {
+            String key = entry.get("key").getAsString();
+            expected.add(entry.has("style")
+                ? List.of(key, entry.get("style").getAsString(), ChromeStyle.SPRITE.name())
+                : List.of(key, ChromeStyle.SPRITE.name()));
+        }
+        for (JsonObject entry : entries)
+            if (!entry.has("style")) expected.add(List.of(entry.get("key").getAsString(), ChromeStyle.PROCEDURAL.name()));
+
+        assertThat(TooltipParitySweep.subjects(roster, "vanilla").stream().map(TooltipParitySweepTest::described).toList(),
+            equalTo(expected));
+    }
+
+    @Test
+    @DisplayName("a row over the code-drawn box is compared with the drawing its sprite twin is, under a key of its own")
+    void codeDrawnRowsReadTheSpriteRowsDrawings() throws IOException {
+        List<TooltipParitySweep.Subject> subjects = TooltipParitySweep.subjects(TooltipParitySweep.roster(), "vanilla");
+        TooltipParitySweep.Subject oneLine = codeDrawn(subjects, "one_line");
+
+        assertThat(List.of(oneLine.rowKey(false), oneLine.rowKey(true), oneLine.referenceStem(false), oneLine.referenceStem(true)),
+            contains("one_line~chrome=procedural", "one_line_chrome~chrome=procedural", "one_line", "one_line_chrome"));
+
+        Set<String> keys = new HashSet<>();
+        List<String> repeatedKeys = new ArrayList<>();
+        List<String> movedSpriteKeys = new ArrayList<>();
+        Set<String> spriteDrawings = new HashSet<>();
+        Set<String> codeDrawnDrawings = new HashSet<>();
+        for (TooltipParitySweep.Subject subject : subjects) {
+            for (boolean boxAlone : List.of(false, true)) {
+                String key = subject.rowKey(boxAlone);
+                String drawing = subject.referenceStem(boxAlone);
+                if (!keys.add(key)) repeatedKeys.add(key);
+                if (subject.options().getChromeStyle() == ChromeStyle.SPRITE) {
+                    spriteDrawings.add(drawing);
+                    if (!key.equals(drawing)) movedSpriteKeys.add(key);
+                } else
+                    codeDrawnDrawings.add(drawing);
+            }
+        }
+        codeDrawnDrawings.removeAll(spriteDrawings);
+
+        assertThat("a row over the sprite box keyed other than its drawing, which re-keys a stored row", movedSpriteKeys, is(empty()));
+        assertThat("two rows under one key, which write one folder and one report key", repeatedKeys, is(empty()));
+        assertThat("a row over the code-drawn box reading a drawing no sprite row reads", codeDrawnDrawings, is(empty()));
+    }
+
+    @Test
+    @DisplayName("a row over the code-drawn box writes its folder and reports under its own key, and measures the drawing "
+        + "its sprite twin reads")
+    void codeDrawnRowComparesUnderItsKeyAgainstItsTwinsDrawing(@TempDir Path dir) throws IOException {
+        TooltipParitySweep.Subject oneLine = codeDrawn(TooltipParitySweep.subjects(TooltipParitySweep.roster(), "vanilla"), "one_line");
+        Path references = Files.createDirectories(dir.resolve("references"));
+        Path output = dir.resolve("output");
+        // A sprite rect the client's margin fits inside with content to spare, the client's drawing a
+        // 7 x 5 block within it, written only under the stem of the drawing the sprite twin reads.
+        int scale = MinecraftFont.MC_PIXEL_SCALE;
+        BufferedImage drawing = new BufferedImage(40 * scale, 30 * scale, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 2; y < 7; y++) {
+            for (int x = 3; x < 10; x++)
+                drawing.setRGB(x, y, 0xFF102030);
+        }
+        ImageIO.write(drawing, "PNG", references.resolve("one_line_chrome.png").toFile());
+
+        TooltipParitySweep.Row row = TooltipParitySweep.renderAndCompare(
+            new TooltipParitySweep.Configuration("vanilla", references, output, ClientOptions.defaults(), List.of(oneLine), Optional.empty()),
+            oneLine, true, new TextRenderer(), stubContext(Map.of(), Map.of()));
+
+        assertThat("the row's report key", row.subject(), equalTo("one_line_chrome~chrome=procedural"));
+        assertThat("the client's drawing to its first pixel", List.of(row.vanillaW(), row.vanillaH()), contains(7, 5));
+        try (Stream<Path> folders = Files.list(output)) {
+            assertThat("the row's folder", folders.map(folder -> folder.getFileName().toString()).toList(),
+                contains("one_line_chrome~chrome=procedural"));
+        }
+    }
+
+    /**
+     * Finds the vanilla configuration's subject drawn over the code-drawn box under a roster key.
+     *
+     * @param subjects the vanilla configuration's subjects
+     * @param key the roster key
+     * @return the subject
+     */
+    private static TooltipParitySweep.Subject codeDrawn(List<TooltipParitySweep.Subject> subjects, String key) {
+        return subjects.stream()
+            .filter(subject -> subject.key().equals(key) && subject.options().getChromeStyle() == ChromeStyle.PROCEDURAL)
+            .findFirst()
+            .orElseThrow();
+    }
+
     @Test
     @DisplayName("every pack section of the tracked roster draws unstyled subjects of the roster by key, "
-        + "each in the style its entry names")
+        + "each in the style its entry names, over the sprite box")
     void everyPackSectionResolves() throws IOException {
         JsonObject roster = TooltipParitySweep.roster();
         List<String> labels = List.copyOf(roster.getAsJsonObject("packs").keySet());
@@ -336,7 +468,8 @@ class TooltipParitySweepTest {
                 String key = entry.get("key").getAsString();
                 listed.add(entry.has("style") ? List.of(key, entry.get("style").getAsString()) : List.of(key));
             }
-            List<List<String>> answered = TooltipParitySweep.subjects(roster, label).stream()
+            List<TooltipParitySweep.Subject> subjects = TooltipParitySweep.subjects(roster, label);
+            List<List<String>> answered = subjects.stream()
                 .map(subject -> subject.style()
                     .map(style -> List.of(subject.key(), style.namespace() + ":" + style.name()))
                     .orElse(List.of(subject.key())))
@@ -344,6 +477,9 @@ class TooltipParitySweepTest {
 
             assertThat(label, answered, is(not(empty())));
             assertThat(label + ": the key and style of each subject, in the section's order", answered, equalTo(listed));
+            assertThat(label + ": every subject over the sprite box - the code-drawn box reads nothing from a pack",
+                subjects.stream().map(subject -> subject.options().getChromeStyle()).distinct().toList(),
+                contains(ChromeStyle.SPRITE));
         }
     }
 
