@@ -87,10 +87,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * context gives the arm. The cases needing the real sprites off the offline extraction skip per method
  * rather than per class, so the procedural pins still run on a host without it.
  * <p>
- * Each image is also pinned to the mark it reports - {@link AlphaMode#STRAIGHT} for the code-drawn
- * box, and {@link AlphaMode#PREMULTIPLIED} for a sprite tooltip, chat text and a render of no line -
- * and a premultiplied one to holding no colour channel above its alpha, since a premultiplied channel
- * is the straight one scaled by that alpha.
+ * Each image is also pinned to the mark it reports, {@link AlphaMode#PREMULTIPLIED} - the code-drawn
+ * box, a sprite tooltip, chat text and a render of no line alike - and to holding no colour channel
+ * above its alpha, since a premultiplied channel is the straight one scaled by that alpha; a tooltip's
+ * straight copy reads its fill back as vanilla's background colour.
  * <p>
  * {@link TextOptions.Style#CHAT} text is pinned to the pixels it draws: drawn with room on every side
  * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
@@ -715,8 +715,8 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("a code-drawn tooltip is marked straight, still and animated")
-    void aCodeDrawnTooltipIsMarkedStraight() {
+    @DisplayName("a code-drawn tooltip is marked premultiplied, still and animated, and its straight copy holds vanilla's background colour")
+    void aCodeDrawnTooltipIsMarkedPremultiplied() {
         TextRenderer renderer = new TextRenderer();
         ImageData still = renderer.render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build()).image();
         ImageData animated = renderer.render(TextOptions.builder()
@@ -725,9 +725,13 @@ class TextRendererTest {
             .chromeStyle(ChromeStyle.PROCEDURAL)
             .build()).image();
 
-        assertHeldIn(still, AlphaMode.STRAIGHT);
+        assertPremultiplied(still);
+        // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
+        // reads un-premultiplies it back to vanilla's background colour, where a fill laid without
+        // blending reads F0110011.
+        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
         assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
-        assertHeldIn(animated, AlphaMode.STRAIGHT);
+        assertPremultiplied(animated);
     }
 
     @Test
@@ -742,20 +746,20 @@ class TextRendererTest {
             .chromeStyle(ChromeStyle.SPRITE)
             .build()).image();
 
-        assertHeldIn(still, AlphaMode.PREMULTIPLIED);
+        assertPremultiplied(still);
         // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
         // reads un-premultiplies it back to the background sprite's texel.
         assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
         assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
-        assertHeldIn(animated, AlphaMode.PREMULTIPLIED);
+        assertPremultiplied(animated);
     }
 
     @Test
-    @DisplayName("chat text and a render of no line are marked premultiplied, since neither draws a box")
+    @DisplayName("chat text and a render of no line are marked premultiplied")
     void aRenderDrawingNoBoxIsMarkedPremultiplied() {
         TextRenderer renderer = new TextRenderer();
-        assertHeldIn(renderer.render(loreBuilder().style(TextOptions.Style.CHAT).build()).image(), AlphaMode.PREMULTIPLIED);
-        assertHeldIn(renderer.render(TextOptions.defaults()).image(), AlphaMode.PREMULTIPLIED);
+        assertPremultiplied(renderer.render(loreBuilder().style(TextOptions.Style.CHAT).build()).image());
+        assertPremultiplied(renderer.render(TextOptions.defaults()).image());
     }
 
     @Test
@@ -955,18 +959,15 @@ class TextRendererTest {
     }
 
     /**
-     * Asserts that an image is marked as held in the given convention and, when that convention is
-     * {@link AlphaMode#PREMULTIPLIED}, that every frame's pixels are held in it. A premultiplied colour
-     * channel is the straight channel scaled by the pixel's alpha, so none can exceed that alpha; the
-     * first pixel whose red, green or blue does fails the image, named by its frame, position and colour.
+     * Asserts that an image is marked {@link AlphaMode#PREMULTIPLIED} and that every frame's pixels are
+     * held in it. A premultiplied colour channel is the straight channel scaled by the pixel's alpha, so
+     * none can exceed that alpha; the first pixel whose red, green or blue does fails the image, named by
+     * its frame, position and colour.
      *
      * @param image the rendered image
-     * @param alphaMode the convention the image's frames are expected to be held in
      */
-    private static void assertHeldIn(ImageData image, AlphaMode alphaMode) {
-        assertThat("alpha mode", image.getAlphaMode(), is(alphaMode));
-        if (alphaMode != AlphaMode.PREMULTIPLIED)
-            return;
+    private static void assertPremultiplied(ImageData image) {
+        assertThat("alpha mode", image.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
 
         String channelAboveAlpha = "none";
         ConcurrentList<ImageFrame> frames = image.getFrames();

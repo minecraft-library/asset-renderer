@@ -109,21 +109,22 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
 
     /**
      * Plays this schedule out over caller-drawn frames: invokes {@code frameAt} serially for each
-     * frame index in order, then wraps the frames at this schedule's per-frame delays, marked as held in
-     * the convention the caller drew them in. The frame index is first-class - producers whose drawing
-     * is seeded per frame consume it directly.
+     * frame index in order, then wraps the frames at this schedule's per-frame delays. The frame index
+     * is first-class - producers whose drawing is seeded per frame consume it directly.
+     * <p>
+     * Each frame is a finished frame, drawn source-over onto a transparent buffer, so its colours carry
+     * their alpha and the image is marked {@link AlphaMode#PREMULTIPLIED}.
      *
      * @param frameAt draws the frame at an index
-     * @param alphaMode the convention the drawn frames hold
-     * @return the finished image
+     * @return the finished image, held premultiplied
      * @throws RenderException if the schedule is empty
      */
-    default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt, @NotNull AlphaMode alphaMode) {
+    default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt) {
         ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
             .mapToObj(frameAt)
             .collect(Concurrent.toUnmodifiableList());
 
-        return wrapAt(buffers, this, alphaMode);
+        return wrapAt(buffers, this);
     }
 
     /**
@@ -297,13 +298,14 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
                 .collect(Concurrent.toList());
 
         RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
-        return wrapAt(result.frames(), result.playback(), AlphaMode.PREMULTIPLIED);
+        return wrapAt(result.frames(), result.playback());
     }
 
     /**
      * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
      * image, several become an animated image whose frame {@code f} displays for
-     * {@code playback.delayMs(f)}. Either is marked as held in {@code alphaMode}.
+     * {@code playback.delayMs(f)}. Either is marked {@link AlphaMode#PREMULTIPLIED}, the convention a
+     * terminal's frames are held in.
      *
      * <p>Every frame here is a whole canvas rendered from scratch at the same size and seated at the
      * origin, so each one REPLACES its predecessor rather than adding to it, which
@@ -314,18 +316,17 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      *
      * @param frames the finished frames, in playback order
      * @param playback the schedule whose per-frame delays the frames display for
-     * @param alphaMode the convention the frames hold
      * @return the finished image
      * @throws RenderException if {@code frames} is empty
      */
-    private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback, @NotNull AlphaMode alphaMode) {
+    private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback) {
         if (frames.isEmpty())
             throw new RenderException("Frame list must contain at least one frame");
 
         if (frames.size() == 1)
-            return StaticImageData.of(frames.getFirst(), alphaMode);
+            return StaticImageData.of(frames.getFirst(), AlphaMode.PREMULTIPLIED);
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(alphaMode);
+        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(AlphaMode.PREMULTIPLIED);
         for (int f = 0; f < frames.size(); f++)
             builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));

@@ -71,13 +71,11 @@ import java.util.Optional;
  * fresh {@link TextKit} obfuscation substitution - except a canvas holding no pixel, which is the
  * still, empty 1x1 image, obfuscated or not.
  * <p>
- * The sprite box, the code-drawn box and the glyphs all blend onto the transparent canvas. A
- * {@link ChromeStyle#SPRITE} tooltip, chat text and the empty image answer
- * {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight copy that
- * edits made through it do not reach, and an encoder writes each see-through pixel's straight colour.
- * A {@link ChromeStyle#PROCEDURAL} tooltip drawing a box answers {@link AlphaMode#STRAIGHT}, its
- * see-through box held premultiplied under that mark. A {@linkplain TextOptions#getLayerDecorator()
- * layer decorator} pass writes its colour in the convention the image answers.
+ * The sprite box, the code-drawn box and the glyphs all blend onto the transparent canvas, so every
+ * image answers {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
+ * copy that edits made through it do not reach, an encoder writes each see-through pixel's straight
+ * colour, and a {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes premultiplied
+ * colour.
  */
 @Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
@@ -174,21 +172,16 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (box.width() <= 0 || box.height() <= 0)
             return Timeline.empty();
 
-        // Every frame blends onto the transparent canvas; one holding the code-drawn box is marked straight,
-        // its see-through box held premultiplied under that mark, and every other frame premultiplied.
-        AlphaMode alphaMode = isLore && options.getChromeStyle() == ChromeStyle.PROCEDURAL
-            ? AlphaMode.STRAIGHT
-            : AlphaMode.PREMULTIPLIED;
         TextPalette palette = this.context.map(context -> context.findTextPalette().orElse(TextPalette.VANILLA))
             .orElse(TextPalette.VANILLA);
 
         if (!animated)
-            return Timeline.Static.ZERO.wrap(f -> drawSingleFrame(options, chrome, sprites, box, palette, 0L, 0L).getFirst(), alphaMode);
+            return Timeline.still(drawSingleFrame(options, chrome, sprites, box, palette, 0L, 0L).getFirst());
 
         Timeline.TickLoop timeline = new Timeline.TickLoop(
             0, frameCount, ticksPerFrame, Timeline.delayForFps(options.getFramesPerSecond()));
         return timeline.wrap(f ->
-            drawSingleFrame(options, chrome, sprites, box, palette, f, timeline.tickAt(f)).getFirst(), alphaMode);
+            drawSingleFrame(options, chrome, sprites, box, palette, f, timeline.tickAt(f)).getFirst());
     }
 
     /**

@@ -263,25 +263,26 @@ class TimelineTest {
         ImageData result = new Timeline.TickLoop(0, 4, 1, 50).wrap(f -> {
             indices.add(f);
             return PixelBuffer.create(1, 1);
-        }, AlphaMode.PREMULTIPLIED);
+        });
         assertThat(indices, is(List.of(0, 1, 2, 3)));
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), is(4));
+        assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test
-    @DisplayName("wrap of one frame collapses to a StaticImageData marked as its caller drew it")
+    @DisplayName("wrap of one frame collapses to a StaticImageData marked premultiplied, as a still is")
     void wrapSingleFrameStatic() {
-        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.create(2, 2), AlphaMode.STRAIGHT);
+        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.create(2, 2));
         assertThat(result, is(instanceOf(StaticImageData.class)));
-        assertThat(result.getAlphaMode(), is(AlphaMode.STRAIGHT));
+        assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test
     @DisplayName("wrap of an empty schedule throws")
     void wrapEmptyThrows() {
         assertThrows(RenderException.class,
-            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.create(1, 1), AlphaMode.PREMULTIPLIED));
+            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.create(1, 1)));
     }
 
     @Test
