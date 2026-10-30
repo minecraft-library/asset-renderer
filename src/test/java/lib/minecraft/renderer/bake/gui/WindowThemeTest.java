@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Resample;
 import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.vanilla.gui.Mark;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,11 +29,19 @@ import static org.hamcrest.Matchers.not;
 @DisplayName("A theme re-inks vanilla's geometry rather than replacing it")
 class WindowThemeTest {
 
+    /** the output pixels a Minecraft pixel is laid at on a side */
+    private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
+    private static PixelBuffer readDown(PixelBuffer painted) {
+        return painted.resize(painted.width() / S, painted.height() / S, Resample.NEAREST);
+    }
+
     private static PixelBuffer paint(Window window, int w, int h) {
-        PixelBuffer buffer = PixelBuffer.create(w, h);
-        window.paintPanel(buffer, Window.Box.of(w, h));
-        window.paintCell(buffer, new Window.Box(7, 17, 18, 18, 1));
-        return buffer;
+        PixelBuffer buffer = PixelBuffer.create(w * S, h * S);
+        window.paintPanel(buffer, new Window.Box(0, 0, w, h));
+        window.paintCell(buffer, new Window.Box(7, 17, 18, 18));
+        return readDown(buffer);
     }
 
     @Test
@@ -112,9 +122,9 @@ class WindowThemeTest {
      */
     private static PixelBuffer mark(Window window, Mark kind) {
         Window.Extent extent = Window.Extent.of(kind);
-        PixelBuffer buffer = PixelBuffer.create(extent.width(), extent.height());
-        window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height(), 1), kind);
-        return buffer;
+        PixelBuffer buffer = PixelBuffer.create(extent.width() * S, extent.height() * S);
+        window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height()), kind);
+        return readDown(buffer);
     }
 
     @Test
@@ -264,17 +274,18 @@ class WindowThemeTest {
     }
 
     @Test
-    @DisplayName("art carries its own marks, so a sliced window paints none")
+    @DisplayName("the arrow is in the art, so a sliced window paints none")
     void artCarriesItsOwnMarks() {
         // The shipped crafting panel has its arrow painted into the texture, so a window slicing that
         // texture would draw a second one over the first.
-        PixelBuffer buffer = PixelBuffer.create(22, 15);
-        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty());
-        sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0), 1), Mark.ARROW);
+        PixelBuffer buffer = PixelBuffer.create(22 * S, 15 * S);
+        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.empty());
+        sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0)), Mark.ARROW);
 
         int painted = 0;
-        for (int y = 0; y < 15; y++)
-            for (int x = 0; x < 22; x++)
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width(); x++)
                 if (buffer.getPixel(x, y) != 0) painted++;
 
         assertThat("a sliced window paints no mark of its own", painted, is(equalTo(0)));

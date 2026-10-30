@@ -20,9 +20,10 @@ import org.jetbrains.annotations.NotNull;
  * about - the same reason {@link #BUTTON}'s face carries a full-colour item over a bevel that does
  * re-ink. What re-inks is what the panel would have drawn itself.
  * <p>
- * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art paints
- * none, because whatever marks that art carries are already in the panel it slices, and nothing
- * handed to {@link #paint} says which window is asking - so the window keeps that decision.
+ * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art calls no
+ * painter: the arrow, the plus and the hammer are drawn into its art, and its name field is the GUI
+ * sprite the client blits there. Nothing handed to {@link #paint} says which window is asking, so the
+ * window keeps that decision.
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
 enum MarkPainter {
@@ -336,7 +337,7 @@ enum MarkPainter {
      * sliced from art declines every one of them.
      *
      * @param dest the buffer to paint into
-     * @param box the mark's rect in Minecraft pixels, with its output scale
+     * @param box the mark's rect in Minecraft pixels
      * @param palette the inks of the panel it is being painted onto
      */
     abstract void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette);

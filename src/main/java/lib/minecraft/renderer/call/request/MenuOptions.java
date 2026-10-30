@@ -135,7 +135,8 @@ public class MenuOptions implements RenderOptions {
      * The GUI sprite drawn over each cell where {@link #chromeSprite} names a panel, empty for the
      * window's own - none on a screen the client ships a sheet for, whose cells are the art's, and the
      * client's slot over each cell of a panel resized for any other. A sprite named here is drawn over
-     * every cell.
+     * every cell. Each is drawn as the client draws a GUI sprite - read as its GUI atlas holds it and
+     * stretched over the cell, or as the sprite's {@code gui.scaling} says.
      */
     private final @NotNull Optional<ResourceId> cellSprite = Optional.empty();
 

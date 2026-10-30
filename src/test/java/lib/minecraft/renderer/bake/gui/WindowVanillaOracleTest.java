@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.Resample;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,9 @@ class WindowVanillaOracleTest {
 
     /** the vanilla slot cell's side, in Minecraft pixels */
     private static final int SLOT = 18;
+
+    /** the output pixels a Minecraft pixel is laid at on a side */
+    private static final int S = MinecraftFont.MC_PIXEL_SCALE;
 
     private static RendererContext textures;
 
@@ -107,15 +112,21 @@ class WindowVanillaOracleTest {
         return of("minecraft:gui/container/crafting_table", ScreenMetrics.craftingTable());
     }
 
-    private static PixelBuffer paint(Container container, int scale) {
-        PixelBuffer buffer = PixelBuffer.create(container.width() * scale, container.height() * scale);
+    /** Paints a container's panel and every cell at the font's scale. */
+    private static PixelBuffer paint(Container container) {
+        PixelBuffer buffer = PixelBuffer.create(container.width() * S, container.height() * S);
         Window window = Window.Theme.VANILLA;
 
-        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height(), scale));
+        window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height()));
         for (int[] cell : container.cells())
-            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2], scale));
+            window.paintCell(buffer, new Window.Box(cell[0], cell[1], cell[2], cell[2]));
 
         return buffer;
+    }
+
+    /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
+    private static PixelBuffer readDown(PixelBuffer painted) {
+        return painted.resize(painted.width() / S, painted.height() / S, Resample.NEAREST);
     }
 
     private static PixelBuffer shipped(Container container) {
@@ -126,7 +137,7 @@ class WindowVanillaOracleTest {
 
     /** Counts pixels where the painted panel and the shipped texture disagree, over the drawn rect. */
     private static int differingPixels(Container container) {
-        PixelBuffer painted = paint(container, 1);
+        PixelBuffer painted = readDown(paint(container));
         PixelBuffer art = shipped(container);
         int differing = 0;
 
@@ -165,7 +176,7 @@ class WindowVanillaOracleTest {
     @DisplayName("the crafting table leaves only its craft arrow")
     void craftingTableLeavesOnlyItsArrow() {
         Container container = craftingTable();
-        PixelBuffer painted = paint(container, 1);
+        PixelBuffer painted = readDown(paint(container));
         PixelBuffer art = shipped(container);
 
         int differing = 0;
@@ -210,13 +221,14 @@ class WindowVanillaOracleTest {
     void everyChestRowCountReproducesItsComposedPanel() {
         for (int rows : new int[] { 1, 2, 3, 6 }) {
             MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(rows), true);
-            PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
             Window window = Window.Theme.VANILLA;
 
-            window.paintPanel(painted, layout.box(1));
+            window.paintPanel(chrome, layout.box());
             for (ScreenMetrics.Cell cell : layout.cells())
-                window.paintCell(painted, Window.Box.of(cell, 1));
+                window.paintCell(chrome, Window.Box.of(cell));
 
+            PixelBuffer painted = readDown(chrome);
             PixelBuffer art = composedChest(rows);
             assertThat("a chest of " + rows + " rows is as tall as its composition",
                 layout.height(), is(equalTo(art.height())));
@@ -234,15 +246,16 @@ class WindowVanillaOracleTest {
     @DisplayName("the anvil leaves only the dead field its art carries and the client always covers")
     void theAnvilLeavesOnlyTheDeadFieldItsArtCarries() {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
-        PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
+        PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
         Window window = Window.Theme.VANILLA;
 
-        window.paintPanel(painted, layout.box(1));
+        window.paintPanel(chrome, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
-            window.paintCell(painted, Window.Box.of(cell, 1));
+            window.paintCell(chrome, Window.Box.of(cell));
         for (Mark.Placement mark : layout.marks())
-            window.paintDecoration(painted, Window.Box.of(mark, 1), mark.kind());
+            window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
 
+        PixelBuffer painted = readDown(chrome);
         Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
@@ -270,15 +283,14 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the dead field really is flat red, so slicing that art would draw it")
+    @DisplayName("the dead field really is flat red, the hole the client covers with the field sprite")
     void theDeadFieldIsFlatRed() {
         Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
-        // This is what makes the field a decoration rather than something a sliced window could
-        // supply: a Window.Sliced over this texture paints the panel as authored, and the panel as
-        // authored has a red hole in it.
+        // This is the hole the client covers by blitting the field sprite over it on every draw, which
+        // is why a sliced window draws that sprite there rather than showing the art.
         int red = 0;
         for (int y = 20; y < 36; y++)
             for (int x = 59; x < 169; x++)
@@ -302,11 +314,10 @@ class WindowVanillaOracleTest {
         // On a panel-filled buffer, because the well hands two corners over the way the frame's own
         // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
         // there is the panel's own grey.
-        PixelBuffer painted = PixelBuffer.create(w, h);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                painted.setPixel(x, y, Window.Palette.VANILLA.panel());
-        Window.Theme.VANILLA.paintDecoration(painted, Window.Box.of(field.at(0, 0), 1), field);
+        PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+        chrome.fill(Window.Palette.VANILLA.panel());
+        Window.Theme.VANILLA.paintDecoration(chrome, Window.Box.of(field.at(0, 0)), field);
+        PixelBuffer painted = readDown(chrome);
 
         int differing = 0;
         for (int y = 0; y < h; y++)
@@ -340,8 +351,9 @@ class WindowVanillaOracleTest {
         assertThat("slot sprite resolves", resolved.isPresent(), is(true));
 
         PixelBuffer sprite = resolved.get();
-        PixelBuffer painted = PixelBuffer.create(SLOT, SLOT);
-        Window.Theme.VANILLA.paintCell(painted, Window.Box.of(SLOT, SLOT));
+        PixelBuffer chrome = PixelBuffer.create(SLOT * S, SLOT * S);
+        Window.Theme.VANILLA.paintCell(chrome, new Window.Box(0, 0, SLOT, SLOT));
+        PixelBuffer painted = readDown(chrome);
 
         int differing = 0;
         for (int y = 0; y < SLOT; y++)
@@ -352,16 +364,15 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("painting at scale replicates rather than resamples")
-    void paintingAtScaleReplicatesRatherThanResamples() {
-        Container container = shulkerBox();
-        PixelBuffer one = paint(container, 1);
-        PixelBuffer three = paint(container, 3);
+    @DisplayName("painting at the font's scale lays each Minecraft pixel as a block")
+    void paintingAtTheFontsScaleLaysEachMinecraftPixelAsABlock() {
+        PixelBuffer painted = paint(shulkerBox());
+        PixelBuffer blocks = readDown(painted).resize(painted.width(), painted.height(), Resample.NEAREST);
 
         int differing = 0;
-        for (int y = 0; y < container.height() * 3; y++)
-            for (int x = 0; x < container.width() * 3; x++)
-                if (three.getPixel(x, y) != one.getPixel(x / 3, y / 3)) differing++;
+        for (int y = 0; y < painted.height(); y++)
+            for (int x = 0; x < painted.width(); x++)
+                if (painted.getPixel(x, y) != blocks.getPixel(x, y)) differing++;
 
         assertThat(differing, is(equalTo(0)));
     }
@@ -371,8 +382,9 @@ class WindowVanillaOracleTest {
     void theMinimumPanelIsTheSmallestThatPaintsAWholeFrame() {
         Window.Extent minimum = Window.Theme.VANILLA.minimum();
 
-        PixelBuffer atFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Theme.VANILLA.paintPanel(atFloor, Window.Box.of(minimum.width(), minimum.height()));
+        PixelBuffer chromeAtFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        Window.Theme.VANILLA.paintPanel(chromeAtFloor, new Window.Box(0, 0, minimum.width(), minimum.height()));
+        PixelBuffer atFloor = readDown(chromeAtFloor);
 
         int painted = 0;
         for (int y = 0; y < minimum.height(); y++)
@@ -385,8 +397,9 @@ class WindowVanillaOracleTest {
         // that hand the highlight over to the shadow cut 6 each.
         assertThat("painted at the floor", painted, is(equalTo(minimum.width() * minimum.height() - 18)));
 
-        PixelBuffer belowFloor = PixelBuffer.create(minimum.width(), minimum.height());
-        Window.Theme.VANILLA.paintPanel(belowFloor, Window.Box.of(minimum.width() - 1, minimum.height()));
+        PixelBuffer chromeBelowFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        Window.Theme.VANILLA.paintPanel(chromeBelowFloor, new Window.Box(0, 0, minimum.width() - 1, minimum.height()));
+        PixelBuffer belowFloor = readDown(chromeBelowFloor);
 
         int under = 0;
         for (int y = 0; y < minimum.height(); y++)

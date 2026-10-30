@@ -55,8 +55,9 @@ import java.util.stream.IntStream;
  * render path of its own. A menu whose slots sit where no shipped screen puts them is one of those
  * screens with the caller's own slot map over it.
  * <p>
- * A menu speaks Minecraft pixels throughout and reaches output pixels only through {@link #PX_SCALE},
- * which is what keeps the chrome exact rather than resampled.
+ * A menu speaks Minecraft pixels throughout and reaches output pixels at {@link #PX_SCALE}, the font's
+ * scale, at which a window lays its own chrome in exact blocks and the GUI sprites it draws at
+ * output-pixel resolution.
  */
 @Parity(claim = "menu-closure", mode = Mode.DEMOTE, subject = Subject.MENU)
 @RequiredArgsConstructor(access = AccessLevel.PUBLIC)
@@ -186,7 +187,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Paints the panel and every cell of a layout, in Minecraft pixels replicated to output ones.
+     * Paints the panel, every cell and every mark of a layout at the font's scale.
      *
      * @param window the window painting the chrome
      * @param layout the laid-out panel
@@ -195,11 +196,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static @NotNull PixelBuffer paintChrome(@NotNull Window window, @NotNull MenuLayout layout) {
         PixelBuffer chrome = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
 
-        window.paintPanel(chrome, layout.box(PX_SCALE));
+        window.paintPanel(chrome, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
-            window.paintCell(chrome, Window.Box.of(cell, PX_SCALE));
+            window.paintCell(chrome, Window.Box.of(cell));
         for (Mark.Placement mark : layout.marks())
-            window.paintDecoration(chrome, Window.Box.of(mark, PX_SCALE), mark.kind());
+            window.paintDecoration(chrome, Window.Box.of(mark), mark.kind());
 
         return chrome;
     }

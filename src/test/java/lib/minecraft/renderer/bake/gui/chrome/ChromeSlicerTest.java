@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +63,7 @@ class ChromeSlicerTest {
     }
 
     private static int roundTrip(PixelBuffer art) {
-        ChromeDecomposition decomposition = ChromeSlicer.decompose(art, Optional.empty(), true);
+        ChromeDecomposition decomposition = ChromeSlicer.decompose(art, true);
         return differingPixels(art, ChromeSlicer.assemble(decomposition, art, art.width(), art.height()));
     }
 
@@ -94,7 +93,7 @@ class ChromeSlicerTest {
     @DisplayName("the six-row chest derives the depths and periods the prototype measured")
     void theChestDerivesTheMeasuredModel() {
         PixelBuffer art = crop(resolve("minecraft:gui/container/generic_54"), 176, 222);
-        ChromeDecomposition d = ChromeSlicer.decompose(art, Optional.empty(), true);
+        ChromeDecomposition d = ChromeSlicer.decompose(art, true);
 
         assertThat("derived depths", List.of(d.left(), d.top(), d.right(), d.bottom()),
             is(equalTo(List.of(7, 17, 7, 97))));
@@ -107,7 +106,7 @@ class ChromeSlicerTest {
     @Test
     @DisplayName("the tooltip frame's side bands carry a ramp rather than a period")
     void theTooltipFrameSideBandsCarryARamp() {
-        ChromeDecomposition d = ChromeSlicer.decompose(resolve("minecraft:gui/sprites/tooltip/frame"), Optional.empty(), true);
+        ChromeDecomposition d = ChromeSlicer.decompose(resolve("minecraft:gui/sprites/tooltip/frame"), true);
 
         assertThat("derived depths", List.of(d.left(), d.top(), d.right(), d.bottom()),
             is(equalTo(List.of(10, 10, 10, 10))));
@@ -119,7 +118,7 @@ class ChromeSlicerTest {
     @DisplayName("a period-zero band resamples its ramp rather than restarting it")
     void aPeriodZeroBandResamplesItsRamp() {
         PixelBuffer art = resolve("minecraft:gui/sprites/tooltip/frame");
-        ChromeDecomposition d = ChromeSlicer.decompose(art, Optional.empty(), true);
+        ChromeDecomposition d = ChromeSlicer.decompose(art, true);
         PixelBuffer grown = ChromeSlicer.assemble(d, art, 200, 200);
 
         // Down the left band's outermost drawn column, the ramp only ever descends in the source.
@@ -167,7 +166,7 @@ class ChromeSlicerTest {
     void aResizedContainerReproducesAnothersFrame() {
         for (int from = 0; from < CONTAINERS.size(); from++) {
             PixelBuffer source = crop(resolve(CONTAINERS.get(from)), 176, HEIGHTS.get(from));
-            ChromeDecomposition d = ChromeSlicer.decompose(source, Optional.empty(), true);
+            ChromeDecomposition d = ChromeSlicer.decompose(source, true);
 
             for (int to = 0; to < CONTAINERS.size(); to++) {
                 if (HEIGHTS.get(to).equals(HEIGHTS.get(from))) continue;
@@ -185,7 +184,7 @@ class ChromeSlicerTest {
     @DisplayName("the slot lattice a resized chest grows lands on the pitch vanilla drew it at")
     void theGrownSlotLatticeKeepsItsPitch() {
         PixelBuffer source = crop(resolve("minecraft:gui/container/generic_54"), 176, 222);
-        ChromeDecomposition d = ChromeSlicer.decompose(source, Optional.empty(), true);
+        ChromeDecomposition d = ChromeSlicer.decompose(source, true);
 
         // Six container rows at 222; three more rows is 54 more pixels. The shipped art is the
         // oracle for what those rows look like - every one is a copy of the row above it.
@@ -197,24 +196,6 @@ class ChromeSlicerTest {
                 if (grown.getPixel(x, y) != source.getPixel(x, 17 + (y - 17) % 18)) differing++;
 
         assertThat("nine slot rows that are not the shipped row repeated", differing, is(equalTo(0)));
-    }
-
-    @Test
-    @DisplayName("a declared border is taken as the depths rather than derived against")
-    void aDeclaredBorderIsTakenAsTheDepths() {
-        PixelBuffer art = resolve("minecraft:gui/sprites/tooltip/frame");
-        ChromeDecomposition.Border declared = new ChromeDecomposition.Border(3, 3, 3, 3);
-        ChromeDecomposition d = ChromeSlicer.decompose(art, Optional.of(declared), true);
-
-        assertThat("declared depths win", List.of(d.left(), d.top(), d.right(), d.bottom()),
-            is(equalTo(List.of(3, 3, 3, 3))));
-
-        // A border the client's own validation refuses is not a declaration, so it is ignored and
-        // the depths come back derived.
-        ChromeDecomposition.Border refused = new ChromeDecomposition.Border(art.width(), 3, art.width(), 3);
-        assertThat("a border wider than the sprite does not load", refused.loadableAt(art.width(), art.height()), is(false));
-        assertThat("so the depths are derived instead",
-            ChromeSlicer.decompose(art, Optional.of(refused), true).left(), is(equalTo(10)));
     }
 
 }

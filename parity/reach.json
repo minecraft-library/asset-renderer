@@ -1833,6 +1833,7 @@
     "lib/minecraft/renderer/bake/gui/NineSliceKit": {
       "artifacts": [
         "manifest.visual",
+        "sweep.menu",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],

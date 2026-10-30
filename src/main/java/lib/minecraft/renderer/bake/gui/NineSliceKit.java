@@ -4,10 +4,13 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.util.Possible;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.texture.GlintKit;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,7 +25,10 @@ import java.util.Optional;
  * <p>
  * The reusable GUI-sprite compositor matching the {@link GlintKit} / {@link TextKit} static-kit
  * convention. Every {@code gui/sprites/**} widget scales through the same {@link MCMeta.GuiScaling}
- * system, and the themable tooltip chrome draws its sprite pair through it.
+ * system, and the themable tooltip chrome draws its sprite pair through it, and a menu window sliced
+ * from art its cells and the anvil's name field. A sprite read by id is the one the client's GUI atlas
+ * holds, the missing texture standing in, stretched, for one no pack supplies, one that cannot be read
+ * and one whose {@code gui} section the client's codec refuses.
  * <p>
  * Each texel is laid down as the client lays a GUI sprite: its alpha scaled by the caller's
  * multiplier, a texel left at alpha 0 discarded so the destination pixel stays as it was, and every
@@ -42,7 +48,6 @@ import java.util.Optional;
  * through the centre, so a sprite authored at twice its declared size draws every texel.
  */
 @UtilityClass
-@Parity(claim = "text-closure", mode = Mode.DEMOTE)
 public class NineSliceKit {
 
     /**
@@ -116,6 +121,62 @@ public class NineSliceKit {
         blitSprite(sprite, scaling, 0, 0, w, h, (quadX, quadY, columns, rows) ->
             measure(sprite, alphaMul, quadX, quadY, columns, rows).ifPresent(drawn::add));
         return drawn.stream().reduce(Rectangle::union).map(TextKit::mcPixels);
+    }
+
+    /**
+     * Reads a sprite as the client's GUI atlas holds it, at tick zero: the pixels a pack ships for it,
+     * or the missing texture for a sprite no selected pack ships, one that cannot be read - an image over
+     * the decode budget included - and one whose {@code gui} section the client's codec refuses, which
+     * the context reports as a stand-in on every read, as the client's atlas answers its missing sprite
+     * for any GUI sprite it does not hold.
+     *
+     * @param context the renderer context resolving the sprite and its sidecar through the pack stack
+     * @param id the sprite's texture id
+     * @return the sprite's pixels at tick zero, or the missing texture
+     */
+    static @NotNull PixelBuffer sprite(@NotNull RendererContext context, @NotNull ResourceId id) {
+        // The GUI atlas holds no sprite whose gui section its codec refuses, so such a sprite is served
+        // with no pixels.
+        RendererContext textures = context
+            .withTextures(textureId -> refused(context, textureId) ? Possible.empty() : Possible.absent())
+            .withMissingTexture();
+        // Tick zero, because a pack shipping an animated GUI sprite pins to frame 0 rather than
+        // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
+        // strip and sampling it here is the same operations in the same order, spelled twice.
+        return Flipbook.atTick(textures.resolveTexture(id.id()), textures.findFlipbook(id.id()), 0).get();
+    }
+
+    /**
+     * Answers the {@code gui.scaling} a sprite draws with - the one a sprite read from a pack carries in
+     * its sidecar, or {@link MCMeta.GuiScaling#DEFAULT} where it declares none. The missing texture
+     * carries none and stretches, as the client's missing sprite does whatever sidecar an unreadable
+     * file ships, so the sidecar of the id it stands in for is never read.
+     *
+     * @param context the renderer context the sidecar is read through
+     * @param spriteId the sprite's id
+     * @param sprite the pixels drawn for the sprite
+     * @return the sprite's scaling
+     */
+    static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId,
+                                              @NotNull PixelBuffer sprite) {
+        if (MissingSprite.isSprite(sprite)) return MCMeta.GuiScaling.DEFAULT;
+        return context.findMeta(spriteId.id())
+            .flatMap(MCMeta::gui)
+            .orElse(MCMeta.GuiScaling.DEFAULT);
+    }
+
+    /**
+     * Answers whether a sprite's sidecar parses and carries a {@code gui} section the client's codec
+     * refuses - a sprite the client's GUI atlas does not hold.
+     *
+     * @param context the renderer context the sidecar is read through
+     * @param textureId the sprite's texture id
+     * @return {@code true} where the sidecar's {@code gui} section is refused
+     */
+    private static boolean refused(@NotNull RendererContext context, @NotNull String textureId) {
+        return context.findMeta(textureId)
+            .map(meta -> meta.gui().getState() == Possible.State.EMPTY)
+            .orElse(false);
     }
 
     /**

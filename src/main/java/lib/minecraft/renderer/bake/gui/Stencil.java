@@ -94,7 +94,7 @@ record Stencil(@NotNull ConcurrentList<String> rows, int pixel) {
      * {@link #pixel} Minecraft ones.
      *
      * @param dest the buffer to paint into
-     * @param box the rect the offset is measured from, carrying the output scale
+     * @param box the rect the offset is measured from
      * @param originX the left edge within the box, in Minecraft pixels
      * @param originY the top edge within the box, in Minecraft pixels
      * @param ink the table this picture's codes resolve through

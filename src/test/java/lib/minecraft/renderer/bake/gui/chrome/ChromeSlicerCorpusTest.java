@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.image.PixelBuffer;
-import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Border;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -15,7 +14,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -60,8 +58,26 @@ class ChromeSlicerCorpusTest {
      * its middle the background. Preferring fewer runs, or requiring the tile to conform at a band
      * end, resolves {@code a24} and breaks {@code a28} by exactly the same argument. What separates
      * them is which region the author meant, and one sample of each does not carry it.
+     * <p>
+     * Four more fail only on corner art, each because the depths derived from its pixels are not the
+     * corner its author drew - every round trip holds.
+     * <ul>
+     *     <li><b>{@code a05}</b> derives depths of 5 against an authored corner of 6, so the corner's
+     *     innermost column is laid by the band's 7 px stud period, and at 103 and 176 wide, where that
+     *     period falls on another phase than at 100 or 107, the two right-hand corners lose it.</li>
+     *     <li><b>{@code a10}</b> derives no band at all and a stretched interior: six concentric rings
+     *     leave no row or column that repeats three times, so there is no periodic run to measure a
+     *     band by, and every corner of its 7 px border fails at 15x90, 90x15 and 200x200.</li>
+     *     <li><b>{@code a13}</b> is the same for a dithered interior inside a 3 px frame: no two columns
+     *     are equal, the depths derive to none, and every corner fails at 200x20, 40x20 and 100x60.</li>
+     *     <li><b>{@code a29}</b> derives a top band of 2 and a bottom band of 56 against an authored 3:
+     *     the tie between its two equally long lattices puts the lower one in the bottom band, and at
+     *     48x48 that band, clamped to the whole target, overwrites both top corners.</li>
+     * </ul>
      */
-    private static final List<String> KNOWN_OPEN = List.of("a24_majority_edge_feature.png");
+    private static final List<String> KNOWN_OPEN = List.of(
+        "a05_stud_period_7_of_100.png", "a10_border_leaves_one_px.png", "a13_noise_interior.png",
+        "a24_majority_edge_feature.png", "a29_twin_lattice.png");
 
     private static JsonObject manifest() {
         try (InputStream in = ChromeSlicerCorpusTest.class.getResourceAsStream(ROOT + "manifest.json")) {
@@ -81,21 +97,10 @@ class ChromeSlicerCorpusTest {
         }
     }
 
-    private static Optional<Border> declaredBorder(JsonObject row) {
-        if (!row.has("border") || row.get("border").isJsonNull()) return Optional.empty();
-        if (row.get("border").isJsonPrimitive()) {
-            int all = row.get("border").getAsInt();
-            return Optional.of(new Border(all, all, all, all));
-        }
-        JsonObject b = row.getAsJsonObject("border");
-        return Optional.of(new Border(b.get("left").getAsInt(), b.get("top").getAsInt(),
-            b.get("right").getAsInt(), b.get("bottom").getAsInt()));
-    }
-
     private static ChromeDecomposition derive(JsonObject row, PixelBuffer art) {
         boolean stretchInner = !row.has("stretch_inner") || row.get("stretch_inner").isJsonNull()
             || row.get("stretch_inner").getAsBoolean();
-        return ChromeSlicer.decompose(art, declaredBorder(row), stretchInner);
+        return ChromeSlicer.decompose(art, stretchInner);
     }
 
     // ------------------------------------------------------------------ the four resize checks

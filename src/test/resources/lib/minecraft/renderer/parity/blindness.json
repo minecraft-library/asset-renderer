@@ -2047,16 +2047,15 @@
       "id": "B69",
       "mode": "demote",
       "probe": "perturb a chrome number - the sprite padding, a border - re-run the render bundle and read which artifacts move: the lore-tooltip members of manifest.visual and the tooltip sweeps' rows move, and nothing else does",
-      "reason": "TextRenderer draws a tooltip or a run of chat text over the chrome TooltipChrome contributes, and NineSliceKit is the sprite box's blit. No other renderer calls any of the three - a menu draws its labels through TextKit, which is why TextKit and GradientKit are not carriers - and of the producers this store captures only two construct a TextRenderer: the lore-tooltip driver, whose files manifest.visual hashes, and the tooltip sweep in each of its two configurations. On these paths the reference graph answers through the engine claim and the visual mains select through B32, so the demote is what states the closure, and with an empty held ledger reach check refuses any new edge from a carrier into what it lists blind. The trigger list is verbatim paths and never a glob: bake.gui holds the text kits the menu, item, block and glint producers reach, and a glob over it would hide those sweeps from a change that moves them.",
+      "reason": "TextRenderer draws a tooltip or a run of chat text over the chrome TooltipChrome contributes. No other renderer calls either - a menu draws its labels through TextKit and its GUI sprites through NineSliceKit, which is why TextKit, GradientKit and NineSliceKit are not carriers - and of the producers this store captures only two construct a TextRenderer: the lore-tooltip driver, whose files manifest.visual hashes, and the tooltip sweep in each of its two configurations. On these paths the reference graph answers through the engine claim and the visual mains select through B32, so the demote is what states the closure, and with an empty held ledger reach check refuses any new edge from a carrier into what it lists blind. The trigger list is verbatim paths and never a glob: bake.gui holds the text kits the menu, item, block and glint producers reach, and a glob over it would hide those sweeps from a change that moves them.",
       "sees": [
         "manifest.visual",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
-      "source": "declared from the reference graph: TextRenderer, TooltipChrome and NineSliceKit are reached from LoreTooltipDriver and TooltipParitySweep, which roots both tooltip sweeps, and from no other root, and the held demote's empty ledger holds that on every rebuild of the graph",
+      "source": "declared from the reference graph: TextRenderer and TooltipChrome are reached from LoreTooltipDriver and TooltipParitySweep, which roots both tooltip sweeps, and from no other root, and the held demote's empty ledger holds that on every rebuild of the graph",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/TextRenderer.java",
-        "src/main/java/lib/minecraft/renderer/bake/gui/NineSliceKit.java",
         "src/main/java/lib/minecraft/renderer/bake/gui/TooltipChrome.java",
         "src/visual/java/lib/minecraft/renderer/driver/LoreTooltipDriver.java"
       ]

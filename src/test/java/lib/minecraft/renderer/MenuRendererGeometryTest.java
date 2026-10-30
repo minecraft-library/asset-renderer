@@ -44,6 +44,7 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -492,6 +493,13 @@ class MenuRendererGeometryTest {
             .render(chest(3, true).mutate().chromeSprite(missing).build());
         assertThat("a chest names the panel art alone, its cells being the art's",
             chest.chrome(), contains(Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT)));
+
+        MenuResult anvil = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.ANVIL).chromeSprite(missing).build());
+        assertThat("an anvil names the panel art and the field sprite the client blits over it",
+            anvil.chrome(), containsInAnyOrder(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/anvil/text_field_disabled", Possible.State.ABSENT)));
     }
 
     @Test

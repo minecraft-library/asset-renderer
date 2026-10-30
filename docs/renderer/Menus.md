@@ -7,8 +7,9 @@ One arithmetic and one painter. `ScreenMetrics` is where a shipped container put
 `MenuLayout` is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
 produced - so what a caller chooses is which screen the client ships, what goes in its cells and what
 paints its chrome, and none of the three is a render path of its own. Everything is in Minecraft
-pixels and reaches output pixels only through `MinecraftFont.MC_PIXEL_SCALE`, which is what keeps the
-chrome exact rather than resampled.
+pixels and reaches output pixels at `MinecraftFont.MC_PIXEL_SCALE`: a window lays its own chrome one
+Minecraft pixel to a block of that side, exact rather than resampled, and the GUI sprites it draws are
+laid by `NineSliceKit` at output-pixel resolution.
 
 - **A screen's declared height is read off its own construction, never off how it is blitted.** A
   chest and a shulker box each declare a pixel they never draw and reach it by different routes: the
@@ -30,13 +31,21 @@ chrome exact rather than resampled.
   still the art's. Either way the cells are the art's own and no slot sprite is drawn over them unless
   the caller names one. The panel is the sheet blits alone: what the client draws over them - the
   anvil's name field and error sprite, the crafting table's recipe-book button - is a widget and no
-  part of it. A screen the client ships no sheet for - a grid, a chest of other than one to six rows,
-  the player's view - resizes the named texture, read at its own size and cut to the pixels it draws,
-  and every cell is drawn with the named sprite or the client's `container/slot`; the 256-texel space
-  is a property of the client's blits, and such a screen has none. The panel's own sidecar is never
-  read, container art being blitted rather than nine-sliced. A sheet authored at another size for a
-  shipped screen is read at one texel per Minecraft pixel, where the client draws it at full
-  resolution.
+  part of it. The window draws one of them, the anvil's name field, as the GUI sprite the client
+  blits over the sheet with the first input empty. A screen the client ships no sheet for - a grid, a
+  chest of other than one to six rows, the player's view - resizes the named texture, read at its own
+  size and cut to the pixels it draws, and every cell is drawn with the named sprite or the client's
+  `container/slot`; the 256-texel space is a property of the client's blits, and such a screen has
+  none. The panel's own sidecar is never read, container art being blitted rather than nine-sliced. A
+  sheet authored at another size for a shipped screen is read at one texel per Minecraft pixel, where
+  the client draws it at full resolution.
+- **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite and the
+  anvil's field are read as the client's GUI atlas holds them - the missing texture for one no pack
+  supplies, one that cannot be read and one whose `gui` section the client refuses - and laid by
+  `NineSliceKit` with their `gui.scaling`. A sprite named over a cell the client never draws one at,
+  such as the crafting table's result cell of 26, is stretched as the client stretches a GUI sprite,
+  which no client screen shows. Every pixel a window lays itself, drawn or cut from art, is laid as the
+  client lays a GUI texel: alpha 0 leaves what is under it and the rest blends `NORMAL`.
 - The frame is four 4x4 corner blocks and four bars of a **1 mcPx period**, and nothing about it is
   per-menu - one frame reproduces the 4 px ring of every shipped container at its own height with no
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
@@ -107,12 +116,12 @@ chrome exact rather than resampled.
   `bake.gui`'s, keyed by the identity through one switch with no default, so a mark added without a
   painter does not compile and the table placing marks names nothing that paints them.
 - **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
-  110x16 rectangle of flat red the client covers on every draw and never once shows, so a window
-  sliced from that texture paints the red. That is why the field is drawn from rules - not to keep
-  its ink free, which is the reason every other mark is declared, but because the art is a hole. It
-  reproduces the shipped text-field sprite whole, and the panel's remaining residual is exactly that
-  rectangle.
-- A field is chrome and content split the way a button is: the window sinks the well, the renderer
+  110x16 rectangle of flat red the client covers on every draw with the field sprite it blits there.
+  A theme draws the field from rules - not to keep its ink free, which is the reason every other mark
+  is declared, but because the art is a hole - reproducing the disabled field sprite whole, so against
+  the art its residual is exactly that rectangle; a window sliced from the art draws the sprite there,
+  as the client does.
+- A field is chrome and content split the way a button is: the window draws the well, the renderer
   puts the text in it. The text is drawn plain rather than parsed for format codes, because the
   client's own field filters them out of what can be typed, and it carries the drop shadow a
   container's labels decline - it is a widget's text and not the panel's.

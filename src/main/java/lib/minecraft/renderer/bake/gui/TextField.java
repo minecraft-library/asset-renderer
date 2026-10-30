@@ -26,7 +26,8 @@ import java.util.Optional;
  * well shows, and the caret marking where typing would continue.
  * <p>
  * The field's well is chrome and its text is a render, the same split a button's face takes: the
- * {@link Window} sinks the well in its own inks and this puts the text in it.
+ * {@link Window} draws the well - from rules in its own inks, or as the GUI sprite the client blits
+ * over named art - and this puts the text in it.
  */
 @UtilityClass
 @Parity(claim = "menu-closure", mode = Mode.DEMOTE)

@@ -7,9 +7,11 @@
  * {@link lib.minecraft.renderer.bake.gui.GradientKit GradientKit};
  * {@link lib.minecraft.renderer.bake.gui.ItemStackKit ItemStackKit} draws the durability bar and stack
  * count over a GUI item icon. Sprites are drawn by
- * {@link lib.minecraft.renderer.bake.gui.NineSliceKit NineSliceKit}, which blits a {@code gui.scaling}
- * sprite into a destination rect, and {@link lib.minecraft.renderer.bake.gui.TooltipChrome TooltipChrome}
- * contributes a tooltip's background and border layers, from the pack's sprite pair or procedurally.
+ * {@link lib.minecraft.renderer.bake.gui.NineSliceKit NineSliceKit}, which reads a sprite as the
+ * client's GUI atlas holds it and blits it into a destination rect by its {@code gui.scaling}, for the
+ * tooltip chrome and for a sliced window's cells and name field, and
+ * {@link lib.minecraft.renderer.bake.gui.TooltipChrome TooltipChrome} contributes a tooltip's background
+ * and border layers, from the pack's sprite pair or procedurally.
  *
  * <p>A container panel is a {@link lib.minecraft.renderer.bake.gui.Window Window} - its frame, interior
  * fill and slot cells at a caller-chosen size, painted either as vanilla's geometry in one

@@ -3,11 +3,9 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.ItemContext;
@@ -16,7 +14,6 @@ import lib.minecraft.renderer.call.slot.TextSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -416,11 +413,10 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          * <p>An empty style resolves the default {@code minecraft:tooltip/background} +
          * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
-         * component, 24w36a). Each sprite is read through the context's
-         * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no selected
-         * pack ships, one that cannot be read - an image over the decode budget included - or one whose
-         * {@code gui} section the client's codec refuses, is the missing texture, which the wrapper
-         * reports through the context as a stand-in, as the client's atlas answers its missing sprite for
+         * component, 24w36a). Each sprite is read through {@link NineSliceKit}'s GUI-sprite read, so a
+         * sprite no selected pack ships, one that cannot be read - an image over the decode budget
+         * included - or one whose {@code gui} section the client's codec refuses, is the missing texture,
+         * which the context reports as a stand-in, as the client's atlas answers its missing sprite for
          * any GUI sprite it does not hold. Each sprite is read on its own, so where one of the pair is the
          * missing texture the pack's other sprite is still drawn.
          *
@@ -431,54 +427,11 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
         public static @NotNull ChromeSprites resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
-            // The GUI atlas holds no sprite whose gui section its codec refuses, so such a sprite is served
-            // with no pixels.
-            RendererContext textures = context
-                .withTextures(id -> refused(context, id) ? Possible.empty() : Possible.absent())
-                .withMissingTexture();
-            // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
-            // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
-            // strip and sampling it here is the same operations in the same order, spelled twice.
-            PixelBuffer background =
-                Flipbook.atTick(textures.resolveTexture(backgroundId.id()), textures.findFlipbook(backgroundId.id()), 0).get();
-            PixelBuffer frame =
-                Flipbook.atTick(textures.resolveTexture(frameId.id()), textures.findFlipbook(frameId.id()), 0).get();
+            PixelBuffer background = NineSliceKit.sprite(context, backgroundId);
+            PixelBuffer frame = NineSliceKit.sprite(context, frameId);
             return new ChromeSprites(
-                backgroundId, background, scaling(context, backgroundId, background),
-                frameId, frame, scaling(context, frameId, frame));
-        }
-
-        /**
-         * Answers whether a sprite's sidecar parses and carries a {@code gui} section the client's codec
-         * refuses - a sprite the client's GUI atlas does not hold.
-         *
-         * @param context the renderer context the sidecar is read through
-         * @param textureId the sprite's texture id
-         * @return {@code true} where the sidecar's {@code gui} section is refused
-         */
-        private static boolean refused(@NotNull RendererContext context, @NotNull String textureId) {
-            return context.findMeta(textureId)
-                .map(meta -> meta.gui().getState() == Possible.State.EMPTY)
-                .orElse(false);
-        }
-
-        /**
-         * Answers the {@code gui.scaling} a sprite draws with - the one a sprite read from a pack carries in
-         * its sidecar, or {@link MCMeta.GuiScaling#DEFAULT} where it declares none. The missing texture
-         * carries none and stretches, as the client's missing sprite does whatever sidecar an unreadable
-         * file ships, so the sidecar of the id it stands in for is never read.
-         *
-         * @param context the renderer context the sidecar is read through
-         * @param spriteId the sprite's id
-         * @param sprite the pixels drawn for the sprite
-         * @return the sprite's scaling
-         */
-        private static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId,
-                                                          @NotNull PixelBuffer sprite) {
-            if (MissingSprite.isSprite(sprite)) return MCMeta.GuiScaling.DEFAULT;
-            return context.findMeta(spriteId.id())
-                .flatMap(MCMeta::gui)
-                .orElse(MCMeta.GuiScaling.DEFAULT);
+                backgroundId, background, NineSliceKit.scaling(context, backgroundId, background),
+                frameId, frame, NineSliceKit.scaling(context, frameId, frame));
         }
 
         /**

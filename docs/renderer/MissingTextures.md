@@ -13,16 +13,17 @@ missing sprite for all of them and a texture has no lower pack to show through. 
 parse loses only its own texture: the index captures it as there and yielding nothing rather than
 failing the context load; a refused section loses the texture too, its sidecar's other sections
 standing. A sidecar whose `gui` section the client's codec refuses loses its texture only where a GUI
-sprite is read - a tooltip's background or frame - as the client's GUI atlas alone reads that section;
-read as a block or item texture it draws. The same holds for every texture an entity, a player or an
-item names beyond its own faces - an entity's base, overlay, carried-block and group-member textures,
-the equipment and armour layers and their pack-rule tiles, the elytra wings, the cape and the skin, the
-banner patterns, the trims and the glint - and for the textures that are no block's or item's: a
-fluid's still and flow faces, the two textures the portal shader samples, a menu's named chrome art,
-which is the checkerboard read across the sheet the client composes a shipped screen's panel from, and
-resized like any other art for a screen it ships no sheet for, rather than falling back to the vanilla
-panel, and a tooltip's background and frame, each stretched over the client's whole sprite rect rather
-than falling back to the default pair. No option turns it off: a broken asset is drawn as broken, so a
+sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name field - as
+the client's GUI atlas alone reads that section; read as a block or item texture it draws. The same
+holds for every texture an entity, a player or an item names beyond its own faces - an entity's base,
+overlay, carried-block and group-member textures, the equipment and armour layers and their pack-rule
+tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the glint - and for
+the textures that are no block's or item's: a fluid's still and flow faces, the two textures the
+portal shader samples, a menu's named chrome art, which is the checkerboard read across the sheet the
+client composes a shipped screen's panel from, and resized like any other art for a screen it ships no
+sheet for, rather than falling back to the vanilla panel, and a tooltip's background and frame, a
+menu's cell sprite and the anvil's name field, each stretched over the client's whole sprite rect
+rather than falling back to a default. No option turns it off: a broken asset is drawn as broken, so a
 viewer can see it, rather than leaving a hole or dropping the subject - and that holds for a batch as
 well, so an atlas tile shows the checkerboard where a single render would.
 
@@ -31,15 +32,16 @@ well, so an atlas tile shows the checkerboard where a single render would.
   keeps its three states - absent for a texture no pack ships, empty for one a pack ships that cannot
   be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
   never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
-  and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
-- **A tooltip sprite's stand-in stretches.** The client's missing sprite carries no `gui.scaling`, so
-  it stretches over the rect whatever the sprite it stands for would have been sliced as, and a file
-  that cannot be read never reaches its atlas, sidecar and all. The context keeps such a file's
-  sidecar, so `TooltipChrome.ChromeSprites` takes the scaling from the sidecar only for a sprite that
-  was read. A style naming art no pack ships draws a box filling the whole rect, the text plus twelve
+  and elytra kits, and the nine-slice kit's GUI-sprite read - wrap whatever they are handed, so a kit
+  draws the checkerboard whoever calls it.
+- **A GUI sprite's stand-in stretches.** The client's missing sprite carries no `gui.scaling`, so it
+  stretches over the rect whatever the sprite it stands for would have been sliced as, and a file that
+  cannot be read never reaches its atlas, sidecar and all. The context keeps such a file's sidecar, so
+  `NineSliceKit`'s GUI-sprite read takes the scaling from the sidecar only for a sprite that was read.
+  A tooltip style naming art no pack ships draws a box filling the whole rect, the text plus twelve
   Minecraft pixels a side, and that is the canvas. A sprite whose `gui` section the client refuses is
-  not in the client's GUI atlas either, so `TooltipChrome.ChromeSprites` serves it with no pixels: it is
-  the stand-in, stretched, and reported unreadable.
+  not in the client's GUI atlas either, so `NineSliceKit`'s GUI-sprite read serves it with no pixels:
+  it is the stand-in, stretched, and reported unreadable.
 - **A report has two halves.** A line on stderr, which vanilla's missing item model alone does not
   print, and a `Substitution` in the result of every render that drew the stand-in - a second render
   of the same id records it again even where the log stays quiet, and a composite carries its
