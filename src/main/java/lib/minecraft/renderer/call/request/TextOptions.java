@@ -80,11 +80,13 @@ public class TextOptions implements RenderOptions {
     private final int padding = TOOLTIP_PADDING_MCPX;
 
     /**
-     * The chrome the LORE background and border are drawn in. Defaults to
-     * {@link ChromeStyle#PROCEDURAL}, which needs no context; {@link ChromeStyle#SPRITE} asks the
-     * renderer to resolve the pack's sprite pair through the context it was constructed with.
+     * The chrome the LORE background and border are drawn in, empty for the renderer's own -
+     * {@link ChromeStyle#SPRITE} for a renderer holding a context, {@link ChromeStyle#PROCEDURAL} for one
+     * holding none. {@link ChromeStyle#SPRITE} resolves the pack's sprite pair through the context the
+     * renderer was constructed with, so a renderer holding none refuses it;
+     * {@link ChromeStyle#PROCEDURAL} needs no context.
      */
-    private final @NotNull ChromeStyle chromeStyle = ChromeStyle.PROCEDURAL;
+    private final @NotNull Optional<ChromeStyle> chromeStyle = Optional.empty();
 
     /**
      * The {@code minecraft:tooltip_style} key a {@link ChromeStyle#SPRITE} render resolves its sprite
@@ -138,9 +140,9 @@ public class TextOptions implements RenderOptions {
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     /**
-     * The default text options - an empty {@linkplain Style#LORE lore} tooltip with vanilla-matched
-     * padding, background/border alphas, and wrap width, ready to have {@linkplain #getLines() lines}
-     * appended.
+     * The default text options - an empty {@linkplain Style#LORE lore} tooltip naming no chrome, so drawn
+     * in the renderer's own, with vanilla-matched padding, background/border alphas, and wrap width, ready
+     * to have {@linkplain #getLines() lines} appended.
      *
      * @return the default options
      */

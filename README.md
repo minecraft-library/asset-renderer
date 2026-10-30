@@ -292,7 +292,7 @@ ImageData gateway = new PortalRenderer(context).render(options).image();
 
 ### TextRenderer
 
-Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip. The canvas ends at the first pixel the tooltip's box draws - both sprites are nine-sliced over the rect the client hands them, so a pack's box drawn wider than vanilla's comes out whole, and over vanilla's own sprites the image is vanilla's box with nothing round it. A chat render (`Style.CHAT`) ends at the first pixel its text draws, over every frame of an animation.
+Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. A renderer built over a context draws the pack's own tooltip sprites, nine-sliced, unless the request names `ChromeStyle.PROCEDURAL` - vanilla's box drawn from its colours, which a renderer built with no context draws. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip. The canvas ends at the first pixel the tooltip's box draws - both sprites are nine-sliced over the rect the client hands them, so a pack's box drawn wider than vanilla's comes out whole, and over vanilla's own sprites the image is vanilla's box with nothing round it. A chat render (`Style.CHAT`) ends at the first pixel its text draws, over every frame of an animation.
 
 <div align="center">
 <img src="docs/images/text-lore-tooltip.gif" width="332" alt="Minecraft lore tooltip with a shimmering obfuscated rarity footer">
@@ -306,7 +306,6 @@ TextOptions options = TextOptions.builder()
         "&7Damage: &c+210",
         "",
         "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-    .chromeStyle(ChromeStyle.SPRITE)               // the pack's own sprites, nine-sliced
     .build();
 
 ImageData tooltip = new TextRenderer(context).render(options).image();  // the &k footer -> AnimatedImageData

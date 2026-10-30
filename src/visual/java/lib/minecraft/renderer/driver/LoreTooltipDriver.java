@@ -32,11 +32,12 @@ import java.nio.file.Path;
  * Diagnostic task that renders Hypixel SkyBlock-style lore tooltips end to end through
  * {@link TextRenderer}, so the sprite-backed nine-slice chrome (notched background corners, open
  * gradient-ring corners, 80-row stretched gradient, the canvas ending at the box's first pixel), stat
- * rows, obfuscated footer, and codec wrapping can all be eyeballed against real content. The chrome
- * resolves the vanilla {@code tooltip/background} + {@code tooltip/frame} sprites through a real
- * pack-stack context ({@link ChromeStyle#SPRITE}). This is a <b>functional / visual</b> tool ("does it
- * render"), and every file it writes is a member of the parity store's {@code manifest.visual},
- * compared byte for byte against its promoted baseline.
+ * rows, obfuscated footer, and codec wrapping can all be eyeballed against real content. The chrome is
+ * the sprite box ({@link ChromeStyle#SPRITE}), the one a renderer holding a context draws a request
+ * naming none in, resolving the vanilla {@code tooltip/background} + {@code tooltip/frame} sprites
+ * through a real pack-stack context. This is a <b>functional / visual</b> tool ("does it render"), and
+ * every file it writes is a member of the parity store's {@code manifest.visual}, compared byte for
+ * byte against its promoted baseline.
  * <p>
  * Seven tooltips render. Two come from legacy strings: an {@link #ACCESSORY_LEGACY accessory}
  * (static, one PNG) and a {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes
@@ -162,7 +163,6 @@ public final class LoreTooltipDriver {
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         long t0 = System.nanoTime();
@@ -195,7 +195,6 @@ public final class LoreTooltipDriver {
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         long t0 = System.nanoTime();
@@ -390,7 +389,6 @@ public final class LoreTooltipDriver {
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         ImageData image = renderer.render(options).image();

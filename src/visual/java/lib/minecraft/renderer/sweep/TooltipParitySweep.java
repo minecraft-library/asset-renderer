@@ -184,7 +184,7 @@ public final class TooltipParitySweep {
          * @return the row's key, which also names its output folder
          */
         @NotNull String rowKey(boolean boxAlone) {
-            return this.stem(boxAlone, switch (this.options.getChromeStyle()) {
+            return this.stem(boxAlone, switch (this.options.getChromeStyle().orElseThrow()) {
                 case SPRITE -> "";
                 case PROCEDURAL -> "~chrome=procedural";
             });
@@ -887,7 +887,7 @@ public final class TooltipParitySweep {
      */
     private static @NotNull PixelBuffer drawBoxAlone(@NotNull RendererContext context, @NotNull TextOptions options,
                                                      int contentWMcPx, int contentHMcPx) {
-        TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
+        TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle().orElseThrow());
         Optional<TooltipChrome.ChromeSprites> sprites = Optional.of(TooltipChrome.ChromeSprites.resolve(context, options.getTooltipStyle()));
         TooltipChrome.ChromeBox box = chrome.box(contentWMcPx, contentHMcPx, sprites, options);
         int scale = MinecraftFont.MC_PIXEL_SCALE;

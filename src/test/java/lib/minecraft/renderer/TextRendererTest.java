@@ -87,6 +87,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * context gives the arm. The cases needing the real sprites off the offline extraction skip per method
  * rather than per class, so the procedural pins still run on a host without it.
  * <p>
+ * A request naming no chrome is drawn in the sprite box by a renderer holding a context and in the
+ * code-drawn box by one holding none, pixel for pixel the box a request naming that chrome draws.
+ * <p>
  * Each image is also pinned to the mark it reports, {@link AlphaMode#PREMULTIPLIED} - the code-drawn
  * box, a sprite tooltip, chat text and a render of no line alike - and to holding no colour channel
  * above its alpha, since a premultiplied channel is the straight one scaled by that alpha; a tooltip's
@@ -284,8 +287,9 @@ class TextRendererTest {
     }
 
     /**
-     * Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the procedural
-     * chrome-pixel assertions.
+     * Builds single-line {@code LORE}-style options ("Test") naming no chrome - the shared fixture for the
+     * procedural chrome-pixel assertions, each drawn by a renderer holding no context, which draws a
+     * request naming no chrome in the code-drawn box.
      *
      * @return the options every procedural pixel assertion renders
      */
@@ -634,6 +638,37 @@ class TextRendererTest {
         RenderException thrown = assertThrows(RenderException.class, () -> new TextRenderer().render(options));
         assertThat(thrown.getMessage(),
             is("Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext"));
+    }
+
+    @Test
+    @DisplayName("a request naming no chrome is drawn in the sprite box by a renderer holding a context, and in the code-drawn box by one holding none")
+    void aRequestNamingNoChromeIsDrawnInTheRenderersDefault() {
+        // The even synthetic pair leaves 8 clear texels inside the client's 12, so its box is the text
+        // plus 4 a side, the code-drawn box's size; its frame is clear and its corners square, so the two
+        // boxes share a canvas and differ on the ring and the four corners.
+        TextRenderer holdingOne = new TextRenderer(syntheticContext(BG_META, 8, 91, 8, 91));
+        TextRenderer holdingNone = new TextRenderer();
+        PixelBuffer namingNone = render(holdingOne, loreBuilder().build());
+        PixelBuffer sprite = render(holdingOne, loreBuilder().chromeStyle(ChromeStyle.SPRITE).build());
+        PixelBuffer codeDrawn = render(holdingOne, loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+        PixelBuffer namingNoneWithout = render(holdingNone, loreBuilder().build());
+        PixelBuffer codeDrawnWithout = render(holdingNone, loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+
+        assertAll(
+            () -> assertThat("the code-drawn box's canvas under a context, against the sprite box's",
+                List.of(codeDrawn.width(), codeDrawn.height()), is(List.of(sprite.width(), sprite.height()))),
+            () -> assertThat("pixels the code-drawn box under a context differs from the sprite box on",
+                differing(codeDrawn, sprite), is(greaterThan(0))),
+            () -> assertThat("canvas of a request naming no chrome under a context, against the sprite box's",
+                List.of(namingNone.width(), namingNone.height()), is(List.of(sprite.width(), sprite.height()))),
+            () -> assertThat("pixels a request naming no chrome under a context differs from the sprite box on",
+                differing(namingNone, sprite), is(0)),
+            () -> assertThat("canvas of a request naming no chrome with no context, against the code-drawn box's",
+                List.of(namingNoneWithout.width(), namingNoneWithout.height()),
+                is(List.of(codeDrawnWithout.width(), codeDrawnWithout.height()))),
+            () -> assertThat("pixels a request naming no chrome with no context differs from the code-drawn box on",
+                differing(namingNoneWithout, codeDrawnWithout), is(0))
+        );
     }
 
     @Test

@@ -348,7 +348,7 @@ class TooltipParitySweepTest {
         List<String> described = new ArrayList<>();
         described.add(subject.key());
         subject.style().ifPresent(style -> described.add(style.namespace() + ":" + style.name()));
-        described.add(subject.options().getChromeStyle().name());
+        described.add(subject.options().getChromeStyle().map(ChromeStyle::name).orElse("none"));
         return described;
     }
 
@@ -396,7 +396,7 @@ class TooltipParitySweepTest {
                 String key = subject.rowKey(boxAlone);
                 String drawing = subject.referenceStem(boxAlone);
                 if (!keys.add(key)) repeatedKeys.add(key);
-                if (subject.options().getChromeStyle() == ChromeStyle.SPRITE) {
+                if (subject.options().getChromeStyle().equals(Optional.of(ChromeStyle.SPRITE))) {
                     spriteDrawings.add(drawing);
                     if (!key.equals(drawing)) movedSpriteKeys.add(key);
                 } else
@@ -431,8 +431,13 @@ class TooltipParitySweepTest {
             new TooltipParitySweep.Configuration("vanilla", references, output, ClientOptions.defaults(), List.of(oneLine), Optional.empty()),
             oneLine, true, new TextRenderer(), stubContext(Map.of(), Map.of()));
 
+        // The client's content is the rect less its 12 a side, 16 x 6; the code-drawn box pads it by the
+        // request's padding a side, where the sprite box would span the whole 40 x 30 rect.
+        int padding = oneLine.options().getPadding();
         assertThat("the row's report key", row.subject(), equalTo("one_line_chrome~chrome=procedural"));
         assertThat("the client's drawing to its first pixel", List.of(row.vanillaW(), row.vanillaH()), contains(7, 5));
+        assertThat("the box alone drawn in the code-drawn chrome the subject names, round the client's content",
+            List.of(row.javaW(), row.javaH()), contains((16 + 2 * padding) * scale, (6 + 2 * padding) * scale));
         try (Stream<Path> folders = Files.list(output)) {
             assertThat("the row's folder", folders.map(folder -> folder.getFileName().toString()).toList(),
                 contains("one_line_chrome~chrome=procedural"));
@@ -448,7 +453,7 @@ class TooltipParitySweepTest {
      */
     private static TooltipParitySweep.Subject codeDrawn(List<TooltipParitySweep.Subject> subjects, String key) {
         return subjects.stream()
-            .filter(subject -> subject.key().equals(key) && subject.options().getChromeStyle() == ChromeStyle.PROCEDURAL)
+            .filter(subject -> subject.key().equals(key) && subject.options().getChromeStyle().equals(Optional.of(ChromeStyle.PROCEDURAL)))
             .findFirst()
             .orElseThrow();
     }
@@ -479,7 +484,7 @@ class TooltipParitySweepTest {
             assertThat(label + ": the key and style of each subject, in the section's order", answered, equalTo(listed));
             assertThat(label + ": every subject over the sprite box - the code-drawn box reads nothing from a pack",
                 subjects.stream().map(subject -> subject.options().getChromeStyle()).distinct().toList(),
-                contains(ChromeStyle.SPRITE));
+                contains(Optional.of(ChromeStyle.SPRITE)));
         }
     }
 

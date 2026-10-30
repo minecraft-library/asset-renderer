@@ -29,7 +29,6 @@ import lib.minecraft.renderer.call.request.ArmorPiece;
 import lib.minecraft.renderer.call.request.ArmorTrim;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
-import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.call.request.GridOptions;
@@ -248,7 +247,6 @@ final class ReadmeShowcaseTest {
                     "&7Right-click to &5blink &7eight blocks.",
                     "",
                     "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-                .chromeStyle(ChromeStyle.SPRITE)
                 .build()));
     }
 

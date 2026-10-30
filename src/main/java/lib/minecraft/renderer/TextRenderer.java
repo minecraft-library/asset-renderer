@@ -49,22 +49,23 @@ import java.util.Optional;
  * {@link ChromeStyle#SPRITE} nine-slices the pack's {@code tooltip/background} and
  * {@code tooltip/frame} sprites, or the pair the request's
  * {@linkplain TextOptions#getTooltipStyle() tooltip style} names. The renderer resolves that pair once
- * per render through the context it was constructed with; a lore render asking for the sprite chrome
- * raises a {@link RenderException} only when the renderer holds no context, so a renderer built without
- * one draws chat text and the procedural chrome. A sprite of the pair no selected pack ships, or one
- * that cannot be read, draws as the missing texture stretched over the client's whole sprite rect, as
- * the client draws its missing sprite, and is named in the result as a stand-in. The renderer owns
- * only the glyph rows and the text block's measure. A tooltip's canvas is the box its chrome lays out:
- * the sprite chrome nine-slices both sprites over the rect the client hands them, the text plus 12
- * Minecraft pixels a side, and the canvas ends at the first pixel they draw, never cutting the text -
- * vanilla's own box, the text plus 4 a side, a pack's wider box whole, or the whole rect, the text
- * plus 12 a side, where a sprite is the missing texture; the procedural chrome pads the text by the
- * request's {@linkplain TextOptions#getPadding() padding}, the client's 4 by default, and its canvas
- * ends at the first pixel it draws. Chat text's canvas ends at the first pixel its lines draw over
- * every frame, which {@link TextKit#inkBounds} answers before any frame is drawn. A canvas holding no
- * pixel answers the empty 1x1 image: chat text drawing nothing, or a tooltip box of no width, which
- * lines that advance nothing make where the code-drawn box pads them by 0, or the request's alphas
- * clear every part of either box.
+ * per render through the context it was constructed with; a lore render naming the sprite chrome raises
+ * a {@link RenderException} only when the renderer holds no context, so a renderer built without one
+ * draws chat text and the procedural chrome. A request naming no chrome style is drawn in the sprite
+ * chrome by a renderer holding a context and in the procedural chrome by one holding none. A sprite of
+ * the pair no selected pack ships, or one that cannot be read, draws as the missing texture stretched
+ * over the client's whole sprite rect, as the client draws its missing sprite, and is named in the
+ * result as a stand-in. The renderer owns only the glyph rows and the text block's measure. A tooltip's
+ * canvas is the box its chrome lays out: the sprite chrome nine-slices both sprites over the rect the
+ * client hands them, the text plus 12 Minecraft pixels a side, and the canvas ends at the first pixel
+ * they draw, never cutting the text - vanilla's own box, the text plus 4 a side, a pack's wider box
+ * whole, or the whole rect, the text plus 12 a side, where a sprite is the missing texture; the
+ * procedural chrome pads the text by the request's {@linkplain TextOptions#getPadding() padding}, the
+ * client's 4 by default, and its canvas ends at the first pixel it draws. Chat text's canvas ends at
+ * the first pixel its lines draw over every frame, which {@link TextKit#inkBounds} answers before any
+ * frame is drawn. A canvas holding no pixel answers the empty 1x1 image: chat text drawing nothing, or
+ * a tooltip box of no width, which lines that advance nothing make where the code-drawn box pads them
+ * by 0, or the request's alphas clear every part of either box.
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
@@ -101,14 +102,15 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static final int DEFAULT_COLOR_ARGB = ColorMath.WHITE;
 
     /**
-     * The context a {@link ChromeStyle#SPRITE} render resolves its sprite pair through, empty for a
-     * renderer constructed without one.
+     * The context a {@link ChromeStyle#SPRITE} render resolves its sprite pair through, whose presence
+     * makes the sprite chrome the one a request naming no chrome is drawn in - empty for a renderer
+     * constructed without one, which draws such a request in the procedural chrome.
      */
     private final @NotNull Optional<RendererContext> context;
 
     /**
      * Constructs a new {@code TextRenderer} with no context, which draws chat text and the procedural
-     * tooltip chrome.
+     * tooltip chrome, the chrome it draws a request naming none in.
      */
     public TextRenderer() {
         this.context = Optional.empty();
@@ -116,7 +118,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
     /**
      * Constructs a new {@code TextRenderer} bound to the given context, through whose pack stack a
-     * sprite chrome resolves its pair.
+     * sprite chrome resolves its pair - the chrome it draws a request naming none in.
      *
      * @param context the render context resolving the tooltip sprites and their sidecars
      */
@@ -139,8 +141,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     /**
-     * Draws the image {@link #render} answers, resolving a sprite chrome through this renderer's own
-     * context.
+     * Draws the image {@link #render} answers, in the chrome the request names or, where it names none,
+     * this renderer's own, resolving a sprite chrome through this renderer's own context.
      *
      * @param options the text render options
      * @return the rendered text, empty where the options hold no line or the canvas laid out for them
@@ -154,8 +156,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
         int ticksPerFrame = ticksPerFrame(options);
         int frameCount = animated ? animationFrameCount(options, ticksPerFrame) : 1;
-        TooltipChrome chrome = TooltipChrome.of(options.getChromeStyle());
-        Optional<TooltipChrome.ChromeSprites> sprites = isLore && options.getChromeStyle() == ChromeStyle.SPRITE
+        ChromeStyle chromeStyle = options.getChromeStyle()
+            .orElse(this.context.isPresent() ? ChromeStyle.SPRITE : ChromeStyle.PROCEDURAL);
+        TooltipChrome chrome = TooltipChrome.of(chromeStyle);
+        Optional<TooltipChrome.ChromeSprites> sprites = isLore && chromeStyle == ChromeStyle.SPRITE
             ? this.context.map(ctx -> TooltipChrome.ChromeSprites.resolve(ctx, options.getTooltipStyle()))
             : Optional.empty();
         int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
