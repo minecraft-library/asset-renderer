@@ -16,14 +16,16 @@ import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftFontMetrics;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 
 /**
- * The widget an editable screen field is: what the caller's text cuts down to, the tail of it the
- * well shows, and the caret marking where typing would continue.
+ * The widget an editable screen field is: what the caller's text cuts down to, the part of it the
+ * well shows, and the caret marking where typing would continue - or the highlight band marking the
+ * text that runs past the well, where the text has scrolled the caret out of view.
  * <p>
  * The field's well is chrome and its text is a render: the {@link Window} draws the well - from rules
  * in its own inks, or as the GUI sprite the client blits over named art - and this puts the text in it
@@ -40,11 +42,31 @@ public class TextField {
     private static final int PX_SCALE = MinecraftFont.MC_PIXEL_SCALE;
 
     /**
-     * The insert caret's own extent - one Minecraft pixel wide, opening a pixel above the glyph cell
-     * and running two below its eight rows, which is the bar vanilla fills from {@code y - 1} to
-     * {@code y + 10} rather than a glyph.
+     * The rows a field's two fills cover - the insert caret's bar and the highlight band, both from a
+     * pixel above the glyph cell to two below its eight rows, which is the client's fills from
+     * {@code y - 1} to {@code y + 10}.
      */
-    private static final int CARET_RISE = 1, CARET_HEIGHT = 11;
+    private static final int FILL_RISE = 1, FILL_HEIGHT = 11;
+
+    /**
+     * How many times the client's field scrolls to its cursor when it is set to a text whole - once
+     * placing the cursor at the end, once placing its highlight on the way, and once more placing the
+     * highlight again.
+     */
+    private static final int SET_VALUE_SCROLLS = 3;
+
+    /**
+     * The colour the client's field adds to mark text running past it - a blue its additive
+     * text-highlight pipeline adds to whatever lies under it, with the colour inversion it can lay
+     * first switched off, as the anvil's is.
+     */
+    private static final int HIGHLIGHT_ARGB = 0xFF0000FF;
+
+    /**
+     * How far inside the shown text's {@code Font#width} the highlight band opens, in Minecraft pixels -
+     * the client's band starts on the column the last glyph's advance leaves for its shadow.
+     */
+    private static final int BAND_LEAD = 1;
 
     /**
      * How far the field's pen moves past a text it draws, in Minecraft pixels - the client's field
@@ -58,6 +80,13 @@ public class TextField {
      * Draws what a screen's text field holds and the caret marking where typing would continue.
      * <p>
      * Nothing is drawn for a screen that has no field, which is every screen but the anvil.
+     * <p>
+     * The field shows its text as the client's shows a text it is set to whole, from where that
+     * scroll leaves its start. Where the scroll leaves the cursor out of view the client draws no
+     * caret, whatever its blink, and adds a blue band over the field from a pixel inside the shown
+     * text's end to the field's right edge instead - laid as the client lays it, added to what lies
+     * under it - and the band, being a fill rather than text, keeps its colour under a pack's text
+     * palette.
      * <p>
      * The text is drawn plain rather than parsed for format codes, because the client's own field
      * filters them out of what can be typed, and it carries a drop shadow where a container's labels
@@ -81,24 +110,37 @@ public class TextField {
 
         Mark.TextWell well = field.get().kind().textWell().orElseThrow();
         String typed = typedInto(options.getFieldText(), well.maxLength());
-        String shown = visibleTail(typed, well.innerWidth());
+        int displayPos = displayPos(typed, well.innerWidth());
+        String shown = TextSegment.literal(typed).resolveFont().metrics()
+            .stringHeadByWidthMcPixels(typed.substring(displayPos), well.innerWidth());
+        boolean cursorInView = typed.length() - displayPos <= shown.length();
         if (shown.isEmpty() && !options.isCaret()) return;
 
         PixelBuffer buffer = PixelBuffer.canvas(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int penX = field.get().x() + well.inset().x();
+        int textX = field.get().x() + well.inset().x();
         int textY = field.get().y() + well.inset().y();
         int baseline = textY + MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        int shownWidth = TextKit.measureLineMcPixels(plain(shown));
+        int penX = textX;
         if (!shown.isEmpty()) {
-            LineSegment text = plain(shown);
-            TextKit.drawLine(g, text, penX, baseline, well.argb(), palette, 0, 0L, 0L, true);
-            penX += TextKit.measureLineMcPixels(text) + PEN_STEP;
+            TextKit.drawLine(g, plain(shown), textX, baseline, well.argb(), palette, 0, 0L, 0L, true);
+            penX += shownWidth + PEN_STEP;
         }
 
-        if (options.isCaret()) drawCaret(g, buffer, typed, penX, textY, baseline, well, palette);
+        if (cursorInView && options.isCaret()) drawCaret(g, buffer, typed, penX, textY, baseline, well, palette);
 
-        FramePlacement placement = new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage()));
-        stack.append(MenuSlot.TEXT, sink -> sink.add(placement));
+        FramePlacement text = new FramePlacement(0, 0, StaticImageData.of(buffer.toBufferedImage()));
+        if (cursorInView) {
+            stack.append(MenuSlot.TEXT, sink -> sink.add(text));
+            return;
+        }
+
+        FramePlacement band = highlightBand(textX + shownWidth - BAND_LEAD, textX + well.innerWidth(), textY);
+        stack.append(MenuSlot.TEXT, sink -> {
+            sink.add(text);
+            sink.add(band);
+        });
     }
 
     /**
@@ -114,20 +156,45 @@ public class TextField {
     }
 
     /**
-     * The part of the text a field shows - its longest tail that fits, because a field scrolls to
-     * keep the end of what was typed in view rather than the beginning.
+     * Finds the first character a field shows once it is set to a text whole, as the client's field
+     * is when an item placed in the anvil names it - {@code EditBox#setValue} scrolls a fresh field
+     * toward the cursor at the text's end three times, each pass moving the field's start past the
+     * characters of the head it showed that did not fit.
+     * <p>
+     * The client's scroll has two further arms, for a cursor standing at or before the field's start.
+     * From a fresh field with the cursor at the end they act only on an empty text, which they leave
+     * at its start, or past a character wider than the whole field, which no glyph is, so they are not
+     * walked.
      *
      * @param typed what the field holds
      * @param innerWidth how wide the text may run, in Minecraft pixels
-     * @return the visible tail, empty where even the last character does not fit
+     * @return the index of the first character shown
      */
-    public static @NotNull String visibleTail(@NotNull String typed, int innerWidth) {
-        for (int from = 0; from < typed.length(); from++) {
-            String tail = typed.substring(from);
-            if (TextKit.measureLineMcPixels(plain(tail)) <= innerWidth) return tail;
+    public static int displayPos(@NotNull String typed, int innerWidth) {
+        MinecraftFontMetrics metrics = TextSegment.literal(typed).resolveFont().metrics();
+        int displayPos = 0;
+
+        for (int pass = 0; pass < SET_VALUE_SCROLLS; pass++) {
+            int end = displayPos + metrics.stringHeadByWidthMcPixels(typed.substring(displayPos), innerWidth).length();
+            displayPos += typed.length() - end;
         }
 
-        return "";
+        return displayPos;
+    }
+
+    /**
+     * Builds the highlight band the client's field adds over the text running past it - filled in
+     * its blue over the rows the caret's bar fills, and placed to be added to what lies under it.
+     *
+     * @param fromX the band's left edge, in Minecraft pixels
+     * @param toX the band's right edge, exclusive, in Minecraft pixels
+     * @param textY the top of the field's glyph cell, in Minecraft pixels
+     * @return the band's additive placement
+     */
+    private static @NotNull FramePlacement highlightBand(int fromX, int toX, int textY) {
+        PixelBuffer band = PixelBuffer.canvas((toX - fromX) * PX_SCALE, FILL_HEIGHT * PX_SCALE);
+        band.fill(HIGHLIGHT_ARGB);
+        return new FramePlacement(fromX * PX_SCALE, (textY - FILL_RISE) * PX_SCALE, StaticImageData.of(band)).additively();
     }
 
     /**
@@ -160,8 +227,8 @@ public class TextField {
             return;
         }
 
-        for (int y = 0; y < CARET_HEIGHT * PX_SCALE; y++) {
-            int py = (textY - CARET_RISE) * PX_SCALE + y;
+        for (int y = 0; y < FILL_HEIGHT * PX_SCALE; y++) {
+            int py = (textY - FILL_RISE) * PX_SCALE + y;
             if (py < 0 || py >= buffer.height()) continue;
 
             for (int x = 0; x < PX_SCALE; x++) {

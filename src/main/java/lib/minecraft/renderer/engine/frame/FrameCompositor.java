@@ -11,6 +11,7 @@ import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.Background;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import org.jetbrains.annotations.NotNull;
 
@@ -39,7 +40,9 @@ import java.util.function.LongFunction;
  * {@link PixelBuffer#canvas canvas} in the convention it holds: a render, itself a canvas, by the
  * premultiplied formula, so a translucent pixel over a clear one stays as it was drawn, and a straight
  * picture - one read from a file, or built up from a straight animation's partial frames - by the
- * formula a GPU lays a straight texel with.
+ * formula a GPU lays a straight texel with. An {@linkplain FramePlacement#additive() additive}
+ * placement's picture is added to the canvas with {@link BlendMode#ADD} instead, as the client's
+ * additive GUI pipeline adds a text field's highlight band to what lies under it.
  */
 @UtilityClass
 public class FrameCompositor {
@@ -53,7 +56,8 @@ public class FrameCompositor {
      * whole number of loops, sampled at {@code framesPerSecond}.
      * <p>
      * Every frame is a canvas holding the fill, with each placement laid over it in the convention its
-     * picture holds, so either image holds premultiplied colour.
+     * picture holds, or added to it where the placement is additive, so either image holds
+     * premultiplied colour.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param canvasW the canvas width in pixels
@@ -117,16 +121,18 @@ public class FrameCompositor {
      * Lays one sampled picture of a placement onto the canvas at the placement's origin - rescaled
      * into the placement's extent by {@link PixelBuffer#blitScaled} when it has one, and blitted at the
      * picture's own size when it does not - source-over, by the formula the canvas and the convention
-     * the picture holds give.
+     * the picture holds give, or added to the canvas with {@link BlendMode#ADD} where the placement is
+     * additive.
      *
      * @param canvas the output frame being composited
      * @param layer the placement the picture was sampled from
      * @param picture the placement's picture at the output frame's playback time
      */
     private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer picture) {
+        BlendMode mode = layer.additive() ? BlendMode.ADD : BlendMode.NORMAL;
         layer.extent().ifPresentOrElse(
-            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height()),
-            () -> canvas.blit(picture, layer.x(), layer.y()));
+            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height(), mode),
+            () -> canvas.blit(picture, layer.x(), layer.y(), mode));
     }
 
     /**

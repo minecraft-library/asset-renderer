@@ -52,7 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * fork-join pool splits its rows across threads, while one made on a fork-join worker runs them in order
  * on that worker. Counting what an animated tile's content is asked shows which path drew the sheet: the
  * streamed pass asks it, finds it animated and hands the sheet to the held path, which asks it again,
- * while a grid held from the start asks it once.
+ * while a grid held from the start asks it once. A decorator's additive layer is added to the tile
+ * under it on a static sheet as the animated merge adds it.
  */
 @DisplayName("A grid draws each supplied tile as it renders it")
 class GridRendererSuppliedTileTest {
@@ -230,6 +231,33 @@ class GridRendererSuppliedTileTest {
         GridResult.Cell cell = sheet.cells().getFirst();
         assertThat("the sheet is static", sheet.image().isAnimated(), is(false));
         assertThat(sheet.image().toPixelBuffer().getPixel(cell.x() + 8, cell.y() + 8), is(0x50190050));
+    }
+
+    @Test
+    @DisplayName("a decorator's additive layer adds its colour over the tile it covers, on a static sheet as on an animated one")
+    void aDecoratorsAdditiveLayerAddsItsColour() {
+        PixelBuffer well = PixelBuffer.straight(16, 16);
+        well.fill(0xFF4E4737);
+        PixelBuffer blue = PixelBuffer.straight(8, 8);
+        blue.fill(0xFF0000FF);
+        // Half the cell's size, so it is rescaled into the cell as every placement is, and fitted to it on
+        // the animated path.
+        FrameLayer band = sink -> sink.add(new FramePlacement(x(0, 16, 0), y(0, 16, 0), Timeline.still(blue)).additively());
+
+        // Opaque blue added over 4E4737 keeps its red and green and saturates its blue.
+        GridResult still = render(Concurrent.newList(new GridOptions.GridTile(0, 0, StaticImageData.of(well))), 16, 0,
+            Background.TRANSPARENT, stack -> stack.addAfter(GridSlot.CELL, band));
+        assertThat("the sheet is static", still.image().isAnimated(), is(false));
+        assertThat("the blue is added over the tile", still.image().toPixelBuffer().getPixel(8, 8), is(0xFF4E47FF));
+
+        AnimatedImageData.Builder frames = AnimatedImageData.builder();
+        for (int frame = 0; frame < 2; frame++)
+            frames.withFrame(ImageFrame.of(well, 50, 0, 0, FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
+        GridResult animated = render(Concurrent.newList(new GridOptions.GridTile(0, 0, frames.build())), 16, 0,
+            Background.TRANSPARENT, stack -> stack.addAfter(GridSlot.CELL, band));
+        assertThat("the sheet is animated", animated.image().isAnimated(), is(true));
+        for (ImageFrame frame : animated.image().getFrames())
+            assertThat("and every frame adds the blue over the tile", frame.pixels().getPixel(8, 8), is(0xFF4E47FF));
     }
 
     /**

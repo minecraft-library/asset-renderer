@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.Background;
+import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.result.GridResult;
 import lib.minecraft.renderer.call.result.RenderResult;
@@ -59,7 +60,9 @@ import java.util.stream.IntStream;
  * path hands the compositor a {@linkplain FramePlacement#fittedTo fitted placement}, which rescales the
  * frame a tile shows at each output frame's time; a tile already the cell's size is drawn as it is.
  *
- * <p>Every placement is laid down source-over in the convention it holds. A render is a
+ * <p>Every placement is laid down source-over in the convention it holds, but an
+ * {@linkplain FramePlacement#additive() additive} one, which is added to what lies under it with
+ * {@link BlendMode#ADD}, on a static sheet as through the animated merge. A render is a
  * {@link PixelBuffer#canvas canvas}, as it was drawn: a translucent pixel keeps the colour it was
  * rendered with over a transparent cell, and over a background shows the background through it as
  * drawing the subject over that background would. A picture read from a file is straight, and is laid
@@ -198,7 +201,8 @@ public final class GridRenderer implements Renderer<GridOptions> {
             // conversion, avoiding the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of
             // wrap(toBufferedImage()).
             placements.forEach(placement ->
-                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
+                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize,
+                    placement.additive() ? BlendMode.ADD : BlendMode.NORMAL));
 
             return new GridResult(Timeline.still(buffer), placed);
         }

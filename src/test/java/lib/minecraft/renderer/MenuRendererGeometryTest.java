@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.awt.Rectangle;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -294,6 +295,31 @@ class MenuRendererGeometryTest {
                 if (without.getPixel(x, y) != with.getPixel(x, y)) drawn.add(with.getPixel(x, y));
 
         assertThat("the text and its shadow, each in its swap", drawn, is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F))));
+    }
+
+    @Test
+    @DisplayName("a field's highlight band adds the client's blue to the well and to the last glyph's shadow under it")
+    void aFieldsHighlightBandAddsItsBlueToTheWell() {
+        MenuRenderer renderer = new MenuRenderer(RendererContext.builder().build());
+        MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.ANVIL).caret(false).build();
+        PixelBuffer without = renderer.render(bare).image().getFrames().getFirst().pixels();
+        PixelBuffer with = renderer.render(bare.mutate().fieldText("lil' MAMMOTH WARHAMMER").caret(true).build())
+            .image().getFrames().getFirst().pixels();
+
+        // The band covers Minecraft x 159 to 164 and rows 23 to 33 - output (318, 46), 12 by 22. Under it lie
+        // the disabled field's 4E4737 and, in column 159, the shadow the shown text's last E casts from its
+        // top and bottom bars, eight output pixels of 3F3F3F; the client adds its blue to each.
+        Map<Integer, Integer> under = new HashMap<>();
+        Map<Integer, Integer> banded = new HashMap<>();
+        for (int y = 23 * SCALE; y < 34 * SCALE; y++) {
+            for (int x = 159 * SCALE; x < 165 * SCALE; x++) {
+                under.merge(without.getPixel(x, y), 1, Integer::sum);
+                banded.merge(with.getPixel(x, y), 1, Integer::sum);
+            }
+        }
+
+        assertThat("the bare well under the band", under, is(equalTo(Map.of(0xFF4E4737, 264))));
+        assertThat("the well and the shadow, each with the blue added", banded, is(equalTo(Map.of(0xFF4E47FF, 256, 0xFF3F3FFF, 8))));
     }
 
     /**

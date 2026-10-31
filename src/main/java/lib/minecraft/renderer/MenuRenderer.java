@@ -133,14 +133,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ConcurrentList<MenuResult.Icon> icons = Concurrent.newList();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeDecorationIcons(window, layout, stack, itemRenderer, icons);
-        anyAnimated |= placeSlots(options, layout, stack, itemRenderer, slots);
-        anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, slots);
+        placeDecorationIcons(window, layout, stack, itemRenderer, icons);
+        placeSlots(options, layout, stack, itemRenderer, slots);
+        appendFillerLayers(options, layout, stack, itemRenderer, slots);
         TextPalette palette = this.context.findTextPalette().orElse(TextPalette.VANILLA);
-        anyAnimated |= placeLabels(options, layout, palette, stack);
+        placeLabels(options, layout, palette, stack);
         TextField.placeFieldText(options, layout, palette, stack);
 
-        return new MenuResult(composite(layout, stack, anyAnimated, options), chrome.snapshot(), slots, icons);
+        return new MenuResult(composite(layout, stack, options), chrome.snapshot(), slots, icons);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -219,26 +219,21 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Places a menu's labels over its chrome, returning whether they animated. Nothing is appended
-     * where the menu has no label to draw.
+     * Places a menu's labels over its chrome. Nothing is appended where the menu has no label to draw.
      *
      * @param options the menu render options
      * @param layout the laid-out panel
      * @param palette the colours the stack's text shader draws in place of the labels' own
      * @param stack the layer stack to append to
-     * @return whether the label layer animates
      */
-    static boolean placeLabels(
+    static void placeLabels(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull TextPalette palette,
         @NotNull LayerStack<FrameLayer> stack
     ) {
-        Optional<ImageData> labels = labelLayer(options, layout, palette);
-        if (labels.isEmpty()) return false;
-
-        place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels.get()));
-        return labels.get().isAnimated();
+        labelLayer(options, layout, palette)
+            .ifPresent(labels -> place(stack, MenuSlot.TEXT, new FramePlacement(0, 0, labels)));
     }
 
     /**
@@ -255,17 +250,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Renders each of the caller's populated slots onto the cell its index reaches, returning whether
-     * any of them animated.
+     * Renders each of the caller's populated slots onto the cell its index reaches.
      *
      * @param options the menu render options
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an item slot's content goes through
      * @param slots the slot placements to append to
-     * @return whether any slot resolved to animated content
      */
-    static boolean placeSlots(
+    static void placeSlots(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
@@ -273,20 +266,16 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull ConcurrentList<MenuResult.Slot> slots
     ) {
         ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
-        boolean anyAnimated = false;
 
         for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
             RenderResult rendered = contentOf(entry.getValue(), itemRenderer);
             ImageData image = rendered.image();
-            if (image.isAnimated()) anyAnimated = true;
 
             FramePlacement placement = inCell(cells.get(entry.getKey()), image);
             place(stack, MenuSlot.SLOT, placement);
             slots.add(new MenuResult.Slot(entry.getKey(), MenuSlot.SLOT,
                 placement.x(), placement.y(), image.getWidth(), image.getHeight(), rendered));
         }
-
-        return anyAnimated;
     }
 
     /**
@@ -322,8 +311,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Draws the icon on each of a screen's marks that the window's own paint leaves to the renderer,
-     * returning whether any of them animated.
+     * Draws the icon on each of a screen's marks that the window's own paint leaves to the renderer.
      * <p>
      * Where a window paints a mark's frame alone, the frame is chrome and the icon a render, drawn by
      * different parties: the theme paints the raised button - its bevel in its own inks, and beneath the
@@ -337,9 +325,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an icon goes through
      * @param icons the icon placements to append to
-     * @return whether any icon resolved to animated content
      */
-    static boolean placeDecorationIcons(
+    static void placeDecorationIcons(
         @NotNull Window window,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
@@ -347,7 +334,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull ConcurrentList<MenuResult.Icon> icons
     ) {
         ConcurrentList<Mark.Placement> marks = layout.marks();
-        boolean anyAnimated = false;
 
         for (int index = 0; index < marks.size(); index++) {
             Mark.Placement mark = marks.get(index);
@@ -360,7 +346,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
                 .build());
             ImageData image = rendered.image();
-            if (image.isAnimated()) anyAnimated = true;
 
             Mark.Inset inset = mark.kind().iconInset().orElseThrow();
             int x = (mark.x() + inset.x()) * PX_SCALE;
@@ -368,14 +353,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             place(stack, MenuSlot.CONTENT, new FramePlacement(x, y, image));
             icons.add(new MenuResult.Icon(index, mark.kind(), x, y, image.getWidth(), image.getHeight(), rendered));
         }
-
-        return anyAnimated;
     }
 
     /**
      * Appends filler layers to every cell the caller populated none of, according to
-     * {@link MenuOptions#getFill() options.fill}. Returns whether the filler it placed resolved to
-     * animated content so the caller can keep its {@code anyAnimated} flag accurate.
+     * {@link MenuOptions#getFill() options.fill}.
      * <p>
      * The cells are collected before the item is, so a fill with nowhere to draw resolves nothing.
      * What it names is a whole item render, and a menu whose every cell the caller populated is the
@@ -389,9 +371,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer the fill goes through
      * @param slots the slot placements to append to
-     * @return whether the fill resolved to animated content
      */
-    static boolean appendFillerLayers(
+    static void appendFillerLayers(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
@@ -399,14 +380,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull ConcurrentList<MenuResult.Slot> slots
     ) {
         Optional<ResourceId> filler = options.getFill().itemId();
-        if (filler.isEmpty()) return false;
+        if (filler.isEmpty()) return;
 
         ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
         int[] vacant = IntStream.range(0, cells.size())
             .filter(index -> !options.getSlots().containsKey(index))
             .toArray();
 
-        if (vacant.length == 0) return false;
+        if (vacant.length == 0) return;
 
         ItemOptions fillerOptions = ItemOptions.builder()
             .itemId(filler.get().id())
@@ -422,44 +403,31 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             slots.add(new MenuResult.Slot(index, MenuSlot.CONTENT,
                 placement.x(), placement.y(), fillerImage.getWidth(), fillerImage.getHeight(), filled));
         }
-
-        return fillerImage.isAnimated();
     }
 
     /**
-     * Final composite step. Fast-paths a single-frame static composite when nothing is animated;
-     * otherwise promotes everything to animated output via {@link FrameCompositor#merge}.
+     * Final composite step: folds the layer stack into placements and merges them through
+     * {@link FrameCompositor#merge}, which answers one still frame where no placement animates and
+     * animated output where any does.
      * <p>
-     * What animates is read off the folded layers as well as off {@code anyAnimated}, because the two
-     * know different things. The built-in producers answer for content that never reaches a
-     * placement, and the caller's {@link MenuOptions#getLayerDecorator() decorator} splices during
-     * the fold below, so a layer it appends exists only here - after every producer has answered.
-     * The static branch samples a placement at frame zero, which is a whole animation flattened to
-     * one still for anything it is asked about too late.
+     * What animates is read off the folded placements, because the caller's
+     * {@link MenuOptions#getLayerDecorator() decorator} splices during the fold, so a layer it appends
+     * exists only there - after every producer has answered.
+     *
+     * @param layout the laid-out panel, whose size at the font's scale is the canvas
+     * @param stack the layer stack every producer appended to
+     * @param options the menu render options, supplying the decorator and the frame rate
+     * @return the composited menu
      */
     static @NotNull ImageData composite(
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
-        boolean anyAnimated,
         @NotNull MenuOptions options
     ) {
-        int canvasW = layout.width() * PX_SCALE;
-        int canvasH = layout.height() * PX_SCALE;
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);
-        boolean animated = anyAnimated
-            || placements.stream().anyMatch(placement -> placement.source().isAnimated());
-
-        if (!animated) {
-            PixelBuffer buffer = PixelBuffer.canvas(canvasW, canvasH);
-
-            for (FramePlacement placement : placements)
-                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
-
-            return Timeline.still(buffer);
-        }
-
-        return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
+        return FrameCompositor.merge(placements, layout.width() * PX_SCALE, layout.height() * PX_SCALE,
+            options.getFramesPerSecond(), Background.TRANSPARENT);
     }
 
     /**
