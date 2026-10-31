@@ -287,10 +287,10 @@
       "entries": 15,
       "file": "sweeps/menu.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4614,
-      "promoted_at": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
-      "sha256": "dd00438c561718325fe84508eef5c0768cf74024af48a63006fbbfe9ac7eba4d",
-      "sum": "9.6282"
+      "last_duration_ms": 4639,
+      "promoted_at": "560a68449662f6fefb9713bcd6cd6d712a38c8d3",
+      "sha256": "6e09dac2fe38dcd7125ece67edd6f07ca61dc9ab6c339207a6e64ed2f625f03a",
+      "sum": "0.1182"
     },
     "sweep.player": {
       "baselined": true,
