@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class LightingFrameTest {
 
     private static final float EPS = 1.0e-5f;
-    private static final PixelBuffer WHITE_1X1 = PixelBuffer.of(new int[]{0xFFFFFFFF}, 1, 1);
+    private static final PixelBuffer WHITE_1X1 = PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1);
 
     @Test
     @DisplayName("factories carry the right mirror and preserve the rotation")

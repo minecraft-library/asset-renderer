@@ -2,7 +2,6 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.text.font.MinecraftFont;
@@ -114,9 +113,10 @@ public class ItemStackKit {
      * the colour the palette swaps it for, right-aligned so the text ends one GUI pixel past the icon's
      * right edge, top of text at row 9.
      * <p>
-     * The text is rasterized at the font's native mcPixel resolution into a scratch buffer,
-     * then {@link PixelBuffer#blitScaled} lays that finished scratch into the target at the
-     * icon's GUI scale with {@link BlendMode#PREMULTIPLIED}. No-op when {@code count <= 1}.
+     * The text is rasterized at the font's native mcPixel resolution into a scratch
+     * {@link PixelBuffer#canvas canvas}, then {@link PixelBuffer#blitScaled} lays that finished
+     * scratch into the target at the icon's GUI scale - a canvas onto the caller's canvas, so the
+     * premultiplied formula lays each pixel as it was drawn. No-op when {@code count <= 1}.
      *
      * @param buffer the buffer to draw on - expected to be a multiple of 16 pixels per side
      * @param count the stack count
@@ -144,7 +144,7 @@ public class ItemStackKit {
         int scratchW = scratchWMcPx * MinecraftFont.MC_PIXEL_SCALE;
         int scratchH = scratchHMcPx * MinecraftFont.MC_PIXEL_SCALE;
 
-        PixelBuffer scratch = PixelBuffer.create(scratchW, scratchH);
+        PixelBuffer scratch = PixelBuffer.canvas(scratchW, scratchH);
         MinecraftGraphics g = new MinecraftGraphics(scratch);
         // Draw with the cursor offset by leftPadMcPx and the baseline at ascent-from-top.
         TextKit.drawText(g, text, leftPadMcPx, ascentMcPx, font, ColorMath.WHITE, palette);
@@ -158,7 +158,7 @@ public class ItemStackKit {
         int destW = scratchWMcPx * guiScale;
         int destH = scratchHMcPx * guiScale;
 
-        buffer.blitScaled(scratch, scratchOriginX, scratchOriginY, destW, destH, BlendMode.PREMULTIPLIED);
+        buffer.blitScaled(scratch, scratchOriginX, scratchOriginY, destW, destH);
     }
 
 }

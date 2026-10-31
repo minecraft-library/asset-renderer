@@ -362,9 +362,8 @@ class AtlasRendererLayoutTest {
                 is(List.of(i % columns, i / columns, (i % columns) * size, (i / columns) * size, size, size)));
         }
 
-        PixelBuffer background = PixelBuffer.create(columns * size, rows * size);
+        PixelBuffer background = PixelBuffer.canvas(columns * size, rows * size);
         options.getBackground().fill(background);
-        background.premultiplyAlpha();
         PixelBuffer sheet = atlas.image().toPixelBuffer();
         for (int i = tiles.size(); i < rows * columns; i++) {
             int x = (i % columns) * size;

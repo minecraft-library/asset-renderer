@@ -50,7 +50,7 @@ class MenuRendererDecoratorTest {
 
     /** One solid frame of {@code argb}, spelled at the disposal a transparent canvas needs. */
     private static ImageFrame frame(int argb) {
-        PixelBuffer buffer = PixelBuffer.create(LAYER_PX, LAYER_PX);
+        PixelBuffer buffer = PixelBuffer.straight(LAYER_PX, LAYER_PX);
 
         for (int y = 0; y < LAYER_PX; y++)
             for (int x = 0; x < LAYER_PX; x++) buffer.setPixel(x, y, argb);

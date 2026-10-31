@@ -64,7 +64,7 @@ public final class FrameLoan implements AutoCloseable {
     static @NotNull PixelBuffer frame(int width, int height) {
         FrameLoan loan = INNERMOST.get();
         if (loan == null || loan.spent || width <= 0 || height <= 0)
-            return PixelBuffer.create(width, height);
+            return PixelBuffer.canvas(width, height);
 
         loan.spent = true;
         loan.lease = PixelBufferPool.acquire(width, height);

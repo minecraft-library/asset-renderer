@@ -140,7 +140,7 @@ public class PortalBake {
     ) {
         float time = gameTimeUniform(gameTick);
         int layers = layerCount(portal);
-        PixelBuffer buffer = PixelBuffer.create(size, size);
+        PixelBuffer buffer = PixelBuffer.straight(size, size);
         int ssaa = PARALLAX_SUPERSAMPLE;
         float invSsaaGrid = 1f / (size * ssaa);
         float invSampleCount = 1f / (ssaa * ssaa);

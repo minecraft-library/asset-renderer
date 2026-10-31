@@ -72,11 +72,11 @@ import java.util.Optional;
  * fresh {@link TextKit} obfuscation substitution - except a canvas holding no pixel, which is the
  * still, empty 1x1 image, obfuscated or not.
  * <p>
- * The sprite box, the code-drawn box and the glyphs all blend onto the transparent canvas, so every
- * image answers {@link AlphaMode#PREMULTIPLIED}: {@link ImageData#toBufferedImage()} is then a straight
- * copy that edits made through it do not reach, an encoder writes each see-through pixel's straight
- * colour, and a {@linkplain TextOptions#getLayerDecorator() layer decorator} pass writes premultiplied
- * colour.
+ * The sprite box, the code-drawn box and the glyphs all blend onto a transparent
+ * {@link PixelBuffer#canvas canvas}, so every image answers {@link AlphaMode#PREMULTIPLIED}:
+ * {@link ImageData#toBufferedImage()} shares the canvas as a {@code TYPE_INT_ARGB_PRE} image, an encoder
+ * writes each see-through pixel's straight colour, and a
+ * {@linkplain TextOptions#getLayerDecorator() layer decorator} pass draws onto the canvas.
  */
 @Parity(claim = "text-closure", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class TextRenderer implements Renderer<TextOptions> {
@@ -265,7 +265,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         long tick
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        PixelBuffer buffer = PixelBuffer.create(
+        PixelBuffer buffer = PixelBuffer.canvas(
             Math.round(box.width() * MinecraftFont.MC_PIXEL_SCALE), Math.round(box.height() * MinecraftFont.MC_PIXEL_SCALE));
 
         // Compose the frame as an ordered ImageLayer stack: the tooltip chrome contributes the

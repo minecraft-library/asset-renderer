@@ -191,7 +191,7 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("every cell holds sixteen Minecraft pixels of content, centred in whatever it is")
     void everyCellHoldsSixteenOfContentCentred() {
-        ImageData nothing = Timeline.still(PixelBuffer.create(1, 1));
+        ImageData nothing = Timeline.still(PixelBuffer.canvas(1, 1));
         FramePlacement ordinary = MenuRenderer.inCell(
             new ScreenMetrics.Cell(7, 17, ScreenMetrics.CELL, ScreenMetrics.Role.CONTAINER), nothing);
         FramePlacement result = MenuRenderer.inCell(
@@ -470,7 +470,7 @@ class MenuRendererGeometryTest {
     void missingChromeArtIsNamedByTheChromeAlone() {
         ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
         slots.put(0, MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
-            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
+            Timeline.still(PixelBuffer.canvas(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
         // A bare grid of 140x78, which renders because a screen the client ships no sheet for reads the
         // stand-in at its own size rather than across the client's 256-texel sheet space.
         Optional<ResourceId> missing = Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here"));
@@ -556,7 +556,7 @@ class MenuRendererGeometryTest {
     void anAnvilsChromeFollowsWhatItsSlotsHold() {
         MenuOptions anvil = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
         MenuOptions.MenuSlotContent render = MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
-            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+            Timeline.still(PixelBuffer.canvas(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
         // The client's two field sprites differ in 1512 Minecraft pixels and its cross covers 81.
         int field = 1512 * SCALE * SCALE;
         int cross = 81 * SCALE * SCALE;
@@ -702,6 +702,23 @@ class MenuRendererGeometryTest {
         assertThat("the layer is a single frame", labels.isAnimated(), is(false));
         assertThat("the layer's mark", labels.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
         assertThat("pixels with a colour channel above their alpha", above, is(equalTo(0)));
+
+        MenuOptions obfuscated = chest(3, true).mutate().title("§kChest").build();
+        ImageData scrambled = MenuRenderer.labelLayer(obfuscated, MenuRenderer.layoutOf(obfuscated), TextPalette.VANILLA).orElseThrow();
+        assertThat("an obfuscated title's layer animates", scrambled.isAnimated(), is(true));
+        assertThat("and carries the same mark", scrambled.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+    }
+
+    @Test
+    @DisplayName("a still menu and the chrome laid under it are held premultiplied, as every render is")
+    void aStillMenuAndItsChromeAreHeldPremultiplied() {
+        MenuOptions options = chest(3, true);
+        ImageData menu = new MenuRenderer(RendererContext.builder().build()).render(options).image();
+        FramePlacement chrome = MenuRenderer.chromeOf(Window.Theme.VANILLA, MenuRenderer.layoutOf(options));
+
+        assertThat("the menu is a single frame", menu.isAnimated(), is(false));
+        assertThat("the menu's mark", menu.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("the chrome's mark", chrome.source().getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test

@@ -173,7 +173,7 @@ dependencies {
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("4029e80") } }
     api("com.github.simplified-dev:utils") { version { strictly("92ae878") } }
-    api("com.github.simplified-dev:image") { version { strictly("bd5b865") } }
+    api("com.github.simplified-dev:image") { version { strictly("bd15926") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("9026a04") } }
     api("com.github.simplified-dev:reflection") { version { strictly("5186e88") } }
     api("com.github.simplified-dev:client") { version { strictly("566f6f6") } }
@@ -186,7 +186,7 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("d066a87") } }
+    api("com.github.minecraft-library:text") { version { strictly("2fb5251") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface

@@ -249,7 +249,9 @@ public final class MenuParitySweep {
             }
 
             ImageData java = javaRenderer.render(subject.options()).image();
-            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
+            PixelBuffer held = java.toPixelBuffer();
+            // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
+            BufferedImage javaImg = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
 
             ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
             ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));

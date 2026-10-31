@@ -122,10 +122,13 @@ import java.util.stream.Stream;
  * The two must be equal, and a size that disagrees is the finding rather than
  * something to align away, so its row fails.
  *
- * <p><b>The byte gate.</b> Both sides are read as held - the reference through {@link ImageIO}, which
- * keeps the stored framebuffer bytes, and the render through its own pixel buffer whatever the image's
- * alpha mark - so {@code raw_differing_pixels} is a byte comparison and the over-white columns are what
- * a person reads beside it.
+ * <p><b>The byte gate.</b> Both sides are a PNG's bytes, read straight: the reference is the client
+ * framebuffer's premultiplied ints as {@link ImageIO} decodes the harness's file, and the render is its
+ * canvas's held premultiplied ints taken as those bytes through
+ * {@link PixelBuffer#ofStraight(int[], int, int)} over its own array. So {@code java.png} is written as
+ * the harness writes the reference, the two are compared premultiplied with premultiplied,
+ * {@code raw_differing_pixels} is a byte comparison, and the over-white columns are what a person reads
+ * beside it.
  *
  * <p>Output: one folder per row under {@code cache/visual/tooltip-parity-vanilla/}, or
  * {@code cache/visual/tooltip-<label>-parity-vanilla/} for a pack configuration, holding
@@ -882,17 +885,19 @@ public final class TooltipParitySweep {
             PixelBuffer vanillaPB = whole.crop(drawn.x, drawn.y, drawn.width, drawn.height);
             BufferedImage vanillaImg = vanillaPB.toBufferedImage();
 
-            PixelBuffer javaPB;
+            PixelBuffer held;
             if (boxAlone) {
                 SubstitutionCollector collector = new SubstitutionCollector();
-                javaPB = drawBoxAlone(context.collecting(collector), subject.options(),
+                held = drawBoxAlone(context.collecting(collector), subject.options(),
                     reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX);
                 standIns = standIns(collector.snapshot());
             } else {
                 RenderResult result = javaRenderer.render(subject.options());
-                javaPB = result.image().toPixelBuffer();
+                held = result.image().toPixelBuffer();
                 standIns = standIns(result.substitutions());
             }
+            // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
+            PixelBuffer javaPB = PixelBuffer.ofStraight(held.data(), held.width(), held.height());
             BufferedImage javaImg = javaPB.toBufferedImage();
             javaW = javaImg.getWidth();
             javaH = javaImg.getHeight();
@@ -960,7 +965,7 @@ public final class TooltipParitySweep {
 
         LayerStack<ImageLayer> stack = new LayerStack<>();
         chrome.contribute(stack, box, sprites, options);
-        PixelBuffer buffer = PixelBuffer.create(Math.round(box.width() * scale), Math.round(box.height() * scale));
+        PixelBuffer buffer = PixelBuffer.canvas(Math.round(box.width() * scale), Math.round(box.height() * scale));
         Layers.foldInto(stack, options.getLayerDecorator(), buffer);
         return buffer;
     }

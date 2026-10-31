@@ -206,7 +206,7 @@ class StyleRegistrarSkinTest {
      * One opaque 64x64 sheet in a single colour, so drawn geometry lands visible pixels.
      */
     private static @NotNull PixelBuffer sheet(int argb) {
-        PixelBuffer sheet = PixelBuffer.create(64, 64);
+        PixelBuffer sheet = PixelBuffer.straight(64, 64);
         sheet.fill(argb);
         return sheet;
     }

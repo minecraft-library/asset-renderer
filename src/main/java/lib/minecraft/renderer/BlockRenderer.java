@@ -916,7 +916,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int size = options.getOutput().getCanvasSize();
             return switch (block.getState()) {
                 case PRESENT -> faceOf(block.get(), options);
-                case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
+                case EMPTY -> Timeline.still(PixelBuffer.canvas(size, size));
                 case ABSENT -> missingBlock(this.context, options, () -> Timeline.still(MissingMesh.face(size)));
             };
         }
@@ -929,7 +929,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the flat face
          */
         private @NotNull ImageData faceOf(@NotNull Block block, @NotNull BlockOptions options) {
-            PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
+            PixelBuffer buffer = PixelBuffer.canvas(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String direction = options.getFace().direction();
             String textureId = unresolvedFace(block.model(), direction)

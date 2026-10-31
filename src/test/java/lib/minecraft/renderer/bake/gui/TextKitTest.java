@@ -249,9 +249,9 @@ class TextKitTest {
     void splitLineDrawsAsWhole() {
         endsOnAHalfPixel("+50 ✦ Speed ");
 
-        PixelBuffer split = PixelBuffer.create(200, 24);
+        PixelBuffer split = PixelBuffer.canvas(200, 24);
         TextKit.drawLine(new MinecraftGraphics(split), line(TextSegment.literal("+50 ✦ Speed "), TextSegment.literal("for")), X0, BASE, 0xFFAAAAAA, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer whole = PixelBuffer.create(200, 24);
+        PixelBuffer whole = PixelBuffer.canvas(200, 24);
         TextKit.drawLine(new MinecraftGraphics(whole), line(TextSegment.literal("+50 ✦ Speed for")), X0, BASE, 0xFFAAAAAA, TextPalette.VANILLA, 0, 0L);
 
         assertThat("pixels that differ", differing(split, whole), is(0));
@@ -281,7 +281,7 @@ class TextKitTest {
     void aStrikethroughLiesWhereTheClientLaysIt() {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
-        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        PixelBuffer buffer = PixelBuffer.canvas(60, 30);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("    ").strikethrough(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         // A space lays no glyph pixel, so every pixel lit is a bar's.
@@ -297,7 +297,7 @@ class TextKitTest {
         endsOnAHalfPixel("✦");
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
-        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        PixelBuffer buffer = PixelBuffer.canvas(60, 30);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("✦").strikethrough(true).underlined(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         // The main bars' rows - each shadow copy sits an mcPixel lower and in its darker colour.
@@ -320,7 +320,7 @@ class TextKitTest {
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         int scale = MinecraftFont.MC_PIXEL_SCALE;
 
-        PixelBuffer buffer = PixelBuffer.create(80, 30);
+        PixelBuffer buffer = PixelBuffer.canvas(80, 30);
         TextSegment underlined = TextSegment.builder().text("for").underlined(true).build();
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("✦"), underlined), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
@@ -339,9 +339,9 @@ class TextKitTest {
         float widthMcPx = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("HH");
         int row = strikethroughRow();
 
-        PixelBuffer plain = PixelBuffer.create(60, 30);
+        PixelBuffer plain = PixelBuffer.canvas(60, 30);
         TextKit.drawLine(new MinecraftGraphics(plain), line(TextSegment.literal("HH")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        PixelBuffer buffer = PixelBuffer.canvas(60, 30);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("HH").strikethrough(true).build()), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         ConcurrentList<String> wrong = Concurrent.newList();
@@ -362,7 +362,7 @@ class TextKitTest {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         float widthMcPx = MinecraftFont.Vanilla.REGULAR.metrics().stringAdvanceMcPixels("HH");
 
-        PixelBuffer buffer = PixelBuffer.create(60, 30);
+        PixelBuffer buffer = PixelBuffer.canvas(60, 30);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("HH").strikethrough(true).build(), TextSegment.literal("H")),
             X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
@@ -384,11 +384,11 @@ class TextKitTest {
         GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0x000000).addStop(0xFFFFFF).build();
         TextSegment gradient = TextSegment.builder().text("M").gradient(spec).build();
 
-        PixelBuffer joined = PixelBuffer.create(80, 30);
+        PixelBuffer joined = PixelBuffer.canvas(80, 30);
         joined.fill(0xFF000000);
         TextKit.drawLine(new MinecraftGraphics(joined), line(TextSegment.literal("✦"), gradient), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
-        PixelBuffer apart = PixelBuffer.create(80, 30);
+        PixelBuffer apart = PixelBuffer.canvas(80, 30);
         apart.fill(0xFF000000);
         MinecraftGraphics g = new MinecraftGraphics(apart);
         TextKit.drawLine(g, line(TextSegment.literal("✦")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
@@ -460,7 +460,7 @@ class TextKitTest {
                 for (float x : new float[] { X0, X0 + 0.5f, X0 + 0.25f })
                     for (boolean shadow : new boolean[] { true, false })
                         for (int frame = 0; frame < frames; frame++) {
-                            PixelBuffer canvas = PixelBuffer.create(400, 64);
+                            PixelBuffer canvas = PixelBuffer.canvas(400, 64);
                             TextKit.drawLine(new MinecraftGraphics(canvas), line, x, BASE, argb, TextPalette.VANILLA, 0, frame, frame, shadow);
                             Rectangle drawn = canvas.opaqueBounds();
                             String drew = drawn.isEmpty() ? "nothing" : described(drawn, 1);
@@ -480,7 +480,7 @@ class TextKitTest {
     @DisplayName("a run draws its glyphs, its shadow and its bars in the colours the palette swaps them for")
     void runDrawsInThePalettesSwaps() {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
-        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(120, 40);
         TextSegment decorated = TextSegment.builder().text("Gravel").underlined(true).strikethrough(true).build();
         TextKit.drawLine(new MinecraftGraphics(buffer), line(decorated), X0, BASE, 0xFFAAAAAA, palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
 
@@ -501,8 +501,7 @@ class TextKitTest {
         int fill = 0xF00F000F;
         LineSegment decorated = line(TextSegment.builder().text("Red").underlined(true).strikethrough(true).build());
 
-        PixelBuffer buffer = PixelBuffer.create(80, 40);
-        buffer.fill(fill);
+        PixelBuffer buffer = holding(80, 40, fill);
         TextKit.drawLine(new MinecraftGraphics(buffer), decorated, X0, BASE, 0x80FF0000, TextPalette.VANILLA, 0, 0L);
 
         // The client's translucent blend lays 0x80FF0000 over the fill as (135,0,7) at 248, and the
@@ -519,8 +518,7 @@ class TextKitTest {
                 buffer.getPixel(X0 * scale + scale + 1, underline + scale), is(0xF8270007))
         );
 
-        PixelBuffer discarded = PixelBuffer.create(80, 40);
-        discarded.fill(fill);
+        PixelBuffer discarded = holding(80, 40, fill);
         TextKit.drawLine(new MinecraftGraphics(discarded), decorated, X0, BASE, 0x19FF0000, TextPalette.VANILLA, 0, 0L);
         assertThat("a colour the text shader discards leaves every pixel the fill",
             opaqueColours(discarded), is(equalTo(Set.of(fill))));
@@ -529,13 +527,13 @@ class TextKitTest {
     @Test
     @DisplayName("the shadow is derived from the text colour, then swapped")
     void shadowIsDerivedThenSwapped() {
-        PixelBuffer swapsTheText = PixelBuffer.create(120, 40);
+        PixelBuffer swapsTheText = PixelBuffer.canvas(120, 40);
         TextKit.drawLine(new MinecraftGraphics(swapsTheText), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFAAAAAA,
             palette(Map.of(0xAAAAAA, 0x123456)), 0, 0L);
         assertThat("a palette swapping the text colour alone leaves its shadow - a shadow of the swap would be 040D15",
             opaqueColours(swapsTheText), is(equalTo(Set.of(0xFF123456, 0xFF2A2A2A))));
 
-        PixelBuffer swapsTheShadow = PixelBuffer.create(120, 40);
+        PixelBuffer swapsTheShadow = PixelBuffer.canvas(120, 40);
         TextKit.drawLine(new MinecraftGraphics(swapsTheShadow), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFAAAAAB,
             palette(Map.of(0x2A2A2A, 0x654321)), 0, 0L);
         assertThat("a text colour holding no key keeps its colour, and its shadow, which does hold one, is swapped",
@@ -595,7 +593,7 @@ class TextKitTest {
     @Test
     @DisplayName("a palette swaps no colour it holds no key for")
     void paletteSwapsNoOtherColour() {
-        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(120, 40);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.literal("Gravel")), X0, BASE, 0xFFFFFFFF,
             palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
 
@@ -606,7 +604,7 @@ class TextKitTest {
     @DisplayName("a gradient run draws in the colours the line's palette swaps it and its shadow for")
     void gradientRunDrawsInTheLinesPalette() {
         GradientSpec gray = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xAAAAAA).addStop(0xAAAAAA).build();
-        PixelBuffer buffer = PixelBuffer.create(120, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(120, 40);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("Gravel").gradient(gray).build()), X0, BASE, 0xFFFFFFFF,
             palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
 
@@ -631,9 +629,9 @@ class TextKitTest {
 
         Recording g = new Recording();
         TextKit.drawLine(g, line(alt("Galactic").build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer drawn = PixelBuffer.create(160, 60);
+        PixelBuffer drawn = PixelBuffer.canvas(160, 60);
         TextKit.drawLine(new MinecraftGraphics(drawn), alt, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer inTheFont = PixelBuffer.create(160, 60);
+        PixelBuffer inTheFont = PixelBuffer.canvas(160, 60);
         TextKit.drawText(new MinecraftGraphics(inTheFont), "Galactic", X0, BASE, galactic, 0xFFFFFFFF, TextPalette.VANILLA);
 
         assertAll(
@@ -708,9 +706,9 @@ class TextKitTest {
 
         Recording g = new Recording();
         TextKit.drawLine(g, line(font("minecraft:nope", "il").build(), TextSegment.literal("|")), X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer drawn = PixelBuffer.create(160, 60);
+        PixelBuffer drawn = PixelBuffer.canvas(160, 60);
         TextKit.drawLine(new MinecraftGraphics(drawn), nope, X0, BASE, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-        PixelBuffer inTheFont = PixelBuffer.create(160, 60);
+        PixelBuffer inTheFont = PixelBuffer.canvas(160, 60);
         TextKit.drawText(new MinecraftGraphics(inTheFont), "il", X0, BASE, missing, 0xFFFFFFFF, TextPalette.VANILLA);
 
         // The missing font obfuscates each codepoint to itself, so an obfuscated run in it draws its own text.
@@ -759,21 +757,34 @@ class TextKitTest {
     }
 
     /**
-     * Draws a one-run line over a filled buffer and collects the colours it then holds. A run of
-     * {@code !} is one Minecraft pixel wide, so its shadow, one Minecraft pixel right, never lands
+     * Draws a one-run line over a canvas holding one colour and collects the colours it then holds. A
+     * run of {@code !} is one Minecraft pixel wide, so its shadow, one Minecraft pixel right, never lands
      * under its glyph, and each pass lays one colour.
      *
-     * @param fill the colour the buffer is filled with
+     * @param fill the premultiplied colour every pixel of the canvas holds
      * @param run the line's only run
      * @param argb the colour the line is drawn in
      * @param dropShadow whether the shadow a run derives from its colour is asked for
      * @return each distinct colour the buffer holds after the draw
      */
     private static Set<Integer> laidOver(int fill, TextSegment run, int argb, boolean dropShadow) {
-        PixelBuffer buffer = PixelBuffer.create(40, 40);
-        buffer.fill(fill);
+        PixelBuffer buffer = holding(40, 40, fill);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(run), X0, BASE, argb, TextPalette.VANILLA, 0, 0L, 0L, dropShadow);
         return opaqueColours(buffer);
+    }
+
+    /**
+     * Builds a canvas every pixel of which holds one premultiplied colour, as it is given.
+     *
+     * @param width the canvas width
+     * @param height the canvas height
+     * @param held the premultiplied colour each pixel holds
+     * @return the canvas
+     */
+    private static PixelBuffer holding(int width, int height, int held) {
+        int[] pixels = new int[width * height];
+        Arrays.fill(pixels, held);
+        return PixelBuffer.ofPremultiplied(pixels, width, height);
     }
 
     /**
@@ -1030,7 +1041,7 @@ class TextKitTest {
         private @NotNull MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
 
         private Recording() {
-            super(PixelBuffer.create(160, 60));
+            super(PixelBuffer.canvas(160, 60));
         }
 
         @Override

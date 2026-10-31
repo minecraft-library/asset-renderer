@@ -436,7 +436,7 @@ public interface Window {
 
             PixelBuffer sheet = texture.resize(ScreenMetrics.SHEET, ScreenMetrics.SHEET, Resample.NEAREST);
             MenuLayout drawn = MenuLayout.of(screen, true);
-            PixelBuffer composed = PixelBuffer.create(drawn.width(), drawn.height());
+            PixelBuffer composed = PixelBuffer.straight(drawn.width(), drawn.height());
             int y = 0;
             for (Rectangle region : screen.regions()) {
                 composed.blit(sheet.crop(region.x, region.y, region.width, region.height), 0, y, BlendMode.REPLACE);
@@ -444,7 +444,7 @@ public interface Window {
             }
 
             int open = layout.height() - ScreenMetrics.MARGIN;
-            PixelBuffer panel = PixelBuffer.create(layout.width(), layout.height());
+            PixelBuffer panel = PixelBuffer.straight(layout.width(), layout.height());
             panel.blit(composed.crop(0, 0, layout.width(), open), 0, 0, BlendMode.REPLACE);
             panel.blit(composed.crop(0, composed.height() - ScreenMetrics.MARGIN, layout.width(), ScreenMetrics.MARGIN),
                 0, open, BlendMode.REPLACE);

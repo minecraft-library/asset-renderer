@@ -223,7 +223,7 @@ class HumanoidFrameTest {
         Rasterizer rasterizer = new Rasterizer(
             Projection.PORTRAIT.resolve(LOOK_TILT, ViewMirror.FLIPPED).camera(), PLAYER_FACING);
         for (HumanoidPart part : new HumanoidPart[]{ HumanoidPart.HEAD, HumanoidPart.TORSO }) {
-            PixelBuffer target = PixelBuffer.create(LOOK_SIZE, LOOK_SIZE);
+            PixelBuffer target = PixelBuffer.canvas(LOOK_SIZE, LOOK_SIZE);
             rasterizer.rasterizeFitted(
                 BoxKit.buildBox(part.centred(LOOK_UNITS_PER_PIXEL), part.textures(probe, false), ColorMath.WHITE),
                 target, EulerRotation.NONE, LOOK_FILL);
@@ -292,7 +292,7 @@ class HumanoidFrameTest {
      * @return a new, fully painted sheet
      */
     private static @NotNull PixelBuffer probe(int width, int height) {
-        PixelBuffer sheet = PixelBuffer.create(width, height);
+        PixelBuffer sheet = PixelBuffer.straight(width, height);
         for (int v = 0; v < height; v++) {
             for (int u = 0; u < width; u++)
                 sheet.setPixel(u, v, Texel.encode(u, v));

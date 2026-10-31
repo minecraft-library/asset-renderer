@@ -8,7 +8,6 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import dev.simplified.image.pixel.Background;
-import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextField;
@@ -195,7 +194,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @return the painted chrome buffer
      */
     static @NotNull PixelBuffer paintChrome(@NotNull Window window, @NotNull MenuLayout layout) {
-        PixelBuffer chrome = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
+        PixelBuffer chrome = PixelBuffer.canvas(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
 
         window.paintPanel(chrome, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
@@ -452,10 +451,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             || placements.stream().anyMatch(placement -> placement.source().isAnimated());
 
         if (!animated) {
-            PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
+            PixelBuffer buffer = PixelBuffer.canvas(canvasW, canvasH);
 
             for (FramePlacement placement : placements)
-                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y(), BlendMode.PREMULTIPLIED);
+                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
             return Timeline.still(buffer);
         }
@@ -552,7 +551,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         boolean animated = labels.stream().anyMatch(label -> isObfuscated(label.line()));
 
         if (!animated) {
-            PixelBuffer buffer = PixelBuffer.create(w, h);
+            PixelBuffer buffer = PixelBuffer.canvas(w, h);
             drawLabels(buffer, labels, argb, palette, 0);
             return Optional.of(Timeline.still(buffer));
         }
@@ -561,7 +560,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         // frame index and each label's number being what TextKit seeds that label's scramble from.
         return Optional.of(new Timeline.FpsLoop(options.getFramesPerSecond(), options.getFramesPerSecond())
             .wrap(f -> {
-                PixelBuffer frameBuffer = PixelBuffer.create(w, h);
+                PixelBuffer frameBuffer = PixelBuffer.canvas(w, h);
                 drawLabels(frameBuffer, labels, argb, palette, f);
                 return frameBuffer;
             }));

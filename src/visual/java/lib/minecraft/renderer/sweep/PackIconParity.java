@@ -145,7 +145,9 @@ public final class PackIconParity {
             if (!subject.getAsJsonArray("models").isEmpty())
                 options.context(ItemContext.ofStack(LeafStacks.itemStack(item, NbtFactory.fromSnbt(subject.get("components").getAsString()))));
             ImageData java = renderer.render(options.build()).image();
-            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
+            PixelBuffer held = java.toPixelBuffer();
+            // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
+            BufferedImage javaImg = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 

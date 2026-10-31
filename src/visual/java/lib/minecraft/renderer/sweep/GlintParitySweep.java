@@ -303,8 +303,9 @@ public final class GlintParitySweep {
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
+        // Each PNG holds premultiplied colour as the harness's do: a frame's held ints are its bytes.
         List<BufferedImage> out = new ArrayList<>(frames.size());
-        for (PixelBuffer frame : frames) out.add(frame.toBufferedImage());
+        for (PixelBuffer frame : frames) out.add(PixelBuffer.ofStraight(frame.data(), frame.width(), frame.height()).toBufferedImage());
         return out;
     }
 
@@ -342,8 +343,9 @@ public final class GlintParitySweep {
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 
+        // Each PNG holds premultiplied colour as the harness's do: a frame's held ints are its bytes.
         List<BufferedImage> out = new ArrayList<>(frames.size());
-        for (PixelBuffer frame : frames) out.add(frame.toBufferedImage());
+        for (PixelBuffer frame : frames) out.add(PixelBuffer.ofStraight(frame.data(), frame.width(), frame.height()).toBufferedImage());
         return out;
     }
 

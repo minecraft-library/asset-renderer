@@ -75,7 +75,7 @@ class RasterizerDepthReuseTest {
      * @return the canvas
      */
     private static @NotNull PixelBuffer draw(int size, @NotNull Matrix4f transform) {
-        PixelBuffer buffer = PixelBuffer.create(size, size);
+        PixelBuffer buffer = PixelBuffer.canvas(size, size);
         new Rasterizer(CAMERA).rasterize(square(transform == NEAR ? 0xFFFF0000 : 0xFF0000FF), buffer, transform);
         return buffer;
     }
@@ -125,7 +125,7 @@ class RasterizerDepthReuseTest {
      * @return the square's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> square(int argb) {
-        PixelBuffer texture = PixelBuffer.create(2, 2);
+        PixelBuffer texture = PixelBuffer.straight(2, 2);
         texture.fill(argb);
         SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false);
         Vector3f normal = new Vector3f(0f, 0f, 1f);

@@ -243,7 +243,7 @@ public final class LoreTooltipDriver {
         // Also emit the first frame as a static WebP so static-only VP8L issues can
         // be isolated from animation-chunk wrapping issues.
         File webpStaticOut = OUTPUT_DIR.resolve(slug + "_static.webp").toFile();
-        ImageData staticImage = StaticImageData.of(image.toPixelBuffer(), image.getAlphaMode());
+        ImageData staticImage = StaticImageData.of(image.toPixelBuffer());
         ImageFactory.toFile(
             staticImage,
             ImageFormat.WEBP,

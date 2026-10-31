@@ -10,6 +10,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.frame.LoopCount;
 import dev.simplified.image.option.GifWriteOptions;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.call.request.ArmorOptions;
@@ -439,7 +440,7 @@ public final class PlayerRenderDriver {
 
     private static @NotNull BufferedImage render(@NotNull PlayerRenderer renderer, @NotNull PlayerOptions options) {
         ImageData image = renderer.render(options).image();
-        return image.toBufferedImage();
+        return image.toPixelBuffer(AlphaMode.STRAIGHT).toBufferedImage();
     }
 
     /** Lays out pre-rendered cells in a labelled grid over a checkerboard and writes the sheet PNG. */

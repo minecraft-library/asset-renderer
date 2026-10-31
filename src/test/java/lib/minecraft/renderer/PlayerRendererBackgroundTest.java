@@ -59,7 +59,7 @@ class PlayerRendererBackgroundTest {
 
             // The head's whole base layer, so whichever face the flat layout crops reads the texel; the
             // hat layer from x 32 stays clear.
-            PixelBuffer sheet = PixelBuffer.create(64, 64);
+            PixelBuffer sheet = PixelBuffer.straight(64, 64);
             sheet.fillRect(0, 0, 32, 16, row[0]);
             byte[] png = ImageFactory.toByteArray(StaticImageData.of(sheet), ImageFormat.PNG);
 

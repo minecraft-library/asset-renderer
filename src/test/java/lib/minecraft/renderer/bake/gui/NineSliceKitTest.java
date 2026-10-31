@@ -102,7 +102,7 @@ class NineSliceKitTest {
         assumeSprites();
         PixelBuffer bg = load("background.png");
         MCMeta.GuiScaling gui = scaling("background.png.mcmeta");
-        PixelBuffer canvas = PixelBuffer.create(CANVAS_W, CANVAS_H);
+        PixelBuffer canvas = PixelBuffer.canvas(CANVAS_W, CANVAS_H);
 
         NineSliceKit.draw(canvas, bg, gui, BLIT_X, BLIT_Y, BLIT_W, BLIT_H, 1.0f);
 
@@ -121,7 +121,7 @@ class NineSliceKitTest {
         assumeSprites();
         PixelBuffer frame = load("frame.png");
         MCMeta.GuiScaling gui = scaling("frame.png.mcmeta");
-        PixelBuffer canvas = PixelBuffer.create(CANVAS_W, CANVAS_H);
+        PixelBuffer canvas = PixelBuffer.canvas(CANVAS_W, CANVAS_H);
 
         NineSliceKit.draw(canvas, frame, gui, BLIT_X, BLIT_Y, BLIT_W, BLIT_H, 1.0f);
 
@@ -146,7 +146,7 @@ class NineSliceKitTest {
         assumeSprites();
         PixelBuffer frame = load("frame.png");
         MCMeta.GuiScaling gui = scaling("frame.png.mcmeta");
-        PixelBuffer canvas = PixelBuffer.create(CANVAS_W, CANVAS_H);
+        PixelBuffer canvas = PixelBuffer.canvas(CANVAS_W, CANVAS_H);
 
         NineSliceKit.draw(canvas, frame, gui, BLIT_X, BLIT_Y, BLIT_W, BLIT_H, 0.5f);
 
@@ -210,7 +210,7 @@ class NineSliceKitTest {
      * @param mul the alpha multiplier
      */
     private static void assertExtentIsDrawn(String label, PixelBuffer sprite, MCMeta.GuiScaling gui, int wMcPx, int hMcPx, float mul) {
-        PixelBuffer canvas = PixelBuffer.create(wMcPx * PX_PER_MCPX, hMcPx * PX_PER_MCPX);
+        PixelBuffer canvas = PixelBuffer.canvas(wMcPx * PX_PER_MCPX, hMcPx * PX_PER_MCPX);
         NineSliceKit.draw(canvas, sprite, gui, 0, 0, wMcPx, hMcPx, mul);
         Rectangle drawn = canvas.opaqueBounds();
         Optional<Rectangle2D> expected = drawn.isEmpty() ? Optional.empty() : Optional.of(TextKit.mcPixels(drawn));
@@ -228,7 +228,7 @@ class NineSliceKitTest {
      * @return the sprite
      */
     private static PixelBuffer opaqueSquare(int size, int first, int last) {
-        PixelBuffer sprite = PixelBuffer.create(size, size);
+        PixelBuffer sprite = PixelBuffer.straight(size, size);
         for (int y = first; y <= last; y++)
             for (int x = first; x <= last; x++)
                 sprite.setPixel(x, y, 0xFFFFFFFF);
@@ -244,7 +244,7 @@ class NineSliceKitTest {
      * @return the sprite
      */
     private static PixelBuffer distinctTexels(int width, int height) {
-        PixelBuffer sprite = PixelBuffer.create(width, height);
+        PixelBuffer sprite = PixelBuffer.straight(width, height);
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
                 sprite.setPixel(x, y, 0xFF000000 | (x << 16) | (y << 8) | 0x55);
@@ -290,9 +290,9 @@ class NineSliceKitTest {
     @DisplayName("stretch mode expands a 2x2 sprite across quadrants")
     void stretchExpandsSprite() {
         int[] px = {0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFFFF}; // R G B W, row-major
-        PixelBuffer sprite = PixelBuffer.of(px, 2, 2);
+        PixelBuffer sprite = PixelBuffer.ofStraight(px, 2, 2);
         MCMeta.GuiScaling gui = new MCMeta.GuiScaling.Stretch();
-        PixelBuffer dest = PixelBuffer.create(4, 4);
+        PixelBuffer dest = PixelBuffer.canvas(4, 4);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 2, 2, 1.0f);
 
@@ -306,9 +306,9 @@ class NineSliceKitTest {
     @DisplayName("tile mode repeats the sprite from the top-left")
     void tileRepeatsSprite() {
         int[] px = {0xFFAAAAAA, 0xFFBBBBBB, 0xFFCCCCCC, 0xFFDDDDDD};
-        PixelBuffer sprite = PixelBuffer.of(px, 2, 2);
+        PixelBuffer sprite = PixelBuffer.ofStraight(px, 2, 2);
         MCMeta.GuiScaling gui = new MCMeta.GuiScaling.Tile(2, 2);
-        PixelBuffer dest = PixelBuffer.create(8, 8);
+        PixelBuffer dest = PixelBuffer.canvas(8, 8);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 4, 4, 1.0f);
 
@@ -323,7 +323,7 @@ class NineSliceKitTest {
         // A 4x4 tile declared 2x2 over a 4x2 mcPx rect: each 2x2 mcPx tile is 4x4 output px reading the
         // 4x4 texture one texel per output pixel, so all four columns are drawn and repeat with the tile.
         PixelBuffer tileTexture = distinctTexels(4, 4);
-        PixelBuffer tiled = PixelBuffer.create(8, 4);
+        PixelBuffer tiled = PixelBuffer.canvas(8, 4);
         NineSliceKit.draw(tiled, tileTexture, new MCMeta.GuiScaling.Tile(2, 2), 0, 0, 4, 2, 1.0f);
         assertThat("tile declared 2x2 reads every texel", pixels(tiled, 8, 4),
             is(texelsRead(tileTexture, 8, 4, p -> p % 4, q -> q)));
@@ -331,7 +331,7 @@ class NineSliceKitTest {
         // A 20x20 nine-slice declared 10x10 with a border of 2: its top-left corner is 2x2 mcPx, 4x4
         // output px, reading texels (0..3, 0..3) one each.
         PixelBuffer nineTexture = distinctTexels(20, 20);
-        PixelBuffer nine = PixelBuffer.create(24, 24);
+        PixelBuffer nine = PixelBuffer.canvas(24, 24);
         NineSliceKit.draw(nine, nineTexture,
             new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), true),
             0, 0, 12, 12, 1.0f);
@@ -344,7 +344,7 @@ class NineSliceKitTest {
                 "{\"gui\":{\"scaling\":{\"type\":\"stretch\",\"width\":2,\"height\":2}}}", new ResourceId("minecraft", "tooltip"))
             .gui().orElseThrow();
         PixelBuffer stretchTexture = distinctTexels(4, 4);
-        PixelBuffer stretched = PixelBuffer.create(4, 4);
+        PixelBuffer stretched = PixelBuffer.canvas(4, 4);
         NineSliceKit.draw(stretched, stretchTexture, stretch, 0, 0, 2, 2, 1.0f);
         assertThat("stretch declaring 2x2 reads every texel", pixels(stretched, 4, 4),
             is(texelsRead(stretchTexture, 4, 4, p -> p, q -> q)));
@@ -354,7 +354,7 @@ class NineSliceKitTest {
     @DisplayName("a rect the nine-slice's declared size draws the whole sprite one Minecraft pixel per texel")
     void theWholeSpriteBranchDrawsTheSpriteOneToOne() {
         PixelBuffer sprite = distinctTexels(6, 6);
-        PixelBuffer dest = PixelBuffer.create(12, 12);
+        PixelBuffer dest = PixelBuffer.canvas(12, 12);
 
         NineSliceKit.draw(dest, sprite,
             new MCMeta.GuiScaling.NineSlice(6, 6, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), false),
@@ -370,7 +370,7 @@ class NineSliceKitTest {
         // texel columns 0-1, 18-21 the right border's 4-5, and the 14 between the centre's 2-3.
         PixelBuffer sprite = distinctTexels(6, 6);
         for (boolean stretchInner : new boolean[]{false, true}) {
-            PixelBuffer dest = PixelBuffer.create(22, 12);
+            PixelBuffer dest = PixelBuffer.canvas(22, 12);
             NineSliceKit.draw(dest, sprite,
                 new MCMeta.GuiScaling.NineSlice(6, 6, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), stretchInner),
                 0, 0, 11, 6, 1.0f);
@@ -388,7 +388,7 @@ class NineSliceKitTest {
         // texel rows 0-1, 18-21 the bottom border's 4-5, and the 14 between the centre's 2-3.
         PixelBuffer sprite = distinctTexels(6, 6);
         for (boolean stretchInner : new boolean[]{false, true}) {
-            PixelBuffer dest = PixelBuffer.create(12, 22);
+            PixelBuffer dest = PixelBuffer.canvas(12, 22);
             NineSliceKit.draw(dest, sprite,
                 new MCMeta.GuiScaling.NineSlice(6, 6, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), stretchInner),
                 0, 0, 6, 11, 1.0f);
@@ -407,7 +407,7 @@ class NineSliceKitTest {
         // 4 mcPx, so a stretched centre reads each of its columns twice in turn and a tiled one repeats
         // the pair.
         int[] columns = {0xFF111111, 0xFF222222, 0xFF333333, 0xFF444444};
-        PixelBuffer sprite = PixelBuffer.of(columns, 4, 1);
+        PixelBuffer sprite = PixelBuffer.ofStraight(columns, 4, 1);
         MCMeta.GuiScaling.NineSlice.Border border = new MCMeta.GuiScaling.NineSlice.Border(1, 0, 1, 0);
 
         assertThat("stretched centre", drawnRow(sprite, new MCMeta.GuiScaling.NineSlice(4, 1, border, true), 6),
@@ -426,7 +426,7 @@ class NineSliceKitTest {
      * @return the drawn row's pixels, left to right
      */
     private static int[] drawnRow(PixelBuffer sprite, MCMeta.GuiScaling gui, int widthMcPx) {
-        PixelBuffer dest = PixelBuffer.create(widthMcPx * PX_PER_MCPX, PX_PER_MCPX);
+        PixelBuffer dest = PixelBuffer.canvas(widthMcPx * PX_PER_MCPX, PX_PER_MCPX);
         NineSliceKit.draw(dest, sprite, gui, 0, 0, widthMcPx, 1, 1.0f);
         return pixels(dest, dest.width(), 1);
     }
@@ -452,12 +452,12 @@ class NineSliceKitTest {
         // of the top row and the three of the bottom row 0 mcPx tall. Every output row reads as the
         // one-high rect's does, each column stretched or tiled down the 3 mcPx.
         int[] columns = {0xFF111111, 0xFF222222, 0xFF333333, 0xFF444444};
-        PixelBuffer sprite = PixelBuffer.of(columns, 4, 1);
+        PixelBuffer sprite = PixelBuffer.ofStraight(columns, 4, 1);
         MCMeta.GuiScaling.NineSlice.Border border = new MCMeta.GuiScaling.NineSlice.Border(1, 0, 1, 0);
         for (boolean stretchInner : new boolean[]{true, false}) {
             MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(4, 1, border, stretchInner);
             int[] texelColumn = stretchInner ? new int[]{0, 1, 1, 2, 2, 3} : new int[]{0, 1, 2, 1, 2, 3};
-            PixelBuffer dest = PixelBuffer.create(6 * PX_PER_MCPX, 3 * PX_PER_MCPX);
+            PixelBuffer dest = PixelBuffer.canvas(6 * PX_PER_MCPX, 3 * PX_PER_MCPX);
             NineSliceKit.draw(dest, sprite, gui, 0, 0, 6, 3, 1.0f);
 
             assertThat("stretch_inner " + stretchInner, pixels(dest, dest.width(), dest.height()),
@@ -477,9 +477,9 @@ class NineSliceKitTest {
         for (int y = 0; y < 20; y++)
             for (int x = 0; x < 20; x++)
                 px[y * 20 + x] = x == 0 ? 0xFF0000FF : x == 19 ? 0xFFFF0000 : 0xFF808080;
-        PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
+        PixelBuffer sprite = PixelBuffer.ofStraight(px, 20, 20);
         MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(20, 20, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
-        PixelBuffer dest = PixelBuffer.create(10, 10);
+        PixelBuffer dest = PixelBuffer.canvas(10, 10);
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 5, 5, 1.0f);
 
@@ -492,9 +492,9 @@ class NineSliceKitTest {
     void degenerateRectClamps() {
         int[] px = new int[20 * 20];
         Arrays.fill(px, 0xFF808080);
-        PixelBuffer sprite = PixelBuffer.of(px, 20, 20);
+        PixelBuffer sprite = PixelBuffer.ofStraight(px, 20, 20);
         MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(20, 20, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
-        PixelBuffer dest = PixelBuffer.create(10, 10);
+        PixelBuffer dest = PixelBuffer.canvas(10, 10);
 
         // 9+9 border mcPx exceed the 5 mcPx rect; must clamp rather than throw / read OOB.
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 5, 5, 1.0f);

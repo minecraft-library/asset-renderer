@@ -139,7 +139,7 @@ class WindowVanillaOracleTest {
 
     /** Paints a container's panel and every cell at the font's scale. */
     private static PixelBuffer paint(Container container) {
-        PixelBuffer buffer = PixelBuffer.create(container.width() * S, container.height() * S);
+        PixelBuffer buffer = PixelBuffer.canvas(container.width() * S, container.height() * S);
         Window window = Window.Theme.VANILLA;
 
         window.paintPanel(buffer, new Window.Box(0, 0, container.width(), container.height()));
@@ -235,7 +235,7 @@ class WindowVanillaOracleTest {
     private static PixelBuffer composedChest(int rows) {
         PixelBuffer sheet = shipped(genericFiftyFour());
         int split = rows * ScreenMetrics.CELL + 17;
-        PixelBuffer out = PixelBuffer.create(176, split + 96);
+        PixelBuffer out = PixelBuffer.straight(176, split + 96);
 
         for (int y = 0; y < split; y++)
             for (int x = 0; x < 176; x++) out.setPixel(x, y, sheet.getPixel(x, y));
@@ -251,7 +251,7 @@ class WindowVanillaOracleTest {
     void everyChestRowCountReproducesItsComposedPanel() {
         for (int rows : new int[] { 1, 2, 3, 6 }) {
             MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(rows), true);
-            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
+            PixelBuffer chrome = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
             Window window = Window.Theme.VANILLA;
 
             window.paintPanel(chrome, layout.box());
@@ -276,7 +276,7 @@ class WindowVanillaOracleTest {
     @DisplayName("the anvil leaves only the dead field its art carries and the client always covers")
     void theAnvilLeavesOnlyTheDeadFieldItsArtCarries() {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
-        PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
+        PixelBuffer chrome = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
         Window window = Window.Theme.VANILLA;
 
         window.paintPanel(chrome, layout.box());
@@ -345,7 +345,7 @@ class WindowVanillaOracleTest {
             // On a panel-filled buffer, because the well hands two corners over the way the frame's own
             // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
             // there is the panel's own grey.
-            PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+            PixelBuffer chrome = PixelBuffer.canvas(w * S, h * S);
             chrome.fill(Window.Palette.VANILLA.panel());
             Window.Theme.VANILLA.paintDecoration(chrome, Window.Box.of(field.at(0, 0)), field);
             PixelBuffer painted = readDown(chrome);
@@ -371,7 +371,7 @@ class WindowVanillaOracleTest {
             int held = state;
             boolean first = (held & 1) != 0, second = (held & 2) != 0, result = (held & 4) != 0;
             MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(slot -> (held >> slot & 1) != 0), true);
-            PixelBuffer chrome = PixelBuffer.create(layout.width() * S, layout.height() * S);
+            PixelBuffer chrome = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
             Window window = Window.Theme.VANILLA;
 
             window.paintPanel(chrome, layout.box());
@@ -384,7 +384,7 @@ class WindowVanillaOracleTest {
             // The client's frame, from AnvilScreen's own draws: the sheet, then text_field at (59, 20)
             // while the first input holds an item and text_field_disabled otherwise, then error at
             // (99, 45) while either input holds one and the result holds none.
-            PixelBuffer frame = PixelBuffer.create(176, 166);
+            PixelBuffer frame = PixelBuffer.canvas(176, 166);
             frame.blit(sheet.crop(0, 0, 176, 166), 0, 0, BlendMode.REPLACE);
             frame.blit(texture(first ? TEXT_FIELD : TEXT_FIELD_DISABLED), 59, 20, BlendMode.NORMAL);
             if ((first || second) && !result)
@@ -410,14 +410,14 @@ class WindowVanillaOracleTest {
 
         // Both on a panel-filled buffer, because each leaves its chamfered corners to what it stands on.
         // The theme's bevel takes the item on its face as the menu lays an icon there.
-        PixelBuffer chrome = PixelBuffer.create(w * S, h * S);
+        PixelBuffer chrome = PixelBuffer.canvas(w * S, h * S);
         chrome.fill(Window.Palette.VANILLA.panel());
         Window.Theme.VANILLA.paintDecoration(chrome, new Window.Box(0, 0, w, h), Mark.BUTTON);
         PixelBuffer theme = readDown(chrome);
         Mark.Inset face = Mark.BUTTON.iconInset().orElseThrow();
         theme.blit(texture(KNOWLEDGE_BOOK), face.x(), face.y(), BlendMode.NORMAL);
 
-        PixelBuffer client = PixelBuffer.create(w, h);
+        PixelBuffer client = PixelBuffer.canvas(w, h);
         client.fill(Window.Palette.VANILLA.panel());
         client.blit(texture(RECIPE_BUTTON), 0, 0, BlendMode.NORMAL);
 
@@ -456,7 +456,7 @@ class WindowVanillaOracleTest {
         assertThat("slot sprite resolves", resolved.isPresent(), is(true));
 
         PixelBuffer sprite = resolved.get();
-        PixelBuffer chrome = PixelBuffer.create(SLOT * S, SLOT * S);
+        PixelBuffer chrome = PixelBuffer.canvas(SLOT * S, SLOT * S);
         Window.Theme.VANILLA.paintCell(chrome, new Window.Box(0, 0, SLOT, SLOT));
         PixelBuffer painted = readDown(chrome);
 
@@ -487,7 +487,7 @@ class WindowVanillaOracleTest {
     void theMinimumPanelIsTheSmallestThatPaintsAWholeFrame() {
         Window.Extent minimum = Window.Theme.VANILLA.minimum();
 
-        PixelBuffer chromeAtFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        PixelBuffer chromeAtFloor = PixelBuffer.canvas(minimum.width() * S, minimum.height() * S);
         Window.Theme.VANILLA.paintPanel(chromeAtFloor, new Window.Box(0, 0, minimum.width(), minimum.height()));
         PixelBuffer atFloor = readDown(chromeAtFloor);
 
@@ -502,7 +502,7 @@ class WindowVanillaOracleTest {
         // that hand the highlight over to the shadow cut 6 each.
         assertThat("painted at the floor", painted, is(equalTo(minimum.width() * minimum.height() - 18)));
 
-        PixelBuffer chromeBelowFloor = PixelBuffer.create(minimum.width() * S, minimum.height() * S);
+        PixelBuffer chromeBelowFloor = PixelBuffer.canvas(minimum.width() * S, minimum.height() * S);
         Window.Theme.VANILLA.paintPanel(chromeBelowFloor, new Window.Box(0, 0, minimum.width() - 1, minimum.height()));
         PixelBuffer belowFloor = readDown(chromeBelowFloor);
 

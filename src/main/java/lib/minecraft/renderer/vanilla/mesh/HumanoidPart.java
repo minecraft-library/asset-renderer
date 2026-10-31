@@ -299,7 +299,7 @@ public enum HumanoidPart {
             }
         }
 
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
     /**

@@ -174,7 +174,7 @@ public class ItemTint {
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
         RendererContext textures = context.withMissingTexture();
         PixelBuffer base = Flipbook.atTick(textures.resolveTexture(layer0Ref), textures.findFlipbook(layer0Ref), tick).get();
-        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
+        PixelBuffer composite = PixelBuffer.straight(base.width(), base.height());
 
         int layerIndex = 0;
         while (true) {

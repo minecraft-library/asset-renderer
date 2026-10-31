@@ -1,11 +1,14 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.EntityOptions;
@@ -14,16 +17,20 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -158,6 +165,28 @@ class EntityDrawsNothingTest {
     }
 
     @Test
+    @DisplayName("a row whose bones hold no cube draws a clear canvas the render's size, held premultiplied as every render is")
+    void aRowOfCubelessBonesDrawsAClearCanvas() {
+        EntityMesh cubeless = new EntityMesh();
+        cubeless.getBones().put("body", new EntityMesh.Bone());
+        Entity row = Entity.builder()
+            .id(ResourceId.parse(CUSTOM))
+            .model(cubeless)
+            .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(),
+                new Entity.Variation<>(Concurrent.newUnmodifiableMap(Map.of(Entity.BASE_STATE, "custom/cubeless")), Optional.of(Entity.BASE_STATE)),
+                Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
+            .build();
+        RendererContext context = RendererContext.builder().entities(Map.of(CUSTOM, row)).build();
+        assertThat("the row has bones, so it draws", context.findEntity(CUSTOM).getState(), is(Possible.State.PRESENT));
+
+        ImageData image = new EntityRenderer(context).render(EntityOptions.of(CUSTOM)).image();
+        assertThat("one frame", image.getFrames().size(), is(1));
+        assertThat("wider than the empty image", image.getWidth(), is(greaterThan(1)));
+        assertThat("every pixel clear", Arrays.stream(RenderDigest.firstFramePixels(image)).allMatch(argb -> argb == 0), is(true));
+        assertThat("a canvas", image.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+    }
+
+    @Test
     @DisplayName("the production context draws an empty frame for each type vanilla draws nothing for, and still refuses an id with no row")
     void theProductionContextDrawsNothingForTheThree() {
         // Only this method and the group union below need the client: installing the extension would
@@ -250,6 +279,7 @@ class EntityDrawsNothingTest {
         assertThat(label + " is one pixel high", frame.pixels().height(), is(1));
         assertThat(label + " holds the background alone", RenderDigest.firstFramePixels(image),
             is(new int[] { argb }));
+        assertThat(label + " is a canvas", image.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     /**

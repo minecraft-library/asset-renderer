@@ -72,7 +72,7 @@ class ElytraKitCitTest {
      */
     private static @NotNull RecordingContext recording(@NotNull CitResult cit) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Possible.of(PixelBuffer.create(64, 32)))
+                .textures(id -> Possible.of(PixelBuffer.straight(64, 32)))
                 .build())
             .answeringEquipment(List.of(
                 new EquipmentModel.Layer(new ResourceId("minecraft", "elytra"), Optional.empty(), true)))

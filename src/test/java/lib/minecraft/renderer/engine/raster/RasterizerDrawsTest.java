@@ -123,7 +123,7 @@ class RasterizerDrawsTest {
             .rotate(Quaternionf.rotationXYZ(0.4f, 0.7f, 0.1f))
             .scale(1.5f, 1.5f, 1.5f);
 
-        PixelBuffer single = PixelBuffer.create(SIZE, SIZE);
+        PixelBuffer single = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(square, single, transform);
 
         assertThat(draw(List.of(new DrawPart(square, transform))).data(), is(single.data()));
@@ -144,7 +144,7 @@ class RasterizerDrawsTest {
         assertThat(nearFirst.data(), is(farFirst.data()));
         assertThat(nearFirst.getPixel(CENTRE, CENTRE), is(nearAlone.getPixel(CENTRE, CENTRE)));
 
-        PixelBuffer separate = PixelBuffer.create(SIZE, SIZE);
+        PixelBuffer separate = PixelBuffer.canvas(SIZE, SIZE);
         Rasterizer engine = new Rasterizer(CAMERA);
         engine.rasterize(near, separate, NEAR);
         engine.rasterize(far, separate, FAR);
@@ -168,7 +168,7 @@ class RasterizerDrawsTest {
         both.addAll(square(0xFFFF0000));
         both.addAll(square(0xFF0000FF));
 
-        PixelBuffer tied = PixelBuffer.create(SIZE, SIZE);
+        PixelBuffer tied = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(both, tied, NEAR);
         assertThat(tied.data(), is(draw(List.of(new DrawPart(square(0xFF0000FF), NEAR))).data()));
     }
@@ -246,7 +246,7 @@ class RasterizerDrawsTest {
                 joined(List.of(offOneAxis, whole)), BANDED, BANDED, KEPT, false));
 
         for (Arm arm : table) {
-            PixelBuffer buffer = PixelBuffer.create(arm.width(), arm.height());
+            PixelBuffer buffer = PixelBuffer.canvas(arm.width(), arm.height());
             Rasterizer rasterizer = new Rasterizer(CAMERA);
             boolean oneBand = rasterizer.drawsInOneBand(arm.triangles(), buffer, Matrix4f.IDENTITY, arm.serialWorkFloor());
             assertThat(arm.name(), oneBand, is(arm.oneBand()));
@@ -260,7 +260,7 @@ class RasterizerDrawsTest {
      * @return the canvas
      */
     private static @NotNull PixelBuffer draw(@NotNull List<DrawPart> draws) {
-        PixelBuffer buffer = PixelBuffer.create(SIZE, SIZE);
+        PixelBuffer buffer = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterizeAll(draws, buffer);
         return buffer;
     }
@@ -279,7 +279,7 @@ class RasterizerDrawsTest {
         int serialWorkFloor,
         int cores
     ) {
-        PixelBuffer buffer = PixelBuffer.create(BANDED, BANDED);
+        PixelBuffer buffer = PixelBuffer.canvas(BANDED, BANDED);
         new Rasterizer(CAMERA).rasterize(triangles, buffer, Matrix4f.IDENTITY, serialWorkFloor, cores);
         return buffer;
     }
@@ -382,7 +382,7 @@ class RasterizerDrawsTest {
      * @return the texture
      */
     private static @NotNull PixelBuffer texture(int argb) {
-        PixelBuffer texture = PixelBuffer.create(2, 2);
+        PixelBuffer texture = PixelBuffer.straight(2, 2);
         texture.fill(argb);
         return texture;
     }
@@ -395,7 +395,7 @@ class RasterizerDrawsTest {
      * @return the square's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> square(int argb) {
-        PixelBuffer texture = PixelBuffer.create(2, 2);
+        PixelBuffer texture = PixelBuffer.straight(2, 2);
         texture.fill(argb);
         SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false);
         Vector3f normal = new Vector3f(0f, 0f, 1f);

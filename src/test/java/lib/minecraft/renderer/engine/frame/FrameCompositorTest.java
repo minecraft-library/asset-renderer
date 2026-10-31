@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.is;
  * can drive the merged loop past {@link Timeline#MAX_LOOP_MS}. Both are pinned below, the second
  * because it is a way the merge can now degrade that uniform 50 ms periods could not reach.
  * <p>
- * Either result is marked {@link AlphaMode#PREMULTIPLIED}, and an animated composite lays a
- * see-through fill down premultiplied, the convention of the finished renders laid over it.
+ * Either result is marked {@link AlphaMode#PREMULTIPLIED}: every frame is a canvas holding the fill,
+ * a see-through one included, and each placement is laid over it in the convention its picture holds.
  */
 @DisplayName("FrameCompositor.merge - result-type dispatch and merged loop length")
 class FrameCompositorTest {
@@ -55,6 +55,10 @@ class FrameCompositorTest {
         ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
         assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+
+        // The second layer is straight, so it is laid by the formula a GPU lays a straight texel with:
+        // half green over opaque red is FF7F8000, where laid as premultiplied colour it is FF7FFF00.
+        assertThat("the straight layer over the opaque one", result.toPixelBuffer().getPixel(0, 0), is(0xFF7F8000));
     }
 
     @Test
@@ -142,7 +146,7 @@ class FrameCompositorTest {
     private static @NotNull PixelBuffer solidImage(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
     /**

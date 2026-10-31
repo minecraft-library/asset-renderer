@@ -163,7 +163,7 @@ class CompositeResultTest {
      * @return the still
      */
     private static @NotNull ImageData solid(int width, int height, int argb) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.canvas(width, height);
         buffer.fill(argb);
         return Timeline.still(buffer);
     }

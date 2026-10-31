@@ -94,7 +94,7 @@ class FlipbookTickStripTest {
      * falls back to the strip's width, so a strip {@code frameCount} tall holds exactly that many.
      */
     private static @NotNull Flipbook flipbook(int frameCount, @NotNull MCMeta.Animation animation) {
-        return Flipbook.of(PixelBuffer.create(1, frameCount), animation).orElseThrow();
+        return Flipbook.of(PixelBuffer.straight(1, frameCount), animation).orElseThrow();
     }
 
     /** fire_0.png.mcmeta: 32 bare frame indices [16..31, 0..15], default frametime (1 tick each). */

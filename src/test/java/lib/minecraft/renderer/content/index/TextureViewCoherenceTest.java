@@ -271,7 +271,7 @@ class TextureViewCoherenceTest {
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
             SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
 
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.straight(16, 16);
         bases = new LinkedHashMap<>();
         bases.put("production", production);
         bases.put("in-memory", RendererContext.builder().textures(Map.of(MEMORY_PRESENT, buffer)).build());
@@ -506,7 +506,7 @@ class TextureViewCoherenceTest {
      * @return the context and its wrappers
      */
     private static @NotNull Map<String, RendererContext> wrappers(@NotNull RendererContext base) {
-        PixelBuffer frame = PixelBuffer.create(16, 16);
+        PixelBuffer frame = PixelBuffer.straight(16, 16);
         Map<String, RendererContext> contexts = new LinkedHashMap<>();
         contexts.put("unwrapped", base);
         contexts.put("withTextures", base.withTextures(id -> switch (id) {
@@ -532,7 +532,7 @@ class TextureViewCoherenceTest {
     private static @NotNull Map<String, UnaryOperator<RendererContext>> wrapperOperators() {
         Map<String, UnaryOperator<RendererContext>> wrappers = new LinkedHashMap<>();
         wrappers.put("withTextures", context -> context.withTextures(id -> Possible.absent()));
-        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.create(16, 16)));
+        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.straight(16, 16)));
         wrappers.put("withMissingTexture", RendererContext::withMissingTexture);
         wrappers.put("hiding", context -> context.hiding(HIDDEN));
         wrappers.put("withEntities", context -> context.withEntities(Map.of()));

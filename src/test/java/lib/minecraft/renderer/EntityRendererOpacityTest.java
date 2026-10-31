@@ -163,7 +163,7 @@ class EntityRendererOpacityTest {
     private static @NotNull PixelBuffer solid(int argb) {
         int[] pixels = new int[64 * 64];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, 64, 64);
+        return PixelBuffer.ofStraight(pixels, 64, 64);
     }
 
 }

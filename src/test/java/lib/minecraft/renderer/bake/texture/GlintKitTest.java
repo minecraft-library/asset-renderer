@@ -107,7 +107,7 @@ class GlintKitTest {
                 pixels[y * 16 + x] = x < 8 ? 0xFFFF0000 : 0x00000000;
             }
         }
-        PixelBuffer base = PixelBuffer.of(pixels, 16, 16);
+        PixelBuffer base = PixelBuffer.ofPremultiplied(pixels, 16, 16);
         PixelBuffer glint = solidBuffer(32, 32, 0xFFFFFFFF);
 
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1));
@@ -123,7 +123,7 @@ class GlintKitTest {
     private static PixelBuffer solidBuffer(int width, int height, int argb) {
         int[] pixels = new int[width * height];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, width, height);
+        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
 }

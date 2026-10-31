@@ -59,7 +59,7 @@ class StripMemoTest {
 
         Map<String, RendererContext> wrappers = new LinkedHashMap<>();
         wrappers.put("withTextures", context.withTextures(id -> Possible.absent()));
-        wrappers.put("withTexture", context.withTexture("minecraft:test", PixelBuffer.create(16, 16)));
+        wrappers.put("withTexture", context.withTexture("minecraft:test", PixelBuffer.straight(16, 16)));
         wrappers.put("withMissingTexture", context.withMissingTexture());
         wrappers.put("hiding", context.hiding("minecraft:test"));
         wrappers.put("collecting", context.collecting(new SubstitutionCollector()));

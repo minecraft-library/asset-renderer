@@ -202,7 +202,7 @@ class EntityOverlayTextureTest {
     private static @NotNull PixelBuffer solid(int argb) {
         int[] pixels = new int[128 * 128];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, 128, 128);
+        return PixelBuffer.ofStraight(pixels, 128, 128);
     }
 
 }

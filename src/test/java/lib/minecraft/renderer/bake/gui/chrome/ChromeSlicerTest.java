@@ -43,7 +43,7 @@ class ChromeSlicerTest {
     }
 
     private static PixelBuffer crop(PixelBuffer source, int width, int height) {
-        PixelBuffer out = PixelBuffer.create(width, height);
+        PixelBuffer out = PixelBuffer.straight(width, height);
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
                 out.setPixel(x, y, source.getPixel(x, y));

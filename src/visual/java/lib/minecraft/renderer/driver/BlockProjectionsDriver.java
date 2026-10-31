@@ -2,6 +2,8 @@ package lib.minecraft.renderer.driver;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
@@ -12,7 +14,6 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -108,7 +109,7 @@ public final class BlockProjectionsDriver {
                     .build())
                 .build()).image();
             File outputFile = outputDir.resolve(name + ".png").toFile();
-            ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
+            ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
             System.out.println("Wrote " + outputFile.getName());
         } catch (Exception ex) {
             System.err.println("FAILED " + name + ": " + ex.getMessage());

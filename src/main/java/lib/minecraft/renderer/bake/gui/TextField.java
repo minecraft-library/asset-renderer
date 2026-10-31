@@ -84,7 +84,7 @@ public class TextField {
         String shown = visibleTail(typed, well.innerWidth());
         if (shown.isEmpty() && !options.isCaret()) return;
 
-        PixelBuffer buffer = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
+        PixelBuffer buffer = PixelBuffer.canvas(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
         int penX = field.get().x() + well.inset().x();
         int textY = field.get().y() + well.inset().y();

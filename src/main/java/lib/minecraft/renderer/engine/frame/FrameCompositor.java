@@ -10,9 +10,7 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
-import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import org.jetbrains.annotations.NotNull;
 
@@ -37,10 +35,11 @@ import java.util.function.LongFunction;
  * <p>
  * Each sampled picture is drawn at its placement's origin: rescaled into the placement's
  * {@link FramePlacement#extent() extent} by {@link PixelBuffer#blitScaled} when it carries one, and
- * blitted at the picture's own size when it does not. Either way a placement is laid down with
- * {@link BlendMode#PREMULTIPLIED}, because it is a finished render whose colours already carry their
- * alpha - except a picture built up from partial frames, which is composed as a viewer composes a
- * decoded file and so holds colours that do not, and is laid down with {@link BlendMode#NORMAL}.
+ * blitted at the picture's own size when it does not. Either way it is laid source-over onto a
+ * {@link PixelBuffer#canvas canvas} in the convention it holds: a render, itself a canvas, by the
+ * premultiplied formula, so a translucent pixel over a clear one stays as it was drawn, and a straight
+ * picture - one read from a file, or built up from a straight animation's partial frames - by the
+ * formula a GPU lays a straight texel with.
  */
 @UtilityClass
 public class FrameCompositor {
@@ -53,8 +52,8 @@ public class FrameCompositor {
      * loop periods (capped at {@link Timeline#MAX_LOOP_MS}), so every animated placement completes a
      * whole number of loops, sampled at {@code framesPerSecond}.
      * <p>
-     * The fill is laid down premultiplied and every placement is laid over it as a finished render, so
-     * either image is marked {@link AlphaMode#PREMULTIPLIED}.
+     * Every frame is a canvas holding the fill, with each placement laid over it in the convention its
+     * picture holds, so either image holds premultiplied colour.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param canvasW the canvas width in pixels
@@ -65,19 +64,19 @@ public class FrameCompositor {
      */
     public static @NotNull ImageData merge(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
-        ConcurrentList<Sampler> samplers = layers.stream()
+        ConcurrentList<LongFunction<PixelBuffer>> samplers = layers.stream()
             .map(layer -> sampler(layer.source()))
             .collect(Concurrent.toList());
 
         if (!anyAnimated)
-            return StaticImageData.of(renderFrame(layers, samplers, canvasW, canvasH, background, 0), AlphaMode.PREMULTIPLIED);
+            return StaticImageData.of(renderFrame(layers, samplers, canvasW, canvasH, background, 0));
 
         long mergedLoopMs = computeMergedLoopMs(layers);
         int outputFrameDelayMs = Timeline.delayForFps(framesPerSecond);
         int outputFrameCount = Math.max(1, (int) Math.ceil((double) mergedLoopMs / outputFrameDelayMs));
         Timeline.FpsLoop playback = new Timeline.FpsLoop(framesPerSecond, outputFrameCount);
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(AlphaMode.PREMULTIPLIED);
+        AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
             PixelBuffer frame = renderFrame(layers, samplers, canvasW, canvasH, background, playback.playbackMsAt(frameIndex));
 
@@ -93,9 +92,8 @@ public class FrameCompositor {
     }
 
     /**
-     * Renders one output frame at {@code timeMs}: fills the background, premultiplied so it holds the
-     * convention of the finished renders laid over it, then draws each placement (sampled at that
-     * playback time) at its destination origin, in back-to-front list order.
+     * Renders one output frame at {@code timeMs}: fills a canvas with the background, then draws each
+     * placement (sampled at that playback time) at its destination origin, in back-to-front list order.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param samplers each placement's {@link #sampler sampler}, parallel to {@code layers}
@@ -105,15 +103,12 @@ public class FrameCompositor {
      * @param timeMs the playback offset each animated layer is sampled at
      * @return the composited frame
      */
-    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, @NotNull ConcurrentList<Sampler> samplers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
-        PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
+    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, @NotNull ConcurrentList<LongFunction<PixelBuffer>> samplers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
+        PixelBuffer buffer = PixelBuffer.canvas(canvasW, canvasH);
         background.fill(buffer);
-        buffer.premultiplyAlpha();
 
-        for (int index = 0; index < layers.size(); index++) {
-            Sampler sampler = samplers.get(index);
-            draw(buffer, layers.get(index), sampler.picture().apply(timeMs), sampler.mode());
-        }
+        for (int index = 0; index < layers.size(); index++)
+            draw(buffer, layers.get(index), samplers.get(index).apply(timeMs));
 
         return buffer;
     }
@@ -121,52 +116,43 @@ public class FrameCompositor {
     /**
      * Lays one sampled picture of a placement onto the canvas at the placement's origin - rescaled
      * into the placement's extent by {@link PixelBuffer#blitScaled} when it has one, and blitted at the
-     * picture's own size when it does not.
+     * picture's own size when it does not - source-over, by the formula the canvas and the convention
+     * the picture holds give.
      *
      * @param canvas the output frame being composited
      * @param layer the placement the picture was sampled from
      * @param picture the placement's picture at the output frame's playback time
-     * @param mode how the picture is laid down
      */
-    private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer picture, @NotNull BlendMode mode) {
+    private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer picture) {
         layer.extent().ifPresentOrElse(
-            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height(), mode),
-            () -> canvas.blit(picture, layer.x(), layer.y(), mode));
+            extent -> canvas.blitScaled(picture, layer.x(), layer.y(), extent.width(), extent.height()),
+            () -> canvas.blit(picture, layer.x(), layer.y()));
     }
 
     /**
-     * Returns how a layer's source is sampled at a playback time, and how what it shows is laid down.
+     * Returns how a layer's source is sampled at a playback time.
      * <p>
      * A static source, or an animated one with no frames, shows its single frame throughout. An
      * animated source whose every frame {@linkplain Composition#covers covers} its canvas from the
      * origin shows, at each time, the frame the
      * {@link AnimatedImageData#getFrameAtTime(long, boolean) frame-at-time resolver} picks, exactly as
-     * it is. All of these are laid down with {@link BlendMode#PREMULTIPLIED}. Any other animated source
-     * is played as a {@link Composition}, whose pictures are laid down with {@link BlendMode#NORMAL}.
+     * it is. Any other animated source is played as a {@link Composition}.
      *
      * @param source the layer's image data, static or animated
-     * @return the picture the source shows at a playback time, and how it is laid down
+     * @return the picture the source shows at a playback time
      */
-    private static @NotNull Sampler sampler(@NotNull ImageData source) {
+    private static @NotNull LongFunction<PixelBuffer> sampler(@NotNull ImageData source) {
         if (!(source instanceof AnimatedImageData animated) || animated.getFrames().isEmpty())
-            return new Sampler(timeMs -> source.toPixelBuffer(), BlendMode.PREMULTIPLIED);
+            return timeMs -> source.toPixelBuffer();
 
         boolean wholeFrames = animated.getFrames().stream()
             .allMatch(frame -> Composition.covers(frame, animated.getWidth(), animated.getHeight()));
 
         if (wholeFrames)
-            return new Sampler(timeMs -> animated.getFrameAtTime(timeMs, false).frame().pixels(), BlendMode.PREMULTIPLIED);
+            return timeMs -> animated.getFrameAtTime(timeMs, false).frame().pixels();
 
-        return new Sampler(new Composition(animated)::pictureAt, BlendMode.NORMAL);
+        return new Composition(animated)::pictureAt;
     }
-
-    /**
-     * What a layer's source shows at each playback time, and how that picture is laid down.
-     *
-     * @param picture the picture the source shows at a playback time
-     * @param mode how the picture is laid onto the canvas
-     */
-    private record Sampler(@NotNull LongFunction<PixelBuffer> picture, @NotNull BlendMode mode) {}
 
     /**
      * Computes the merged loop duration as the LCM of every animated layer's total duration, so
@@ -197,16 +183,17 @@ public class FrameCompositor {
      * {@link ImageData#getHeight()}), and the canvas after each draw kept as the picture the image
      * shows while that frame does.
      * <p>
-     * The canvas starts transparent. A frame that {@linkplain #covers covers} the canvas from its
-     * origin is the whole picture while it shows, and replaces what the canvas held. Any other frame is
-     * drawn source-over at its offset and clipped to the canvas: a fully transparent texel leaves the
-     * canvas beneath it, an opaque one replaces it, and a part-transparent one blends with it as the
-     * image library's WebP reader blends a frame onto its canvas. Once a frame has shown, its
-     * {@link FrameDisposal} decides what the next frame is drawn onto - {@link FrameDisposal#NONE NONE}
-     * and {@link FrameDisposal#DO_NOT_DISPOSE DO_NOT_DISPOSE} leave the frame standing,
-     * {@link FrameDisposal#RESTORE_TO_BACKGROUND RESTORE_TO_BACKGROUND} clears its rectangle to
-     * transparent, and {@link FrameDisposal#RESTORE_TO_PREVIOUS RESTORE_TO_PREVIOUS} puts the canvas
-     * back as it stood before the frame was drawn.
+     * The canvas starts transparent, in the convention the animation holds. A frame that
+     * {@linkplain #covers covers} the canvas from its origin is the whole picture while it shows, and
+     * replaces what the canvas held. Any other frame is drawn at its offset and clipped to the canvas,
+     * by the image library's source-over composite, in the convention the animation holds: a fully
+     * transparent texel leaves the canvas beneath it, an opaque one replaces it, a part-transparent one
+     * blends with it, and a frame whose pixels carry no alpha is copied as it is. Once a frame has
+     * shown, its {@link FrameDisposal} decides what the next frame is drawn onto -
+     * {@link FrameDisposal#NONE NONE} and {@link FrameDisposal#DO_NOT_DISPOSE DO_NOT_DISPOSE} leave the
+     * frame standing, {@link FrameDisposal#RESTORE_TO_BACKGROUND RESTORE_TO_BACKGROUND} clears its
+     * rectangle to transparent, and {@link FrameDisposal#RESTORE_TO_PREVIOUS RESTORE_TO_PREVIOUS} puts
+     * the canvas back as it stood before the frame was drawn.
      * <p>
      * A frame's {@link FrameBlend} is not read: a frame that covers the canvas replaces it and any
      * other is drawn source-over, whatever blend it carries. The image library's GIF reader marks every
@@ -231,14 +218,18 @@ public class FrameCompositor {
         private int drawn;
 
         /**
-         * Constructs a new {@code Composition} of an animation, on a transparent canvas the image's size.
+         * Constructs a new {@code Composition} of an animation, on a transparent canvas the image's size
+         * made in the convention the animation holds.
          *
          * @param animated the animation to play
          */
         Composition(@NotNull AnimatedImageData animated) {
             this.animated = animated;
             this.pictures = new PixelBuffer[animated.getFrames().size()];
-            this.canvas = PixelBuffer.create(animated.getWidth(), animated.getHeight());
+            this.canvas = switch (animated.getAlphaMode()) {
+                case STRAIGHT -> PixelBuffer.straight(animated.getWidth(), animated.getHeight());
+                case PREMULTIPLIED -> PixelBuffer.canvas(animated.getWidth(), animated.getHeight());
+            };
         }
 
         /**
@@ -297,7 +288,7 @@ public class FrameCompositor {
                 this.pictures[this.drawn] = frame.pixels();
                 this.canvas = frame.pixels().crop(0, 0, width, height);
             } else {
-                drawOver(this.canvas, frame);
+                this.canvas.blit(frame.pixels(), frame.offsetX(), frame.offsetY());
                 this.pictures[this.drawn] = this.canvas.copy();
             }
 
@@ -321,57 +312,6 @@ public class FrameCompositor {
          */
         static boolean covers(@NotNull ImageFrame frame, int width, int height) {
             return frame.offsetX() == 0 && frame.offsetY() == 0 && frame.width() >= width && frame.height() >= height;
-        }
-
-        /**
-         * Draws a frame source-over onto a canvas at the frame's offset, clipped to the canvas. A frame
-         * whose pixels carry no alpha is copied as it is, as {@link PixelBuffer#blit} copies one.
-         *
-         * @param canvas the canvas to draw onto
-         * @param frame the frame to draw
-         */
-        private static void drawOver(@NotNull PixelBuffer canvas, @NotNull ImageFrame frame) {
-            PixelBuffer pixels = frame.pixels();
-            int[] source = pixels.data();
-            int[] target = canvas.data();
-            int x0 = Math.max(0, frame.offsetX());
-            int y0 = Math.max(0, frame.offsetY());
-            int x1 = Math.min(canvas.width(), frame.offsetX() + pixels.width());
-            int y1 = Math.min(canvas.height(), frame.offsetY() + pixels.height());
-
-            for (int y = y0; y < y1; y++) {
-                int sourceRow = (y - frame.offsetY()) * pixels.width() - frame.offsetX();
-                int targetRow = y * canvas.width();
-
-                for (int x = x0; x < x1; x++)
-                    target[targetRow + x] = pixels.hasAlpha()
-                        ? over(source[sourceRow + x], target[targetRow + x])
-                        : source[sourceRow + x];
-            }
-        }
-
-        /**
-         * Composites one texel source-over another, by the integer arithmetic the image library's WebP
-         * reader blends a frame onto its canvas with. An opaque texel replaces the one beneath it, a
-         * fully transparent one leaves it, and any texel over a fully transparent one is kept exactly.
-         *
-         * @param source the frame's texel
-         * @param destination the canvas texel beneath it
-         * @return the composited texel
-         */
-        private static int over(int source, int destination) {
-            int sourceAlpha = ColorMath.alpha(source);
-            if (sourceAlpha == 0xFF) return source;
-            if (sourceAlpha == 0) return destination;
-
-            int destinationAlpha = ColorMath.alpha(destination);
-            if (destinationAlpha == 0) return source;
-
-            int alpha = sourceAlpha + destinationAlpha * (255 - sourceAlpha) / 255;
-            int red = (ColorMath.red(source) * sourceAlpha + ColorMath.red(destination) * destinationAlpha * (255 - sourceAlpha) / 255) / alpha;
-            int green = (ColorMath.green(source) * sourceAlpha + ColorMath.green(destination) * destinationAlpha * (255 - sourceAlpha) / 255) / alpha;
-            int blue = (ColorMath.blue(source) * sourceAlpha + ColorMath.blue(destination) * destinationAlpha * (255 - sourceAlpha) / 255) / alpha;
-            return ColorMath.pack(alpha, red, green, blue);
         }
 
     }

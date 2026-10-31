@@ -257,7 +257,7 @@ class PeriodFramingTest {
      * One opaque 64x64 sheet, so drawn geometry lands visible pixels.
      */
     private static @NotNull PixelBuffer sheet() {
-        PixelBuffer sheet = PixelBuffer.create(64, 64);
+        PixelBuffer sheet = PixelBuffer.straight(64, 64);
         sheet.fill(0xFF6A8CAD);
         return sheet;
     }

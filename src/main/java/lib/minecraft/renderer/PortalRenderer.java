@@ -320,7 +320,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                     options.getOutput().getRotation(), options.getOutput().getFacing());
                 Rasterizer engine = new Rasterizer(resolved.camera());
 
-                PixelBuffer white = PixelBuffer.create(1, 1);
+                PixelBuffer white = PixelBuffer.straight(1, 1);
                 white.setPixel(0, 0, ColorMath.WHITE);
 
                 return new Scene(

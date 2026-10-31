@@ -168,7 +168,7 @@ class VanillaEntityTransformGoldenTest {
     private static PixelBuffer solidTexture(int w, int h) {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++) pixels[i] = 0xFFFFFFFF;
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
 }

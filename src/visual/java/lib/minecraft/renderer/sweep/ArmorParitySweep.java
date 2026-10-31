@@ -222,7 +222,9 @@ public final class ArmorParitySweep {
                     .build())
                 .build();
             ImageData java = javaRenderer.render(options).image();
-            BufferedImage javaRaw = java.toPixelBuffer().toBufferedImage();
+            PixelBuffer held = java.toPixelBuffer();
+            // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
+            BufferedImage javaRaw = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output
             // of this sweep that is what a renderer actually produced and can therefore be hashed.

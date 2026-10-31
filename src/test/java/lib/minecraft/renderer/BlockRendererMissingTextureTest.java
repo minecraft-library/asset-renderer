@@ -30,7 +30,7 @@ class BlockRendererMissingTextureTest {
     private static final String ABSENT = "minecraft:block/block_renderer_missing_texture_absent";
     private static final String PRESENT = "minecraft:block/block_renderer_missing_texture_present";
 
-    private static final PixelBuffer FIXTURE = PixelBuffer.of(new int[]{0xFF102030, 0xFF405060}, 2, 1);
+    private static final PixelBuffer FIXTURE = PixelBuffer.ofStraight(new int[]{0xFF102030, 0xFF405060}, 2, 1);
 
     /**
      * The frame a context answers for a texture at a tick - what every tick-sampling call site asks.

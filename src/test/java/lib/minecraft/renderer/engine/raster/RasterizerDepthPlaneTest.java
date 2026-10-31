@@ -141,7 +141,7 @@ class RasterizerDepthPlaneTest {
         for (VisibleTriangle triangle : triangles)
             list.add(triangle);
 
-        PixelBuffer buffer = PixelBuffer.create(SIZE, SIZE);
+        PixelBuffer buffer = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(list, buffer, Matrix4f.IDENTITY);
         return buffer;
     }
@@ -195,7 +195,7 @@ class RasterizerDepthPlaneTest {
      * @return the triangle
      */
     private static @NotNull VisibleTriangle triangle(@NotNull Vector3f a, @NotNull Vector3f b, @NotNull Vector3f c, int argb) {
-        PixelBuffer texture = PixelBuffer.create(2, 2);
+        PixelBuffer texture = PixelBuffer.straight(2, 2);
         texture.fill(argb);
         return new VisibleTriangle(a, b, c,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f),

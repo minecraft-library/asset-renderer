@@ -4,6 +4,7 @@ import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.call.request.EntityOptions;
@@ -101,7 +102,7 @@ public final class EntityProjectionsDriver {
                         .build())
                     .build();
                 ImageData image = renderer.render(options).image();
-                img = image.toBufferedImage();
+                img = image.toPixelBuffer(AlphaMode.STRAIGHT).toBufferedImage();
                 ImageIO.write(img, "PNG", cellDir.resolve(label + ".png").toFile());
                 System.out.printf("  %-16s ok%n", label);
             } catch (Exception ex) {
@@ -136,7 +137,7 @@ public final class EntityProjectionsDriver {
                             .facing(facing)
                             .build())
                         .build();
-                    img = renderer.render(options).image().toBufferedImage();
+                    img = renderer.render(options).image().toPixelBuffer(AlphaMode.STRAIGHT).toBufferedImage();
                     ImageIO.write(img, "PNG", cellDir.resolve("facing_" + safe(label) + ".png").toFile());
                 } catch (Exception ex) {
                     System.err.printf("  facing %-20s FAILED: %s%n", label, ex.getMessage());

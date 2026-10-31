@@ -219,7 +219,9 @@ public final class EntityParitySweep {
             } finally {
                 lib.minecraft.renderer.diagnostic.DebugChannel.endPerEntityBoundsDump(refId);
             }
-            BufferedImage javaImg = java.toPixelBuffer().toBufferedImage();
+            PixelBuffer held = java.toPixelBuffer();
+            // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
+            BufferedImage javaImg = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 

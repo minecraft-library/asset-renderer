@@ -22,8 +22,10 @@ class RasterPassSupersampleTest {
     @Test
     @DisplayName("a translucent pixel reaches the output as it was drawn, as it does without supersampling")
     void aTranslucentPixelReachesTheOutputAsDrawn() {
+        // The draw fills each frame's canvas with straight 80FFFFFF, which the canvas holds as the
+        // colour source-over leaves over nothing.
         int drawn = ColorMath.blend(0x80FFFFFF, ColorMath.TRANSPARENT, BlendMode.NORMAL);
-        RasterPass.FrameRasterizer translucent = (target, tick) -> target.fill(drawn);
+        RasterPass.FrameRasterizer translucent = (target, tick) -> target.fill(0x80FFFFFF);
 
         PixelBuffer once = RasterPass.of(4, 4, 1, false, translucent).renderFrame(0, 0f);
         PixelBuffer supersampled = RasterPass.of(4, 4, 2, false, translucent).renderFrame(0, 0f);

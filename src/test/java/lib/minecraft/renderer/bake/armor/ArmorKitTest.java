@@ -305,7 +305,7 @@ class ArmorKitTest {
     private static @NotNull RecordingContext recording(
         @NotNull List<EquipmentModel.Layer> layers, @NotNull CitResult cit) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Possible.of(PixelBuffer.create(64, 32)))
+                .textures(id -> Possible.of(PixelBuffer.straight(64, 32)))
                 .build())
             .answeringEquipment(layers)
             .answeringArmorOverride(cit);

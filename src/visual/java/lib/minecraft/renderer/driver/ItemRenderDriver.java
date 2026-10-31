@@ -3,6 +3,8 @@ package lib.minecraft.renderer.driver;
 import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
@@ -18,7 +20,6 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ClientException;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -125,7 +126,7 @@ public final class ItemRenderDriver {
             try {
                 ImageData image = renderer.render(options).image();
                 File outputFile = outputDir.resolve(safeName + ".png").toFile();
-                ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
+                ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
             } catch (Exception ex) {
                 System.err.println("  FAILED: " + ex.getMessage());

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.mesh;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Vector3f;
@@ -65,6 +66,13 @@ class MissingMeshTest {
         assertThat("top-right", face.getPixel(40, 8), is(MissingSprite.MAGENTA_ARGB));
         assertThat("bottom-left", face.getPixel(8, 40), is(MissingSprite.MAGENTA_ARGB));
         assertThat("bottom-right", face.getPixel(40, 40), is(MissingSprite.BLACK_ARGB));
+    }
+
+    @Test
+    @DisplayName("the face and the icon are canvases, as the renders they stand for are")
+    void theFaceAndTheIconAreCanvases() {
+        assertThat("the face", MissingMesh.face(CANVAS).alphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("the icon", MissingMesh.icon(CANVAS).alphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test

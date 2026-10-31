@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.driver;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.ItemStackKit;
@@ -86,13 +89,13 @@ public final class StackCountBadgeDriver {
     private static void runRender(@NotNull Path labelDir) throws IOException {
         for (int size : SIZES) {
             for (int count : COUNTS) {
-                PixelBuffer buffer = PixelBuffer.create(size, size);
+                PixelBuffer buffer = PixelBuffer.canvas(size, size);
                 buffer.fill(BG_ARGB);
                 ItemStackKit.drawStackCount(buffer, count, MinecraftFont.Vanilla.REGULAR, TextPalette.VANILLA);
 
                 String name = "s%03d_c%02d.png".formatted(size, count);
                 Path out = labelDir.resolve(name);
-                ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
+                ImageFactory.toFile(StaticImageData.of(buffer), ImageFormat.PNG, out.toFile());
                 System.out.printf("  rendered %s%n", out);
             }
         }

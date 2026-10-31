@@ -166,7 +166,7 @@ class WindowSlicedTest {
     private static PixelBuffer clientBlits(Shipped shipped) {
         PixelBuffer sheet = resolve(shipped.sheet());
         MenuLayout drawn = MenuLayout.of(shipped.screen(), true);
-        PixelBuffer out = PixelBuffer.create(drawn.width(), drawn.height());
+        PixelBuffer out = PixelBuffer.straight(drawn.width(), drawn.height());
 
         int y = 0;
         for (Rectangle blit : shipped.blits()) {
@@ -202,7 +202,7 @@ class WindowSlicedTest {
      * menu paints its chrome, and reads the result back in Minecraft pixels.
      */
     private static PixelBuffer paint(Window window, MenuLayout layout) {
-        PixelBuffer buffer = PixelBuffer.create(layout.width() * S, layout.height() * S);
+        PixelBuffer buffer = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
 
         window.paintPanel(buffer, layout.box());
         for (ScreenMetrics.Cell cell : layout.cells())
@@ -337,7 +337,7 @@ class WindowSlicedTest {
                 layout.height(), is(equalTo(shipped.ownEnd() + MARGIN_ROWS)));
 
             PixelBuffer frame = clientFrame(shipped);
-            PixelBuffer cut = PixelBuffer.create(frame.width(), layout.height());
+            PixelBuffer cut = PixelBuffer.straight(frame.width(), layout.height());
             cut.blit(frame.crop(0, 0, frame.width(), shipped.ownEnd()), 0, 0, BlendMode.REPLACE);
             cut.blit(frame.crop(0, frame.height() - MARGIN_ROWS, frame.width(), MARGIN_ROWS), 0, shipped.ownEnd(), BlendMode.REPLACE);
 
@@ -398,12 +398,12 @@ class WindowSlicedTest {
         // one path, so the named slot is stretched over the cell as the client stretches a GUI sprite,
         // which is not the cell the theme draws there.
         Window.Box box = new Window.Box(0, 0, result.size(), result.size());
-        PixelBuffer drawn = PixelBuffer.create(result.size() * S, result.size() * S);
+        PixelBuffer drawn = PixelBuffer.canvas(result.size() * S, result.size() * S);
         window.paintCell(drawn, box);
 
-        PixelBuffer stretched = PixelBuffer.create(result.size() * S, result.size() * S);
+        PixelBuffer stretched = PixelBuffer.canvas(result.size() * S, result.size() * S);
         NineSliceKit.draw(stretched, resolve(SLOT), MCMeta.GuiScaling.DEFAULT, 0, 0, 26, 26, 1f);
-        PixelBuffer theme = PixelBuffer.create(result.size() * S, result.size() * S);
+        PixelBuffer theme = PixelBuffer.canvas(result.size() * S, result.size() * S);
         Window.Theme.VANILLA.paintCell(theme, box);
 
         assertThat("the cell is the slot stretched", differing(drawn, stretched), is(equalTo(0)));
@@ -415,7 +415,7 @@ class WindowSlicedTest {
     void aCellSpriteAuthoredAtTwiceItsSizeDrawsEveryTexel() {
         // Thirty-six texels a side, each a colour of its own, with no sidecar: a slot authored at twice
         // its size, which an output pixel a texel reproduces whole.
-        PixelBuffer doubled = PixelBuffer.create(36, 36);
+        PixelBuffer doubled = PixelBuffer.straight(36, 36);
         for (int y = 0; y < 36; y++)
             for (int x = 0; x < 36; x++)
                 doubled.setPixel(x, y, 0xFF000000 | x << 16 | y << 8 | 0x80);
@@ -427,7 +427,7 @@ class WindowSlicedTest {
         ScreenMetrics.Cell cell = layout.cells().getFirst();
         assertThat("the cell is 18", cell.size(), is(equalTo(18)));
 
-        PixelBuffer painted = PixelBuffer.create(cell.size() * S, cell.size() * S);
+        PixelBuffer painted = PixelBuffer.canvas(cell.size() * S, cell.size() * S);
         window.paintCell(painted, new Window.Box(0, 0, cell.size(), cell.size()));
 
         assertThat(differing(painted, doubled), is(equalTo(0)));
@@ -457,7 +457,7 @@ class WindowSlicedTest {
 
         // A 24x24 texture drawing a 20x20 square inside a clear ring. No client blit declares a texture
         // size for a screen it ships no sheet for, so the texture is not read in the 256-texel space.
-        PixelBuffer small = PixelBuffer.create(24, 24);
+        PixelBuffer small = PixelBuffer.straight(24, 24);
         for (int y = 2; y < 22; y++)
             for (int x = 2; x < 22; x++)
                 small.setPixel(x, y, 0xFF808080);
@@ -474,9 +474,9 @@ class WindowSlicedTest {
         // sheet as a plain texture, so the 256-texel space its blits declare spans the whole strip: sheet
         // row y is strip row 2y, the first frame above row 128 and the second from it on.
         int first = 0xFF336699, second = 0xFF996633;
-        PixelBuffer strip = PixelBuffer.create(256, 512);
+        PixelBuffer strip = PixelBuffer.straight(256, 512);
         strip.fill(first);
-        PixelBuffer lower = PixelBuffer.create(256, 256);
+        PixelBuffer lower = PixelBuffer.straight(256, 256);
         lower.fill(second);
         strip.blit(lower, 0, 256, BlendMode.REPLACE);
 
@@ -502,10 +502,10 @@ class WindowSlicedTest {
         Window sliced = named(shipped(SHULKER_BOX), true);
         Window.Box box = new Window.Box(0, 0, 176, 166);
 
-        PixelBuffer fromArt = PixelBuffer.create(176 * S, 166 * S);
+        PixelBuffer fromArt = PixelBuffer.canvas(176 * S, 166 * S);
         sliced.paintPanel(fromArt, box);
 
-        PixelBuffer fromRules = PixelBuffer.create(176 * S, 166 * S);
+        PixelBuffer fromRules = PixelBuffer.canvas(176 * S, 166 * S);
         Window.Theme.VANILLA.paintPanel(fromRules, box);
 
         // Only the frame ring - the drawn arm paints a plain interior where the art carries slots.
@@ -523,14 +523,14 @@ class WindowSlicedTest {
     @Test
     @DisplayName("a cell drawn from the shipped slot sprite is what the drawn arm draws")
     void aSlicedCellMatchesTheDrawnCell() {
-        Window window = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.of(resolve(SLOT)),
+        Window window = Window.Sliced.of(PixelBuffer.straight(8, 8), Optional.of(resolve(SLOT)),
             Optional.of(MCMeta.GuiScaling.DEFAULT), Concurrent.newMap(), Concurrent.newMap());
         Window.Box box = new Window.Box(0, 0, 18, 18);
 
-        PixelBuffer fromArt = PixelBuffer.create(18 * S, 18 * S);
+        PixelBuffer fromArt = PixelBuffer.canvas(18 * S, 18 * S);
         window.paintCell(fromArt, box);
 
-        PixelBuffer fromRules = PixelBuffer.create(18 * S, 18 * S);
+        PixelBuffer fromRules = PixelBuffer.canvas(18 * S, 18 * S);
         Window.Theme.VANILLA.paintCell(fromRules, box);
 
         assertThat(differing(fromArt, fromRules), is(equalTo(0)));
@@ -539,10 +539,10 @@ class WindowSlicedTest {
     @Test
     @DisplayName("a panel with no cell art paints no cell, and a GUI sprite is carried exactly with its scaling")
     void aPanelWithNoCellArtPaintsNoCell() {
-        Window window = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+        Window window = Window.Sliced.of(PixelBuffer.straight(8, 8), Optional.empty(), Optional.empty(),
             Concurrent.newMap(), Concurrent.newMap());
 
-        PixelBuffer painted = PixelBuffer.create(18 * S, 18 * S);
+        PixelBuffer painted = PixelBuffer.canvas(18 * S, 18 * S);
         window.paintCell(painted, new Window.Box(0, 0, 18, 18));
 
         int written = 0;
@@ -553,16 +553,16 @@ class WindowSlicedTest {
         assertThat(written, is(equalTo(0)));
 
         PixelBuffer slot = resolve(SLOT);
-        assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.create(8, 8),
+        assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.straight(8, 8),
             Optional.of(slot), Optional.empty(), Concurrent.newMap(), Concurrent.newMap()), "a cell sprite without its scaling");
-        assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.create(8, 8),
+        assertThrows(IllegalArgumentException.class, () -> Window.Sliced.of(PixelBuffer.straight(8, 8),
             Optional.empty(), Optional.empty(), Concurrent.newMap(Map.entry(Mark.FIELD, slot)), Concurrent.newMap()),
             "a field sprite without its scaling");
 
         // The pair is checked once, so the window keeps the maps it was built with rather than the
         // caller's, which could come apart after.
         ConcurrentMap<Mark, PixelBuffer> art = Concurrent.newMap(Map.entry(Mark.FIELD, slot));
-        Window.Sliced held = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+        Window.Sliced held = Window.Sliced.of(PixelBuffer.straight(8, 8), Optional.empty(), Optional.empty(),
             art, Concurrent.newMap(Map.entry(Mark.FIELD, MCMeta.GuiScaling.DEFAULT)));
         art.remove(Mark.FIELD);
         assertThat("a mark's sprite stays with its scaling whatever the caller does with its map",
@@ -575,7 +575,7 @@ class WindowSlicedTest {
         Shipped hopper = shipped(HOPPER);
         Window window = named(hopper, true);
 
-        PixelBuffer painted = PixelBuffer.create(176 * S, 133 * S);
+        PixelBuffer painted = PixelBuffer.canvas(176 * S, 133 * S);
         window.paintPanel(painted, new Window.Box(0, 0, 176, 133));
         PixelBuffer read = readDown(painted);
 
@@ -593,15 +593,15 @@ class WindowSlicedTest {
         int[] laid = { ColorMath.blend(inks[0], under, BlendMode.NORMAL), under, inks[2] };
         Window.Box box = new Window.Box(0, 0, inks.length, 1);
 
-        PixelBuffer byBox = PixelBuffer.create(inks.length * S, S);
+        PixelBuffer byBox = PixelBuffer.canvas(inks.length * S, S);
         byBox.fill(under);
         for (int x = 0; x < inks.length; x++)
             box.put(byBox, x, 0, inks[x]);
 
-        PixelBuffer art = PixelBuffer.create(inks.length, 1);
+        PixelBuffer art = PixelBuffer.straight(inks.length, 1);
         for (int x = 0; x < inks.length; x++)
             art.setPixel(x, 0, inks[x]);
-        PixelBuffer byPanel = PixelBuffer.create(inks.length * S, S);
+        PixelBuffer byPanel = PixelBuffer.canvas(inks.length * S, S);
         byPanel.fill(under);
         Window.Sliced.of(art, Optional.empty(), Optional.empty(), Concurrent.newMap(), Concurrent.newMap())
             .paintPanel(byPanel, box);
@@ -618,7 +618,7 @@ class WindowSlicedTest {
     @DisplayName("a panel's sidecar is not read, a cell carries the gui.scaling its sidecar declares, and a cell whose gui section the client's codec refuses is the missing texture, reported unreadable")
     void aPanelsSidecarIsNotReadAndACellCarriesTheScalingItsSidecarDeclares() {
         // A 4-texel frame round a flat interior, so the depth derived from the art is not the declared 3.
-        PixelBuffer art = PixelBuffer.create(20, 20);
+        PixelBuffer art = PixelBuffer.straight(20, 20);
         art.fill(0xFF101010);
         for (int y = 4; y < 16; y++)
             for (int x = 4; x < 16; x++)
@@ -649,11 +649,11 @@ class WindowSlicedTest {
         // as the nine-slice declares it rather than as a hint to the slicer.
         assertThat("a cell carries its loaded section's scaling", declared.cellScaling(), is(equalTo(loaded.gui().toOptional())));
         Window.Box cellBox = new Window.Box(0, 0, 26, 26);
-        PixelBuffer drawn = PixelBuffer.create(26 * S, 26 * S);
+        PixelBuffer drawn = PixelBuffer.canvas(26 * S, 26 * S);
         declared.paintCell(drawn, cellBox);
-        PixelBuffer nineSliced = PixelBuffer.create(26 * S, 26 * S);
+        PixelBuffer nineSliced = PixelBuffer.canvas(26 * S, 26 * S);
         NineSliceKit.draw(nineSliced, art, loaded.gui().get(), 0, 0, 26, 26, 1f);
-        PixelBuffer stretched = PixelBuffer.create(26 * S, 26 * S);
+        PixelBuffer stretched = PixelBuffer.canvas(26 * S, 26 * S);
         NineSliceKit.draw(stretched, art, MCMeta.GuiScaling.DEFAULT, 0, 0, 26, 26, 1f);
         assertThat("and is drawn by it", differing(drawn, nineSliced), is(equalTo(0)));
         assertThat("which is not the art stretched", differing(drawn, stretched), is(not(equalTo(0))));

@@ -67,7 +67,7 @@ class ShadingTest {
     /** The identity relight frame, where the shading transform is the bare GUI Y-flip */
     private static final LightingFrame FLAT = LightingFrame.tracking(EulerRotation.NONE);
 
-    private static final PixelBuffer WHITE_1X1 = PixelBuffer.of(new int[]{0xFFFFFFFF}, 1, 1);
+    private static final PixelBuffer WHITE_1X1 = PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1);
     private static final Vector2f UV = new Vector2f(0f, 0f);
     private static final Vector3f ORIGIN = new Vector3f(0f, 0f, 0f);
 
@@ -143,7 +143,7 @@ class ShadingTest {
     @Test
     @DisplayName("apply over a buffer shades every texel as the per-texel apply does, into a copy")
     void applyOverABufferShadesEveryTexelIntoACopy() {
-        PixelBuffer layer = PixelBuffer.of(new int[]{0xFF804020, 0x7B123456, 0xFF010101, 0x00FFFFFF}, 2, 2);
+        PixelBuffer layer = PixelBuffer.ofStraight(new int[]{0xFF804020, 0x7B123456, 0xFF010101, 0x00FFFFFF}, 2, 2);
         PixelBuffer before = layer.copy();
         PixelBuffer shaded = Shading.apply(layer, 0xFF808080, Shading.ITEMS_3D_FACING);
 

@@ -53,7 +53,7 @@ class ItemStackKitTest {
      * @return the packed ARGB pixel at the bar's foreground origin, logical (2, 14)
      */
     private static int foregroundColor(int damage, int maxDurability) {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, damage, maxDurability);
         return buffer.getPixel(2, 14);
     }
@@ -66,7 +66,7 @@ class ItemStackKitTest {
      * @return the number of painted pixels on logical row 14
      */
     private static int foregroundWidth(int damage, int maxDurability) {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, damage, maxDurability);
 
         int painted = 0;
@@ -123,7 +123,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("drawDamageBar is a no-op when damage is zero")
     void noBarForUndamagedItem() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 0, 100);
 
         for (int y = 0; y < buffer.height(); y++)
@@ -136,7 +136,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("drawDamageBar is a no-op when max durability is zero")
     void noBarForNonDamageableItem() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 5, 0);
 
         for (int y = 0; y < buffer.height(); y++)
@@ -150,7 +150,7 @@ class ItemStackKitTest {
     @DisplayName("the background row is 13 opaque black pixels from column 2 of row 13")
     void backgroundRowSpansThirteenColumnsFromColumnTwo() {
         // A 16-wide buffer gives GUI scale 1, so logical rows 13 and 14 land on pixel rows 13 and 14.
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         assertRowRun(buffer, 13, 2, 14, BLACK);
@@ -163,7 +163,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("50% damage paints 6 foreground pixels on row 14 and leaves every other row clear")
     void halfDamagePaintsSixForegroundPixelsOnRowFourteen() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         // round(12 * 0.5) = 6 pixels wide, at hue 0.5 * 120 = 60 degrees.
@@ -178,7 +178,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("the black row neither underlies nor flanks the coloured run")
     void backgroundRowFramesNothingAroundTheColouredRun() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         assertThat("left of the coloured run", buffer.getPixel(1, 14), equalTo(CLEAR));
@@ -242,7 +242,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("a fully damaged item draws the background row and no foreground at all")
     void fullDamageDrawsBackgroundWithoutForeground() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 100, 100);
 
         assertRowRun(buffer, 13, 2, 14, BLACK);
@@ -256,7 +256,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("damage past max clamps to an empty foreground rather than a negative width")
     void damageBeyondMaxClampsToEmptyForeground() {
-        PixelBuffer buffer = PixelBuffer.create(16, 16);
+        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
         ItemStackKit.drawDamageBar(buffer, 200, 100);
 
         assertRowRun(buffer, 13, 2, 14, BLACK);
@@ -269,7 +269,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("a 32-wide buffer doubles every bar coordinate and both row heights")
     void barCoordinatesScaleWithBufferWidth() {
-        PixelBuffer buffer = PixelBuffer.create(32, 32);
+        PixelBuffer buffer = PixelBuffer.canvas(32, 32);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         // Scale 2: the background is 26 px wide over rows 26 and 27, the foreground 12 px wide over
@@ -288,7 +288,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("the GUI scale is integer-truncated, so a 24-wide buffer draws at scale 1")
     void guiScaleTruncatesSoANonMultipleBufferDoesNotStretch() {
-        PixelBuffer buffer = PixelBuffer.create(24, 24);
+        PixelBuffer buffer = PixelBuffer.canvas(24, 24);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         // 24 / 16 truncates to 1, so the bar lands on exactly the rows and columns a 16-wide buffer
@@ -305,7 +305,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("a buffer narrower than 16 clamps to scale 1 and clips the bar off the canvas")
     void subGuiSizedBufferDrawsNothing() {
-        PixelBuffer buffer = PixelBuffer.create(8, 8);
+        PixelBuffer buffer = PixelBuffer.canvas(8, 8);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         // 8 / 16 truncates to 0 and the max(1, ..) floor lifts it to 1, putting the bar rows at

@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
@@ -86,6 +88,26 @@ class EquipmentKitTest {
     }
 
     @Test
+    @DisplayName("two flat layers compose onto a straight sheet as drawing each onto the framebuffer in turn leaves them")
+    void flatLayersComposeStraight() {
+        RecordingContext context = RecordingContext.over(RendererContext.builder()
+                .textures(id -> Possible.of(PixelBuffer.ofStraight(new int[]{ 0x80FF0000 }, 1, 1)))
+                .build())
+            .answeringEquipment(List.of(
+                new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute"), Optional.empty(), false),
+                new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute_overlay"), Optional.empty(), false)));
+        PixelBuffer combined = EquipmentKit.composite(
+            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).orElseThrow();
+
+        // Half red over half red by the straight formula keeps the red and lays alpha C0. Laid as
+        // premultiplied colour onto a sheet the rasterizer then reads straight, the red would halve to C0.
+        assertThat("the sheet is straight", combined.alphaMode(), is(AlphaMode.STRAIGHT));
+        assertThat("the second layer over the first", combined.getPixel(0, 0),
+            is(ColorMath.blend(0x80FF0000, 0x80FF0000, BlendMode.STRAIGHT)));
+        assertThat("which keeps the red", combined.getPixel(0, 0), is(0xC0FF0000));
+    }
+
+    @Test
     @DisplayName("an asset declaring no layers for the render layer composites nothing")
     void noLayersCompositesNothing() {
         RecordingContext context = greyContext(List.of());
@@ -109,7 +131,7 @@ class EquipmentKitTest {
 
     /** A one-pixel opaque grey source, the tint multiply's measurable input. */
     private static @NotNull PixelBuffer grey() {
-        PixelBuffer buffer = PixelBuffer.create(1, 1);
+        PixelBuffer buffer = PixelBuffer.straight(1, 1);
         buffer.setPixel(0, 0, GREY);
         return buffer;
     }

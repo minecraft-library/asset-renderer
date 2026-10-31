@@ -143,7 +143,7 @@ class CapeFrameTest {
 
         ConcurrentList<VisibleTriangle> triangles = cape();
         for (int yaw : LOOK_YAWS) {
-            PixelBuffer target = PixelBuffer.create(LOOK_SIZE, LOOK_SIZE);
+            PixelBuffer target = PixelBuffer.canvas(LOOK_SIZE, LOOK_SIZE);
             new Rasterizer(Projection.VANILLA_ISO.resolve(new EulerRotation(0f, yaw, 0f)).camera(), PLAYER_FACING)
                 .rasterizeFitted(triangles, target, EulerRotation.NONE, LOOK_FILL);
 
@@ -170,7 +170,7 @@ class CapeFrameTest {
      * @return a new cape-sized sheet
      */
     private static @NotNull PixelBuffer probe() {
-        PixelBuffer sheet = PixelBuffer.create(SHEET_WIDTH, SHEET_HEIGHT);
+        PixelBuffer sheet = PixelBuffer.straight(SHEET_WIDTH, SHEET_HEIGHT);
         for (int v = 0; v < SHEET_HEIGHT; v++) {
             for (int u = 0; u < SHEET_WIDTH; u++)
                 sheet.setPixel(u, v, u < STRIPS_WIDTH && v < STRIPS_HEIGHT ? Texel.encode(u, v) : OUTSIDE);

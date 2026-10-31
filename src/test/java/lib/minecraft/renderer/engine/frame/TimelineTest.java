@@ -262,7 +262,7 @@ class TimelineTest {
         List<Integer> indices = new ArrayList<>();
         ImageData result = new Timeline.TickLoop(0, 4, 1, 50).wrap(f -> {
             indices.add(f);
-            return PixelBuffer.create(1, 1);
+            return PixelBuffer.canvas(1, 1);
         });
         assertThat(indices, is(List.of(0, 1, 2, 3)));
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
@@ -273,7 +273,7 @@ class TimelineTest {
     @Test
     @DisplayName("wrap of one frame collapses to a StaticImageData marked premultiplied, as a still is")
     void wrapSingleFrameStatic() {
-        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.create(2, 2));
+        ImageData result = new Timeline.Static(7).wrap(f -> PixelBuffer.canvas(2, 2));
         assertThat(result, is(instanceOf(StaticImageData.class)));
         assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
@@ -282,7 +282,7 @@ class TimelineTest {
     @DisplayName("wrap of an empty schedule throws")
     void wrapEmptyThrows() {
         assertThrows(RenderException.class,
-            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.create(1, 1)));
+            () -> new Timeline.TickLoop(0, 0, 1, 50).wrap(f -> PixelBuffer.canvas(1, 1)));
     }
 
     @Test
@@ -299,7 +299,15 @@ class TimelineTest {
             RasterPass.of(1, 1, 1, false, (target, tick) -> target.setPixel(0, 0, 0xFFFFFFFF)));
         assertThat(result, is(instanceOf(StaticImageData.class)));
         assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
-        assertThat(Timeline.still(PixelBuffer.create(1, 1)).getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat(Timeline.still(PixelBuffer.canvas(1, 1)).getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+    }
+
+    @Test
+    @DisplayName("a still holds the convention its buffer holds, and the empty image is a canvas")
+    void aStillHoldsWhatItsBufferHolds() {
+        assertThat("a straight buffer", Timeline.still(PixelBuffer.straight(1, 1)).getAlphaMode(), is(AlphaMode.STRAIGHT));
+        assertThat("a canvas", Timeline.still(PixelBuffer.canvas(1, 1)).getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("the empty image", Timeline.empty().getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test

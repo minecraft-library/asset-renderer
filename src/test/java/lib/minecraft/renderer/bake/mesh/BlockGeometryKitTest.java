@@ -284,14 +284,14 @@ class BlockGeometryKitTest {
 
     /** A single opaque-white texel, sufficient since these tests assert geometry, not sampling. */
     private static PixelBuffer texture1x1() {
-        return PixelBuffer.of(new int[]{ 0xFFFFFFFF }, 1, 1);
+        return PixelBuffer.ofStraight(new int[]{ 0xFFFFFFFF }, 1, 1);
     }
 
     /** An opaque-white {@code w x h} texture so cube-face UV sampling never drops texels. */
     private static PixelBuffer solid(int w, int h) {
         int[] px = new int[w * h];
         Arrays.fill(px, 0xFFFFFFFF);
-        return PixelBuffer.of(px, w, h);
+        return PixelBuffer.ofStraight(px, w, h);
     }
 
     /**

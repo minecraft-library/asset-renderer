@@ -162,7 +162,7 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
                     pixels[y * width + (this.mirror ? width - 1 - x : x)] = sheet.getPixel(sx, sy);
                 }
             }
-            return PixelBuffer.of(pixels, width, height);
+            return PixelBuffer.ofStraight(pixels, width, height);
         }
 
     }
