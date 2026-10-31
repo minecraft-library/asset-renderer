@@ -38,7 +38,7 @@ class StencilTest {
     }
 
     private static PixelBuffer filled(int w, int h, int argb) {
-        PixelBuffer buffer = PixelBuffer.create(w, h);
+        PixelBuffer buffer = PixelBuffer.canvas(w, h);
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
                 buffer.setPixel(x, y, argb);
@@ -85,7 +85,7 @@ class StencilTest {
     @Test
     @DisplayName("each authored pixel is stamped as a square of the picture's own scale")
     void eachAuthoredPixelIsStampedAsASquare() {
-        PixelBuffer stamped = PixelBuffer.create(4 * S, 4 * S);
+        PixelBuffer stamped = PixelBuffer.canvas(4 * S, 4 * S);
         Stencil.of(2, "AB").stamp(stamped, new Window.Box(0, 0, 4, 4), 0, 0, LETTERS);
         PixelBuffer buffer = readDown(stamped);
 
@@ -102,7 +102,7 @@ class StencilTest {
     @Test
     @DisplayName("an offset moves the whole picture within the box")
     void anOffsetMovesTheWholePicture() {
-        PixelBuffer stamped = PixelBuffer.create(4 * S, 4 * S);
+        PixelBuffer stamped = PixelBuffer.canvas(4 * S, 4 * S);
         Stencil.of("A").stamp(stamped, new Window.Box(0, 0, 4, 4), 3, 2, LETTERS);
         PixelBuffer buffer = readDown(stamped);
 

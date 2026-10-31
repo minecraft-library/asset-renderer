@@ -63,7 +63,7 @@ class TooltipChromeTest {
     private static PixelBuffer solid(int argb) {
         int[] px = new int[20 * 20];
         Arrays.fill(px, argb);
-        return PixelBuffer.of(px, 20, 20);
+        return PixelBuffer.ofStraight(px, 20, 20);
     }
 
     @Test
@@ -203,7 +203,7 @@ class TooltipChromeTest {
         int[] px = new int[4 * 8];
         for (int i = 0; i < 4 * 4; i++) px[i] = 0xFFFF0000;
         for (int i = 4 * 4; i < 4 * 8; i++) px[i] = 0xFF0000FF;
-        PixelBuffer strip = PixelBuffer.of(px, 4, 8);
+        PixelBuffer strip = PixelBuffer.ofStraight(px, 4, 8);
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("minecraft:gui/sprites/tooltip/background", strip);
         tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
@@ -227,7 +227,7 @@ class TooltipChromeTest {
         TooltipChrome.ChromeBox box = chrome.box(1, 8, Optional.empty(), options);
         LayerStack<ImageLayer> stack = new LayerStack<>();
         chrome.contribute(stack, box, Optional.empty(), options);
-        PixelBuffer canvas = PixelBuffer.create(
+        PixelBuffer canvas = PixelBuffer.canvas(
             Math.round(box.width() * MinecraftFont.MC_PIXEL_SCALE), Math.round(box.height() * MinecraftFont.MC_PIXEL_SCALE));
         Layers.foldInto(stack, UnaryOperator.identity(), canvas);
 

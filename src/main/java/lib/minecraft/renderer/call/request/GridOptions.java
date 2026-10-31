@@ -123,9 +123,10 @@ public class GridOptions implements RenderOptions {
      * answers animated the sheet is composed again, and every tile already asked is asked once more, the
      * animated one included, so content answers the same render each time and is safe on any thread.
      * <p>
-     * The image is laid into its cell as a finished render, whose colours already carry their alpha -
-     * the form every renderer here answers. An image whose partially transparent colours do not, such
-     * as one an image editor saved, is converted first with {@link PixelBuffer#premultiplyAlpha()}.
+     * The image is laid into its cell source-over in the convention it holds. A render, the form every
+     * renderer here answers, is a {@link PixelBuffer#canvas canvas} and is laid as it was drawn; an
+     * image read from a file, such as one an image editor saved, is straight and is laid as the client
+     * lays a straight texel.
      *
      * @param col zero-based column index of the target cell
      * @param row zero-based row index of the target cell

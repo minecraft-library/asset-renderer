@@ -97,7 +97,7 @@ public class TextureSampleIndirectionBenchmark {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++)
             pixels[i] = rng.nextInt();
-        this.texture = PixelBuffer.of(pixels, w, h);
+        this.texture = PixelBuffer.ofStraight(pixels, w, h);
         this.flatData = pixels.clone();
         this.flatWidth = w;
         this.flatHeight = h;

@@ -693,7 +693,7 @@ class MissingTextureFamilyTest {
      * @return the buffer
      */
     private static @NotNull PixelBuffer solid(int width, int height) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
         buffer.fill(SERVED);
         return buffer;
     }

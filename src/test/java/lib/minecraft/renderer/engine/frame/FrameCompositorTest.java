@@ -14,8 +14,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -39,8 +41,9 @@ import static org.hamcrest.Matchers.is;
  * can drive the merged loop past {@link Timeline#MAX_LOOP_MS}. Both are pinned below, the second
  * because it is a way the merge can now degrade that uniform 50 ms periods could not reach.
  * <p>
- * Either result is marked {@link AlphaMode#PREMULTIPLIED}, and an animated composite lays a
- * see-through fill down premultiplied, the convention of the finished renders laid over it.
+ * Either result is marked {@link AlphaMode#PREMULTIPLIED}: every frame is a canvas holding the fill,
+ * a see-through one included, and each placement is laid over it in the convention its picture holds -
+ * or, for an additive placement, added to it, in either branch and fitted to an extent or not.
  */
 @DisplayName("FrameCompositor.merge - result-type dispatch and merged loop length")
 class FrameCompositorTest {
@@ -55,6 +58,10 @@ class FrameCompositorTest {
         ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
         assertThat(result.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+
+        // The second layer is straight, so it is laid by the formula a GPU lays a straight texel with:
+        // half green over opaque red is FF7F8000, where laid as premultiplied colour it is FF7FFF00.
+        assertThat("the straight layer over the opaque one", result.toPixelBuffer().getPixel(0, 0), is(0xFF7F8000));
     }
 
     @Test
@@ -138,11 +145,38 @@ class FrameCompositorTest {
         assertThat(((AnimatedImageData) result).getFrames().size(), is(304));
     }
 
+    @Test
+    @DisplayName("an additive placement adds its colour to the canvas under it, still or animated, fitted to an extent or not")
+    void anAdditivePlacementAddsItsColour() {
+        ImageData blue = StaticImageData.of(solidImage(1, 1, 0xFF0000FF));
+        FramePlacement well = new FramePlacement(0, 0, StaticImageData.of(solidImage(3, 2, 0xFF4E4737)));
+        FramePlacement band = new FramePlacement(0, 0, blue).additively();
+
+        // The client's additive pipeline blends (ONE, ONE): opaque blue over 4E4737 keeps its red and green
+        // and saturates its blue, where laid over it the blue would replace it.
+        PixelBuffer still = FrameCompositor.merge(Concurrent.newList(well, band), 3, 2, 30, Background.TRANSPARENT).toPixelBuffer();
+        assertThat("the blue is added to the pixel under it", still.getPixel(0, 0), is(0xFF4E47FF));
+        assertThat("and nothing is added past it", still.getPixel(1, 1), is(0xFF4E4737));
+
+        PixelBuffer fitted = FrameCompositor.merge(Concurrent.newList(well, band.fittedTo(2, 1)), 3, 2, 30, Background.TRANSPARENT).toPixelBuffer();
+        assertThat("fitted to an extent, it is added across the extent",
+            List.of(fitted.getPixel(0, 0), fitted.getPixel(1, 0), fitted.getPixel(1, 1)), contains(0xFF4E47FF, 0xFF4E47FF, 0xFF4E4737));
+        FramePlacement fittedFirst = new FramePlacement(0, 0, blue).fittedTo(2, 1).additively();
+        PixelBuffer madeAdditive = FrameCompositor.merge(Concurrent.newList(well, fittedFirst), 3, 2, 30, Background.TRANSPARENT).toPixelBuffer();
+        assertThat("and made additive once fitted, it keeps the extent",
+            List.of(madeAdditive.getPixel(0, 0), madeAdditive.getPixel(1, 0), madeAdditive.getPixel(1, 1)), contains(0xFF4E47FF, 0xFF4E47FF, 0xFF4E4737));
+
+        ImageData merged = FrameCompositor.merge(Concurrent.newList(well, band, new FramePlacement(2, 1, animated(1, 1, 2, 50))), 3, 2, 30, Background.TRANSPARENT);
+        assertThat("an animated placement beside it animates the merge", merged, is(instanceOf(AnimatedImageData.class)));
+        for (ImageFrame frame : merged.getFrames())
+            assertThat("and every frame adds the blue", frame.pixels().getPixel(0, 0), is(0xFF4E47FF));
+    }
+
     /** Builds a {@code w}x{@code h} buffer filled with a single ARGB colour. */
     private static @NotNull PixelBuffer solidImage(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
     /**

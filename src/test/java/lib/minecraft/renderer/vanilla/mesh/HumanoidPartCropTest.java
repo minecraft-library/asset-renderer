@@ -206,7 +206,7 @@ class HumanoidPartCropTest {
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
                 pixels[y * width + x] = encode(x, y);
-        return PixelBuffer.of(pixels, width, height);
+        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
     /** Packs a texel's own coordinates into an opaque colour, one byte each. */

@@ -63,7 +63,7 @@ public class MissingMesh {
 
     /** A sprite filling a fresh square canvas by nearest sampling. */
     private static @NotNull PixelBuffer square(@NotNull PixelBuffer sprite, int canvasSize) {
-        PixelBuffer canvas = PixelBuffer.create(canvasSize, canvasSize);
+        PixelBuffer canvas = PixelBuffer.canvas(canvasSize, canvasSize);
         canvas.blitScaled(sprite, 0, 0, canvasSize, canvasSize);
         return canvas;
     }

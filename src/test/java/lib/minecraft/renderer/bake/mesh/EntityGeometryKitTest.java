@@ -553,7 +553,7 @@ class EntityGeometryKitTest {
         int[] pixels = new int[64 * 64];
         for (int[] texel : new int[][]{{0, 0}, {7, 7}})
             pixels[texel[1] * 64 + texel[0]] = 0xFFFFFFFF;
-        PixelBuffer diagonal = PixelBuffer.of(pixels, 64, 64);
+        PixelBuffer diagonal = PixelBuffer.ofStraight(pixels, 64, 64);
         Matrix4f onItsCorner = Matrix4f.IDENTITY.rotateZ((float) Math.toRadians(45d));
 
         Box textured = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, diagonal);
@@ -1314,7 +1314,7 @@ class EntityGeometryKitTest {
         for (int y = 0; y < 64; y++)
             for (int x = 0; x < 64; x++)
                 pixels[y * 64 + x] = x < 32 ? left : right;
-        return PixelBuffer.of(pixels, 64, 64);
+        return PixelBuffer.ofStraight(pixels, 64, 64);
     }
 
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */
@@ -1510,14 +1510,14 @@ class EntityGeometryKitTest {
             for (int x = 0; x < 64; x++)
                 pixels[y * 64 + x] = alpha[((x >> 2) + (y >> 2)) & 3] << 24 | 0xFFFFFF;
         }
-        return PixelBuffer.of(pixels, 64, 64);
+        return PixelBuffer.ofStraight(pixels, 64, 64);
     }
 
     /** An opaque-white {@code 64x64} texture, so no face of a fixture cube samples a transparent texel. */
     private static PixelBuffer solidWhite() {
         int[] pixels = new int[64 * 64];
         Arrays.fill(pixels, 0xFFFFFFFF);
-        return PixelBuffer.of(pixels, 64, 64);
+        return PixelBuffer.ofStraight(pixels, 64, 64);
     }
 
     /**
@@ -1572,7 +1572,7 @@ class EntityGeometryKitTest {
                 int alpha = x < 10 && y >= 16 && y < 24 ? 0x80 : 0xFF;
                 pixels[y * 64 + x] = alpha << 24 | (x * 4) << 16 | (y * 4) << 8 | 0x40;
             }
-        return PixelBuffer.of(pixels, 64, height);
+        return PixelBuffer.ofStraight(pixels, 64, height);
     }
 
     /**
@@ -1654,7 +1654,7 @@ class EntityGeometryKitTest {
     private static PixelBuffer filled(int argb, int size) {
         int[] pixels = new int[size * size];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, size, size);
+        return PixelBuffer.ofStraight(pixels, size, size);
     }
 
     /** The sheet at twice its width and height, each texel repeated over a {@code 2x2} block. */
@@ -1665,7 +1665,7 @@ class EntityGeometryKitTest {
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
                 pixels[y * width + x] = sheet.getPixel(x / 2, y / 2);
-        return PixelBuffer.of(pixels, width, height);
+        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
     /** The vanilla entity sheet at {@code minecraft:entity/<ref>}. */

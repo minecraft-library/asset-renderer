@@ -24,6 +24,12 @@ import java.awt.image.BufferedImage;
  * {@link #panelDiff} packs the six diagnostic lenses into one inspectable image, and
  * {@link #padToCanvas} reconciles two differently-sized renders onto a common transparent canvas
  * without resampling.
+ *
+ * <p>Both images a sweep hands in are a PNG's bytes, read straight: a reference holds the client
+ * framebuffer's premultiplied ints as the harness wrote them, and a sweep takes its render's held
+ * premultiplied ints as those bytes through {@link PixelBuffer#ofStraight(int[], int, int)} over the
+ * render's own array. So the two are compared as held, premultiplied with premultiplied, and every
+ * file a sweep writes from them holds those ints as the harness's file does.
  */
 @UtilityClass
 public final class ParityMetrics {
@@ -530,7 +536,7 @@ public final class ParityMetrics {
      * @return the checker raster, sized to one cell
      */
     private static @NotNull BufferedImage buildGridBackdrop(int w, int h) {
-        PixelBuffer backdrop = PixelBuffer.create(w, h);
+        PixelBuffer backdrop = PixelBuffer.straight(w, h);
         Background.checkerboard().fill(backdrop);
         return backdrop.toBufferedImage();
     }

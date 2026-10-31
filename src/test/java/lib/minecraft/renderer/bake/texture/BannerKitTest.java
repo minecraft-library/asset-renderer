@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.texture;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.call.request.BannerLayer;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
@@ -52,7 +53,7 @@ class BannerKitTest {
     void singleLayer() {
         // 2x2 white banner base + a 2x2 mask that's opaque white only at (0, 0).
         PixelBuffer base = solid(2, 2, 0xFFFFFFFF);
-        PixelBuffer mask = PixelBuffer.of(new int[]{
+        PixelBuffer mask = PixelBuffer.ofStraight(new int[]{
             0xFFFFFFFF, 0x00000000,
             0x00000000, 0x00000000
         }, 2, 2);
@@ -70,9 +71,11 @@ class BannerKitTest {
         PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE.argb(), layers,
             BannerKit.Variant.BANNER_ITEM);
 
-        // Pixel (0, 0) is the one opaque mask texel, so the blue layer blitted over it; assert it
-        // stayed opaque (the exact tint blend is BlendMode.NORMAL's business). The other three
-        // texels were transparent in the mask, so they kept the untouched white base.
+        // The sheet is straight, as the textures it composes are, so each pattern lays by the straight
+        // formula. Pixel (0, 0) is the one opaque mask texel, so the blue layer blitted over it; assert
+        // it stayed opaque (the exact tint blend is the formula's business). The other three texels
+        // were transparent in the mask, so they kept the untouched white base.
+        assertThat("the sheet is straight", canvas.alphaMode(), is(AlphaMode.STRAIGHT));
         assertThat((canvas.getPixel(0, 0) >>> 24) & 0xFF, is(0xFF));
         assertThat(canvas.getPixel(1, 0), is(equalTo(DyeColor.Vanilla.WHITE.argb())));
         assertThat(canvas.getPixel(0, 1), is(equalTo(DyeColor.Vanilla.WHITE.argb())));
@@ -145,7 +148,7 @@ class BannerKitTest {
     private static PixelBuffer solid(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++) pixels[i] = argb;
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
     /**

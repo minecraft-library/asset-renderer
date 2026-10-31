@@ -44,7 +44,7 @@ Values this store holds, one file each.
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 1.8886 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7353 | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
-| `sweep.menu` | `sweeps/menu.json` | 15 | sum 9.6282 | `7ceea5b9302a0279d78a2369c6cac23b676ad9e6` | yes |
+| `sweep.menu` | `sweeps/menu.json` | 15 | sum 0.1182 | `560a68449662f6fefb9713bcd6cd6d712a38c8d3` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.tooltip` | `sweeps/tooltip.json` | 76 | sum 0.3274 | `4264daab8a17cbdd2dce01193c5d0838d58d75a8` | yes |
 | `sweep.tooltip-hypixel-skyblock` | `sweeps/tooltip-hypixel-skyblock.json` | 44 | sum 0.0000 | `33935094db15adf57139f1790ec28fa311dfa634` | yes |

@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.menu",
-    "asset_content_digest": "d2533076bf16cb9f897a709d923ddc46011b8a58b5ba864fd23cf8728a235ab3",
+    "asset_content_digest": "707b72ae08d071fa7ea535611326d018f1d5ab699a8d17f50e8c32cce669882a",
     "asset_dirty": true,
-    "asset_sha": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
+    "asset_sha": "560a68449662f6fefb9713bcd6cd6d712a38c8d3",
     "counts": {
       "failed": 0,
       "rows": 15
@@ -16,11 +16,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY,ANIMATION,WALK",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "menuParityVanilla",
-    "reason": "86ad2430 adds anvil_apple (an enchanted golden apple named by the client's setValue) and anvil_highlight (a name whose three scroll passes leave the cursor out of view, the blue band drawn); two whole-tree boots and a menus-only boot agree on both and hold the other 9825; sweep.menu gains 2 rows at 1978 and 1772 output px against today's renderer, 13 held; a second root reads 0 movers over 15 rows",
+    "reason": "the anvil field scrolls as EditBox.setValue leaves a field set to a name whole, and draws the client's additive highlight band where that leaves the cursor out of view: anvil_highlight 1772 output px to 0, anvil_apple 1978 to 442 (the field to 0, the apple's foil glint in its cell left)",
     "reference_artifact": "manifest.references",
     "reference_counts": {
       "armor": 7,
@@ -35,9 +33,9 @@
       "walk": 4896
     },
     "reference_manifest_digest": "30d1347e7cf5028a7729b972f0297318898e8f15225092d3d1da8476e8410182",
-    "timestamp": "2026-10-30T19:06:03Z",
+    "timestamp": "2026-10-31T18:59:12Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 4614
+    "wall_time_ms": 4639
   },
   "rows": [
     {
@@ -49,9 +47,9 @@
       "vanilla_coverage": "0.9994"
     },
     {
-      "differing_pixels": "1978",
+      "differing_pixels": "442",
       "java_coverage": "0.9994",
-      "mean_argb_delta": "4.4620",
+      "mean_argb_delta": "0.1182",
       "status": "ok",
       "subject": "anvil_apple",
       "vanilla_coverage": "0.9994"
@@ -65,9 +63,9 @@
       "vanilla_coverage": "0.9994"
     },
     {
-      "differing_pixels": "1772",
+      "differing_pixels": "0",
       "java_coverage": "0.9994",
-      "mean_argb_delta": "5.1662",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "anvil_highlight",
       "vanilla_coverage": "0.9994"
@@ -163,15 +161,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 13,
-      "<0.50": 13,
-      "<0.75": 13,
-      "<1.00": 13,
+      "<0.25": 15,
+      "<0.50": 15,
+      "<0.75": 15,
+      "<1.00": 15,
       "failed": 0,
       "total": 15
     },
     "failed": 0,
     "rows": 15,
-    "sum": "9.6282"
+    "sum": "0.1182"
   }
 }

@@ -2,7 +2,6 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -93,7 +92,7 @@ public class EquipmentKit {
                 painted = resolve(context, textureId, tick).orElseThrow();
             }
 
-            if (combined == null) combined = PixelBuffer.create(painted.width(), painted.height());
+            if (combined == null) combined = PixelBuffer.straight(painted.width(), painted.height());
             combined.blit(painted, 0, 0);
         }
         return Optional.ofNullable(combined);

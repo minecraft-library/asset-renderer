@@ -33,7 +33,6 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -144,7 +143,7 @@ public final class PoseShowcaseDriver {
                         styleId + " on " + showcase.entityId(), name, frames.size(), frames.getFirst().delayMs());
                 } else {
                     Path out = OUTPUT_DIR.resolve(name + ".png");
-                    ImageIO.write(image.toBufferedImage(), "PNG", out.toFile());
+                    ImageFactory.toFile(image, ImageFormat.PNG, out.toFile());
                     System.out.printf("  %-28s -> %s.png (statue)%n", styleId + " on " + showcase.entityId(), name);
                 }
             } catch (Exception ex) {
@@ -257,7 +256,7 @@ public final class PoseShowcaseDriver {
 
     /**
      * Builds an animated GIF (infinite loop, transparent background) from the rendered frames,
-     * each keeping its own delay, held in the convention the render is marked with.
+     * each keeping its own delay and holding the convention the render drew it in.
      *
      * <p><b>Each frame clears the canvas behind it rather than painting over what was there.</b>
      * A GIF frame carries its own disposal and the default leaves the previous frame standing -
@@ -274,8 +273,7 @@ public final class PoseShowcaseDriver {
         AnimatedImageData.Builder builder = AnimatedImageData.builder()
             .withWidth(first.getWidth())
             .withHeight(first.getHeight())
-            .withLoopCount(LoopCount.Preset.INFINITE)
-            .withAlphaMode(image.getAlphaMode());
+            .withLoopCount(LoopCount.Preset.INFINITE);
         for (ImageFrame frame : frames)
             builder.withFrame(ImageFrame.of(frame.pixels(), frame.delayMs(), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));

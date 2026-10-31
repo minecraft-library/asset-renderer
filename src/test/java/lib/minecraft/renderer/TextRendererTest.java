@@ -93,7 +93,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Each image is also pinned to the mark it reports, {@link AlphaMode#PREMULTIPLIED} - the code-drawn
  * box, a sprite tooltip, chat text and a render of no line alike - and to holding no colour channel
  * above its alpha, since a premultiplied channel is the straight one scaled by that alpha; a tooltip's
- * straight copy reads its fill back as vanilla's background colour.
+ * fill reads back as vanilla's background colour through the image Java2D is handed.
  * <p>
  * {@link TextOptions.Style#CHAT} text is pinned to the pixels it draws: drawn with room on every side
  * and cut to the first pixel on each, over every frame of an obfuscated line, the same text is every
@@ -217,14 +217,14 @@ class TextRendererTest {
      * @return the context a sprite render resolves the synthetic pair through
      */
     private static RendererContext syntheticContext(MCMeta backgroundMeta, int firstColumn, int lastColumn, int firstRow, int lastRow) {
-        PixelBuffer background = PixelBuffer.create(100, 100);
+        PixelBuffer background = PixelBuffer.straight(100, 100);
         for (int y = firstRow; y <= lastRow; y++)
             for (int x = firstColumn; x <= lastColumn; x++)
                 background.setPixel(x, y, BACKGROUND_FILL);
 
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("minecraft:gui/sprites/tooltip/background", background);
-        tex.put("minecraft:gui/sprites/tooltip/frame", PixelBuffer.create(100, 100));
+        tex.put("minecraft:gui/sprites/tooltip/frame", PixelBuffer.straight(100, 100));
         Map<String, MCMeta> metas = new HashMap<>();
         metas.put("minecraft:gui/sprites/tooltip/background", backgroundMeta);
         metas.put("minecraft:gui/sprites/tooltip/frame", FRAME_META);
@@ -555,7 +555,7 @@ class TextRendererTest {
         MCMeta stretch = guiMeta(new MCMeta.GuiScaling.Stretch());
         RendererContext context = syntheticContext(stretch, 5, 94, 5, 94);
         TooltipChrome.ChromeSprites sprites = TooltipChrome.ChromeSprites.resolve(context, Optional.empty());
-        PixelBuffer clientRect = PixelBuffer.create(rectWMcPx * scale, rectHMcPx * scale);
+        PixelBuffer clientRect = PixelBuffer.canvas(rectWMcPx * scale, rectHMcPx * scale);
         NineSliceKit.draw(clientRect, sprites.background(), sprites.backgroundScaling(), 0, 0, rectWMcPx, rectHMcPx, 1.0f);
         Rectangle box = clientRect.opaqueBounds();
         assertThat("the box's left, right, top and bottom edge, each an odd output px",
@@ -701,7 +701,7 @@ class TextRendererTest {
     @Test
     @DisplayName("each sprite no pack ships is replaced on its own")
     void aSpriteNoPackShipsIsDrawnAndRecordedAlone() {
-        PixelBuffer frame = PixelBuffer.create(20, 20);
+        PixelBuffer frame = PixelBuffer.straight(20, 20);
         frame.fill(0xFF445566);
         RenderResult result = new TextRenderer(stubContext(Map.of("fixture:gui/sprites/tooltip/half_frame", frame), Map.of()))
             .render(loreBuilder()
@@ -750,7 +750,7 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("a code-drawn tooltip is marked premultiplied, still and animated, and its straight copy holds vanilla's background colour")
+    @DisplayName("a code-drawn tooltip is marked premultiplied, still and animated, and its fill's straight colour is vanilla's background colour")
     void aCodeDrawnTooltipIsMarkedPremultiplied() {
         TextRenderer renderer = new TextRenderer();
         ImageData still = renderer.render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build()).image();
@@ -761,16 +761,16 @@ class TextRendererTest {
             .build()).image();
 
         assertPremultiplied(still);
-        // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
-        // reads un-premultiplies it back to vanilla's background colour, where a fill laid without
-        // blending reads F0110011.
-        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
+        // The fill is held as the client's framebuffer holds it, F00F000F; the image a caller hands
+        // Java2D shares the canvas premultiplied, and reading a pixel of it un-premultiplies the fill back
+        // to vanilla's background colour, where a fill laid without blending reads F0110011.
+        assertThat("the fill's straight colour", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
         assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
         assertPremultiplied(animated);
     }
 
     @Test
-    @DisplayName("a sprite tooltip is marked premultiplied, still and animated, and its straight copy holds the sprite's texel")
+    @DisplayName("a sprite tooltip is marked premultiplied, still and animated, and its fill's straight colour is the sprite's texel")
     void aSpriteTooltipIsMarkedPremultiplied() {
         assumeSprites();
         TextRenderer renderer = new TextRenderer(realContext());
@@ -782,9 +782,10 @@ class TextRendererTest {
             .build()).image();
 
         assertPremultiplied(still);
-        // The fill is held as the client's framebuffer holds it, F00F000F; the straight copy a caller
-        // reads un-premultiplies it back to the background sprite's texel.
-        assertThat("straight copy of the fill", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
+        // The fill is held as the client's framebuffer holds it, F00F000F; the image a caller hands
+        // Java2D shares the canvas premultiplied, and reading a pixel of it un-premultiplies the fill back
+        // to the background sprite's texel.
+        assertThat("the fill's straight colour", still.toBufferedImage().getRGB(still.getWidth() / 2, 0), is(BACKGROUND_FILL));
         assertThat("the obfuscated line animates", animated.isAnimated(), is(true));
         assertPremultiplied(animated);
     }
@@ -895,9 +896,9 @@ class TextRendererTest {
         // A renderer holding a context draws chat text and the code-drawn box as one holding none does,
         // and the sprite row resolves its pair through it. Both sprites hold a texel over every texel -
         // vanilla's fill and the ring's top - so each draws pixels until the request's alpha clears it.
-        PixelBuffer background = PixelBuffer.create(100, 100);
+        PixelBuffer background = PixelBuffer.straight(100, 100);
         background.fill(BACKGROUND_FILL);
-        PixelBuffer frame = PixelBuffer.create(100, 100);
+        PixelBuffer frame = PixelBuffer.straight(100, 100);
         frame.fill(RING_TOP);
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("minecraft:gui/sprites/tooltip/background", background);
@@ -969,7 +970,7 @@ class TextRendererTest {
         int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
         List<PixelBuffer> drawn = new ArrayList<>();
         for (int frame = 0; frame < frames; frame++) {
-            PixelBuffer canvas = PixelBuffer.create(400, 120);
+            PixelBuffer canvas = PixelBuffer.canvas(400, 120);
             MinecraftGraphics g = new MinecraftGraphics(canvas);
             for (int i = 0; i < lines.size(); i++)
                 TextKit.drawLine(g, lines.get(i), marginMcPx, marginMcPx + ascentMcPx + 10 * i, ColorMath.WHITE, TextPalette.VANILLA, i, frame);

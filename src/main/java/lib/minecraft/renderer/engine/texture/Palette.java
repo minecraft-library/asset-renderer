@@ -64,7 +64,7 @@ public class Palette {
             }
         }
 
-        return PixelBuffer.of(pixels, w, h);
+        return PixelBuffer.ofStraight(pixels, w, h);
     }
 
 }

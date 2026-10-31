@@ -42,7 +42,7 @@ class PlayerRendererSkinCacheTest {
     @DisplayName("two renders of a URL skin each draw the sheet the caller's renderer already holds")
     void twoRendersReadTheHeldSheet() throws ReflectiveOperationException {
         PlayerRenderer renderer = new PlayerRenderer(RendererContext.builder().build());
-        PixelBuffer sheet = PixelBuffer.create(64, 64);
+        PixelBuffer sheet = PixelBuffer.straight(64, 64);
         sheet.fill(0xFF3366CC);
         ConcurrentMap<String, PixelBuffer> cache = skinCache(renderer);
         cache.put(URL, sheet);

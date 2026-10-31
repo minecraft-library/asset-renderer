@@ -462,7 +462,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // geometry can be carried to its neighbour.
         ConcurrentList<VisibleTriangle> startTriangles = buildAtTick.apply(startTick);
         if (startTriangles.isEmpty())
-            return Timeline.still(PixelBuffer.create(canvasW, canvasH));
+            return Timeline.still(PixelBuffer.canvas(canvasW, canvasH));
 
         boolean single = timeline.frames() == 1;
         boolean enchanted = options.getArmor().hasEnchanted();

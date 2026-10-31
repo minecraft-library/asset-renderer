@@ -16,25 +16,28 @@ import java.util.Optional;
  * A placement without an extent draws the picture its source shows at each output frame at that
  * picture's own size. A placement with one rescales the picture into the extent's rectangle at the
  * origin by the nearest-neighbour sampling of {@link PixelBuffer#blitScaled}. Both composite
- * source-over. What picture an animated source shows at a playback time is {@link FrameCompositor}'s
- * to say.
+ * source-over, unless the placement is additive, when every compositor adds its picture's colour to
+ * the canvas under it. What picture an animated source shows at a playback time is
+ * {@link FrameCompositor}'s to say.
  *
  * @param x the destination x origin on the merged canvas
  * @param y the destination y origin on the merged canvas
  * @param source the layer's image data, either static or animated
  * @param extent the rectangle each picture is rescaled into from the origin, or empty for each picture's own size
+ * @param additive whether the picture is added to what lies under it rather than laid over it
  */
-public record FramePlacement(int x, int y, @NotNull ImageData source, @NotNull Optional<Extent> extent) {
+public record FramePlacement(int x, int y, @NotNull ImageData source, @NotNull Optional<Extent> extent, boolean additive) {
 
     /**
-     * Constructs a new {@code FramePlacement} that draws each frame at its own size.
+     * Constructs a new {@code FramePlacement} that draws each frame at its own size, laid over what
+     * lies under it.
      *
      * @param x the destination x origin on the merged canvas
      * @param y the destination y origin on the merged canvas
      * @param source the layer's image data, either static or animated
      */
     public FramePlacement(int x, int y, @NotNull ImageData source) {
-        this(x, y, source, Optional.empty());
+        this(x, y, source, Optional.empty(), false);
     }
 
     /**
@@ -48,7 +51,17 @@ public record FramePlacement(int x, int y, @NotNull ImageData source, @NotNull O
      */
     public @NotNull FramePlacement fittedTo(int width, int height) {
         boolean asItIs = this.source.getWidth() == width && this.source.getHeight() == height;
-        return new FramePlacement(this.x, this.y, this.source, asItIs ? Optional.empty() : Optional.of(new Extent(width, height)));
+        return new FramePlacement(this.x, this.y, this.source, asItIs ? Optional.empty() : Optional.of(new Extent(width, height)), this.additive);
+    }
+
+    /**
+     * Returns this placement with its picture's colour added to what lies under it rather than laid
+     * over it, as the client's additive GUI pipeline lays a text field's highlight band.
+     *
+     * @return the additive placement
+     */
+    public @NotNull FramePlacement additively() {
+        return new FramePlacement(this.x, this.y, this.source, this.extent, true);
     }
 
     /**

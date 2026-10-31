@@ -593,7 +593,7 @@ class BoneKitTest {
     private static PixelBuffer filled(int argb) {
         int[] pixels = new int[16 * 16];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, 16, 16);
+        return PixelBuffer.ofStraight(pixels, 16, 16);
     }
 
     /** A {@code 16x16} sheet filled with {@code argb}, with one texel replaced by {@code texel}. */
@@ -601,7 +601,7 @@ class BoneKitTest {
         int[] pixels = new int[16 * 16];
         Arrays.fill(pixels, argb);
         pixels[y * 16 + x] = texel;
-        return PixelBuffer.of(pixels, 16, 16);
+        return PixelBuffer.ofStraight(pixels, 16, 16);
     }
 
     /** The four corners of a UV rectangle in the {@code TL, BL, BR, TR} order the kit emits. */

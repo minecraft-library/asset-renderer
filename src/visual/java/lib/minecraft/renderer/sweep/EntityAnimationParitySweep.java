@@ -327,8 +327,9 @@ public final class EntityAnimationParitySweep {
                 .animation(AnimationOptions.builder().startTick(START_TICK).build());
             subject.key().armor().ifPresent(options::armor);
             ImageData rendered = javaRenderer.render(options.build()).image();
+            // Each PNG holds premultiplied colour as the harness's do: a frame's held ints are its bytes.
             List<BufferedImage> javaFrames = rendered.getFrames().stream()
-                .map(frame -> frame.pixels().toBufferedImage())
+                .map(frame -> PixelBuffer.ofStraight(frame.pixels().data(), frame.pixels().width(), frame.pixels().height()).toBufferedImage())
                 .toList();
             if (javaFrames.size() != resolved.strip().frames()) {
                 System.err.printf("       %-44s rendered %d frames, its own resolution draws %d and the sidecar %d%n",

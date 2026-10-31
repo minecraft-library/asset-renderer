@@ -445,8 +445,8 @@ public class TextKit {
      * Measures a {@link LineSegment}'s width in whole mcPixels, as the client's {@code Font#width}
      * does - each segment's advance in its own font summed with its fraction kept, then rounded up
      * once, so a line ending on half an mcPixel is answered the whole mcPixel it reaches into. It is
-     * what a tooltip canvas is sized from, a title is anchored by, and a text field scrolls and
-     * places its caret by.
+     * what a tooltip canvas is sized from, a title is anchored by, and a text field steps its pen and
+     * opens its highlight band by.
      *
      * @param line the line to measure
      * @return the width in whole mcPixels

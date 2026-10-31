@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
@@ -198,7 +199,7 @@ class UnresolvedTextureReferenceTest {
     }
 
     @TestFactory
-    @DisplayName("a model whose references all resolve draws stone on every face and names no stand-in")
+    @DisplayName("a model whose references all resolve draws stone on every face, names no stand-in and is held premultiplied")
     @NotNull Stream<DynamicTest> aResolvingModelIsUnchanged() {
         return perSubject(subject -> {
             RenderResult drawn = subject.render().draw(subject.intact());
@@ -206,6 +207,7 @@ class UnresolvedTextureReferenceTest {
             assertThat(subject + " draws no checkerboard where the missing cube does",
                 picture(drawn), is(not(picture(subject.render().draw(subject.missing())))));
             assertThat(subject + " names no stand-in", drawn.substitutions(), is(empty()));
+            assertThat(subject + " is a canvas, as every render is", drawn.image().getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
         });
     }
 

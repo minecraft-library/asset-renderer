@@ -30,7 +30,7 @@ class FlipbookTest {
     @DisplayName("single-frame strip returns the same frame regardless of tick")
     void singleFrameStrip_returnsSameFrame() {
         // 1x1 strip with a single frame - width=1, height=1, one red pixel
-        PixelBuffer strip = PixelBuffer.of(new int[]{ 0xFFFF0000 }, 1, 1);
+        PixelBuffer strip = PixelBuffer.ofStraight(new int[]{ 0xFFFF0000 }, 1, 1);
         Flipbook flipbook = flipbook(strip, 1, false, null);
 
         PixelBuffer frame0 = flipbook.frameAt(strip, 0);
@@ -48,7 +48,7 @@ class FlipbookTest {
         // 1-wide, 4-tall strip where each row is a distinctive color. With no width/height
         // override the frame is a square of the strip's shorter side (1), so height 4 / 1 = 4 frames.
         int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 4);
         Flipbook flipbook = flipbook(strip, 1, false, null);
 
         PixelBuffer f0 = flipbook.frameAt(strip, 0);
@@ -66,7 +66,7 @@ class FlipbookTest {
     @DisplayName("tick wraps modulo total cycle length")
     void tick_wrapsModuloCycle() {
         int[] pixels = { 0xFFAA0000, 0xFF00BB00 };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 2);
         Flipbook flipbook = flipbook(strip, 1, false, null);
 
         PixelBuffer f0 = flipbook.frameAt(strip, 0);
@@ -82,7 +82,7 @@ class FlipbookTest {
     @DisplayName("frametime holds each frame for the right tick range")
     void frametime_holdsFrameRange() {
         int[] pixels = { 0xFF111111, 0xFF222222 };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 2);
         Flipbook flipbook = flipbook(strip, 3, false, null);
 
         PixelBuffer t0 = flipbook.frameAt(strip, 0);
@@ -101,7 +101,7 @@ class FlipbookTest {
     void interpolation_blendsLinearly() {
         // Two single-pixel frames: pure black then pure white, held 4 ticks each with interpolate on.
         int[] pixels = { 0xFF000000, 0xFFFFFFFF };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 2);
         Flipbook flipbook = flipbook(strip, 4, true, null);
 
         // The blend alpha is the tick's progress into frame 0's 4-tick duration, toward frame 1.
@@ -120,7 +120,7 @@ class FlipbookTest {
     @DisplayName("explicit frames list with custom time overrides respects entry durations")
     void explicitFrameList_respectsEntryDurations() {
         int[] pixels = { 0xFFAAAAAA, 0xFFBBBBBB };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 2);
 
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
         frames.add(new MCMeta.Frame(0, Optional.of(5)));
@@ -141,10 +141,10 @@ class FlipbookTest {
     void unplayableStrip_resolvesEmpty() {
         // A 4x4 strip whose sidecar declares 8-pixel-tall frames holds no whole frame, and a caller
         // that resolves nothing renders the strip unchanged rather than cropping a partial row.
-        PixelBuffer strip = PixelBuffer.of(new int[16], 4, 4);
+        PixelBuffer strip = PixelBuffer.ofStraight(new int[16], 4, 4);
         assertThat(Flipbook.of(strip, new MCMeta.Animation(1, false, Optional.empty(), Optional.of(8), Optional.empty())).isPresent(), is(false));
         // A zero-width strip has no rectangle to crop either.
-        assertThat(Flipbook.of(PixelBuffer.of(new int[0], 0, 0), animation(1, false, null)).isPresent(), is(false));
+        assertThat(Flipbook.of(PixelBuffer.ofStraight(new int[0], 0, 0), animation(1, false, null)).isPresent(), is(false));
     }
 
     @Test
@@ -155,7 +155,7 @@ class FlipbookTest {
             0xFF00FF00, 0xFF00FF01,
             0xFF0000FF, 0xFF0000FE
         };
-        PixelBuffer strip = PixelBuffer.of(pixels, 2, 3);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 2, 3);
 
         Flipbook table = Flipbook.of(strip,
             new MCMeta.Animation(1, false, Optional.of(2), Optional.of(1), Optional.empty())).orElseThrow();
@@ -172,7 +172,7 @@ class FlipbookTest {
     @DisplayName("a strip wider than tall with no declared size plays its square frames left to right")
     void wideStrip_playsAcross() {
         // A 4x2 strip whose undeclared frame is a square of its shorter side: two 2x2 frames side by side.
-        PixelBuffer strip = PixelBuffer.of(new int[]{
+        PixelBuffer strip = PixelBuffer.ofStraight(new int[]{
             0xFF0000AA, 0xFF0000AA, 0xFF0000BB, 0xFF0000BB,
             0xFF0000AA, 0xFF0000AA, 0xFF0000BB, 0xFF0000BB
         }, 4, 2);
@@ -191,7 +191,7 @@ class FlipbookTest {
         // A 4x4 strip of four declared 2x2 frames, one colour each: top-left, top-right, bottom-left,
         // bottom-right.
         int a = 0xFF000001, b = 0xFF000002, c = 0xFF000003, d = 0xFF000004;
-        PixelBuffer strip = PixelBuffer.of(new int[]{
+        PixelBuffer strip = PixelBuffer.ofStraight(new int[]{
             a, a, b, b,
             a, a, b, b,
             c, c, d, d,
@@ -209,7 +209,7 @@ class FlipbookTest {
     @Test
     @DisplayName("a declared side takes the strip's own size for the other, and neither declared is the shorter side square")
     void frameSize_followsVanilla() {
-        PixelBuffer strip = PixelBuffer.create(8, 4);
+        PixelBuffer strip = PixelBuffer.straight(8, 4);
 
         assertThat("width alone takes the strip's height",
             Flipbook.FrameSize.of(new MCMeta.Animation(1, false, Optional.of(2), Optional.empty(), Optional.empty()), strip),
@@ -228,15 +228,15 @@ class FlipbookTest {
     @DisplayName("a frame size divides a strip only when it divides both of its sides")
     void frameSize_dividesBothAxes() {
         assertThat("a tall strip of whole square frames",
-            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.create(16, 48)), is(true));
+            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.straight(16, 48)), is(true));
         assertThat("a height the frame does not divide",
-            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.create(16, 40)), is(false));
+            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.straight(16, 40)), is(false));
         assertThat("a width the frame does not divide",
-            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.create(24, 32)), is(false));
+            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.straight(24, 32)), is(false));
         assertThat("a strip shorter than its frame",
-            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.create(16, 8)), is(false));
+            new Flipbook.FrameSize(16, 16).divides(PixelBuffer.straight(16, 8)), is(false));
         assertThat("a frame with no area divides nothing",
-            new Flipbook.FrameSize(0, 0).divides(PixelBuffer.create(16, 16)), is(false));
+            new Flipbook.FrameSize(0, 0).divides(PixelBuffer.straight(16, 16)), is(false));
     }
 
     @Test
@@ -244,7 +244,7 @@ class FlipbookTest {
     void raggedStrip_playsItsWholeFrames() {
         // A pack serves such a strip as a texture with no pixels before it reaches here; one handed over
         // directly plays the two whole frames of its 2x5 strip and leaves the ragged row unplayed.
-        PixelBuffer strip = PixelBuffer.of(new int[10], 2, 5);
+        PixelBuffer strip = PixelBuffer.ofStraight(new int[10], 2, 5);
         assertThat(flipbook(strip, 1, false, null).entries().size(), equalTo(2));
     }
 
@@ -253,7 +253,7 @@ class FlipbookTest {
     void aFrameTheStripDoesNotHoldIsDropped() {
         // A 1x4 strip of four distinct rows, playing frames [0, 7, 1]: the strip holds no frame 7.
         int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 4);
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
         frames.add(new MCMeta.Frame(0, Optional.empty()));
         frames.add(new MCMeta.Frame(7, Optional.empty()));
@@ -268,7 +268,7 @@ class FlipbookTest {
     @DisplayName("a table of fewer than two entries does not animate and shows the strip's first frame")
     void aTableOfFewerThanTwoEntriesShowsTheFirstFrame() {
         int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
-        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 4);
         ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
         frames.add(new MCMeta.Frame(3, Optional.empty()));
         Flipbook one = flipbook(strip, 1, false, frames);

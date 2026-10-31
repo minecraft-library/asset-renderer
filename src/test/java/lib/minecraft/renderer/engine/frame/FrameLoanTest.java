@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +52,8 @@ class FrameLoanTest {
             PixelBuffer second = FrameLoan.frame(4, 4);
             assertThat(first.data(), is(sameInstance(drawn.data())));
             assertThat(second.data(), is(not(sameInstance(drawn.data()))));
+            assertThat("the lent frame is a canvas", first.alphaMode(), is(AlphaMode.PREMULTIPLIED));
+            assertThat("and so is the frame made beside it", second.alphaMode(), is(AlphaMode.PREMULTIPLIED));
 
             loan.giveBack(first);
             assertThat("a frame after the give-back", FrameLoan.frame(4, 4).data(), is(not(sameInstance(drawn.data()))));

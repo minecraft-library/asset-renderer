@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.awt.Rectangle;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -191,7 +192,7 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("every cell holds sixteen Minecraft pixels of content, centred in whatever it is")
     void everyCellHoldsSixteenOfContentCentred() {
-        ImageData nothing = Timeline.still(PixelBuffer.create(1, 1));
+        ImageData nothing = Timeline.still(PixelBuffer.canvas(1, 1));
         FramePlacement ordinary = MenuRenderer.inCell(
             new ScreenMetrics.Cell(7, 17, ScreenMetrics.CELL, ScreenMetrics.Role.CONTAINER), nothing);
         FramePlacement result = MenuRenderer.inCell(
@@ -294,6 +295,31 @@ class MenuRendererGeometryTest {
                 if (without.getPixel(x, y) != with.getPixel(x, y)) drawn.add(with.getPixel(x, y));
 
         assertThat("the text and its shadow, each in its swap", drawn, is(equalTo(Set.of(0xFF4CC2FF, 0xFF13303F))));
+    }
+
+    @Test
+    @DisplayName("a field's highlight band adds the client's blue to the well and to the last glyph's shadow under it")
+    void aFieldsHighlightBandAddsItsBlueToTheWell() {
+        MenuRenderer renderer = new MenuRenderer(RendererContext.builder().build());
+        MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.ANVIL).caret(false).build();
+        PixelBuffer without = renderer.render(bare).image().getFrames().getFirst().pixels();
+        PixelBuffer with = renderer.render(bare.mutate().fieldText("lil' MAMMOTH WARHAMMER").caret(true).build())
+            .image().getFrames().getFirst().pixels();
+
+        // The band covers Minecraft x 159 to 164 and rows 23 to 33 - output (318, 46), 12 by 22. Under it lie
+        // the disabled field's 4E4737 and, in column 159, the shadow the shown text's last E casts from its
+        // top and bottom bars, eight output pixels of 3F3F3F; the client adds its blue to each.
+        Map<Integer, Integer> under = new HashMap<>();
+        Map<Integer, Integer> banded = new HashMap<>();
+        for (int y = 23 * SCALE; y < 34 * SCALE; y++) {
+            for (int x = 159 * SCALE; x < 165 * SCALE; x++) {
+                under.merge(without.getPixel(x, y), 1, Integer::sum);
+                banded.merge(with.getPixel(x, y), 1, Integer::sum);
+            }
+        }
+
+        assertThat("the bare well under the band", under, is(equalTo(Map.of(0xFF4E4737, 264))));
+        assertThat("the well and the shadow, each with the blue added", banded, is(equalTo(Map.of(0xFF4E47FF, 256, 0xFF3F3FFF, 8))));
     }
 
     /**
@@ -470,7 +496,7 @@ class MenuRendererGeometryTest {
     void missingChromeArtIsNamedByTheChromeAlone() {
         ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
         slots.put(0, MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
-            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
+            Timeline.still(PixelBuffer.canvas(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
         // A bare grid of 140x78, which renders because a screen the client ships no sheet for reads the
         // stand-in at its own size rather than across the client's 256-texel sheet space.
         Optional<ResourceId> missing = Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here"));
@@ -556,7 +582,7 @@ class MenuRendererGeometryTest {
     void anAnvilsChromeFollowsWhatItsSlotsHold() {
         MenuOptions anvil = MenuOptions.builder().type(MenuOptions.Type.ANVIL).build();
         MenuOptions.MenuSlotContent render = MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
-            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+            Timeline.still(PixelBuffer.canvas(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
         // The client's two field sprites differ in 1512 Minecraft pixels and its cross covers 81.
         int field = 1512 * SCALE * SCALE;
         int cross = 81 * SCALE * SCALE;
@@ -702,6 +728,23 @@ class MenuRendererGeometryTest {
         assertThat("the layer is a single frame", labels.isAnimated(), is(false));
         assertThat("the layer's mark", labels.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
         assertThat("pixels with a colour channel above their alpha", above, is(equalTo(0)));
+
+        MenuOptions obfuscated = chest(3, true).mutate().title("§kChest").build();
+        ImageData scrambled = MenuRenderer.labelLayer(obfuscated, MenuRenderer.layoutOf(obfuscated), TextPalette.VANILLA).orElseThrow();
+        assertThat("an obfuscated title's layer animates", scrambled.isAnimated(), is(true));
+        assertThat("and carries the same mark", scrambled.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+    }
+
+    @Test
+    @DisplayName("a still menu and the chrome laid under it are held premultiplied, as every render is")
+    void aStillMenuAndItsChromeAreHeldPremultiplied() {
+        MenuOptions options = chest(3, true);
+        ImageData menu = new MenuRenderer(RendererContext.builder().build()).render(options).image();
+        FramePlacement chrome = MenuRenderer.chromeOf(Window.Theme.VANILLA, MenuRenderer.layoutOf(options));
+
+        assertThat("the menu is a single frame", menu.isAnimated(), is(false));
+        assertThat("the menu's mark", menu.getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
+        assertThat("the chrome's mark", chrome.source().getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
     }
 
     @Test

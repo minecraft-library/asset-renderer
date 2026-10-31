@@ -119,7 +119,7 @@ public final class ChromeSlicer {
         @NotNull PixelBuffer source,
         int width, int height
     ) {
-        PixelBuffer out = PixelBuffer.create(width, height);
+        PixelBuffer out = PixelBuffer.straight(width, height);
 
         int l = decomposition.left(), t = decomposition.top();
         int r = decomposition.right(), b = decomposition.bottom();

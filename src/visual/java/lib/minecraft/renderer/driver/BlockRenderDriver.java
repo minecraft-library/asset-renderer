@@ -3,6 +3,8 @@ package lib.minecraft.renderer.driver;
 import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
@@ -14,7 +16,6 @@ import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ClientException;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -106,7 +107,7 @@ public final class BlockRenderDriver {
             try {
                 ImageData image = renderer.render(options).image();
                 File outputFile = outputDir.resolve(safeName + ".png").toFile();
-                ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
+                ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
             } catch (Exception ex) {
                 System.err.println("  FAILED: " + ex.getMessage());
@@ -126,7 +127,7 @@ public final class BlockRenderDriver {
                         .build();
                     ImageData faceImage = renderer.render(faceOpt).image();
                     File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();
-                    ImageIO.write(faceImage.toBufferedImage(), "PNG", faceFile);
+                    ImageFactory.toFile(faceImage, ImageFormat.PNG, faceFile);
                 } catch (Exception ex) {
                     System.err.println("  Failed 2D " + face + ": " + ex.getMessage());
                 }

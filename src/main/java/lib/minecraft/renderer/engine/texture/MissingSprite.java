@@ -97,7 +97,7 @@ public class MissingSprite {
      * @return the stretched sprite
      */
     private static @NotNull PixelBuffer stretch(int width, int height) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
 
         for (int y = 0; y < height; y++) {
             int sy = (2 * y + 1) * SIZE / (2 * height);
@@ -117,7 +117,7 @@ public class MissingSprite {
      * @return the generated sprite
      */
     static @NotNull PixelBuffer generate(int width, int height) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++)

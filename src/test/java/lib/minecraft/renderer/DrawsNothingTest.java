@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.frame.ImageFrame;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -405,6 +406,7 @@ class DrawsNothingTest {
 
         assertThat(label + " names no stand-in", rendered.substitutions(), is(empty()));
         assertThat(label + " answers a frame", rendered.image().getFrames().size(), is(greaterThan(0)));
+        assertThat(label + " is a canvas", rendered.image().getAlphaMode(), is(AlphaMode.PREMULTIPLIED));
         for (ImageFrame frame : rendered.image().getFrames()) {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));

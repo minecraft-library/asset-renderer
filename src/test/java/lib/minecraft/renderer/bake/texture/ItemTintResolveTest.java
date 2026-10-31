@@ -1,33 +1,42 @@
 package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * One item-definition tint calculated against the caller's overrides and the pack stack: a grass tint
  * samples the stack's own grass colormap at the definition's climate point, and a map-colour tint takes
  * the caller's colour else its default, opaque either way. A dye tint reads the stack's
  * {@code minecraft:dyed_color} behind the caller's explicit leather colour. The colours a model's faces
- * pick by tintindex fill slot 0 with the caller's colour only where the definition lists no tint.
+ * pick by tintindex fill slot 0 with the caller's colour only where the definition lists no tint. A flat
+ * item's tinted layers compose onto a straight sheet, so a translucent texel keeps the colour its texture
+ * holds.
  */
 @DisplayName("An item-definition tint resolves against the options and the pack stack")
 class ItemTintResolveTest {
@@ -138,6 +147,32 @@ class ItemTintResolveTest {
         assertThat("two constants stand at their own indices",
             ItemTint.layerTints(context, Concurrent.newUnmodifiableList(new LayerTint.Constant(k1), new LayerTint.Constant(k2)), options()),
             is(new int[]{ k1, k2 }));
+    }
+
+    /**
+     * Pins the layer sheet's convention against the black stained glass pane, one of vanilla's sixteen
+     * whose one layer is the block's glass, every texel translucent. The sheet is straight, as the
+     * texture is, so the glass lands on it as the texture holds it; laid as premultiplied colour onto a
+     * sheet the rasterizer then reads straight, each texel would be scaled by its alpha twice. Only this
+     * method needs the client, so it takes the presence gate rather than the extension.
+     */
+    @Test
+    @DisplayName("a stained glass pane's layers compose onto a straight sheet, its translucent glass kept as the texture holds it")
+    void aPanesTranslucentGlassComposesStraight() {
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
+        RendererContext vanilla = ClientAssetsExtension.context();
+        Item pane = vanilla.findItem("minecraft:black_stained_glass_pane").get();
+        String layer0 = pane.textures().get("layer0");
+        assertThat("the pane's one layer is the block's glass", layer0, is("minecraft:block/black_stained_glass"));
+        PixelBuffer glass = vanilla.resolveTexture(layer0).get();
+        assertThat("every texel of which is translucent",
+            Arrays.stream(glass.data()).filter(argb -> ColorMath.alpha(argb) > 0 && ColorMath.alpha(argb) < 0xFF).count(), is(256L));
+
+        PixelBuffer sheet = ItemTint.composeTintedLayers(vanilla, pane,
+            ItemOptions.builder().itemId("minecraft:black_stained_glass_pane").build(), CitResult.NONE, 0);
+        assertThat("the sheet is straight", sheet.alphaMode(), is(AlphaMode.STRAIGHT));
+        assertThat("and holds the glass as the texture does", sheet.data(), is(glass.data()));
     }
 
     /**

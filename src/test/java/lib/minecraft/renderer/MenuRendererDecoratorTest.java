@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
@@ -19,17 +20,20 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Pins a menu's animated output to the layers it actually composites rather than to the ones it
- * builds itself.
+ * Pins a menu's output to the layers it actually composites rather than to the ones it builds
+ * itself.
  * <p>
  * A caller's {@link MenuOptions#getLayerDecorator() layerDecorator} splices into the same stack the
  * built-in layers went into, so a spliced animation is a layer of the composite like any other and
  * the output has to play it. The menu here carries no animated layer of its own - no slot, no fill,
  * no obfuscated title - so the decorator is the only thing that could animate it, and the control
  * render below is what holds that.
+ * <p>
+ * A spliced layer is drawn as it was placed, too: a still menu rescales a placement its caller fitted
+ * to an extent across that extent, as an animated one does.
  */
 @ExtendWith(ClientAssetsExtension.class)
-@DisplayName("A menu animates for a layer its caller spliced in")
+@DisplayName("A menu composites the layers its caller spliced in")
 class MenuRendererDecoratorTest {
 
     /** The side of the spliced layer, in output pixels, which is small because only its ink matters. */
@@ -50,7 +54,7 @@ class MenuRendererDecoratorTest {
 
     /** One solid frame of {@code argb}, spelled at the disposal a transparent canvas needs. */
     private static ImageFrame frame(int argb) {
-        PixelBuffer buffer = PixelBuffer.create(LAYER_PX, LAYER_PX);
+        PixelBuffer buffer = PixelBuffer.straight(LAYER_PX, LAYER_PX);
 
         for (int y = 0; y < LAYER_PX; y++)
             for (int x = 0; x < LAYER_PX; x++) buffer.setPixel(x, y, argb);
@@ -107,6 +111,28 @@ class MenuRendererDecoratorTest {
                 if (first.getPixel(x, y) != last.getPixel(x, y)) differing++;
 
         assertThat("the two spliced frames draw different ink", differing, is(greaterThan(0)));
+    }
+
+    @Test
+    @DisplayName("a still layer spliced in fitted to an extent is rescaled across it")
+    void aSplicedFittedLayerIsRescaledAcrossItsExtent() {
+        PixelBuffer texel = PixelBuffer.straight(1, 1);
+        texel.setPixel(0, 0, 0xFFFF0000);
+        MenuOptions decorated = staticMenu().mutate()
+            .layerDecorator(stack -> stack.append(MenuSlot.TEXT,
+                sink -> sink.add(new FramePlacement(0, 0, StaticImageData.of(texel)).fittedTo(LAYER_PX, LAYER_PX))))
+            .build();
+
+        ImageData rendered = render(decorated);
+        PixelBuffer pixels = rendered.toPixelBuffer();
+        int red = 0;
+
+        for (int y = 0; y < LAYER_PX; y++)
+            for (int x = 0; x < LAYER_PX; x++)
+                if (pixels.getPixel(x, y) == 0xFFFF0000) red++;
+
+        assertThat("the menu stays still", rendered.isAnimated(), is(false));
+        assertThat("the one-pixel picture covers its whole extent", red, is(LAYER_PX * LAYER_PX));
     }
 
 }

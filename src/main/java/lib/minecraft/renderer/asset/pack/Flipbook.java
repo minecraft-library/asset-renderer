@@ -237,7 +237,7 @@ public record Flipbook(
                 pixels[y * this.frameWidth + x] = strip.getPixel(sx, sy);
             }
         }
-        return PixelBuffer.of(pixels, this.frameWidth, this.frameHeight);
+        return PixelBuffer.ofStraight(pixels, this.frameWidth, this.frameHeight);
     }
 
     /**

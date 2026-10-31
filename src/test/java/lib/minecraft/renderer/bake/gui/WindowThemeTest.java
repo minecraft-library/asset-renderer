@@ -41,7 +41,7 @@ class WindowThemeTest {
     }
 
     private static PixelBuffer paint(Window window, int w, int h) {
-        PixelBuffer buffer = PixelBuffer.create(w * S, h * S);
+        PixelBuffer buffer = PixelBuffer.canvas(w * S, h * S);
         window.paintPanel(buffer, new Window.Box(0, 0, w, h));
         window.paintCell(buffer, new Window.Box(7, 17, 18, 18));
         return readDown(buffer);
@@ -126,7 +126,7 @@ class WindowThemeTest {
      */
     private static PixelBuffer mark(Window window, Mark kind) {
         Window.Extent extent = Window.Extent.of(kind);
-        PixelBuffer buffer = PixelBuffer.create(extent.width() * S, extent.height() * S);
+        PixelBuffer buffer = PixelBuffer.canvas(extent.width() * S, extent.height() * S);
         window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height()), kind);
         return readDown(buffer);
     }
@@ -346,8 +346,8 @@ class WindowThemeTest {
     void artCarriesItsOwnMarks() {
         // The shipped crafting panel has its arrow painted into the texture, so a window slicing that
         // texture would draw a second one over the first.
-        PixelBuffer buffer = PixelBuffer.create(22 * S, 15 * S);
-        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(),
+        PixelBuffer buffer = PixelBuffer.canvas(22 * S, 15 * S);
+        Window.Sliced sliced = Window.Sliced.of(PixelBuffer.straight(8, 8), Optional.empty(), Optional.empty(),
             Concurrent.newMap(), Concurrent.newMap());
         sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0)), Mark.ARROW);
 

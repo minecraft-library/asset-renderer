@@ -106,7 +106,7 @@ class HeldElementTintTest {
         int[] white = new int[16 * 16];
         Arrays.fill(white, 0xFFFFFFFF);
         RendererContext context = RendererContext.builder()
-            .textures(Map.of(TEXTURE, PixelBuffer.of(white, 16, 16)))
+            .textures(Map.of(TEXTURE, PixelBuffer.ofStraight(white, 16, 16)))
             .items(Map.of(ID, item))
             .build();
         // A tint carries the checkerboard's magenta into its own hue class, so a face reading a texture

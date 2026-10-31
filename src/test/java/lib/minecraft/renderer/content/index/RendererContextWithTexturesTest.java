@@ -88,7 +88,7 @@ class RendererContextWithTexturesTest {
         new Animating(RendererContext.builder().build());
 
     /** The pixels the substituting source answers with, standing in for a flattened strip frame. */
-    private static final @NotNull PixelBuffer FRAME = PixelBuffer.create(16, 16);
+    private static final @NotNull PixelBuffer FRAME = PixelBuffer.straight(16, 16);
 
     /**
      * Substitutes every texture id with {@link #FRAME}, the shape the static atlas's view takes.

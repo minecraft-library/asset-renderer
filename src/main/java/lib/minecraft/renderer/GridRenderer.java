@@ -60,10 +60,13 @@ import java.util.stream.IntStream;
  * path hands the compositor a {@linkplain FramePlacement#fittedTo fitted placement}, which rescales the
  * frame a tile shows at each output frame's time; a tile already the cell's size is drawn as it is.
  *
- * <p>Every placement is laid down with {@link BlendMode#PREMULTIPLIED}, because a tile is a finished
- * render whose colours already carry their alpha. A translucent pixel keeps the colour it was rendered
- * with over a transparent cell, and over a background shows the background through it as drawing the
- * subject over that background would.
+ * <p>Every placement is laid down source-over in the convention it holds, but an
+ * {@linkplain FramePlacement#additive() additive} one, which is added to what lies under it with
+ * {@link BlendMode#ADD}, on a static sheet as through the animated merge. A render is a
+ * {@link PixelBuffer#canvas canvas}, as it was drawn: a translucent pixel keeps the colour it was
+ * rendered with over a transparent cell, and over a background shows the background through it as
+ * drawing the subject over that background would. A picture read from a file is straight, and is laid
+ * as the client lays a straight texel.
  *
  * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
  * detects the mix and routes through the animated path automatically.
@@ -142,7 +145,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
                 }
 
                 PixelBuffer pixels = result.image().toPixelBuffer();
-                buffer.blitScaled(pixels, cell.x, cell.y, cellSize, cellSize, BlendMode.PREMULTIPLIED);
+                buffer.blitScaled(pixels, cell.x, cell.y, cellSize, cellSize);
                 placed[i] = cell.cell(cellSize, result);
                 if (loan != null) loan.giveBack(pixels);
             }
@@ -198,7 +201,8 @@ public final class GridRenderer implements Renderer<GridOptions> {
             // conversion, avoiding the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of
             // wrap(toBufferedImage()).
             placements.forEach(placement ->
-                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize, BlendMode.PREMULTIPLIED));
+                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize,
+                    placement.additive() ? BlendMode.ADD : BlendMode.NORMAL));
 
             return new GridResult(Timeline.still(buffer), placed);
         }
@@ -257,9 +261,9 @@ public final class GridRenderer implements Renderer<GridOptions> {
     }
 
     /**
-     * Allocates a grid's buffer with its background laid down premultiplied, the convention of the
-     * finished tiles laid over it. A fill at alpha 0 premultiplies to transparent black, which a new
-     * buffer already holds in every pixel, so it is left to the allocation.
+     * Allocates a grid's canvas with its background laid down in it, premultiplied as the finished
+     * tiles laid over it are. A fill at alpha 0 is transparent black, which a new canvas already holds
+     * in every pixel, so it is left to the allocation.
      *
      * @param width the buffer's width
      * @param height the buffer's height
@@ -267,11 +271,9 @@ public final class GridRenderer implements Renderer<GridOptions> {
      * @return the buffer
      */
     private static @NotNull PixelBuffer blank(int width, int height, @NotNull Background background) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
-        if (!background.isTransparent()) {
+        PixelBuffer buffer = PixelBuffer.canvas(width, height);
+        if (!background.isTransparent())
             background.fill(buffer);
-            buffer.premultiplyAlpha();
-        }
 
         return buffer;
     }

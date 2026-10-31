@@ -662,7 +662,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 }
                 case FrameItem.Drawn drawn -> {
                     ModelTransform gui = guiTransform(drawn.item().model());
-                    PixelBuffer sprites = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
+                    PixelBuffer sprites = PixelBuffer.straight(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
                     renderStandardLayers(ctx.context(), sprites, drawn.item(), options, ctx.cit(), light, tick);
                     yield Concurrent.newUnmodifiableList(new DrawPart(
                         unshaded(BoxKit.buildBox(SPRITE_SLAB, FaceTextures.uniform(sprites), ColorMath.WHITE), gui),

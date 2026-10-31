@@ -89,7 +89,7 @@ class GridRendererCellFitTest {
         // Flagged opaque while holding transparent and part-transparent texels: the one input a plain
         // blit copies verbatim and a rescale at the same size composites instead, so it tells a tile
         // drawn as it is from one rescaled to the size it already has.
-        tiles.add(new GridOptions.GridTile(1, 1, StaticImageData.of(PixelBuffer.of(pattern(CELL, CELL, 0, 8).data(), CELL, CELL, false))));
+        tiles.add(new GridOptions.GridTile(1, 1, StaticImageData.of(PixelBuffer.ofStraight(pattern(CELL, CELL, 0, 8).data(), CELL, CELL, false))));
 
         GridResult sheet = render(tiles);
         ConcurrentList<FramePlacement> asTheyAre = Concurrent.newList();
@@ -98,9 +98,15 @@ class GridRendererCellFitTest {
         ImageData merged = FrameCompositor.merge(asTheyAre, sheet.image().getWidth(), sheet.image().getHeight(),
             FRAMES_PER_SECOND, Background.solid(BACKGROUND));
 
+        // Derived by arithmetic rather than read off a run: the sheet is 22x22 over opaque FF203040 in six
+        // 50 ms frames, each tile showing the frame its playback walk picks then. Every tile but (1, 1) is
+        // a straight pattern, so each texel is laid over the opaque background by the straight-source
+        // formula - kept at alpha FF, left out at 00, and at 80 each channel round(c * 128/255 + b *
+        // 127/255) in float, at alpha FF - and (1, 1), flagged opaque, is copied as it is. The digest is
+        // SHA-256 over the frame count, then each frame's delay, size and pixels.
         assertThat("the sheet is the merge of its tiles at their own size", digest(sheet.image()), is(digest(merged)));
-        assertThat("and the bytes the sheet draws with each tile laid down premultiplied", digest(sheet.image()),
-            is("f7ea0cc1ad9c6600f8fbff78067b639e3a9328d159ade3852668eb412ab2d2ff"));
+        assertThat("and the bytes the sheet draws with each tile laid down in the convention it holds", digest(sheet.image()),
+            is("6e8cec41c0276599f3dec50429f0b0a0a9808cecb93029ee91193ea8a3d54277"));
     }
 
     /**
@@ -211,7 +217,7 @@ class GridRendererCellFitTest {
      * @return the buffer
      */
     private static @NotNull PixelBuffer pattern(int width, int height, int frame, int seed) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++) {
                 int mix = x * 31 + y * 17 + frame * 7 + seed * 13;

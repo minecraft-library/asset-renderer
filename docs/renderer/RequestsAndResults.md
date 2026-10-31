@@ -1,10 +1,10 @@
 # Requests, results and the vocabulary they name
 
 Load when touching `call/**` - the `*Options` bags, `RenderResult` and the composite results, the
-`LayerSlot` enums - how a finished render is laid down (`BlendMode.PREMULTIPLIED` against `NORMAL`
-in `GridRenderer`, `FrameCompositor`, `MenuRenderer` and `ItemStackKit`), the item stack an item
-render reads and an item definition's walk (`ItemModelDispatch`, `ItemModelNode`), or the vocabulary
-under `vanilla/appearance`. `ArmorSlot` and `ArmorForm` have their rules in [Armour.md](Armour.md).
+`LayerSlot` enums - how a render is laid down (the convention its buffer holds, or `BlendMode.ADD` for
+an additive placement), the item stack an item render reads and an item definition's walk
+(`ItemModelDispatch`, `ItemModelNode`), or the vocabulary under `vanilla/appearance`.
+`ArmorSlot` and `ArmorForm` have their rules in [Armour.md](Armour.md).
 Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 **`call/` holds what crosses a render call.** `call/request/` is what a caller supplies for one render
@@ -34,17 +34,23 @@ drawn and the child's own result. `Renderer` and the renderers sit in the root.
   pixels go once drawn and a sheet of thousands never holds them all. The bags take a result, which is
   why `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or
   a mark, so nothing in `call/result` names a bag.
-- **A finished render is laid down with `BlendMode.PREMULTIPLIED`; a texture is drawn with
-  `NORMAL`.** `NORMAL` is the GPU's source-alpha blend, so a render drawn onto a transparent buffer
-  holds each translucent colour already scaled by its alpha - what the vanilla client's framebuffer
-  holds - and laying that render down with `NORMAL` scales it a second time. The grid's cells, the
-  frame compositor's placements, a menu's static composite, the supersampled frame's scale-down, a
-  stack count's scratch and `Background.composite` take `PREMULTIPLIED`, which keeps a translucent
-  pixel as it was over a transparent one and, over an opaque one, gives what drawing the subject
-  there gives. A face, a layer, a sprite or a mask is not finished and keeps `NORMAL`, and so does
-  the picture the frame compositor builds up from a decoded file's partial frames, which it composes
-  as a viewer would. `NORMAL` itself is not the defect: straight-alpha source-over in its place
-  moves every translucent block and entity off the vanilla client's renders.
+- **A composite takes its formula from the two buffers; a render is a canvas and a texture is
+  straight.** Every renderer draws onto `PixelBuffer.canvas`, premultiplied as the client's
+  framebuffer is, and reads textures straight, as files hold them. A canvas laid onto a canvas
+  composites by the premultiplied formula, keeping a translucent pixel as it was over a transparent
+  one and giving over an opaque one what drawing the subject there gives - so the grid's cells, the
+  frame compositor's placements, a menu's among them, the supersampled frame's scale-down, a stack
+  count's scratch and `Background.composite` lay a render as it was drawn. A straight texture
+  or supplied picture laid onto a canvas composites by `NORMAL`, the GPU's blend of a straight texel,
+  and the picture the frame compositor builds up from an animation's partial frames is composed in
+  the convention the animation holds. Layers composed into a straight sheet - an equipment texture,
+  an item's tinted layers, a banner, a slot's sprites - composite by the straight formula, which is
+  what drawing each onto the framebuffer leaves. The raw writers (`Rasterizer`, `NineSliceKit`,
+  `GradientKit`, `GlintKit`) hard-code the formula for a canvas and draw only onto one. `NORMAL`
+  itself is not the defect: straight-alpha source-over in its place moves every translucent block and
+  entity off the vanilla client's renders. A placement may instead be additive - the text field's
+  highlight band, which the client fills through its additive GUI pipeline - and the frame compositor
+  and the grid's static sheet add it to what lies under it with `BlendMode.ADD`.
 - **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
   beside the `RendererContext` that carries it.
 

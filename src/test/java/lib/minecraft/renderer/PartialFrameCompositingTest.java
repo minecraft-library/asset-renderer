@@ -10,7 +10,6 @@ import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.Background;
-import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.request.LayoutOptions;
 import lib.minecraft.renderer.call.result.GridResult;
@@ -175,19 +174,70 @@ class PartialFrameCompositingTest {
                 assertThat(merged.getFrames().size(), is(3));
 
                 // What the compositor draws for each output frame is the frame showing then, as it is:
-                // laid down as a finished render at the plain placement and rescaled into the fitted
-                // one, over the background.
+                // laid down source-over in the convention it holds at the plain placement and rescaled
+                // into the fitted one, over the background.
                 long playbackMs = 0;
                 for (ImageFrame frame : merged.getFrames()) {
                     PixelBuffer showing = image.getFrameAtTime(playbackMs, false).frame().pixels();
-                    PixelBuffer expected = PixelBuffer.create(16, 10);
+                    PixelBuffer expected = PixelBuffer.canvas(16, 10);
                     Background.solid(BACKGROUND).fill(expected);
-                    expected.blit(showing, 1, 1, BlendMode.PREMULTIPLIED);
-                    expected.blitScaled(showing, 7, 1, CELL, CELL, BlendMode.PREMULTIPLIED);
+                    expected.blit(showing, 1, 1);
+                    expected.blitScaled(showing, 7, 1, CELL, CELL);
                     assertThat("the merge at %d ms".formatted(playbackMs), frame.pixels().data(), is(expected.data()));
                     playbackMs += frame.delayMs();
                 }
+
+                // The frames are straight, so the first frame's half-transparent white at (1, 1) is laid
+                // over the background as a viewer lays it; laid as premultiplied colour it would saturate
+                // to opaque white.
+                assertThat("the straight half-transparent white over the background",
+                    merged.getFrames().getFirst().pixels().getPixel(2, 2), is(PALETTE.get('v')));
             })));
+    }
+
+    @Test
+    @DisplayName("a premultiplied animation's partial frames are composed premultiplied, on a canvas in its convention")
+    void aPremultipliedAnimationsPartialFramesComposePremultiplied() {
+        // Neither frame covers the 2x2 canvas, so the picture shown is the composition's own canvas.
+        // Premultiplied 49480000 over 01000000 is 4A480000 there. Composed on a straight canvas instead,
+        // the second frame is divided back to straight 49FC0000 first and the texel lands at 4A490000.
+        AnimatedImageData image = AnimatedImageData.builder()
+            .withWidth(2)
+            .withHeight(2)
+            .withFrame(ImageFrame.of(PixelBuffer.ofPremultiplied(new int[]{ 0x01000000 }, 1, 1), DELAY_MS, 1, 1, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .withFrame(ImageFrame.of(PixelBuffer.ofPremultiplied(new int[]{ 0x49480000 }, 1, 1), DELAY_MS, 1, 1, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .build();
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        placements.add(new FramePlacement(0, 0, image));
+        ImageData merged = FrameCompositor.merge(placements, 2, 2, FRAMES_PER_SECOND, Background.TRANSPARENT);
+
+        assertThat(merged.getFrames().size(), is(2));
+        assertThat("the first frame over nothing", merged.getFrames().getFirst().pixels().getPixel(1, 1), is(0x01000000));
+        assertThat("the second over the first, premultiplied", merged.getFrames().get(1).pixels().getPixel(1, 1), is(0x4A480000));
+    }
+
+    @Test
+    @DisplayName("a straight animation's partial frames are composed straight, on a canvas in its convention")
+    void aStraightAnimationsPartialFramesComposeStraight() {
+        // Neither frame covers the 2x2 canvas, so the picture shown is the composition's own canvas.
+        // Straight 40000000 over 40370000 weighs the source 64 * 255 = 16320 and the canvas
+        // 64 * 191 = 12224, so red is (55 * 12224 + 14272) / 28544 = 24 and alpha 28671 / 255 = 112:
+        // 70180000, laid over the transparent background as 24 * 112 / 255 = 10.54, so 700B0000.
+        // Composed on a canvas instead, the first frame is held as 400E0000, the second over it keeps
+        // 14 * 191 / 255 = 10.49 of that red, and the texel lands at 700A0000.
+        AnimatedImageData image = AnimatedImageData.builder()
+            .withWidth(2)
+            .withHeight(2)
+            .withFrame(ImageFrame.of(PixelBuffer.ofStraight(new int[]{ 0x40370000 }, 1, 1), DELAY_MS, 1, 1, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .withFrame(ImageFrame.of(PixelBuffer.ofStraight(new int[]{ 0x40000000 }, 1, 1), DELAY_MS, 1, 1, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .build();
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        placements.add(new FramePlacement(0, 0, image));
+        ImageData merged = FrameCompositor.merge(placements, 2, 2, FRAMES_PER_SECOND, Background.TRANSPARENT);
+
+        assertThat(merged.getFrames().size(), is(2));
+        assertThat("the first frame over nothing", merged.getFrames().getFirst().pixels().getPixel(1, 1), is(0x400E0000));
+        assertThat("the second over the first, straight", merged.getFrames().get(1).pixels().getPixel(1, 1), is(0x700B0000));
     }
 
     // --- assertions ---
@@ -348,7 +398,7 @@ class PartialFrameCompositingTest {
      * @return the buffer
      */
     private static @NotNull PixelBuffer texels(@NotNull List<String> rows) {
-        PixelBuffer buffer = PixelBuffer.create(rows.getFirst().length(), rows.size());
+        PixelBuffer buffer = PixelBuffer.straight(rows.getFirst().length(), rows.size());
         for (int y = 0; y < rows.size(); y++)
             for (int x = 0; x < rows.get(y).length(); x++)
                 buffer.setPixel(x, y, argb(rows.get(y).charAt(x)));

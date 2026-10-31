@@ -4,6 +4,8 @@ import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
@@ -32,7 +34,6 @@ import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -295,7 +296,7 @@ public final class EntityRenderDriver {
             try {
                 ImageData image = renderer.render(options).image();
                 File out = OUTPUT_DIR.resolve(safeName + ".png").toFile();
-                ImageIO.write(image.toBufferedImage(), "PNG", out);
+                ImageFactory.toFile(image, ImageFormat.PNG, out);
 
                 long elapsedMs = (System.nanoTime() - perT0) / 1_000_000L;
                 System.out.printf("  %-40s -> %s.png (%d ms)%n", entityId, safeName, elapsedMs);

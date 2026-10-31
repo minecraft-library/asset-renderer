@@ -116,7 +116,7 @@ public class BannerKit {
         int width = baseTexture.map(PixelBuffer::width).orElse(64);
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 
-        PixelBuffer canvas = PixelBuffer.create(width, height);
+        PixelBuffer canvas = PixelBuffer.straight(width, height);
         canvas.fill(baseDyeArgb);
 
         RendererContext textures = context.withMissingTexture();

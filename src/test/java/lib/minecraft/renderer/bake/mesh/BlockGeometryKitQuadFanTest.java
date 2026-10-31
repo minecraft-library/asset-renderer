@@ -236,7 +236,7 @@ class BlockGeometryKitQuadFanTest {
     /** Six distinct {@code 1x1} textures, one for each face, so a triangle painted from the wrong face shows. */
     private static @NotNull FaceTextures perFaceTextures() {
         Map<Face, PixelBuffer> byFace = new EnumMap<>(Face.class);
-        Face.forEach(face -> byFace.put(face, PixelBuffer.of(new int[] {0xFF000000 | (face.ordinal() + 1) * 0x2A}, 1, 1)));
+        Face.forEach(face -> byFace.put(face, PixelBuffer.ofStraight(new int[] {0xFF000000 | (face.ordinal() + 1) * 0x2A}, 1, 1)));
         return byFace::get;
     }
 
@@ -271,7 +271,7 @@ class BlockGeometryKitQuadFanTest {
     }
 
     private static @NotNull PixelBuffer texture1x1() {
-        return PixelBuffer.of(new int[] {0xFFFFFFFF}, 1, 1);
+        return PixelBuffer.ofStraight(new int[] {0xFFFFFFFF}, 1, 1);
     }
 
 }

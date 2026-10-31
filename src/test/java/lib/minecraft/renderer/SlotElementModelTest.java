@@ -64,6 +64,9 @@ class SlotElementModelTest {
     /** A texture red over its top half and blue over its bottom half, which reads upside down when flipped. */
     private static final @NotNull String SPLIT = "test:block/split";
 
+    /** A texture of one half-transparent red, straight as a texture file holds it. */
+    private static final @NotNull String TRANSLUCENT = "test:block/translucent";
+
     /** The block icon's {@code display.gui}: the iso turn at vanilla's block scale. */
     private static final @NotNull String ISO_GUI =
         "\"display\":{\"gui\":{\"rotation\":[30,225,0],\"translation\":[0,0,0],\"scale\":[0.625,0.625,0.625]}}";
@@ -204,6 +207,26 @@ class SlotElementModelTest {
         assertThat("the top-red, bottom-blue sprite draws upright and pixel for pixel", pass, is(blit));
     }
 
+    @Test
+    @DisplayName("a translucent sprite drawn in a composite's depth pass is the picture its blit draws")
+    void aTranslucentSpriteInTheDepthPassMatchesItsBlit() {
+        // A cube over the slot's lower left corner, which leaves its centre to the sprite alone. The
+        // sprite's sheet is straight, as its texture is, so the half-red texel reaches the slot as the
+        // blit lays it; a sheet holding it premultiplied would be read straight and scaled by its alpha
+        // a second time, to 80400000.
+        ModelData corner = GSON.fromJson("{\"gui_light\":\"front\",\"textures\":{\"s\":\"" + BLUE + "\"},"
+            + "\"elements\":[{\"from\":[0,0,0],\"to\":[4,4,4],\"faces\":{\"south\":{\"texture\":\"#s\"}}}]}", ModelData.class);
+        Map<String, ModelData> models = Map.of("test:item/translucent", flatOf("front", TRANSLUCENT), "test:item/corner", corner);
+
+        int[] blit = render(context(flatOf("front", TRANSLUCENT), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false);
+        int[] pass = render(context(flatOf("front", TRANSLUCENT), models,
+            Optional.of(composite("test:item/translucent", "test:item/corner"))), ItemOptions.Type.GUI_2D, false);
+
+        int centre = SIZE / 2 * SIZE + SIZE / 2;
+        assertThat("the blit lays the half-red texel over nothing", blit[centre], is(0x80800000));
+        assertThat("and the depth pass lays it the same", pass[centre], is(blit[centre]));
+    }
+
     /**
      * Builds the in-memory context a row renders over: the solid textures, the item index holding
      * {@link #ITEM} at the given model, and the models and definition a walk reads.
@@ -216,7 +239,8 @@ class SlotElementModelTest {
     private static @NotNull RendererContext context(
         @NotNull ModelData indexed, @NotNull Map<String, ModelData> models, @NotNull Optional<ItemModelTree> tree) {
         RendererContext base = RendererContext.builder()
-            .textures(Map.of(WHITE, solid(0xFFFFFFFF), RED, solid(0xFFFF0000), BLUE, solid(0xFF0000FF), SPLIT, split()))
+            .textures(Map.of(WHITE, solid(0xFFFFFFFF), RED, solid(0xFFFF0000), BLUE, solid(0xFF0000FF), SPLIT, split(),
+                TRANSLUCENT, solid(0x80FF0000)))
             .items(Map.of(ITEM, item(indexed)))
             .build();
 
@@ -399,7 +423,7 @@ class SlotElementModelTest {
     private static @NotNull PixelBuffer solid(int argb) {
         int[] pixels = new int[16 * 16];
         Arrays.fill(pixels, argb);
-        return PixelBuffer.of(pixels, 16, 16);
+        return PixelBuffer.ofStraight(pixels, 16, 16);
     }
 
     /**
@@ -411,7 +435,7 @@ class SlotElementModelTest {
         int[] pixels = new int[16 * 16];
         Arrays.fill(pixels, 0, 16 * 8, 0xFFFF0000);
         Arrays.fill(pixels, 16 * 8, 16 * 16, 0xFF0000FF);
-        return PixelBuffer.of(pixels, 16, 16);
+        return PixelBuffer.ofStraight(pixels, 16, 16);
     }
 
     /**

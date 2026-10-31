@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class RenderResultTest {
 
     /** A one-pixel still every result here carries. */
-    private static final @NotNull ImageData IMAGE = Timeline.still(PixelBuffer.create(1, 1));
+    private static final @NotNull ImageData IMAGE = Timeline.still(PixelBuffer.canvas(1, 1));
 
     private static final @NotNull Substitution DIRT = Substitution.texture("minecraft:block/dirt", Possible.State.EMPTY);
     private static final @NotNull Substitution STONE = Substitution.texture("minecraft:block/stone", Possible.State.ABSENT);

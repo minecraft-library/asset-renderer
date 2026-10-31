@@ -22,6 +22,7 @@ import org.junit.jupiter.api.function.Executable;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -242,9 +243,9 @@ class GradientKitTest {
             assertThat("the italic run advances as far as the upright run, so their bands are one width",
                 italic.resolveFont().metrics().stringAdvanceMcPixels("WWWW"), is(upright.resolveFont().metrics().stringAdvanceMcPixels("WWWW")));
 
-            PixelBuffer uprightDrawn = PixelBuffer.create(96, 40);
+            PixelBuffer uprightDrawn = PixelBuffer.canvas(96, 40);
             GradientKit.drawSegment(new MinecraftGraphics(uprightDrawn), upright, spec, upright.resolveFont(), "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
-            PixelBuffer italicDrawn = PixelBuffer.create(96, 40);
+            PixelBuffer italicDrawn = PixelBuffer.canvas(96, 40);
             GradientKit.drawSegment(new MinecraftGraphics(italicDrawn), italic, spec, italic.resolveFont(), "WWWW", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
 
             // The italic face moves each row of the upright glyph whole, so a row's n-th inked pixel is the
@@ -288,7 +289,7 @@ class GradientKitTest {
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
             TextSegment segment = TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).italic(true).gradient(spec).build();
 
-            PixelBuffer buffer = PixelBuffer.create(160, 40);
+            PixelBuffer buffer = PixelBuffer.canvas(160, 40);
             GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
 
             List<String> mixed = new ArrayList<>();
@@ -311,7 +312,7 @@ class GradientKitTest {
             MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
             int advW = font.glyph('W').advanceWidth();
 
-            PixelBuffer buffer = PixelBuffer.create(4 * advW + 8, 40);
+            PixelBuffer buffer = PixelBuffer.canvas(4 * advW + 8, 40);
             buffer.fill(0xFF000000);
             MinecraftGraphics g = new MinecraftGraphics(buffer);
 
@@ -349,9 +350,9 @@ class GradientKitTest {
         GradientSpec spec = startEnd(0x000000, 0xFFFFFF);
         TextSegment segment = TextSegment.builder().text("Galactic").font(FontId.parse("minecraft:alt")).gradient(spec).build();
 
-        PixelBuffer byDefault = PixelBuffer.create(160, 40);
+        PixelBuffer byDefault = PixelBuffer.canvas(160, 40);
         GradientKit.drawSegment(new MinecraftGraphics(byDefault), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
-        PixelBuffer asked = PixelBuffer.create(160, 40);
+        PixelBuffer asked = PixelBuffer.canvas(160, 40);
         GradientKit.drawSegment(new MinecraftGraphics(asked), segment, spec, segment.resolveFont(), "Galactic", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, true);
 
         int differing = 0, painted = 0;
@@ -373,10 +374,10 @@ class GradientKitTest {
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(bandPx).build();
             TextSegment segment = TextSegment.builder().text("MW").underlined(true).gradient(spec).build();
 
-            PixelBuffer whole = PixelBuffer.create(96, 40);
+            PixelBuffer whole = PixelBuffer.canvas(96, 40);
             whole.fill(0xFF000000);
             TextKit.drawLine(new MinecraftGraphics(whole), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
-            PixelBuffer half = PixelBuffer.create(96, 40);
+            PixelBuffer half = PixelBuffer.canvas(96, 40);
             half.fill(0xFF000000);
             TextKit.drawLine(new MinecraftGraphics(half), line(segment), DRAW_COLUMN_MC_PX + 0.5f, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
@@ -426,7 +427,7 @@ class GradientKitTest {
      */
     private static PixelBuffer underlinedStar(GradientSpec spec) {
         TextSegment segment = TextSegment.builder().text("✦").underlined(true).gradient(spec).build();
-        PixelBuffer buffer = PixelBuffer.create(48, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(48, 40);
         buffer.fill(0xFF000000);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
         return buffer;
@@ -436,7 +437,7 @@ class GradientKitTest {
     @DisplayName("a one-colour gradient lays what a solid run in its colour lays, bars and their order included")
     void aOneColourGradientLaysWhatTheSolidRunLays() {
         TextSegment solid = TextSegment.builder().text("Struck").strikethrough(true).underlined(true).build();
-        PixelBuffer solidDrawn = PixelBuffer.create(120, 48);
+        PixelBuffer solidDrawn = PixelBuffer.canvas(120, 48);
         TextKit.drawLine(new MinecraftGraphics(solidDrawn), line(solid, TextSegment.literal("H")), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         List<Executable> cases = new ArrayList<>();
@@ -444,7 +445,7 @@ class GradientKitTest {
             String path = bandPx == GradientSpec.PER_LETTER ? "per letter" : "per pixel";
             GradientSpec white = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xFFFFFF).addStop(0xFFFFFF).bandPx(bandPx).build();
             TextSegment gradient = TextSegment.builder().text("Struck").strikethrough(true).underlined(true).gradient(white).build();
-            PixelBuffer gradientDrawn = PixelBuffer.create(120, 48);
+            PixelBuffer gradientDrawn = PixelBuffer.canvas(120, 48);
             TextKit.drawLine(new MinecraftGraphics(gradientDrawn), line(gradient, TextSegment.literal("H")), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
             List<String> differing = new ArrayList<>();
@@ -470,7 +471,7 @@ class GradientKitTest {
         int baseX = DRAW_COLUMN_MC_PX * scale;
         int baselineY = 16 * scale;
 
-        PixelBuffer buffer = PixelBuffer.create(48, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(48, 40);
         buffer.fill(0xFF000000);
         GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), "✦", DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, false);
 
@@ -496,7 +497,7 @@ class GradientKitTest {
      * @return the advance in mcPixels
      */
     private static float advanceOf(String text, GradientSpec spec) {
-        PixelBuffer buffer = PixelBuffer.create(64, 32);
+        PixelBuffer buffer = PixelBuffer.canvas(64, 32);
         TextSegment segment = TextSegment.builder().text(text).gradient(spec).build();
         return GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, spec, segment.resolveFont(), text, DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L);
     }
@@ -509,7 +510,7 @@ class GradientKitTest {
 
         // Opaque black canvas so partial-coverage edges composite onto a known background (a bare
         // transparent buffer would premultiply the tint at anti-aliased edges).
-        PixelBuffer buffer = PixelBuffer.create(96, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(96, 40);
         buffer.fill(0xFF000000);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
 
@@ -563,7 +564,7 @@ class GradientKitTest {
         int top = rowBelowTop(4.5F - 1.0F);
 
         // A clear buffer, so the lead's black - the first stop, which the columns left of the run clamp to - is the bar's own.
-        PixelBuffer buffer = PixelBuffer.create(64, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(64, 40);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         List<String> bar = new ArrayList<>();
@@ -598,7 +599,7 @@ class GradientKitTest {
         int widthOut = Math.round(segment.resolveFont().metrics().stringAdvanceMcPixels("MM") * scale);
 
         // A clear buffer, so the lead's black - the first stop, which the columns left of the run clamp to - is the bar's own.
-        PixelBuffer buffer = PixelBuffer.create(64, 48);
+        PixelBuffer buffer = PixelBuffer.canvas(64, 48);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L);
 
         List<String> bar = new ArrayList<>();
@@ -687,7 +688,7 @@ class GradientKitTest {
      * @return each distinct colour of a pixel whose alpha is not zero
      */
     private static Set<Integer> drawnColours(TextSegment segment, TextPalette palette, boolean dropShadow) {
-        PixelBuffer buffer = PixelBuffer.create(96, 40);
+        PixelBuffer buffer = PixelBuffer.canvas(96, 40);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, palette, 0, 0L, 0L, dropShadow);
 
         Set<Integer> colours = new HashSet<>();
@@ -722,35 +723,45 @@ class GradientKitTest {
     }
 
     /**
-     * Draws a run carrying a gradient over a filled buffer.
+     * Draws a run carrying a gradient over a canvas holding one colour.
      *
-     * @param fill the colour the buffer is filled with
+     * @param fill the premultiplied colour every pixel of the canvas holds
      * @param segment the run
      * @param dropShadow whether the shadow a run derives from its colour is asked for
      * @return the buffer drawn on
      */
     private static PixelBuffer drawnOver(int fill, TextSegment segment, boolean dropShadow) {
-        PixelBuffer buffer = PixelBuffer.create(40, 40);
-        buffer.fill(fill);
+        PixelBuffer buffer = holding(fill);
         GradientKit.drawSegment(new MinecraftGraphics(buffer), segment, segment.getGradient().orElseThrow(), segment.resolveFont(), segment.getText(),
             DRAW_COLUMN_MC_PX, 16, TextPalette.VANILLA, 0L, dropShadow);
         return buffer;
     }
 
     /**
-     * Draws a line of one run carrying a gradient over a filled buffer, its bars included. The line's
-     * colour reaches no gradient pixel.
+     * Draws a line of one run carrying a gradient over a canvas holding one colour, its bars included.
+     * The line's colour reaches no gradient pixel.
      *
-     * @param fill the colour the buffer is filled with
+     * @param fill the premultiplied colour every pixel of the canvas holds
      * @param segment the run
      * @param dropShadow whether the shadow a run derives from its colour is asked for
      * @return the buffer drawn on
      */
     private static PixelBuffer lineDrawnOver(int fill, TextSegment segment, boolean dropShadow) {
-        PixelBuffer buffer = PixelBuffer.create(40, 40);
-        buffer.fill(fill);
+        PixelBuffer buffer = holding(fill);
         TextKit.drawLine(new MinecraftGraphics(buffer), line(segment), DRAW_COLUMN_MC_PX, 16, 0xFFFFFFFF, TextPalette.VANILLA, 0, 0L, 0L, dropShadow);
         return buffer;
+    }
+
+    /**
+     * Builds a 40x40 canvas every pixel of which holds one premultiplied colour, as it is given.
+     *
+     * @param held the premultiplied colour each pixel holds
+     * @return the canvas
+     */
+    private static PixelBuffer holding(int held) {
+        int[] pixels = new int[40 * 40];
+        Arrays.fill(pixels, held);
+        return PixelBuffer.ofPremultiplied(pixels, 40, 40);
     }
 
     /**

@@ -9,7 +9,6 @@ import dev.simplified.image.StaticImageData;
 import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
-import dev.simplified.image.pixel.AlphaMode;
 import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
@@ -112,11 +111,11 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * frame index in order, then wraps the frames at this schedule's per-frame delays. The frame index
      * is first-class - producers whose drawing is seeded per frame consume it directly.
      * <p>
-     * Each frame is a finished frame, drawn source-over onto a transparent buffer, so its colours carry
-     * their alpha and the image is marked {@link AlphaMode#PREMULTIPLIED}.
+     * Each frame is a finished frame, drawn source-over onto a transparent {@link PixelBuffer#canvas
+     * canvas}, and the image holds what its frames hold.
      *
      * @param frameAt draws the frame at an index
-     * @return the finished image, held premultiplied
+     * @return the finished image
      * @throws RenderException if the schedule is empty
      */
     default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt) {
@@ -220,15 +219,14 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * Wraps a single finished buffer as a static image - the one-frame terminal for renderers that
      * draw without a schedule.
      * <p>
-     * The buffer is a finished frame, drawn source-over onto a transparent buffer or laid down from
-     * finished renders, so its colours carry their alpha and the image is marked
-     * {@link AlphaMode#PREMULTIPLIED}.
+     * The buffer is a finished frame, drawn source-over onto a transparent {@link PixelBuffer#canvas
+     * canvas} or laid down from finished renders, and the image holds what the buffer holds.
      *
-     * @param buffer the finished frame, held premultiplied
+     * @param buffer the finished frame
      * @return the static image
      */
     static @NotNull ImageData still(@NotNull PixelBuffer buffer) {
-        return StaticImageData.of(buffer, AlphaMode.PREMULTIPLIED);
+        return StaticImageData.of(buffer);
     }
 
     /**
@@ -238,7 +236,7 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * @return a 1x1 transparent static image
      */
     static @NotNull ImageData empty() {
-        return still(PixelBuffer.create(1, 1));
+        return still(PixelBuffer.canvas(1, 1));
     }
 
     /**
@@ -272,8 +270,8 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * one; on a tick-native schedule the two agree exactly, because that axis is the tick lattice by
      * construction.
      * <p>
-     * A raster pass draws source-over onto a transparent buffer, which leaves every colour carrying
-     * its alpha, so the image is marked {@link AlphaMode#PREMULTIPLIED}.
+     * A raster pass draws source-over onto a transparent {@link PixelBuffer#canvas canvas}, so every
+     * frame, and the image, holds premultiplied colour.
      *
      * @param pass the raster configuration and callbacks to play this schedule through
      * @return the finished image, held premultiplied
@@ -304,8 +302,8 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
     /**
      * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
      * image, several become an animated image whose frame {@code f} displays for
-     * {@code playback.delayMs(f)}. Either is marked {@link AlphaMode#PREMULTIPLIED}, the convention a
-     * terminal's frames are held in.
+     * {@code playback.delayMs(f)}. Either holds what its frames hold, which is premultiplied for the
+     * canvases a terminal draws on.
      *
      * <p>Every frame here is a whole canvas rendered from scratch at the same size and seated at the
      * origin, so each one REPLACES its predecessor rather than adding to it, which
@@ -324,9 +322,9 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
             throw new RenderException("Frame list must contain at least one frame");
 
         if (frames.size() == 1)
-            return StaticImageData.of(frames.getFirst(), AlphaMode.PREMULTIPLIED);
+            return StaticImageData.of(frames.getFirst());
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder().withAlphaMode(AlphaMode.PREMULTIPLIED);
+        AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int f = 0; f < frames.size(); f++)
             builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f), 0, 0,
                 FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));

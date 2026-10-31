@@ -273,7 +273,7 @@ class GlintKitScheduleTest {
     @Test
     @DisplayName("an empty glint texture fails in floorMod rather than masking as a power of two")
     void emptyGlintIsNoPowerOfTwo() {
-        PixelBuffer empty = PixelBuffer.of(new int[0], 0, 4);
+        PixelBuffer empty = PixelBuffer.ofStraight(new int[0], 0, 4);
         assertThrows(ArithmeticException.class, () -> GlintKit.applyGlintAtTimes(noisyBase(), empty,
             new long[]{ 0L }, GlintKit.GlintOptions.itemDefault(30), null));
     }
@@ -406,7 +406,7 @@ class GlintKitScheduleTest {
             int alpha = random.nextInt(8) == 0 ? random.nextInt(48) : 255;
             pixels[i] = ColorMath.pack(alpha, random.nextInt(256), random.nextInt(256), random.nextInt(256));
         }
-        return PixelBuffer.of(pixels, width, height);
+        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
     /**
@@ -433,7 +433,7 @@ class GlintKitScheduleTest {
             int alpha = random.nextInt(6) == 0 ? 0 : 1 + random.nextInt(255);
             pixels[i] = ColorMath.pack(alpha, random.nextInt(256), random.nextInt(256), random.nextInt(256));
         }
-        return PixelBuffer.of(pixels, width, height);
+        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
     /** Marks the left half of a buffer's coverage mask, so a foil restricted to it stamps only there. */
@@ -461,12 +461,12 @@ class GlintKitScheduleTest {
         for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
                 pixels[y * size + x] = ColorMath.pack(255, (x * 16) & 0xFF, (y * 16) & 0xFF, ((x + y) * 8) & 0xFF);
-        return PixelBuffer.of(pixels, size, size);
+        return PixelBuffer.ofStraight(pixels, size, size);
     }
 
     /** A flat dark opaque glintable base - dark so the additive glint blend does not clamp to white. */
     private static @NotNull PixelBuffer base() {
-        PixelBuffer buffer = PixelBuffer.create(8, 8);
+        PixelBuffer buffer = PixelBuffer.canvas(8, 8);
         fillDark(buffer);
         return buffer;
     }

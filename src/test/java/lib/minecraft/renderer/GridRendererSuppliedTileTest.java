@@ -10,7 +10,6 @@ import dev.simplified.image.frame.FrameBlend;
 import dev.simplified.image.frame.FrameDisposal;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.image.pixel.Background;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.result.GridResult;
@@ -44,16 +43,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Coverage of a grid whose tiles are supplied: the grid asks each tile for its render as it draws it, and
  * the sheet holds the bytes a serial composition of the same renders holds.
  * <p>
- * The reference is written here rather than taken from the grid: a buffer filled with the background
- * and premultiplied, then each tile rescaled into its cell by {@link PixelBuffer#blitScaled} and laid
- * down with {@link BlendMode#PREMULTIPLIED}, one after another. Every tile is pixels built in memory,
- * mixing transparent, part-transparent and opaque texels, at the cell's size
+ * The reference is written here rather than taken from the grid: a {@link PixelBuffer#canvas canvas}
+ * filled with the background, then each tile rescaled into its cell by {@link PixelBuffer#blitScaled}
+ * and laid down source-over in the convention it holds, one after another. Every tile is pixels
+ * built in memory, mixing transparent, part-transparent and opaque texels, at the cell's size
  * and rescaled from a smaller and a larger one, over transparent, part-transparent and checkerboard
  * backgrounds, with and without separation, and at a cell large enough that a draw made off every
  * fork-join pool splits its rows across threads, while one made on a fork-join worker runs them in order
  * on that worker. Counting what an animated tile's content is asked shows which path drew the sheet: the
  * streamed pass asks it, finds it animated and hands the sheet to the held path, which asks it again,
- * while a grid held from the start asks it once.
+ * while a grid held from the start asks it once. A decorator's additive layer is added to the tile
+ * under it on a static sheet as the animated merge adds it.
  */
 @DisplayName("A grid draws each supplied tile as it renders it")
 class GridRendererSuppliedTileTest {
@@ -153,11 +153,10 @@ class GridRendererSuppliedTileTest {
         }
         GridResult sheet = render(tiles, 16, 0, Background.solid(0x80336699), UnaryOperator.identity());
 
-        PixelBuffer expected = PixelBuffer.create(COLUMNS * 16, 3 * 16);
+        PixelBuffer expected = PixelBuffer.canvas(COLUMNS * 16, 3 * 16);
         Background.solid(0x80336699).fill(expected);
-        expected.premultiplyAlpha();
         for (int i = 0; i < renders.size(); i++)
-            expected.blitScaled(renders.get(i).image().toPixelBuffer(), cells[i][0] * 16, cells[i][1] * 16, 16, 16, BlendMode.PREMULTIPLIED);
+            expected.blitScaled(renders.get(i).image().toPixelBuffer(), cells[i][0] * 16, cells[i][1] * 16, 16, 16);
 
         assertArrayEquals(expected.data(), sheet.image().toPixelBuffer().data(), "pixels");
         assertThat("one cell per tile, two at the same place", sheet.cells().stream().map(cell -> List.of(cell.col(), cell.row())).toList(),
@@ -218,6 +217,49 @@ class GridRendererSuppliedTileTest {
         }
     }
 
+    @Test
+    @DisplayName("a straight see-through picture on a streamed static sheet is laid as the client lays a straight texel")
+    void aStraightPictureIsLaidAsAStraightTexel() {
+        PixelBuffer picture = PixelBuffer.straight(16, 16);
+        picture.fill(0x505000FF);
+        ConcurrentList<GridOptions.GridTile> tiles = Concurrent.newList();
+        tiles.add(new GridOptions.GridTile(0, 0, StaticImageData.of(picture)));
+        GridResult sheet = render(tiles, 16, 0, Background.TRANSPARENT, UnaryOperator.identity());
+
+        // Straight 505000FF over nothing by the straight-source formula is 50190050. Laid as
+        // premultiplied colour it would be kept as 505000FF, a blue above its alpha no canvas holds.
+        GridResult.Cell cell = sheet.cells().getFirst();
+        assertThat("the sheet is static", sheet.image().isAnimated(), is(false));
+        assertThat(sheet.image().toPixelBuffer().getPixel(cell.x() + 8, cell.y() + 8), is(0x50190050));
+    }
+
+    @Test
+    @DisplayName("a decorator's additive layer adds its colour over the tile it covers, on a static sheet as on an animated one")
+    void aDecoratorsAdditiveLayerAddsItsColour() {
+        PixelBuffer well = PixelBuffer.straight(16, 16);
+        well.fill(0xFF4E4737);
+        PixelBuffer blue = PixelBuffer.straight(8, 8);
+        blue.fill(0xFF0000FF);
+        // Half the cell's size, so it is rescaled into the cell as every placement is, and fitted to it on
+        // the animated path.
+        FrameLayer band = sink -> sink.add(new FramePlacement(x(0, 16, 0), y(0, 16, 0), Timeline.still(blue)).additively());
+
+        // Opaque blue added over 4E4737 keeps its red and green and saturates its blue.
+        GridResult still = render(Concurrent.newList(new GridOptions.GridTile(0, 0, StaticImageData.of(well))), 16, 0,
+            Background.TRANSPARENT, stack -> stack.addAfter(GridSlot.CELL, band));
+        assertThat("the sheet is static", still.image().isAnimated(), is(false));
+        assertThat("the blue is added over the tile", still.image().toPixelBuffer().getPixel(8, 8), is(0xFF4E47FF));
+
+        AnimatedImageData.Builder frames = AnimatedImageData.builder();
+        for (int frame = 0; frame < 2; frame++)
+            frames.withFrame(ImageFrame.of(well, 50, 0, 0, FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
+        GridResult animated = render(Concurrent.newList(new GridOptions.GridTile(0, 0, frames.build())), 16, 0,
+            Background.TRANSPARENT, stack -> stack.addAfter(GridSlot.CELL, band));
+        assertThat("the sheet is animated", animated.image().isAnimated(), is(true));
+        for (ImageFrame frame : animated.image().getFrames())
+            assertThat("and every frame adds the blue over the tile", frame.pixels().getPixel(8, 8), is(0xFF4E47FF));
+    }
+
     /**
      * Renders supplied tiles onto a grid of {@link #COLUMNS} columns and as many rows as they need.
      *
@@ -267,8 +309,8 @@ class GridRendererSuppliedTileTest {
     }
 
     /**
-     * Composes the reference: a buffer of the sheet's size filled with the background and premultiplied,
-     * then each render rescaled into its cell, one after another.
+     * Composes the reference: a canvas of the sheet's size filled with the background, then each render
+     * rescaled into its cell, one after another.
      *
      * @param renders the renders, render {@code i} at cell {@code i}
      * @param cell the cell size
@@ -278,11 +320,10 @@ class GridRendererSuppliedTileTest {
      */
     private static int @NotNull [] serial(@NotNull List<RenderResult> renders, int cell, int separation, @NotNull Background background) {
         int rows = Math.max(1, (renders.size() + COLUMNS - 1) / COLUMNS + 1);
-        PixelBuffer sheet = PixelBuffer.create(COLUMNS * (cell + separation) + separation, rows * (cell + separation) + separation);
+        PixelBuffer sheet = PixelBuffer.canvas(COLUMNS * (cell + separation) + separation, rows * (cell + separation) + separation);
         background.fill(sheet);
-        sheet.premultiplyAlpha();
         for (int i = 0; i < renders.size(); i++)
-            sheet.blitScaled(renders.get(i).image().toPixelBuffer(), x(i, cell, separation), y(i, cell, separation), cell, cell, BlendMode.PREMULTIPLIED);
+            sheet.blitScaled(renders.get(i).image().toPixelBuffer(), x(i, cell, separation), y(i, cell, separation), cell, cell);
         return sheet.data();
     }
 
@@ -319,7 +360,7 @@ class GridRendererSuppliedTileTest {
                 case 0 -> Timeline.still(pattern(cell, cell, i));
                 case 1 -> Timeline.still(pattern(cell / 2, cell / 2, i));
                 case 2 -> Timeline.still(pattern(cell * 3 / 2, cell * 3 / 2, i));
-                default -> StaticImageData.of(PixelBuffer.of(pattern(cell, cell, i).data(), cell, cell, false));
+                default -> StaticImageData.of(PixelBuffer.ofStraight(pattern(cell, cell, i).data(), cell, cell, false));
             }))
             .toList();
     }
@@ -351,7 +392,7 @@ class GridRendererSuppliedTileTest {
      * @return the buffer
      */
     private static @NotNull PixelBuffer pattern(int width, int height, int seed) {
-        PixelBuffer buffer = PixelBuffer.create(width, height);
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++) {
                 int mix = x * 31 + y * 17 + seed * 13;

@@ -30,9 +30,9 @@ class TextureSynthesizerTest {
     private static final String BASE = "minecraft:trims/items/chestplate_trim";
     private static final String SYNTH_ID = "minecraft:trims/items/chestplate_trim_amethyst";
 
-    private static final PixelBuffer PALETTE = PixelBuffer.of(new int[]{0xFF00000A, 0xFF000014, 0xFF00001E}, 3, 1);
-    private static final PixelBuffer MATERIAL_STRIP = PixelBuffer.of(new int[]{0x00FF0000, 0x0000FF00, 0x000000FF}, 3, 1);
-    private static final PixelBuffer BASE_PATTERN = PixelBuffer.of(new int[]{0xFF00000A, 0xFF000014, 0xFF00001E, 0x00000000}, 2, 2);
+    private static final PixelBuffer PALETTE = PixelBuffer.ofStraight(new int[]{0xFF00000A, 0xFF000014, 0xFF00001E}, 3, 1);
+    private static final PixelBuffer MATERIAL_STRIP = PixelBuffer.ofStraight(new int[]{0x00FF0000, 0x0000FF00, 0x000000FF}, 3, 1);
+    private static final PixelBuffer BASE_PATTERN = PixelBuffer.ofStraight(new int[]{0xFF00000A, 0xFF000014, 0xFF00001E, 0x00000000}, 2, 2);
 
     private static final Map<String, PixelBuffer> TEXTURES = Map.of(
         PALETTE_KEY, PALETTE, MATERIAL, MATERIAL_STRIP, BASE, BASE_PATTERN);

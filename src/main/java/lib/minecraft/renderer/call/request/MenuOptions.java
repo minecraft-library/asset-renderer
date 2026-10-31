@@ -94,8 +94,13 @@ public class MenuOptions implements RenderOptions {
      * {@link Type#ANVIL} is the only one today.
      * <p>
      * Text past the field's own cap is dropped rather than refused, which is what the client's own
-     * field does with it, and text too wide for the field scrolls so its end stays in view - a field
-     * shows the end of what was typed into it.
+     * field does with it.
+     * <p>
+     * The field shows the text as the client's field shows a text it is set to whole - as placing an
+     * item in the anvil names the field after it - scrolled toward the cursor at its end three times,
+     * so a name too wide for the field shows from near its end. Where those passes leave the cursor
+     * out of view the field draws no caret and the client's blue highlight band instead. A name typed
+     * a character at a time scrolls by other steps, and is not what this states.
      */
     private final @NotNull String fieldText = "";
 
@@ -105,7 +110,8 @@ public class MenuOptions implements RenderOptions {
      * Vanilla blinks one on the wall clock and a still picture has to answer with one state or the
      * other, so this is the choice rather than a phase. It is drawn by default because that is what
      * the client shows on opening the screen, and a caller rendering a menu as an illustration
-     * rather than as a screenshot turns it off.
+     * rather than as a screenshot turns it off. A field whose text has scrolled the cursor out of view
+     * draws none either way, as the client draws none for a cursor it cannot show.
      */
     private final boolean caret = true;
 
