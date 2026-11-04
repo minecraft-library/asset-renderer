@@ -15,9 +15,9 @@ Drawing goes through `pip.PipTarget`: one offscreen `RGBA8 + DEPTH32` target per
 ## The posed sub-trees
 
 - **The two posed sub-trees are one sweep at two gaits**, `-Drefharness.walking=true` selecting the
-  second, and the asset side is one driver at `asset.parity.gait=walk`. Each names its own gait -
-  `idle/` and `walk/` on the harness side, `idle` and `walk` on the property - so the two sides map a
-  sub-tree by one spelling. Neither doubles the subjects: what a gait changes is the walk each
+  second, and the asset side is one driver handed the `walk` gait. Each names its own gait -
+  `idle/` and `walk/` on the harness side, `idle` and `walk` as the driver's argument - so the two
+  sides map a sub-tree by one spelling. Neither doubles the subjects: what a gait changes is the walk each
   subject is armed at and so the strip it takes.
 - **The posed sub-trees are rendered at the roster `entityScheduleRoster` writes** beside the tree,
   which every posed reference run writes first: each subject's frames, step, walk and clock values,

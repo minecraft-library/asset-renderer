@@ -5,7 +5,8 @@ Load when a parity row disagrees with its reference and the cause is not yet kno
 
 1. `git log --oneline master..HEAD` for branch state.
 2. Look at the subject's panel: `cache/visual/<sweep>-parity-vanilla/<subject>/diff_panel.png`.
-   An animated row's panel is its worst frame alone; for every frame, run
+   A row whose two renders are one image has no panel and no `diff.png`, since there is nothing to
+   show. An animated row's panel is its worst frame alone; for every frame, run
    `python parity/scripts/parity panel frames --source <that sweep dir> --subject <subject>`.
 3. Re-run the one subject: `./gradlew entityParityVanilla -PentityId=minecraft:X -q`.
 4. Go to pixels with `-Dasset.entity.pixel.dump=x0,y0,x1,y1` and `-Dasset.entity.bounds.dump=true`,

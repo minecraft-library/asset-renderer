@@ -187,7 +187,10 @@ If the plan's budget exceeds **110s**, run `parityCapture` in the background; th
 budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
 producers took the last time that artifact was **promoted**, with a producer several planned rows
 share counted once, so a row promoted before the build started measuring wall time contributes
-nothing. It is a scheduling fact and not a question to put to
+nothing. The vanilla sweeps run in one JVM whichever of them a capture names, so each is stamped with
+its own span plus an equal share of that JVM's start and context load: a plan naming every sweep the
+last capture ran prices the start once, and one naming fewer prices only their shares of it. It is a
+scheduling fact and not a question to put to
 the operator: the plan is the cheapest sufficient bundle by construction, so the answer to a large
 budget is a narrower CHANGE, never a narrower gate.
 

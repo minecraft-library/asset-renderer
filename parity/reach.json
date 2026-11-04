@@ -41,6 +41,7 @@
       "lib/minecraft/renderer/tooling/ColorMapsFlow"
     ],
     "manifest.visual": [
+      "lib/minecraft/renderer/driver/DriverBundle",
       "lib/minecraft/renderer/driver/BlockRenderDriver",
       "lib/minecraft/renderer/driver/EntityProjectionsDriver",
       "lib/minecraft/renderer/driver/EntityRenderDriver",
@@ -3961,6 +3962,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/driver/DriverBundle": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/driver/EntityProjectionsDriver": {
       "artifacts": [
         "manifest.visual"
@@ -4016,10 +4023,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/driver/PoseShowcaseDriver": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/driver/RedstoneTintsDriver": {
       "artifacts": [],
       "source": "derived"
     },
@@ -6085,6 +6088,31 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/SweepBundle": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepPair": {
+      "artifacts": [
+        "manifest.player-raw",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepPairTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/SweepReport": {
       "artifacts": [
         "manifest.player-raw",
@@ -6099,6 +6127,14 @@
         "sweep.player",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepStrip": {
+      "artifacts": [
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint"
       ],
       "source": "derived"
     },

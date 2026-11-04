@@ -56,17 +56,27 @@ public final class BlockProjectionsDriver {
     }
 
     /**
+     * Loads vanilla's context and runs the projection smoke renders.
+     *
+     * @param args the arguments {@link #run} takes
+     * @throws IOException if the output directory cannot be created
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(ClientAcquisition.acquire(ClientOptions.defaults())), args);
+    }
+
+    /**
      * Runs the projection smoke renders.
      *
+     * @param context the loaded vanilla context
      * @param args {@code args[0]} optional block id (default {@code minecraft:tnt}); {@code args[1]}
      *     optional render size (default 512)
      * @throws IOException if the output directory cannot be created
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         String blockId = args.length > 0 ? args[0] : "minecraft:tnt";
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
 
-        RendererContext context = RendererContext.load(ClientAcquisition.acquire(ClientOptions.defaults()));
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/projection-smoke");
         Files.createDirectories(outputDir);

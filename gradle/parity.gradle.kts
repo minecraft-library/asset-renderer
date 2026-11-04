@@ -376,6 +376,16 @@ val parityProducerLogDir: String = layout.buildDirectory.dir("parity").get().asF
 fun parityProducerLog(producer: String): File =
     layout.buildDirectory.file("parity/producer-$producer.log").get().asFile
 
+// The producers whose sweeps run in the one vanilla sweep JVM visual.gradle.kts declares. None of them
+// starts a process of its own, so nothing below can tee its stdout or time its span: the JVM copies
+// each sweep's stdout into the log handed to it here, and times each sweep for the stamp below.
+val vanillaSweepProducerNames: List<String> = (extra["vanillaSweepProducerNames"] as List<*>).map { it.toString() }
+@Suppress("UNCHECKED_CAST")
+val vanillaSweepWallMs = extra["vanillaSweepWallMs"] as Map<String, Long>
+@Suppress("UNCHECKED_CAST")
+val vanillaSweepLogs = extra["vanillaSweepLogs"] as MutableMap<String, File>
+vanillaSweepLogs.putAll(vanillaSweepProducerNames.associateWith(::parityProducerLog))
+
 // ---- the parity toolkit invocation --------------------------------------------------------------
 // The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
 // startable here. Windows puts a Microsoft Store app-execution alias at
@@ -530,9 +540,12 @@ val parityArtifacts = listOf(
     ParityArtifact("manifest.dump.vanilla", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/vanilla"),
     ParityArtifact("manifest.dump.packs", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/packs"),
     ParityArtifact("manifest.player-sheets", listOf("playerRender"), "cache/visual/player-render",
-        listOf("sheets", "account", "renderSize", "pack")),
+        listOf("sheets", "account", "renderSize")),
     ParityArtifact("manifest.fluid", listOf("fluidRenderer"), "cache/visual/fluid-renderer"),
-    ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer"),
+    // `portalLattice` scopes it although it narrows nothing: the run writes this tree as a plain run
+    // does and four more strips outside it, so its population would capture clean while the wall time
+    // stamped beside it priced the next plan from a diagnostic's cost.
+    ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer", listOf("portalLattice")),
     // The only row with a logSource: a shipped table reproducing byte for byte is not the same claim
     // as the run that produced it being unchanged, and the entity flow has already moved an INFO line
     // from position 9 to 6 with every emitted byte identical.
@@ -562,13 +575,12 @@ val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.
  *
  * An aggregator does its work through `dependsOn`, so its own span opens only once every dependency
  * has finished and rounds to zero. Declared rather than walked off the task graph, because which
- * dependencies a row's budget should COUNT is a decision rather than a fact - `visualSweepClean` is a
- * dependency of `visualSweepSet` and is not work the budget is about - and because a name typed here
+ * dependencies a row's budget should COUNT is a decision rather than a fact - a clear that runs ahead
+ * of a producer is a dependency and is not work the budget is about - and because a name typed here
  * fails loudly at configuration where a graph walk would answer zero in silence, which is the failure
  * this exists to end.
  */
 val parityAggregatedProducers: Map<String, List<String>> = mapOf(
-    "visualSweepSet" to (extra["visualSweepProducerNames"] as List<*>).map { it.toString() },
     "playerRawSweepSet" to listOf("playerParityVanilla", "armorParityVanilla")
 )
 
@@ -1801,6 +1813,17 @@ tasks {
         }
     }
 
+    // The vanilla sweeps' producers are slots in one JVM, and the JVM is what reads the tree and writes
+    // the tables, so it takes the edges its producers take: after the erase, and after any render of a
+    // tree one of their rows reads. On the producers alone they would order only the slots, and the
+    // JVM they depend on could run ahead of the render.
+    named("vanillaSweepRun") {
+        mustRunAfter(parityCaptureBeginTask)
+        parityArtifacts.filter { row -> row.producers.any { it in vanillaSweepProducerNames } }
+            .mapNotNull { it.tree }.distinct()
+            .forEach { tree -> mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }
+    }
+
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
     // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the
     // artifact table so a new row needs no second edit. `parityPinTest` is a Test rather than either
@@ -1851,6 +1874,15 @@ tasks {
             doLast { parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L }
         }
 
+    // A vanilla sweep's producer does its work in the shared JVM, so its own span is no measure of it:
+    // the JVM times each sweep, and the producer is stamped with what it timed plus an equal share of
+    // the JVM's start and context load, so no sweep's stamp hangs on the order it ran in. Declared
+    // ahead of the block below, so the time is recorded before that block reads it back as the
+    // producer's own.
+    vanillaSweepProducerNames.forEach { producer ->
+        named(producer) { doLast { vanillaSweepWallMs[name]?.let { parityProducerElapsedMs[name] = it } } }
+    }
+
     // And its wall time, which is the other thing only the producer can answer. Every producer,
     // whatever its type: the pin suite is a Test task and the reference render is an Exec, and a
     // budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
@@ -1859,10 +1891,10 @@ tasks {
     // An AGGREGATOR is the shape that reading its own span misses. A producer that does its work
     // through `dependsOn` alone opens its own `doFirst` only once every dependency has finished, so
     // the span rounds to zero, the sum below never exceeds it, and no `--wall-time` is passed at all -
-    // which is why the two of them carried no duration and the budget printed as a floor. Their
-    // dependencies are timed here too and summed instead, the aggregator's `doLast` running after
-    // every one of theirs. `maxOf` rather than the sum outright, so a producer that really does its
-    // own work still answers for it.
+    // so the row carries no duration and the budget prints as a floor. Its dependencies are timed
+    // here too and summed instead, the aggregator's `doLast` running after every one of theirs.
+    // `maxOf` rather than the sum outright, so a producer that really does its own work still
+    // answers for it.
     (parityProducerNames + parityAggregatedProducers.values.flatten()).forEach { producer ->
         named(producer) {
             val startedAt = AtomicLong()

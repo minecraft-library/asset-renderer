@@ -8,6 +8,7 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.PortalPalette;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.stream.IntStream;
 
@@ -138,6 +139,59 @@ public class PortalBake {
         @NotNull PixelBuffer endPortalNoise,
         int size
     ) {
+        return bake(portal, gameTick, endSky, endPortalNoise, size, null);
+    }
+
+    /**
+     * Bakes the pixels of one face that a coverage buffer marks, as {@link #bakeFace} bakes them, and
+     * leaves every other pixel transparent black. A baked pixel is a function of its own position, the
+     * tick and the two samplers alone, so each marked pixel holds exactly the value {@link #bakeFace}
+     * gives it at the same edge length - the form for a caller that reads the face only through a mask
+     * and would otherwise pay for pixels it never reads.
+     *
+     * @param portal the portal variant - drives layer count
+     * @param gameTick the vanilla game tick; converted to the shader's {@code [0, 1)}
+     *                 {@code GameTime} uniform value internally
+     * @param endSky Sampler0 - {@code environment/end_sky}
+     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}
+     * @param coverage the square buffer whose pixels of non-zero alpha are the ones baked; its edge
+     *                 is the sprite's
+     * @return a freshly allocated ARGB buffer the size of {@code coverage}, baked where it is covered
+     * @throws IllegalArgumentException if {@code coverage} is not square
+     */
+    public static @NotNull PixelBuffer bakeCovered(
+        @NotNull PortalOptions.Portal portal,
+        float gameTick,
+        @NotNull PixelBuffer endSky,
+        @NotNull PixelBuffer endPortalNoise,
+        @NotNull PixelBuffer coverage
+    ) {
+        if (coverage.width() != coverage.height())
+            throw new IllegalArgumentException("Coverage must be square, got %dx%d".formatted(coverage.width(), coverage.height()));
+
+        return bake(portal, gameTick, endSky, endPortalNoise, coverage.width(), coverage);
+    }
+
+    /**
+     * Bakes one face, every pixel of it or only those a coverage buffer marks.
+     *
+     * @param portal the portal variant - drives layer count
+     * @param gameTick the vanilla game tick
+     * @param endSky Sampler0 - {@code environment/end_sky}
+     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}
+     * @param size output sprite edge length in pixels
+     * @param coverage the {@code size x size} buffer whose pixels of non-zero alpha are the ones
+     *                 baked, or {@code null} to bake every pixel
+     * @return a freshly allocated {@code size x size} ARGB buffer with the baked face
+     */
+    private static @NotNull PixelBuffer bake(
+        @NotNull PortalOptions.Portal portal,
+        float gameTick,
+        @NotNull PixelBuffer endSky,
+        @NotNull PixelBuffer endPortalNoise,
+        int size,
+        @Nullable PixelBuffer coverage
+    ) {
         float time = gameTimeUniform(gameTick);
         int layers = layerCount(portal);
         PixelBuffer buffer = PixelBuffer.straight(size, size);
@@ -207,6 +261,8 @@ public class PortalBake {
         final int finalLayers = layers;
         IntStream.range(0, size).parallel().forEach(py -> {
             for (int px = 0; px < finalSize; px++) {
+                if (coverage != null && ColorMath.alpha(coverage.getPixel(px, py)) == 0) continue;
+
                 float rAcc = 0f, gAcc = 0f, bAcc = 0f;
 
                 // Box-filter integral under this output pixel: ssaa x ssaa shader evaluations at

@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.PortalBake;
 import lib.minecraft.renderer.call.request.AnimationOptions;
@@ -286,30 +285,34 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         }
 
         /**
-         * The half of a portal render that does not vary between its frames: the engine posed for the
-         * whole animation, the two parallax source textures and the cube / slab geometry. Each is a
-         * function of the render options alone, so one scene is resolved in {@link #draw} and
-         * captured by the per-frame callback, leaving that callback holding only the parallax bake -
-         * the sole reader of the tick.
+         * The half of a portal render that does not vary between its frames: the two parallax source
+         * textures and the shading mask the cube / slab rasterizes to. Each is a function of the
+         * render options alone, so one scene is resolved in {@link #draw} and captured by the
+         * per-frame callback, leaving that callback holding only the parallax bake - the sole reader
+         * of the tick.
          *
-         * @param engine the engine posed by the caller's projection
          * @param endSky {@code Sampler0} - {@code environment/end_sky}
          * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}
-         * @param triangles the cube or slab geometry, sampled from a uniform-white texture
+         * @param shadingMask the cube or slab rasterized from a uniform-white texture at the
+         *     resolution each frame is drawn at, whose red channel is the per-face shading
+         *     coefficient {@code * 255} and whose alpha marks the pixels the portal covers
          */
         private record Scene(
-            @NotNull Rasterizer engine,
             @NotNull PixelBuffer endSky,
             @NotNull PixelBuffer endPortalNoise,
-            @NotNull ConcurrentList<VisibleTriangle> triangles
+            @NotNull PixelBuffer shadingMask
         ) {
 
             /**
              * Resolves the scene every frame of one render draws from. The projection resolve composes
              * the caller's rotation onto the base pose, so it poses the camera directly and the
              * rasterize call applies no separate model-spin; default renders pass
-             * {@code EulerRotation.NONE}, leaving the base block-icon pose. The white sampler is
-             * written once here and only read afterwards, so one instance serves every frame.
+             * {@code EulerRotation.NONE}, leaving the base block-icon pose.
+             * <p>
+             * The shading mask is rasterized here, once, onto a transparent canvas the size of the
+             * buffer {@link RasterPass} hands each frame - the canvas times the supersample factor
+             * when supersampling, the canvas itself otherwise. Camera and geometry hold for the whole
+             * render, so the mask is the same for every frame, and a frame only reads it.
              *
              * @param context the renderer context textures resolve through
              * @param options the render options
@@ -323,22 +326,24 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 PixelBuffer white = PixelBuffer.straight(1, 1);
                 white.setPixel(0, 0, ColorMath.WHITE);
 
-                return new Scene(
-                    engine,
-                    sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID),
-                    sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID),
-                    buildGeometry(options.getPortal(), FaceTextures.uniform(white)));
+                PixelBuffer endSky = sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID);
+                PixelBuffer endPortalNoise = sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID);
+                ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), FaceTextures.uniform(white));
+
+                int raster = options.getOutput().getCanvasSize() * Math.max(1, options.getOutput().getSupersample());
+                PixelBuffer shadingMask = PixelBuffer.canvas(raster, raster);
+                engine.rasterize(triangles, shadingMask);
+                return new Scene(endSky, endPortalNoise, shadingMask);
             }
 
         }
 
         /**
          * Draws one 3D isometric portal frame at the given game tick into {@code target}: bakes the
-         * parallax shader at the target (raster) resolution as a screen-space canvas, rasterizes the
-         * scene's cube / slab with its white sampler to capture per-face shading, then composes
-         * shader &times; shading into {@code target}. The shared {@link RasterPass} tail owns the
-         * supersample / FXAA / downscale around this draw, so {@code target} is the hi-res buffer when
-         * supersampling.
+         * parallax shader at the target (raster) resolution as a screen-space canvas over the pixels
+         * the scene's shading mask covers, then composes shader &times; shading into {@code target}.
+         * The shared {@link RasterPass} tail owns the supersample / FXAA / downscale around this draw,
+         * so {@code target} is the hi-res buffer when supersampling.
          *
          * @param options the render options
          * @param scene the frame-invariant state resolved once per render
@@ -354,18 +359,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // Pass 1: bake the parallax shader once at the target (raster) resolution. This is the
             // "screen-space canvas" - every output pixel that lands on the cube samples this single
             // buffer at its own screen position, not a per-face UV, so adjacent cube edges converge
-            // on identical shader output and the starfield is seamless across faces.
+            // on identical shader output and the starfield is seamless across faces. The compose
+            // reads it only where the mask covers, so only those pixels are baked.
             PixelBuffer shaderCanvas = applyTintIfNeeded(
-                PortalBake.bakeFace(options.getPortal(), tick, scene.endSky(), scene.endPortalNoise(), target.width()), resolveTint(options));
+                PortalBake.bakeCovered(options.getPortal(), tick, scene.endSky(), scene.endPortalNoise(), scene.shadingMask()), resolveTint(options));
 
-            // Pass 2: rasterize the cube with a uniform-white sampler so each pixel's red channel is
-            // the per-face shading coefficient * 255, then compose shader * mask into the target. The
-            // shading mask is scope-local pooled scratch.
-            try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
-                PixelBuffer shadingMask = maskLease.buffer();
-                scene.engine().rasterize(scene.triangles(), shadingMask);
-                composeShaderMask(target, shadingMask, shaderCanvas, target.width());
-            }
+            // Pass 2: compose shader * mask into the target, the mask's red channel being the
+            // per-face shading coefficient * 255.
+            composeShaderMask(target, scene.shadingMask(), shaderCanvas, target.width());
         }
 
         /**

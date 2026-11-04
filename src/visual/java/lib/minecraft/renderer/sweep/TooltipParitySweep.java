@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -9,7 +8,6 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -20,7 +18,6 @@ import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -34,7 +31,6 @@ import lib.minecraft.renderer.dump.PackSourceParity;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -132,8 +128,9 @@ import java.util.stream.Stream;
  *
  * <p>Output: one folder per row under {@code cache/visual/tooltip-parity-vanilla/}, or
  * {@code cache/visual/tooltip-<label>-parity-vanilla/} for a pack configuration, holding
- * {@code vanilla.png} (the reference taken to its first pixel), {@code java.png}, {@code diff.png} and
- * {@code diff_panel.png}, plus a top-level {@code parity-report.tsv}.
+ * {@code vanilla.png} (the reference taken to its first pixel) and {@code java.png}, and
+ * {@code diff.png} and {@code diff_panel.png} where the two differ, plus a top-level
+ * {@code parity-report.tsv}.
  *
  * <p>Usage: {@code TooltipParitySweep <vanilla | pack label> [tooltipId]} - {@code ./gradlew
  * tooltipParityVanilla} after {@code renderVanillaTooltipReferences}, or {@code ./gradlew
@@ -277,13 +274,13 @@ public final class TooltipParitySweep {
 
         /**
          * Builds a pack configuration: the roster's section for the label against the pack run's
-         * drawings beside the reference tree, over the packs its handshake names. Exits the JVM with
-         * status 1 when the pack run has written no handshake.
+         * drawings beside the reference tree, over the packs its handshake names.
          *
          * @param roster the roster
          * @param label the label the roster's {@code packs} section keys
          * @return the configuration
          * @throws IOException if the handshake cannot be read
+         * @throws IllegalStateException if the pack run has written no handshake
          */
         static @NotNull Configuration overPacks(@NotNull JsonObject roster, @NotNull String label) throws IOException {
             List<Subject> subjects = TooltipParitySweep.subjects(roster, label);
@@ -292,7 +289,7 @@ public final class TooltipParitySweep {
             if (!Files.isRegularFile(file)) {
                 System.err.printf("No pack-tooltip handshake at %s%n  Run the harness's pack-tooltip run for '%s' first - "
                     + "renderVanillaPackTooltipsHypixelSkyblock draws hypixel-skyblock.%n", file.toAbsolutePath(), label);
-                System.exit(1);
+                throw new IllegalStateException(String.format("No pack-tooltip handshake at '%s'", file));
             }
             JsonObject handshake = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
             ClientOptions options = ClientOptions.builder().texturePacks(Concurrent.adoptList(packFiles(handshake))).build();
@@ -563,14 +560,15 @@ public final class TooltipParitySweep {
     }
 
     /**
-     * Runs the tooltip parity sweep over one configuration, or over the subjects one roster key names.
+     * Runs the tooltip parity sweep over one configuration and a context of its own, loaded over the
+     * configuration's client options, or over the subjects one roster key names.
      *
      * @param args the configuration - {@code vanilla} or a label the roster's {@code packs} section
      *     keys - then an optional roster key to scope the run to
      * @throws IOException if the roster or the handshake cannot be read, or the report cannot be written
      * @throws IllegalArgumentException if no configuration is given, or the roster has none of that label
-     * @throws IllegalStateException if a pack configuration's chrome or text shader resolves differently
-     *     from the client's
+     * @throws IllegalStateException if a pack configuration has no handshake, or its chrome or text
+     *     shader resolves differently from the client's
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (args.length == 0) {
@@ -581,6 +579,40 @@ public final class TooltipParitySweep {
         Configuration configuration = args[0].equals(VANILLA)
             ? Configuration.vanilla(roster)
             : Configuration.overPacks(roster, args[0]);
+        ClientAssets result = SweepPair.acquire(configuration.options());
+        RendererContext context = RendererContext.load(result);
+        if (configuration.handshake().isPresent()) checkResolution(configuration, result, context);
+        sweep(configuration, context, args.length < 2 ? Optional.empty() : Optional.of(args[1]));
+    }
+
+    /**
+     * Runs the vanilla configuration over a loaded context, or over the subjects one roster key names.
+     *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
+     * @param args {@code vanilla}, then an optional roster key to scope the run to
+     * @throws IOException if the roster cannot be read or the report cannot be written
+     * @throws IllegalArgumentException if the configuration is not {@code vanilla} - a pack
+     *     configuration renders over a context loaded over its own packs, which {@link #main} loads
+     */
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        if (args.length == 0 || !args[0].equals(VANILLA)) {
+            throw new IllegalArgumentException(String.format(
+                "Configuration '%s' is not vanilla, and only vanilla renders over vanilla's context",
+                args.length == 0 ? "" : args[0]));
+        }
+        sweep(Configuration.vanilla(roster()), context, args.length < 2 ? Optional.empty() : Optional.of(args[1]));
+    }
+
+    /**
+     * Renders and compares a configuration's rows over a context loaded for it, and writes its report.
+     *
+     * @param configuration the configuration
+     * @param context the context every render resolves through, loaded over the configuration's options
+     * @param key the roster key to scope the run to, empty for every subject
+     * @throws IOException if the report cannot be written
+     */
+    private static void sweep(@NotNull Configuration configuration, @NotNull RendererContext context,
+                              @NotNull Optional<String> key) throws IOException {
         // A pack configuration has already refused a missing handshake, which lives in its reference
         // directory, so only the vanilla tree can be missing here.
         if (!Files.isDirectory(configuration.references())) {
@@ -589,23 +621,13 @@ public final class TooltipParitySweep {
             return;
         }
         Files.createDirectories(configuration.output());
-
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(configuration.options());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-        RendererContext context = RendererContext.load(result);
-        if (configuration.handshake().isPresent()) checkResolution(configuration, result, context);
         TextRenderer javaRenderer = new TextRenderer(context);
 
         List<Subject> subjects = configuration.subjects().stream()
-            .filter(subject -> args.length < 2 || subject.key().equals(args[1]))
+            .filter(subject -> key.isEmpty() || subject.key().equals(key.get()))
             .toList();
         if (subjects.isEmpty()) {
-            System.err.printf("No tooltip subject keyed '%s' in '%s'%n", args.length < 2 ? "" : args[1], configuration.label());
+            System.err.printf("No tooltip subject keyed '%s' in '%s'%n", key.orElse(""), configuration.label());
             return;
         }
 
@@ -902,8 +924,8 @@ public final class TooltipParitySweep {
             javaW = javaImg.getWidth();
             javaH = javaImg.getHeight();
 
-            ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
+            ImageIO.write(vanillaImg, "PNG", subjectDir.resolve(SweepPair.VANILLA).toFile());
+            ImageIO.write(javaImg, "PNG", subjectDir.resolve(SweepPair.JAVA).toFile());
 
             if (vanillaW != javaW || vanillaH != javaH) {
                 System.err.printf("       %-50s canvas %dx%d against the client's %dx%d to its first pixel - not comparable%n",
@@ -911,12 +933,7 @@ public final class TooltipParitySweep {
                 return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
             }
 
-            ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",
-                new File(subjectDir.toFile(), "diff.png"));
-            ImageIO.write(ParityMetrics.panelDiff(vanillaImg, javaImg, vanillaPB, javaPB), "PNG",
-                new File(subjectDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaImg, javaImg);
+            ParityMetrics.Stats stats = SweepPair.compare(subjectDir, vanillaImg, javaImg);
             System.out.printf("  %-50s mean delta %.2f  diff-px %d  raw-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%n",
                 key, stats.meanDelta(), stats.differingPixels(), stats.rawDifferingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);

@@ -60,18 +60,21 @@ import java.util.Optional;
  * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
  * {@link Projection}, the overlay / cape / supersample+FXAA /
  * rotation / background toggles, every armor material on every slot (2D and 3D), dyed leather, a
- * representative trim set, a vanilla-vs-pack armor comparison (with {@code -Ppack}), and a live
- * {@code account} sheet that renders a real player's skin + cape from their Mojang profile. The
- * {@code glint-per-slot} output is the exception to the contact-sheet format: it writes one
+ * representative trim set. The {@code glint-per-slot} output is the exception to the contact-sheet format: it writes one
  * animated GIF per enchanted-iron slot (2D + 3D) so the scrolling foil is watchable.
  *
  * <p>The sweep skin is the vanilla {@code entity/player/wide/steve} texture id (offline); the sweep
- * cape is a synthesized 64x32 texture since the vanilla pack ships none. The {@code account} sheet
- * is the exception - it streams a live skin + cape through {@link ClientAcquisition#mojang()} and is skipped
- * (not fatal) when offline. 3D cells render at {@link #SSAA}x supersampling for crisp edges.
+ * cape is a synthesized 64x32 texture since the vanilla pack ships none. 3D cells render at
+ * {@link #SSAA}x supersampling for crisp edges.
+ *
+ * <p>The {@code account} sheet renders a real player's skin + cape, streamed from their Mojang
+ * profile through {@link ClientAcquisition#mojang()}, and renders only when a run asks for it - by
+ * naming it in {@code -Psheets} or by naming an account with {@code -Paccount} - so a default run
+ * makes no network call. It is skipped (not fatal) when offline, and {@code manifest.player-sheets}
+ * holds none of it: a render of a skin service's answer is no byte baseline.
  *
  * <p>Usage:
- * {@code ./gradlew playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Ppack[=<url>]] [-Paccount=<username>]}.
+ * {@code ./gradlew playerRender [-PrenderSize=256] [-Psheets=core-matrix,toggles,account,...] [-Paccount=<username>]}.
  */
 @UtilityClass
 public final class PlayerRenderDriver {
@@ -85,16 +88,17 @@ public final class PlayerRenderDriver {
     /** Supersample factor for the sweep so 3D cells stay crisp now that {@code antiAlias} defaults off. */
     private static final int SSAA = 4;
 
-    /** Account whose live skin + cape the {@code account} sheet renders (requires network). */
+    /** Account whose live skin + cape the {@code account} sheet renders unless another is named (requires network). */
     private static final String ACCOUNT_USERNAME = "CraftedFury";
 
     /**
      * Runs the player-render sweep.
      *
      * @param args optional {@code key=value} tokens: {@code size=NNN} (or a bare integer) sets the
-     *     per-cell render size; {@code sheets=a,b,c} restricts which sheets render; {@code pack} (or
-     *     {@code pack=<url>}) enables the vanilla-vs-pack armor sheet; {@code account=<username>}
-     *     overrides the live-account username (defaults to {@link #ACCOUNT_USERNAME})
+     *     per-cell render size; {@code sheets=a,b,c} restricts which sheets render, and is the one way
+     *     besides {@code account} to render the live-account sheet; {@code account=<username>}
+     *     renders the live-account sheet for that username ({@code sheets=account} alone renders it for
+     *     {@link #ACCOUNT_USERNAME})
      * @throws IOException if an output directory or file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -128,9 +132,9 @@ public final class PlayerRenderDriver {
         if (sheetFilter.isEmpty() || sheetFilter.contains("glint-per-slot"))
             renderGlintGifs(renderer, "glint-per-slot", glintPerSlot(size));
 
-        // Live-account sheet (CraftedFury skin + cape). Built lazily so the Mojang fetch only runs
-        // when the sheet is in scope, and skipped (not fatal) when the network/profile is unavailable.
-        if (sheetFilter.isEmpty() || sheetFilter.contains("account")) {
+        // Live-account sheet (CraftedFury skin + cape). Rendered only when asked for, so the Mojang
+        // fetch runs only then, and skipped (not fatal) when the network/profile is unavailable.
+        if (sheetFilter.contains("account") || opts.containsKey("account")) {
             String username = opts.getOrDefault("account", ACCOUNT_USERNAME);
             try {
                 renderSheet(renderer, "account", account(size, username), size);

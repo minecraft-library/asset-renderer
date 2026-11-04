@@ -33,8 +33,8 @@ import java.util.Optional;
  * {@code -Ptype=icon} for the faithful inventory icon ({@link ItemOptions.Type#GUI_ICON}), which
  * routes by index membership and is the one mode that answers for every block-backed id;
  * {@code -Ptype=held} draws one whose item definition names its block model. With no
- * {@code -PitemId} it renders {@link #DEFAULT_ITEMS} - a mix of plain items and armor-trim variants
- * that exercises sprite layering and paletted trim permutation.
+ * {@code -PitemId} it renders {@link #DEFAULT_ITEMS} - armor-trim variants, which exercise sprite
+ * layering and paletted trim permutation.
  * <p>
  * {@code -Psupersample} (SSAA) sharpens the held-item render only - the GUI icon is a sprite blit and
  * ignores it; {@code -PantiAlias} (FXAA) applies to both. Held and icon renders are written with a
@@ -52,21 +52,39 @@ import java.util.Optional;
 @UtilityClass
 public final class ItemRenderDriver {
 
-    /** Default item id list when no {@code args[0]} is supplied; mixes plain items with trim variants. */
+    /**
+     * Default item id list when no {@code args[0]} is supplied - the armor-trim variants, whose icons
+     * no other render this project gates draws. A plain item's GUI sprite is a row of the item parity
+     * sweep, held exactly to the client's own icon.
+     */
     private static final String[] DEFAULT_ITEMS = {
-        "minecraft:diamond_sword",
-        "minecraft:iron_chestplate",
         "minecraft:iron_chestplate_amethyst_trim",
         "minecraft:diamond_boots_gold_trim",
-        "minecraft:netherite_helmet_redstone_trim",
-        "minecraft:golden_apple",
-        "minecraft:bow",
-        "minecraft:compass"
+        "minecraft:netherite_helmet_redstone_trim"
     };
+
+    /**
+     * Loads vanilla's context and runs the item renders.
+     *
+     * @param args the arguments {@link #run} takes
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        ClientAssets result;
+        try {
+            result = ClientAcquisition.acquire(ClientOptions.defaults());
+        } catch (ClientException | MojangApiException ex) {
+            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
+            throw ex;
+        }
+
+        run(RendererContext.load(result), args);
+    }
 
     /**
      * Runs the item renders.
      *
+     * @param pipeline the loaded vanilla context
      * @param args {@code args[0]} is an optional semicolon-separated list of item ids;
      *     {@code args[1]} is an optional render size (defaults to 256); {@code args[2]} is an
      *     optional supersample factor (defaults to 1, held items only); {@code args[3]} is an
@@ -77,7 +95,7 @@ public final class ItemRenderDriver {
      *     which is how a texture miss is made reachable on a vanilla-only stack
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    public static void run(@NotNull RendererContext pipeline, String @NotNull [] args) throws IOException {
         String[] itemIds = args.length > 0
             ? args[0].split(";")
             : DEFAULT_ITEMS;
@@ -88,15 +106,6 @@ public final class ItemRenderDriver {
         String[] hidden = args.length > 5 && !args[5].isBlank() ? args[5].split(";") : new String[0];
         Optional<CompoundTag> components = componentPatch();
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-
-        RendererContext pipeline = RendererContext.load(result);
         RendererContext context = hidden.length == 0
             ? pipeline
             : pipeline.hiding(hidden);

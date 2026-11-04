@@ -8,12 +8,10 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
@@ -41,8 +39,8 @@ import java.util.Set;
  * no stack does.
  * <p>
  * Output is one folder per subject under {@code cache/visual/pack-icon-parity-vanilla/}, each holding
- * {@code vanilla.png}, {@code java.png}, {@code diff.png} and {@code diff_panel.png}, and a top-level
- * {@code parity-report.tsv} ranking the subjects by mean ARGB delta.
+ * {@code vanilla.png} and {@code java.png}, and {@code diff.png} and {@code diff_panel.png} where the
+ * two differ, and a top-level {@code parity-report.tsv} ranking the subjects by mean ARGB delta.
  * <p>
  * Usage: {@code ./gradlew packIconParityVanilla [-PitemId=minecraft:oak_log]}, after {@code
  * renderVanillaPackIcons}.
@@ -77,7 +75,7 @@ public final class PackIconParity {
         Path directory = Path.of(roster.get("pack_directory").getAsString());
         List<File> packs = new ArrayList<>();
         roster.getAsJsonArray("packs").forEach(name -> packs.add(directory.resolve(name.getAsString()).toFile()));
-        RendererContext context = RendererContext.load(ClientAcquisition.acquire(
+        RendererContext context = RendererContext.load(SweepPair.acquire(
             ClientOptions.builder().texturePacks(Concurrent.adoptList(packs)).build()));
         ItemRenderer renderer = new ItemRenderer(context);
         Files.createDirectories(OUTPUT_DIR);
@@ -119,8 +117,8 @@ public final class PackIconParity {
     }
 
     /**
-     * Draws one subject's stack, diffs it against the client's drawing, writes the per-subject
-     * {@code vanilla/java/diff/diff_panel} PNGs and returns the row. A missing or unreadable reference,
+     * Draws one subject's stack, diffs it against the client's drawing, writes the per-subject files
+     * and returns the row. A missing or unreadable reference,
      * or a render that throws, is a {@code POSITIVE_INFINITY} row rather than the end of the sweep.
      */
     private static @NotNull Row renderAndCompare(@NotNull JsonObject subject, @NotNull ItemRenderer renderer) {
@@ -151,19 +149,7 @@ public final class PackIconParity {
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 
-            int cw = Math.max(vw, jw);
-            int ch = Math.max(vh, jh);
-            BufferedImage vanillaPadded = ParityMetrics.padToCanvas(vanillaImg, cw, ch);
-            BufferedImage javaPadded = ParityMetrics.padToCanvas(javaImg, cw, ch);
-
-            ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
-            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
-            PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
-            ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG", new File(subjectDir.toFile(), "diff.png"));
-            ImageIO.write(ParityMetrics.panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB), "PNG", new File(subjectDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
+            ParityMetrics.Stats stats = SweepPair.writePair(subjectDir, vanillaPng, vanillaImg, javaImg);
             return new Row(key, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), jw, jh, vw, vh);
         } catch (Exception ex) {
             System.err.printf("       %-60s FAILED: %s%n", key, ex.getMessage());

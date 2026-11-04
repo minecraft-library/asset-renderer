@@ -67,16 +67,12 @@ public final class ItemDayCycleDriver {
     private static final @NotNull Path OUTPUT_DIR = Path.of("cache/visual/item-day-cycle");
 
     /**
-     * Renders each subject across one day and writes the results.
+     * Loads vanilla's context, renders each subject across one day and writes the results.
      *
-     * @param args {@code args[0]} is an optional render size (defaults to 256); {@code args[1]} is an
-     *     optional explicit frame count spanning the day (defaults to deriving it per item)
+     * @param args the arguments {@link #run} takes
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        int size = args.length > 0 ? Integer.parseInt(args[0]) : 256;
-        int dayFrames = args.length > 1 ? Integer.parseInt(args[1]) : 0;
-
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
@@ -85,7 +81,21 @@ public final class ItemDayCycleDriver {
             throw ex;
         }
 
-        RendererContext context = RendererContext.load(result);
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Renders each subject across one day and writes the results.
+     *
+     * @param context the loaded vanilla context
+     * @param args {@code args[0]} is an optional render size (defaults to 256); {@code args[1]} is an
+     *     optional explicit frame count spanning the day (defaults to deriving it per item)
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        int size = args.length > 0 ? Integer.parseInt(args[0]) : 256;
+        int dayFrames = args.length > 1 ? Integer.parseInt(args[1]) : 0;
+
         ItemRenderer renderer = new ItemRenderer(context);
         Files.createDirectories(OUTPUT_DIR);
 

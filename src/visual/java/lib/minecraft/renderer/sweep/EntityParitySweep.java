@@ -1,26 +1,20 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.call.request.EntityOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,8 +41,9 @@ import java.util.stream.Stream;
  * dimension mismatch surfaces in the TSV report.
  *
  * <p>Output is organised one folder per entity under {@code cache/visual/entity-parity-vanilla/}
- * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}. A top-level
- * {@code parity-report.tsv} ranks entities by mean ARGB delta ascending.
+ * - each contains {@code vanilla.png} and {@code java.png}, and {@code diff.png} and
+ * {@code diff_panel.png} where the two differ. A top-level {@code parity-report.tsv} ranks entities
+ * by mean ARGB delta ascending.
  *
  * <p>Usage: {@code ./gradlew entityParityVanilla [-PentityId=minecraft:zombie]}.
  */
@@ -64,17 +59,25 @@ public final class EntityParitySweep {
     /** Source of the harness-produced reference PNGs. */
     private static final Path VANILLA_DIR = ParityPaths.references("entities");
 
-    /** Filename prefix the harness writes (entity id with {@code :} replaced by {@code __}). */
-    private static final @NotNull String VANILLA_PREFIX = "minecraft__";
+    /**
+     * Runs the parity sweep over a context of its own, loaded over vanilla's own client options.
+     *
+     * @param args what {@link #run} reads
+     * @throws IOException if the output cannot be written
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(SweepPair.acquire(ClientOptions.defaults())), args);
+    }
 
     /**
      * Runs the parity sweep.
      *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
      * @param args {@code args[0]} optional comma-separated list of entity ids
      *     ({@code minecraft:zombie,minecraft:cave_spider}). When absent, every harness reference
      *     PNG present in {@link #VANILLA_DIR} that the Java pipeline also knows about is rendered.
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         List<String> entityIdFilter = args.length > 0
             ? List.of(args[0].split(","))
             : List.of();
@@ -86,15 +89,6 @@ public final class EntityParitySweep {
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-
-        RendererContext context = RendererContext.load(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json missing - run entityModels first");
@@ -125,7 +119,8 @@ public final class EntityParitySweep {
             System.err.printf("%d reference name(s) the parser could not read:%n", malformed.size());
             for (AppearanceKey.Result.Malformed bad : malformed)
                 System.err.printf("    %-56s %s%n", bad.name(), bad.reason());
-            System.exit(1);
+            throw new IllegalStateException(String.format("%d reference name(s) the parser could not read",
+                malformed.size()));
         }
         if (!entityIdFilter.isEmpty())
             subjects = subjects.stream()
@@ -180,8 +175,7 @@ public final class EntityParitySweep {
 
     /**
      * Renders one entity through the Java pipeline, diffs it against the vanilla reference, writes
-     * the per-entity {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
-     * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
+     * the per-entity files, and returns the comparison {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
      * entities via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
      * {@link RendererContext}. Any failure (missing/unreadable
      * reference, render error) marks the row {@code POSITIVE_INFINITY} rather than aborting the
@@ -225,21 +219,7 @@ public final class EntityParitySweep {
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 
-            int cw = Math.max(vw, jw);
-            int ch = Math.max(vh, jh);
-            BufferedImage vanillaPadded = ParityMetrics.padToCanvas(vanillaImg, cw, ch);
-            BufferedImage javaPadded = ParityMetrics.padToCanvas(javaImg, cw, ch);
-
-            ImageIO.write(vanillaImg, "PNG", new File(entityDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(entityDir.toFile(), "java.png"));
-            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
-            PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
-            BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
-            ImageIO.write(diffImg, "PNG", new File(entityDir.toFile(), "diff.png"));
-            BufferedImage panelImg = ParityMetrics.panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
-            ImageIO.write(panelImg, "PNG", new File(entityDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
+            ParityMetrics.Stats stats = SweepPair.writePair(entityDir, vanillaPng, vanillaImg, javaImg);
             String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
             System.out.printf("  %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
                 refId, stats.meanDelta(), stats.differingPixels(),

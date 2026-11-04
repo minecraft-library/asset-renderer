@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.StaticImageData;
 import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.option.WebPWriteOptions;
 import lib.minecraft.renderer.TextRenderer;
@@ -41,9 +40,9 @@ import java.nio.file.Path;
  * <p>
  * Seven tooltips render. Two come from legacy strings: an {@link #ACCESSORY_LEGACY accessory}
  * (static, one PNG) and a {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes
- * {@link TextRenderer} emit an animated frame sequence (GIF + lossless WebP + lossy WebP + a static
- * first-frame WebP). Both mirror the style of real tooltips and include the white
- * {@code +5 ✦ Speed} line so stat-roll rendering can be eyeballed in isolation.
+ * {@link TextRenderer} emit an animated frame sequence (GIF + lossless WebP). Both mirror the style of
+ * real tooltips and include the white {@code +5 ✦ Speed} line so stat-roll rendering can be eyeballed
+ * in isolation.
  * <p>
  * The remaining five are gradient sheets, each a tooltip whose lines carry an opt-in per-segment
  * {@link GradientSpec}, so every axis of that feature is eyeballable side by side: the four
@@ -60,12 +59,6 @@ public final class LoreTooltipDriver {
 
     /** Output directory for all lore renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/lore-tooltip");
-
-    /**
-     * The motion-search thread count that asks the WebP writer for its own default, one thread per
-     * available processor - the sweep's baseline, and the timing the summary line reports
-     */
-    private static final int WRITER_DEFAULT_MOTION_THREADS = -1;
 
     /**
      * A simple accessory-style tooltip with a short effect line. Includes the white
@@ -102,14 +95,12 @@ public final class LoreTooltipDriver {
     );
 
     /**
-     * Runs the test matrix.
+     * Loads vanilla's context and runs the test matrix.
      *
      * @param args ignored
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        Files.createDirectories(OUTPUT_DIR);
-
         // Build a renderer context so the sprite-backed tooltip chrome can resolve the vanilla
         // tooltip/background + tooltip/frame nine-slice sprites through the pack stack.
         ClientAssets result;
@@ -117,17 +108,28 @@ public final class LoreTooltipDriver {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            System.exit(1);
-            return;
+            throw ex;
         }
-        RendererContext context = RendererContext.load(result);
+
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Runs the test matrix.
+     *
+     * @param context the loaded vanilla context, through which the sprite chrome resolves its pair
+     * @param args ignored
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        Files.createDirectories(OUTPUT_DIR);
 
         // Accessory is static - writes a single PNG.
         renderStatic("accessory", ACCESSORY_LEGACY, context);
 
         // Weapon carries obfuscated text on its last line, so the renderer produces an
-        // animated frame sequence. Emit both GIF and WebP side by side so format-level
-        // palette handling and codec wrapping can be A/B compared from a single run.
+        // animated frame sequence. Emit both GIF and WebP side by side so the GIF's palette and
+        // delay grid can be A/B compared against the lossless frames from a single run.
         renderAnimated("weapon", WEAPON_LEGACY, context);
 
         // Gradient text - opt-in per-segment GradientSpec. Per-letter fidelity
@@ -178,10 +180,9 @@ public final class LoreTooltipDriver {
     }
 
     /**
-     * Renders an animated tooltip to the GIF and lossless WebP pair {@link #writeAnimated} writes,
-     * plus a lossy WebP (with a motion-search thread sweep) and a static first-frame WebP. Used for
-     * tooltips that carry obfuscated text so the codec-level palette handling and P-frame motion
-     * encoding can be eyeballed.
+     * Renders an animated tooltip to the GIF and lossless WebP pair {@link #writeAnimated} writes.
+     * Used for tooltips that carry obfuscated text, so the GIF's palette handling can be eyeballed
+     * against frames the lossless WebP keeps exactly.
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
@@ -209,51 +210,8 @@ public final class LoreTooltipDriver {
         writeAnimated(slug, image);
         long pairMs = (System.nanoTime() - pairStart) / 1_000_000L;
 
-        // Lossy VP8 variant - exercises the whole lossy pipeline end-to-end on a
-        // real tooltip at full resolution. Sweeps P-frame motion-search parallelism
-        // so the effect of {@code motionSearchThreads} on wall-clock encode time
-        // is visible run-over-run.
-        File webpLossyOut = OUTPUT_DIR.resolve(slug + "_lossy.webp").toFile();
-        int[] threadSweep = { 1, 2, 4, WRITER_DEFAULT_MOTION_THREADS };
-        long webpLossyMs = -1;
-        StringBuilder mvThreadTable = new StringBuilder();
-        for (int mvThreads : threadSweep) {
-            long start = System.nanoTime();
-            ImageFactory.toFile(
-                image,
-                ImageFormat.WEBP,
-                webpLossyOut,
-                WebPWriteOptions.builder()
-                    .isLossless(false)
-                    .withQuality(1.0f)
-                    .isMultithreaded()
-                    .withMotionSearchThreads(mvThreads)
-                    .build()
-            );
-            long ms = (System.nanoTime() - start) / 1_000_000L;
-            long fileSize = webpLossyOut.length();
-            String label = mvThreads == WRITER_DEFAULT_MOTION_THREADS
-                ? "auto=" + Runtime.getRuntime().availableProcessors()
-                : "t=" + mvThreads;
-            mvThreadTable.append(" [").append(label).append(" ")
-                .append(ms).append("ms ").append(fileSize).append("B]");
-            if (mvThreads == WRITER_DEFAULT_MOTION_THREADS) webpLossyMs = ms;
-        }
-
-        // Also emit the first frame as a static WebP so static-only VP8L issues can
-        // be isolated from animation-chunk wrapping issues.
-        File webpStaticOut = OUTPUT_DIR.resolve(slug + "_static.webp").toFile();
-        ImageData staticImage = StaticImageData.of(image.toPixelBuffer());
-        ImageFactory.toFile(
-            staticImage,
-            ImageFormat.WEBP,
-            webpStaticOut,
-            WebPWriteOptions.builder().isLossless().build()
-        );
-
-        System.out.printf("  %s -> %s.{gif,webp,webp-lossy} (gif+webp %d ms, webp-lossy %d ms, render %d ms, %dx%d, %d frames)%n",
-            slug, slug, pairMs, webpLossyMs, renderMs, w, h, frameCount);
-        System.out.println("    webp-lossy motionSearchThreads sweep:" + mvThreadTable);
+        System.out.printf("  %s -> %s.{gif,webp} (gif+webp %d ms, render %d ms, %dx%d, %d frames)%n",
+            slug, slug, pairMs, renderMs, w, h, frameCount);
     }
 
     /**

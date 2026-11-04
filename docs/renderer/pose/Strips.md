@@ -21,9 +21,9 @@ figures at the speed and rate the asset side resolves for each subject - the ros
 animated run with a stride rather than a run of its own. `StyleCatalogMirrorTest` holds the harness to
 arming what the roster names and nothing of its own, because the speed is the swing as well as the
 phase and a value that moved on one side puts the two at different points of different strides.
-`entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver at
-`asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
-divergence in how they were measured.
+`entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver handed
+the `walk` gait: one implementation, so a divergence between the two reports cannot be a divergence
+in how they were measured.
 
 - **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 134
   stems render byte-identical between `idle/` and `walk/`, and `bat` carries the same delta to the

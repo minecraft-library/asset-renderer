@@ -153,8 +153,8 @@ public final class ParityReferences {
         out.add("| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | It writes `build/atlas/`, outside the `cache/visual` root `manifest.visual` hashes, and no capture step runs it, so no artifact is defined over its output (blindness rule B15). The sheet and its sidecar reproduce byte for byte across fresh JVMs; the atlas tests hold its tiles and their order. |");
         out.add("| `javadoc` | RED at HEAD, and every error is the same one: a builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |");
         out.add("| `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |");
-        out.add("| `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |");
-        out.add("| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |");
+        out.add("| `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |");
+        out.add("| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the files they write are gated under that id. A capture runs `visualSweepSet`, which runs all eight in one JVM, rather than a task of their own. |");
         out.add("| `renderVanillaReferences` and every other harness run that refreshes part of the tree | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |");
         out.add("| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`: evidence rather than a value a gate reproduces. |");
         out.add("| `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |");
@@ -226,21 +226,23 @@ public final class ParityReferences {
         out.add("");
         out.add("## Judging a `manifest.portal` mover on the sub-tick path");
         out.add("");
-        out.add("`portalRenderer` writes each animated subject twice - a plain strip on the tick");
-        out.add("lattice and an `_animated_smooth` strip at three sub-steps per tick - and");
-        out.add("`manifest.portal` hashes both. A sub-tick change that collapsed the smooth strip");
-        out.add("to duplicated frames would move those bytes and read as an ordinary mover, so the");
-        out.add("bytes having moved is not by itself the question.");
+        out.add("`portalRenderer` writes each animated subject once, as an `_animated_smooth`");
+        out.add("strip at three sub-steps per tick, and `manifest.portal` hashes it. A sub-tick");
+        out.add("change that collapsed the strip to duplicated frames would move those bytes and");
+        out.add("read as an ordinary mover, so the bytes having moved is not by itself the question.");
         out.add("");
         out.add("What separates a real intermediate frame from a duplicate: **frame `3n` of the");
-        out.add("smooth strip is the plain strip's frame `n` exactly, and the two frames between");
-        out.add("each pair differ from both of their neighbours.** Measured over all four animated");
-        out.add("subjects, 120 plain frames and 360 smooth: every one of the 120 lattice frames is");
-        out.add("identical on every channel, and the smallest margin by which an in-between frame");
-        out.add("differs from its nearer neighbour is 20 channel levels on the portal and 47 on the");
-        out.add("gateway. Re-measure with `./gradlew portalRenderer` and decode both strips; the");
-        out.add("run's own capture step refuses if the working root already holds a finished");
-        out.add("capture, which does not affect the strips it writes.");
+        out.add("strip is frame `n` of the same loop rendered a frame per tick, exactly, and the two");
+        out.add("frames between each pair differ from both of the lattice frames around them.**");
+        out.add("Measured over all four animated subjects, a 40-tick loop sampled as 120 frames:");
+        out.add("every one of the 40 lattice frames is identical on every channel to the");
+        out.add("frame-per-tick render, and the smallest margin by which an in-between frame");
+        out.add("differs from the nearer of its two lattice frames is 23 channel levels on the");
+        out.add("portal and 40 on the gateway. Re-measure with `./gradlew portalRenderer");
+        out.add("-PportalLattice`, which writes the same strips and, beside them in");
+        out.add("`cache/visual/portal-lattice/`, each loop rendered a frame per tick; decode the two");
+        out.add("and compare. The flag leaves the tree `manifest.portal` hashes as a run without it");
+        out.add("writes it, and a run given it captures nothing.");
         out.add("");
 
         for (JsonElement element : map.getAsJsonArray("rules")) {

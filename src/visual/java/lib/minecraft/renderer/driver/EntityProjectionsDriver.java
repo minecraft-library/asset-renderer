@@ -56,16 +56,12 @@ public final class EntityProjectionsDriver {
     private static final String DEFAULT_ENTITY = "minecraft:zombie";
 
     /**
-     * Runs the entity-projection sweep.
+     * Loads vanilla's context and runs the entity-projection sweep.
      *
-     * @param args {@code args[0]} optional entity id (default {@code minecraft:zombie}); {@code args[1]}
-     *     optional per-cell render size (default 256)
+     * @param args the arguments {@link #run} takes
      * @throws IOException if the output directory or a file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        String entityId = args.length > 0 && !args[0].isBlank() ? args[0] : DEFAULT_ENTITY;
-        int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
-
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
@@ -73,7 +69,22 @@ public final class EntityProjectionsDriver {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
-        RendererContext context = RendererContext.load(result);
+
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Runs the entity-projection sweep.
+     *
+     * @param context the loaded vanilla context
+     * @param args {@code args[0]} optional entity id (default {@code minecraft:zombie}); {@code args[1]}
+     *     optional per-cell render size (default 256)
+     * @throws IOException if the output directory or a file cannot be written
+     */
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        String entityId = args.length > 0 && !args[0].isBlank() ? args[0] : DEFAULT_ENTITY;
+        int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
+
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json / entity_geometry.json not present - run entityModels first");

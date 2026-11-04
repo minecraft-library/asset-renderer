@@ -438,7 +438,7 @@ ImageData menu = new MenuRenderer(context).render(MenuOptions.builder()
 
 ### Visual Inspection
 
-Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual`) and writes into `cache/visual/<task-name-in-kebab-case>/` for side-by-side inspection - `blockRender3D` writes `block-render-3d/`; the underlying `main()` entry points live in `src/test/java/lib/minecraft/renderer/visual/`. Flags use Gradle's `-P` property syntax. Two more tasks in that group are capture aggregators rather than renders: `visualSweepSet` runs the producers of `manifest.visual`, and `playerRawSweepSet` runs the player and armour sweeps together as the producer of `manifest.player-raw`.
+Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual`) and writes into `cache/visual/<task-name-in-kebab-case>/` for side-by-side inspection - `blockRender3D` writes `block-render-3d/`; the underlying `main()` entry points live in `src/visual/java/lib/minecraft/renderer/`. Flags use Gradle's `-P` property syntax. Two more tasks in that group are capture aggregators rather than renders: `visualSweepSet` runs the eight drivers whose output `manifest.visual` hashes, in one JVM, and `playerRawSweepSet` runs the player and armour sweeps together as the producer of `manifest.player-raw`.
 
 **Free-form renders** - render a subject (or the whole set) to eyeball:
 
@@ -446,24 +446,23 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew blockRender3D     -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
 ./gradlew projectionSmoke   -PblockId=minecraft:tnt -PrenderSize=512
 ./gradlew itemRender2D      -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui   # or held, or icon for a block-backed id
-./gradlew playerRender      -PrenderSize=256
+./gradlew playerRender      -PrenderSize=256                               # -Psheets=account or -Paccount=<name> adds the live-account sheet
 ./gradlew entityRender3D    -PentityId=minecraft:zombie -PrenderSize=512 -Pprojection=ISOMETRIC
 ./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
 ./gradlew poseShowcase      -PrenderSize=512                               # or -Ppose=wave for one style
 ./gradlew loreTooltip
 ./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
-./gradlew menuRender                                                       # every menu subject, shipped and composed
+./gradlew menuRender                                                       # the menus no client screen can be checked against
 ./gradlew blockFlipbook     -PrenderSize=256                               # animated-texture blocks as GIFs
 ./gradlew itemDayCycle      -PrenderSize=256                               # a whole in-game day for the clock / compass
 ./gradlew fluidRenderer
 ./gradlew portalRenderer
-./gradlew redstoneTints     -PrenderSize=64
 ```
 
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java renders, with a diff and a panel where the two differ, to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla          -PentityId=minecraft:zombie      # omit -P for the full sweep
@@ -480,7 +479,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ```
 
 > [!NOTE]
-> The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge rather than a byte gate - `vanilla.png` / `java.png` are what the two renderers produced and the only pair a digest can be taken over, and `aligned_*.png` is the resample the delta, the diff and the panel all come from.
+> The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge rather than a byte gate - `java.png` is what this renderer produced and the one file `manifest.player-raw` digests, `vanilla.png` is the reference written back as it was read, which `manifest.references` already hashes at its source, and `aligned_*.png` is the resample the delta, the diff and the panel all come from.
 
 Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`-group tasks):
 

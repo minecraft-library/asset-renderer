@@ -25,15 +25,18 @@ REFERENCE_GLOBS = IMAGE_GLOBS + ("*.json",)
 JSON_GLOBS = ("*.json",)
 
 #: The only glob tuple that names FILES rather than an extension, because the artifact it serves is
-#: defined by which of a producer's outputs are renders rather than by their type.
+#: defined by which of a producer's outputs this renderer drew rather than by their type.
 #:
-#: A parity sweep that rescales both sides before diffing writes six PNGs per subject, and only these
-#: two are what a renderer produced: ``aligned_*.png`` is an AWT nearest-neighbour resample of them,
-#: and ``diff.png`` / ``diff_panel.png`` are built from that. Digesting the derived four would fold a
-#: JDK-owned computation - AWT's resampler, and the panel's *fonts* - into the artifact, so a mover
-#: would stop naming the renderer. ``walk`` passes each pattern to ``rglob``, so a bare file name
-#: matches at any depth under a member and nothing else does.
-RAW_RENDER_GLOBS = ("java.png", "vanilla.png")
+#: A parity sweep that rescales both sides before diffing writes up to six PNGs per subject, and only
+#: ``java.png`` is what this renderer produced. ``vanilla.png`` is the harness reference read and
+#: written back through the JDK's PNG codec, so it moves only where the reference does - which
+#: ``manifest.references`` hashes - or where that codec does; ``aligned_*.png`` is an AWT
+#: nearest-neighbour resample of the pair, and ``diff.png`` / ``diff_panel.png`` are built from that.
+#: Digesting any of the other five would fold a JDK-owned computation - the codec, AWT's resampler,
+#: and the panel's *fonts* - into the artifact, so a mover would stop naming the renderer. ``walk``
+#: passes each pattern to ``rglob``, so a bare file name matches at any depth under a member and
+#: nothing else does.
+RAW_RENDER_GLOBS = ("java.png",)
 
 #: Two stale sidecar classes that inflate every walk. Excluded rather than assumed gone, so a tree
 #: that still carries them cannot make a first capture look like a mass deletion.
@@ -52,10 +55,10 @@ STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
 #: neither of ``manifest.player-raw``'s two is among them. So the sweep trees excluded above are not
 #: merely ungated - one of them is the other artifact's whole population.
 #:
-#: ``manifest.visual``'s tuple is the other end of ``visualSweepProducers`` in ``build.gradle.kts``,
-#: which registers the task writing each directory. ``walk`` raises for a member that is not there,
-#: so dropping a producer from the build is loud; ADDING one is not, which is why a Java test asserts
-#: the two name the same set rather than leaving the pairing to a comment.
+#: ``manifest.visual``'s tuple is the other end of ``visualSweepProducers`` in
+#: ``gradle/visual.gradle.kts``, which registers the task writing each directory. ``walk`` raises for a
+#: member that is not there, so dropping a producer from the build is loud; ADDING one is not, which is
+#: why a Java test asserts the two name the same set rather than leaving the pairing to a comment.
 #:
 #: Editing this tuple REDEFINES the artifact rather than measuring it again, and the stored baseline
 #: goes on describing the membership it was promoted over until the next promotion replaces it. What
@@ -73,12 +76,32 @@ SUBTREES = {
 
 #: What an artifact's own producer writes that the artifact is nonetheless not defined as.
 #:
-#: ``playerRender`` ships eleven sheet groups and this artifact is the **ten offline** ones. The
-#: eleventh, ``account``, renders a live account's skin: it is 8 cells and a composite, it is the
-#: whole of the 113-against-104 difference, and a render that depends on a skin service cannot be a
-#: byte baseline whatever its digest happens to be today.
+#: ``playerRender`` writes the **ten offline** sheet groups on every run, and an eleventh,
+#: ``account``, only when a run asks for it. That one renders a live account's skin - 8 cells and a
+#: composite - and a render that depends on a skin service cannot be a byte baseline whatever its
+#: digest happens to be today. A run that asks for it is scoped, both of its spellings being in the
+#: artifact's ``scopedBy``, so it captures nothing; the exclusion by name is what keeps the account
+#: files an earlier run left in the tree out of every capture after it. Seven offline cells are excluded too, each built from options equal to
+#: another cell's, so its bytes cannot move unless its twin's do: ``toggles/FULL_3D_base`` and
+#: ``toggles/rot_0_0_0_front_`` are ``core-matrix/FULL_THREE_D``, ``projections/vanilla_iso`` is
+#: ``core-matrix/SKULL_THREE_D``, ``projections/cavalier`` is ``facing/cavalier_default``,
+#: ``facing/portrait_--`` is ``projections/portrait``, and the two ``leather-dye/default_*`` cells are
+#: the ``armor-3d`` and ``armor-2d`` leather cells. The contact sheets stay members, twins drawn in
+#: them: nothing clears ``player-render``, so a cell whose render throws leaves the previous run's
+#: file in place and its sheet, which draws the failure, is the only member that moves.
+#:
+#: ``entityProjections`` writes two contact sheets at the top of its sub-tree - its cells composited
+#: by AWT under AWT's own fonts, which a renderer change moves only through a cell hashed on its own -
+#: and four ``facing_*_--`` cells, whose ``ViewMirror.DEFAULT`` is the facing the projection cells
+#: already render at. Its sub-tree is cleared before every run, so a cell that throws is ``missing``
+#: rather than stale, and its sheets have nothing to add.
 NOT_MEMBERS = {
-    "manifest.player-sheets": ("account/*", "account.png"),
+    "manifest.visual": ("entity-projections/*.png", "entity-projections/*/facing_*_--.png"),
+    "manifest.player-sheets": ("account/*", "account.png",
+                               "toggles/FULL_3D_base.png", "toggles/rot_0_0_0_front_.png",
+                               "projections/vanilla_iso.png", "projections/cavalier.png",
+                               "facing/portrait_--.png",
+                               "leather-dye/default_THREE_D.png", "leather-dye/default_TWO_D.png"),
 }
 
 DEFAULT_GLOBS = {

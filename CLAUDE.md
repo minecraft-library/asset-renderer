@@ -175,8 +175,9 @@ byte-stable ground truth the parity sweeps diff against, one sub-tree each under
 - The sweeps are diagnostic reports, not pass/fail gates; one becomes a gate only when its table is
   compared against a baseline.
 - **The player and armour sweeps rescale both sides before diffing, so their delta is a LOOK gauge.**
-  Their raw renders are the byte gate: `vanilla.png` / `java.png` are what the renderers produced,
-  and `aligned_*.png` is the resample the delta, the diff and the panel come from.
+  Their raw render is the byte gate: `java.png` is what this renderer produced, `vanilla.png` the
+  reference written back as it was read, and `aligned_*.png` the resample the delta, the diff and the
+  panel come from.
 - **`renderVanillaAllReferences` writes the whole tree in ONE boot**, every sweep, `idle/`
   and `walk/` included. Every narrower run still leaves the sub-trees it does not name exactly as
   it found them.

@@ -111,7 +111,9 @@ class MemberSubtrees(unittest.TestCase):
 
     The fixture writes one file per DECLARED member rather than a typed list of names: a third copy
     of the membership is a third thing to keep in step, and one that disagreed would leave this suite
-    green over the very drift it is here to catch.
+    green over the very drift it is here to catch. Each sits one directory down, where every member
+    keeps renders a run writes, rather than at the member's top, where one member keeps contact
+    sheets the artifact is not defined over.
     """
 
     MEMBERS = manifest.SUBTREES["manifest.visual"]
@@ -125,7 +127,7 @@ class MemberSubtrees(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         for name in self.MEMBERS:
-            write_text(self.root / name / "a.png", name)
+            write_text(self.root / name / "subject" / "a.png", name)
         for path in self.OUTSIDERS:
             write_text(self.root / path, path)
 
@@ -182,7 +184,7 @@ class NonMembers(unittest.TestCase):
         write_text(self.root / "account.png", "account composite")
 
     def test_the_network_only_group_is_not_a_member(self):
-        """It is 8 cells and a composite of the 113-against-104 difference, and it is not offline."""
+        """It renders a live account's skin, so it is not offline, and a run renders it only on request."""
         paths = manifest.build("manifest.player-sheets", self.root).by_path()
         self.assertEqual(len(paths), 6)
         self.assertNotIn("account/cell.png", paths)
@@ -193,14 +195,41 @@ class NonMembers(unittest.TestCase):
         self.assertIn("core-matrix/cell.png", paths)
         self.assertIn("trims.png", paths)
 
+    def test_a_cell_built_from_its_twins_options_is_not_a_member(self):
+        """Its bytes cannot move unless its twin's do, and the twin and the sheet drawing it both stay."""
+        write_text(self.root / "core-matrix" / "FULL_THREE_D.png", "the full player in 3D")
+        write_text(self.root / "toggles" / "FULL_3D_base.png", "the same render again")
+        paths = manifest.build("manifest.player-sheets", self.root).by_path()
+        self.assertNotIn("toggles/FULL_3D_base.png", paths)
+        self.assertIn("core-matrix/FULL_THREE_D.png", paths)
+        self.assertIn("toggles.png", paths)
+
+    def test_the_entity_projection_sheets_and_default_facings_are_not_visual_members(self):
+        """A sheet composites cells hashed on their own, and a default facing is its projection cell."""
+        visual = self.root / "visual"
+        for member in manifest.SUBTREES["manifest.visual"]:
+            write_text(visual / member / "subject" / "cell.png", member)
+        projections = visual / "entity-projections"
+        write_text(projections / "minecraft_zombie.png", "the projection sheet")
+        write_text(projections / "minecraft_zombie_facing.png", "the facing sheet")
+        write_text(projections / "minecraft_zombie" / "portrait.png", "a projection cell")
+        write_text(projections / "minecraft_zombie" / "facing_portrait_--.png", "the same cell again")
+        write_text(projections / "minecraft_zombie" / "facing_portrait_M-.png", "a mirrored cell")
+        paths = manifest.build("manifest.visual", visual).by_path()
+        self.assertNotIn("entity-projections/minecraft_zombie.png", paths)
+        self.assertNotIn("entity-projections/minecraft_zombie_facing.png", paths)
+        self.assertNotIn("entity-projections/minecraft_zombie/facing_portrait_--.png", paths)
+        self.assertIn("entity-projections/minecraft_zombie/portrait.png", paths)
+        self.assertIn("entity-projections/minecraft_zombie/facing_portrait_M-.png", paths)
+
 
 class RawRenderPair(unittest.TestCase):
     """The one artifact whose membership is decided by file NAME rather than by extension.
 
-    A sweep that rescales both sides before diffing writes six PNGs per subject and only two of them
-    are what a renderer produced. The other four are an AWT resample and two things built from it, so
-    digesting them would fold a JDK-owned computation into the artifact and a mover would stop naming
-    the renderer.
+    A sweep that rescales both sides before diffing writes up to six PNGs per subject and only one of
+    them is what this renderer produced. The other five are the reference written back through the
+    JDK's codec, an AWT resample of the pair and two things built from that, so digesting them would
+    fold a JDK-owned computation into the artifact and a mover would stop naming the renderer.
     """
 
     def setUp(self):
@@ -218,16 +247,19 @@ class RawRenderPair(unittest.TestCase):
         for member in manifest.SUBTREES["manifest.visual"]:
             write_text(self.root / member / "java.png", "a different artifact's member")
 
-    def test_both_members_are_hashed_and_only_the_raw_pair(self):
+    def test_both_members_are_hashed_and_only_the_raw_render(self):
         paths = manifest.build("manifest.player-raw", self.root).by_path()
         self.assertEqual(sorted(paths), [
             "armor-parity-vanilla/minecraft__zombie_iron/java.png",
-            "armor-parity-vanilla/minecraft__zombie_iron/vanilla.png",
             "player-parity-vanilla/full/java.png",
-            "player-parity-vanilla/full/vanilla.png",
             "player-parity-vanilla/skull/java.png",
-            "player-parity-vanilla/skull/vanilla.png",
         ])
+
+    def test_the_reference_copy_is_not_a_member(self):
+        """It moves only where the reference does, and manifest.references hashes the reference."""
+        paths = manifest.build("manifest.player-raw", self.root).by_path()
+        self.assertNotIn("player-parity-vanilla/full/vanilla.png", paths)
+        self.assertNotIn("armor-parity-vanilla/minecraft__zombie_iron/vanilla.png", paths)
 
     def test_the_rescaled_pair_is_not_a_member(self):
         """It is the LOOK gauge's operand, and alignToBox resamples both sides to produce it."""
