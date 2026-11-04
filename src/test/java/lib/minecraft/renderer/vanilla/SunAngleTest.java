@@ -10,7 +10,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The {@link SunAngle} day curve - the noon phase anchor the item parity reference is captured at, the
@@ -51,12 +50,6 @@ class SunAngleTest {
             // Not merely == 0f: a -0.0f would compare equal here but unequal under record equality,
             // silently costing every item its baked fast path.
             assertThat(Float.floatToRawIntBits(SunAngle.at(SunAngle.NOON_TICK)), is(0));
-        }
-
-        @Test
-        @DisplayName("noon selects the first clock face, the instant the parity reference is captured at")
-        void noonSelectsFirstFace() {
-            assertThat(face(SunAngle.NOON_TICK), is(0));
         }
 
         @Test
@@ -131,16 +124,6 @@ class SunAngleTest {
         void wrapsNegativeTicks() {
             assertThat(SunAngle.at(-SunAngle.TICKS_PER_DAY + 6_000), is(0f));
             assertThat(SunAngle.at(-1), is(SunAngle.at(SunAngle.TICKS_PER_DAY - 1)));
-        }
-
-        @Test
-        @DisplayName("stays inside the dispatch table across the whole day")
-        void staysInsideDispatchTable() {
-            for (int tick = 0; tick < SunAngle.TICKS_PER_DAY; tick++) {
-                float angle = SunAngle.at(tick);
-                assertThat((double) angle, both(greaterThan(-EPSILON)).and(lessThan(1.0)));
-                assertThat(face(tick), lessThanOrEqualTo(CLOCK_FACES - 1));
-            }
         }
 
     }

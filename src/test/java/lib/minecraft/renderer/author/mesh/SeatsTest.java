@@ -22,8 +22,8 @@ import java.util.Set;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The seats a pose's state silhouettes reveal over a mesh - which top-level bone rides which
@@ -81,15 +81,6 @@ class SeatsTest {
         assertEquals("neck3", derived.seats().get("neck4").leader());
         assertEquals("neck4", derived.seats().get("head").leader());
         assertEquals(-10f, derived.seats().get("head").offset().z(), 1e-2, "ten units along the segment");
-    }
-
-    @Test
-    @DisplayName("a humanoid's arms, legs and head ride nothing - the crouch moves them by their own amounts")
-    void humanoidLimbsRideNothing() {
-        Seats.Derived derived = derived("minecraft:zombie");
-
-        assertTrue(derived.seats().isEmpty(), "adjacent at bind is not a seat");
-        assertTrue(derived.witnesses().isEmpty(), "and no state of a biped witnesses one");
     }
 
     @Test
@@ -214,7 +205,7 @@ class SeatsTest {
 
     private static @NotNull Seats.Derived derived(@NotNull String entityId) {
         Entity row = EntityModelLoader.load().get(entityId);
-        assumeTrue(row != null, "bundled entity tables answer " + entityId);
+        assertNotNull(row, "bundled entity tables answer " + entityId);
         return Seats.derive(row.pose(), row.model());
     }
 

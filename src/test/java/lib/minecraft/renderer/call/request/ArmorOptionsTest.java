@@ -21,22 +21,17 @@ import static org.hamcrest.Matchers.is;
  * for <b>every</b> {@link ArmorSlot} constant, and that it hands them back in the back-to-front
  * composite order the slot's declaration order defines.
  * <p>
- * <b>The coverage test is the fifth-slot guard.</b> A new {@code ArmorSlot} constant with no
- * matching field on {@link ArmorOptions} would be silently unequippable in every consumer - the entity
- * renderer, the player renderer and the glint pass alike - and no renderer is the right place to
- * notice that on this type's behalf. {@code equipped()}'s own exhaustive switch makes it a compile
+ * <b>The composite-order test is the fifth-slot guard.</b> Its key list is compared against every
+ * declared constant, so a new {@code ArmorSlot} constant with no matching field on
+ * {@link ArmorOptions} fails it. Such a slot would be silently unequippable in every consumer - the
+ * entity renderer, the player renderer and the glint pass alike - and no renderer is the right place
+ * to notice that on this type's behalf. {@code equipped()}'s own exhaustive switch makes it a compile
  * error, and this pins the same rule from outside so it survives a rewrite of that body.
  */
 @DisplayName("ArmorOptions slot coverage and composite order")
 class ArmorOptionsTest {
 
     private static final @NotNull ArmorPiece PIECE = ArmorPiece.of(ArmorMaterial.IRON);
-
-    @Test
-    @DisplayName("equipped() answers for every ArmorSlot constant when all are worn")
-    void equippedCoversEverySlot() {
-        assertThat(EnumSet.copyOf(fullyArmored().equipped().keySet()), equalTo(EnumSet.allOf(ArmorSlot.class)));
-    }
 
     @Test
     @DisplayName("equipped() iterates in declaration order - the back-to-front composite contract")

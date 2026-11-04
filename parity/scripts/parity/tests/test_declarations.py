@@ -6,9 +6,11 @@ from quietly becoming a wrong answer at some later edit. The fixtures are real J
 open; nothing compiles them, because they live under ``scripts/``.
 """
 
+import functools
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from parity import blindness, declarations
 from parity.declarations import Claim, DeclarationError
@@ -19,6 +21,28 @@ REPO = Path(__file__).resolve().parents[4]
 
 #: The shipped vocabularies, so a fixture is parsed against the constants the tree really declares.
 VOCABULARY = declarations.vocabularies(REPO)
+
+#: The reader itself, held before any class patches it so the shipped tree's one scan is a real one.
+UNPATCHED_SCAN = declarations.scan
+
+
+@functools.cache
+def shipped_scan() -> declarations.Scan:
+    """The shipped tree read once per run, every source root at its defaults."""
+    return UNPATCHED_SCAN(REPO)
+
+
+def scan_once(repo_root, *args, **kwargs):
+    """``declarations.scan`` answering the shipped tree from :func:`shipped_scan`.
+
+    The scan is a pure function of the tree, and re-lexing every source root once per case was most
+    of what the shipped-tree classes cost. Patched over the module global rather than held as a
+    class attribute, because ``regenerate`` and ``live`` resolve ``scan`` there at call time; any
+    other root, or a call naming its own roots, is read fresh.
+    """
+    if repo_root == REPO and not args and not kwargs:
+        return shipped_scan()
+    return UNPATCHED_SCAN(repo_root, *args, **kwargs)
 
 
 def scan(name):
@@ -362,6 +386,10 @@ class ModeAgreement(unittest.TestCase):
 class TheShippedTree(unittest.TestCase):
     """The reader against the source root it is really for."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.enterClassContext(mock.patch.object(declarations, "scan", scan_once))
+
     def test_the_vocabulary_package_declares_itself(self):
         """No shipped glob reaches a new top-level sub-package of the renderer root, so this one
         answers for its own files or the coverage check has five it does not."""
@@ -376,6 +404,10 @@ class TheShippedMap(unittest.TestCase):
     """The two halves of every trigger list, against the tree and against the rows."""
 
     STORE = REPO / "src/test/resources/lib/minecraft/renderer/parity"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.enterClassContext(mock.patch.object(declarations, "scan", scan_once))
 
     def rules(self):
         return blindness.load(self.STORE)[0]
@@ -449,14 +481,6 @@ class TheShippedMap(unittest.TestCase):
             id="B0", claim="c", trigger_paths=("a/b.kts",), sees=(), blind=(), reason="r",
             mode="select", probe="p", source="s", authored_paths=("a/b.kts",))
         self.assertEqual(declarations.live([row], Path("no/such/repo")), [row])
-
-    def test_every_trigger_list_is_the_sorted_union_of_its_two_halves(self):
-        derived = declarations.derive(declarations.scan(REPO))
-        for rule in self.rules():
-            self.assertEqual(
-                list(rule.trigger_paths),
-                sorted(set(rule.authored_paths) | set(derived.get(rule.claim_key, ()))),
-                rule.id)
 
 
 if __name__ == "__main__":

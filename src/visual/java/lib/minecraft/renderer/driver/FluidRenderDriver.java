@@ -22,25 +22,31 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Diagnostic task that exercises every {@link FluidRenderer} code path and dumps the output to
- * {@code cache/visual/fluid-renderer/} for visual inspection. This is a <b>functional / visual</b>
- * tool ("does it render") - there is no parity gate. Static renders dump as PNG, animated renders
- * as a transparent-palette GIF. Covers 12 outputs:
+ * Diagnostic task that renders {@link FluidRenderer}'s output to {@code cache/visual/fluid-renderer/}
+ * for visual inspection. Every file it writes is a member of the parity store's
+ * {@code manifest.fluid}, compared byte for byte against its promoted baseline. Static renders dump as
+ * PNG, animated renders as a transparent-palette GIF. Covers 9 outputs:
  * <ul>
- * <li>Source-block iso renders and 2D face blits for both water and lava
- * ({@link FluidOptions.Type#ISOMETRIC_3D} and {@link FluidOptions.Type#FLUID_FACE_2D}).</li>
+ * <li>Source-block iso renders for both water and lava ({@link FluidOptions.Type#ISOMETRIC_3D}).</li>
  * <li>Animated renders that walk the {@code water_still} (32 frames, 2 ticks each) and
  * {@code lava_still} (20 frames, 3 ticks each) strips exactly once at native cadence.</li>
  * <li>A sloped corner-height + flow-direction render, whose non-coplanar top
  * {@link FluidGeometryKit#buildFluidCube} builds through its own four-corner fan.</li>
- * <li>Biome-tint variants (plains / swamp / cherry_grove / warm_ocean), each sampled through
- * {@link TintSource#WATER}, and the explicit ARGB override that bypasses the sample.</li>
+ * <li>Biome-tint variants (swamp / cherry_grove / warm_ocean), each sampled through
+ * {@link TintSource#WATER}, and the explicit ARGB override that bypasses the sample. Plains is the
+ * default biome, so the water source render is the plains one.</li>
  * </ul>
+ * The flat 2D face ({@link FluidOptions.Type#FLUID_FACE_2D}) is not among them: {@code pin.fluid-crc}
+ * holds the code path it goes through, frame by frame for both fluids, at a canvas of its own rather
+ * than at {@link #STATIC_SIZE}.
+ * <p>
+ * The output directory is cleared first, so it holds exactly what this run writes.
  * <p>
  * Usage: {@code ./gradlew fluidRenderer}. Takes no {@code -P} flags; sizes are
  * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
@@ -61,10 +67,12 @@ public final class FluidRenderDriver {
      * Runs the test matrix.
      *
      * @param args ignored
-     * @throws IOException if the output directory cannot be created or a render cannot be written
+     * @throws IOException if the output directory cannot be cleared or created, or a render cannot be
+     *     written
      */
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
+        clearOutputs();
 
         ClientAssets result;
         try {
@@ -77,7 +85,7 @@ public final class FluidRenderDriver {
         RendererContext context = RendererContext.load(result);
         FluidRenderer renderer = new FluidRenderer(context);
 
-        // Source blocks + 2D face.
+        // Source blocks.
         render(renderer, "water_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
@@ -86,20 +94,6 @@ public final class FluidRenderDriver {
             .build());
         render(renderer, "lava_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
-            .output(OutputOptions.builder()
-                .canvasSize(STATIC_SIZE)
-                .build())
-            .build());
-        render(renderer, "water_face_2d", FluidOptions.builder()
-            .fluid(FluidOptions.Fluid.WATER)
-            .type(FluidOptions.Type.FLUID_FACE_2D)
-            .output(OutputOptions.builder()
-                .canvasSize(STATIC_SIZE)
-                .build())
-            .build());
-        render(renderer, "lava_face_2d", FluidOptions.builder()
-            .fluid(FluidOptions.Fluid.LAVA)
-            .type(FluidOptions.Type.FLUID_FACE_2D)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
@@ -139,15 +133,9 @@ public final class FluidRenderDriver {
             .flowAngleRadians(Optional.of((float) Math.toRadians(45)))
             .build());
 
-        // Biome tint. Each of these samples the biome's water colour through TintSource.WATER;
-        // the override variant states an ARGB outright and never reaches the colormap.
-        render(renderer, "water_plains", FluidOptions.builder()
-            .fluid(FluidOptions.Fluid.WATER)
-            .output(OutputOptions.builder()
-                .canvasSize(STATIC_SIZE)
-                .build())
-            .biome(Biome.Vanilla.PLAINS)
-            .build());
+        // Biome tint. Each of these samples the biome's water colour through TintSource.WATER, plains
+        // being the source render's own default; the override variant states an ARGB outright and
+        // never reaches the colormap.
         render(renderer, "water_swamp", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
@@ -178,6 +166,19 @@ public final class FluidRenderDriver {
             .build());
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
+    }
+
+    /**
+     * Deletes every file in the output directory, so the directory holds exactly what this run writes
+     * and the manifest taken over it hashes nothing another run left there.
+     *
+     * @throws IOException if a file cannot be deleted
+     */
+    private static void clearOutputs() throws IOException {
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(OUTPUT_DIR, Files::isRegularFile)) {
+            for (Path file : files)
+                Files.delete(file);
+        }
     }
 
     /**

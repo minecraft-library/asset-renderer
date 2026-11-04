@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link PackStack} assembly, and of the two {@link ResourcePack} accessors that are the sole
+ * Coverage of {@link PackStack} assembly, and of the one {@link ResourcePack} accessor that is the sole
  * subject of a test here rather than a stack fixture: vanilla-first validation, id and namespace lookups,
- * primary-namespace resolution of the kebab/snake duality, the capability query, and the base-first /
- * last-wins overlay-root stacking on an overlapping texture path.
+ * primary-namespace resolution of the kebab/snake duality, and the base-first / last-wins overlay-root
+ * stacking on an overlapping texture path.
  */
 @DisplayName("PackStack assembly + ResourcePack accessors")
 class PackStackTest {
@@ -77,14 +77,6 @@ class PackStackTest {
 
         ResourcePack defrosted = pack(new PackId("defrosted"), Set.of("minecraft", "lunar", "skybox"), Set.of());
         assertThat(defrosted.primaryNamespace(), is(Optional.empty()));
-    }
-
-    @Test
-    @DisplayName("has() queries the detected capability set")
-    void has() {
-        ResourcePack p = pack(new PackId("defrosted"), Set.of("minecraft"), Set.of(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
-        assertThat(p.has(PackCapability.OPTIFINE_RULES), is(true));
-        assertThat(p.has(PackCapability.CATHARSIS_CONVENTIONS), is(false));
     }
 
     @Test

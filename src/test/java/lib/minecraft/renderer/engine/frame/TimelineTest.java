@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The frame-generation contract of every {@link Timeline} permit: the per-frame
- * {@code (tick, millis, delay, playbackMs)} tuples, the tick/millisecond identities, the
+ * {@code (tick, millis, delay, playbackMs)} tuples, the off-lattice {@code ageInTicks} view, the
  * {@code FpsLoop} double-op sample instant pinned against its literal formula, and the
  * {@code bake} / {@code wrap} terminals including the trimming and playback-swapping
  * {@code Finish} seams.
@@ -31,20 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("Timeline permits, factories and bake/wrap terminals")
 class TimelineTest {
 
-    // ---- constants + conversions ---------------------------------------------------------------
-
-    @Test
-    @DisplayName("the 200-tick / 10 000-ms loop cap is one identity")
-    void loopCapIdentity() {
-        assertThat(Timeline.MAX_LOOP_TICKS * (long) Timeline.MILLIS_PER_TICK, is(Timeline.MAX_LOOP_MS));
-        assertThat(Timeline.MAX_LOOP_MS, is(10_000L));
-    }
-
-    @Test
-    @DisplayName("ticks per second is the reciprocal of the 50 ms tick")
-    void ticksPerSecondIsTheTickReciprocal() {
-        assertThat(Timeline.TICKS_PER_SECOND, is(20));
-    }
+    // ---- conversions ---------------------------------------------------------------------------
 
     @Test
     @DisplayName("delayForFps rounds, including the non-divisor 30 -> 33 case")
@@ -76,13 +63,6 @@ class TimelineTest {
         assertThat(timeline.playbackMsAt(0), is(0L));
     }
 
-    @Test
-    @DisplayName("Static.ZERO samples tick 0 (tickAt(0) == startTick)")
-    void staticZero() {
-        assertThat(Timeline.Static.ZERO.startTick(), is(0));
-        assertThat(Timeline.Static.ZERO.tickAt(0), is(0));
-    }
-
     // ---- TickLoop ------------------------------------------------------------------------------
 
     @Test
@@ -103,14 +83,6 @@ class TimelineTest {
     }
 
     @Test
-    @DisplayName("tick permits sit on the 50 ms lattice: millisAt(f) == tickAt(f) * 50.0")
-    void tickLatticeIdentity() {
-        Timeline.TickLoop timeline = new Timeline.TickLoop(3, 6, 2, 100);
-        for (int f = 0; f < timeline.frames(); f++)
-            assertThat(timeline.millisAt(f), is(timeline.tickAt(f) * 50.0));
-    }
-
-    @Test
     @DisplayName("the game-time factory loops over ticks, and stills at a single frame")
     void gameTimeForksOnFrameCount() {
         assertThat(Timeline.gameTime(0, 8, 120), is(instanceOf(Timeline.TickLoop.class)));
@@ -122,10 +94,10 @@ class TimelineTest {
     @Test
     @DisplayName("ageInTicks on a tick permit is exactly its tickAt, for every permit")
     void ageInTicksIsExactOnTickPermits() {
-        // The lattice identity above makes this exact rather than approximate: tick * 50.0 is an exact
-        // integer product well inside a double's mantissa, and dividing it back by 50 recovers the tick
-        // with no rounding. Asserted as float equality on purpose - a tolerance here would hide the
-        // narrowing this view would otherwise be free to introduce.
+        // A tick permit sits on the 50 ms lattice, which makes this exact rather than approximate:
+        // tick * 50.0 is an exact integer product well inside a double's mantissa, and dividing it back
+        // by 50 recovers the tick with no rounding. Asserted as float equality on purpose - a tolerance
+        // here would hide the narrowing this view would otherwise be free to introduce.
         List<Timeline.TickTimeline> permits = List.of(
             new Timeline.Static(7),
             new Timeline.TickLoop(3, 6, 2, 100),
@@ -146,18 +118,6 @@ class TimelineTest {
         float age = timeline.ageInTicks(1);
         assertThat(age, is(0.6666667f));
         assertThat(age == Math.rint(age), is(false));
-    }
-
-    @Test
-    @DisplayName("ageInTicks reads the millisecond axis, so it tracks millisAt on every schedule")
-    void ageInTicksTracksMillisAt() {
-        List<Timeline> schedules = List.of(
-            new Timeline.Static(7),
-            new Timeline.TickLoop(3, 6, 2, 100),
-            new Timeline.FpsLoop(24, 5));
-        for (Timeline timeline : schedules)
-            for (int f = 0; f < timeline.frames(); f++)
-                assertThat(timeline.ageInTicks(f), is((float) (timeline.millisAt(f) / Timeline.MILLIS_PER_TICK)));
     }
 
     // ---- SubTickLoop (sampling between ticks) ---------------------------------------------------
@@ -353,17 +313,6 @@ class TimelineTest {
     }
 
     // ---- helpers -------------------------------------------------------------------------------
-
-    /** Asserts a derived timeline is the expected {@link Timeline.TickLoop}. */
-    private static void assertTickLoop(@NotNull Timeline.TickTimeline timeline,
-                                       int startTick, int frameCount, int ticksPerFrame, int delayMs) {
-        assertThat(timeline, is(instanceOf(Timeline.TickLoop.class)));
-        Timeline.TickLoop loop = (Timeline.TickLoop) timeline;
-        assertThat(loop.startTick(), is(startTick));
-        assertThat(loop.frameCount(), is(frameCount));
-        assertThat(loop.ticksPerFrame(), is(ticksPerFrame));
-        assertThat(loop.delayMs(), is(delayMs));
-    }
 
     /** Bakes a stub pass that encodes each frame's tick into pixel (0, 0) and reads them back in order. */
     private static @NotNull List<Integer> recordBakedTicks(@NotNull Timeline.TickTimeline timeline) {

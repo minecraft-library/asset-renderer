@@ -43,20 +43,22 @@ composition was promoted into the `image` library, so dumps frozen either side o
 
 ## What could not be ported, and why it is not an oversight
 
-Four capabilities the design lists have **no surviving source anywhere in the tree** - they were
+Three capabilities the design lists have **no surviving source anywhere in the tree** - they were
 among the scratchpad losses this package exists to stop happening again:
 
 - texture-space rectification onto a 16×16 texel grid (`rectify`, with `fitquad`'s coordinate descent)
 - the per-channel affine / pure-scale tint fit (`tint`)
-- the depth-quantum probe reader (`depthprobe`)
 - re-scoring a frozen probe under a new comparison (`rescore`)
 
 Writing them here would be inventing rather than porting, and nothing on disk is lost by their
 absence. What each was for survives as a method rather than as a number - the parity gate's
-`references/diagnostics.md` keeps "read a suspected tint fault per channel, never through luma",
-and `docs/renderer/Depth.md` states the depth grid a quantum probe reads against - and no figure any
-of the four produced is recorded anywhere tracked. Recovering one
-means measuring again.
+`references/diagnostics.md` keeps "read a suspected tint fault per channel, never through luma" -
+and no figure any of the three produced is recorded anywhere tracked. Recovering one means measuring
+again.
+
+The design's depth-quantum probe reader (`depthprobe`) is not here either, and has nothing left to
+read: the harness draws no depth-quantum probe. The window-depth grid it measured is stated where
+the renderer applies it, in `DepthMath` and `docs/renderer/Depth.md`.
 
 The probe **arm/disarm** script is deliberately not here either. A gate tool that edits `src/` is
 one crash away from a dirty tree during a measurement; the method - perturb the value, re-render,

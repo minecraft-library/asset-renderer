@@ -22,12 +22,10 @@ import org.jetbrains.annotations.NotNull;
 public final class PoseState {
 
     /**
-     * Where a run starts, which is what the mode properties asked for. A single-mode run never moves
-     * it and behaves exactly as it did when this was two final booleans.
+     * Where a run starts, which is the frozen gait. The runner arms each sweep's own gait before it
+     * steps, so no captured frame reads this initial value.
      */
-    private static @NotNull Gait current = HarnessConfig.WALKING ? Gait.WALK
-        : HarnessConfig.ANIMATED ? Gait.IDLE
-        : Gait.BIND;
+    private static @NotNull Gait current = Gait.BIND;
 
     /**
      * The gait the render currently happening is at.

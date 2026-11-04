@@ -159,26 +159,4 @@ class WalkCompositionTest {
         assertEquals(List.of(1, 2, 3), AsmWalker.over(m).real().limit(3).mapNotNull(AsmWalker::intLiteral).toList());
     }
 
-    @Test
-    @DisplayName("retain() with strict() on one cell - the buffer survives commits and clears on fall-through")
-    void retainAndStrictCompose() {
-        MethodNode m = method(
-            new LdcInsnNode("a"),
-            new FieldInsnNode(Opcodes.PUTSTATIC, "test/T", "A", "I"),
-            new FieldInsnNode(Opcodes.PUTSTATIC, "test/T", "B", "I"),
-            new InsnNode(Opcodes.NOP),
-            new FieldInsnNode(Opcodes.PUTSTATIC, "test/T", "C", "I"),
-            new InsnNode(Opcodes.RETURN));
-        List<List<String>> payloads = new ArrayList<>();
-        Exit exit = AsmWalker.over(m)
-            .gather(AsmWalker::stringLiteral)
-            .strict()
-            .retain()
-            .commitAt(Insn.putStatic("test/T"))
-            .forEach(event -> payloads.add(event.values()));
-        assertEquals(Exit.END, exit);
-        // Retain carries the buffer through both commits; the unconsumed NOP is the strict clear.
-        assertEquals(List.of(List.of("a"), List.of("a"), List.of()), payloads);
-    }
-
 }

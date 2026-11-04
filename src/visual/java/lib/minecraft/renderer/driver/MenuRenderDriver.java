@@ -27,19 +27,19 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed. This is
- * a <b>functional / visual</b> tool ("does it render").
+ * Diagnostic task that renders menus through {@link MenuRenderer} so a panel can be eyeballed, and
+ * every file it writes is a member of the parity store's {@code manifest.visual}, compared byte for
+ * byte against its promoted baseline.
  * <p>
- * The roster is every screen the shipped art can be checked against - the four chest row counts one
- * sheet composes, the shulker box, the hopper, the dispenser, the crafting table and the anvil, twice
- * - each with the player's section drawn, so each names the same panel the client does. The anvil is
- * there twice because it is the only screen with a text field, and a field is the one mark whose
- * content is the caller's: once named and once bare with its caret declined. Beside them sit four
- * subjects that are about something other than the panel: a server-style menu, which is a six-row
- * chest with the caller's own slot map and a filler behind the rest, a crafting table whose enchanted
- * slots promote the whole menu through the compositor's animated branch, the same chest in a palette
- * the client ships nothing to compare against, and a panel at a size the client ships no sheet for at
- * all.
+ * The roster is what the client cannot be checked against. Each screen the client ships - the four
+ * chest row counts one sheet composes, the shulker box, the hopper, the dispenser, the crafting table
+ * and the anvil - is a subject of the menu parity sweep, drawn with the player's section and held to
+ * the client's own drawing, so it is not drawn here. What is: the anvil bare with its caret declined,
+ * because the anvil is the only screen with a text field and a field is the one mark whose content is
+ * the caller's; a server-style menu, which is a five-row chest with the caller's own slot map and a
+ * filler behind the rest; a crafting table whose enchanted slots promote the whole menu through the
+ * compositor's animated branch; a chest in a palette the client ships nothing to compare against; and
+ * a panel at a size the client ships no sheet for at all.
  * <p>
  * Usage: {@code ./gradlew menuRender}. Outputs land in {@code cache/visual/menu-render/}.
  */
@@ -50,92 +50,36 @@ public final class MenuRenderDriver {
     private static final Path OUTPUT_DIR = Path.of("cache/visual/menu-render");
 
     /**
-     * Renders the chest-chrome menu matrix.
+     * Loads vanilla's context and renders the menu roster.
      *
      * @param args ignored
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        Files.createDirectories(OUTPUT_DIR);
-
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
         } catch (ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            System.exit(1);
-            return;
+            throw ex;
         }
-        RendererContext context = RendererContext.load(result);
+
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Renders the menu roster.
+     *
+     * @param context the loaded vanilla context
+     * @param args ignored
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        Files.createDirectories(OUTPUT_DIR);
         MenuRenderer renderer = new MenuRenderer(context);
 
-        // One sheet composes every chest row count, and each composition is its own panel - so the
-        // four the client can build are four subjects rather than one at four heights. The player's
-        // section is armed on each, because that is the panel the client draws.
-        for (int rows : new int[] { 1, 2, 3, 6 }) {
-            MenuOptions chest = MenuOptions.builder()
-                .type(MenuOptions.Type.CHEST)
-                .rows(rows)
-                .playerInventory(true)
-                .title(rows == 6 ? "Large Chest" : "Chest")
-                .slots(slots(
-                    slot(0, "minecraft:diamond"),
-                    slot(4, "minecraft:iron_ingot"),
-                    slot(rows * 9 - 1, "minecraft:diamond_sword")))
-                .build();
-            write("chest_" + rows + "row", renderer.render(chest));
-        }
-
-        // The four screens the client ships whole rather than composing. Each carries the title the
-        // client gives it, which is what puts a centred one - the dispenser's - on a rendered panel.
-        write("shulker_box", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.SHULKER_BOX)
-            .playerInventory(true)
-            .title("Shulker Box")
-            .slots(slots(
-                slot(0, "minecraft:diamond"),
-                slot(13, "minecraft:iron_ingot"),
-                slot(26, "minecraft:diamond_sword")))
-            .build()));
-
-        write("hopper", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.HOPPER)
-            .playerInventory(true)
-            .title("Item Hopper")
-            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot")))
-            .build()));
-
-        write("dispenser", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.DISPENSER)
-            .playerInventory(true)
-            .title("Dispenser")
-            .slots(slots(slot(0, "minecraft:diamond"), slot(4, "minecraft:iron_ingot"), slot(8, "minecraft:diamond")))
-            .build()));
-
-        write("crafting_table", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.CRAFTING_TABLE)
-            .playerInventory(true)
-            .title("Crafting")
-            .slots(slots(
-                slot(0, "minecraft:iron_ingot"), slot(1, "minecraft:iron_ingot"), slot(2, "minecraft:iron_ingot"),
-                slot(4, "minecraft:iron_ingot"),
-                slot(7, "minecraft:iron_ingot"),
-                slot(9, "minecraft:diamond_sword")))
-            .build()));
-
-        write("anvil", renderer.render(MenuOptions.builder()
-            .type(MenuOptions.Type.ANVIL)
-            .playerInventory(true)
-            .title("Repair & Name")
-            .fieldText("Excalibur")
-            .slots(slots(
-                slot(0, "minecraft:diamond_sword"),
-                slot(1, "minecraft:diamond"),
-                slot(2, "minecraft:diamond_sword")))
-            .build()));
-
-        // The same screen with its field empty and its caret declined, which is the pair of choices
-        // no other subject here has to make: a field is the one mark whose content is a caller's and
+        // The anvil with its field empty and its caret declined, which is the pair of choices no
+        // other subject here has to make: a field is the one mark whose content is a caller's and
         // whose caret is a frozen instant of something that blinks.
         write("anvil_bare", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.ANVIL)
@@ -173,10 +117,9 @@ public final class MenuRenderDriver {
             .build();
         write("glinted_crafting", renderer.render(glintedCrafting));
 
-        // The palette that is not vanilla's, on a shape one of the eight above already draws, so what
-        // this is read for is the ink alone - the panel, the two bevels and the cells. It has no
-        // client-side counterpart to be checked against, which is why it is looked at rather than
-        // compared.
+        // The palette that is not vanilla's, on a shape the client ships, so what this is read for is
+        // the ink alone - the panel, the two bevels and the cells. It has no client-side counterpart
+        // to be checked against, which is why it is looked at rather than compared.
         write("themed_dark", renderer.render(MenuOptions.builder()
             .type(MenuOptions.Type.CHEST)
             .rows(3)

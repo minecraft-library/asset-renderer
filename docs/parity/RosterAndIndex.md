@@ -27,6 +27,12 @@ one class writes under a property or an argument roots at that class like any ot
 `sweep.entity-walk` roots where `sweep.entity-animation` does, and `sweep.tooltip-hypixel-skyblock`
 where `sweep.tooltip` does.
 
+**Coining a self-captured row names its writer three times more.** The test class that writes it is
+its root in `ROOTS`, a member of `parityPinWriters` in `gradle/parity.gradle.kts` - the list that is
+everything `parityPinTest` runs - and a trigger path of `B38`, the rule that announces the writers'
+own edits. `ParityTaskWiringTest` holds the first two to each other, and a writer the list leaves
+out is a row every capture records UNPRODUCED.
+
 **Coining a store artifact owes the version rule a place too.** The two files this project's
 dependency versions are written in - the root build file and the catalog - plan every stored
 artifact, because every producer runs on the classpath they declare, so the new one joins B47's
@@ -47,6 +53,19 @@ table perturbation moves goes on neither of B35's lists.
 
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.
+
+**Retiring an artifact undoes every one of those edits, and no toolkit command does it.** The
+registration and the `index.json` row go together, since `ParityIndexTest` refuses either alone, and
+a stored row's file goes with them, since the same suite refuses a file no row names. The row goes
+whole: deleting it is the one hand edit the `artifacts` map takes, its values never being edited. A
+stored artifact also leaves the build file's capture table, `ROOTS` or `UNROOTED`, every rule's
+`sees` and `blind` and `BlindnessMapTest`'s records of them, and a test that wrote its value goes or
+stops writing, taking its path out of the rule that announced it and its name out of
+`parityPinWriters`. Then `reach build`, `triggers` and both view sets regenerate. A working root
+captured before the retirement still holds the retired file, and a toolkit from before the edit to
+`reach.py` closed it, so a compare of that root refuses it as another toolkit's capture; a plan
+written there before the retirement names the retired id, so a bare capture refuses it and says to
+plan again. The next gate plans and captures afresh.
 
 ## A failed producer
 
@@ -76,7 +95,9 @@ by construction. `provenance.reference_manifest_digest` derives from the tree of
 row the sweep names rather than from a captured file, and `reference_artifact` records that row
 beside it, because the row decides how the tree is digested. So re-deriving it and comparing
 against any sweep's provenance is the cheap check that a number and its ground truth still name one
-reference set, the same check for the reference tree and for the pack-tooltip drawings.
-`reference_counts` is no part of that check: it is the vanilla reference tree's census per sub-tree,
-recorded on every artifact whatever that artifact read, so a sweep measured against the pack-tooltip
-drawings carries the vanilla counts beside a digest of the drawings.
+reference set, the same check for the reference tree and for the pack-tooltip drawings. A capture
+reads each tree once for it: the first step to need a digest keeps it under the working root's
+`_run/`, in a file of its own per manifest row, beside a fingerprint of the tree's paths, sizes and
+modification times, and every later step answers from there while the tree still fingerprints the
+same. The next `capture-begin` erases it
+with the rest of the root.

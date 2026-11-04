@@ -16,8 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * structured {@code {prop:val}} states load as parsed {@code property -> value} maps (an empty state to
  * the empty map), and {@code unresolved} ids are absent - the empty-vs-absent distinction.
  * <p>
- * The corpus SIZE is not asserted here: it is one key of {@code pin.corpus-count}, whose other key
- * comes from a different loader, so both are captured and asserted in {@link CorpusCountPinTest}.
+ * The corpus SIZE is not asserted here: the table's bytes are held to {@code manifest.tooling-tables}
+ * by {@code BundledResourceShaTest}, and the loaded population is a section of
+ * {@code manifest.dump.vanilla}.
  */
 class BlockDefaultsLoaderTest {
 

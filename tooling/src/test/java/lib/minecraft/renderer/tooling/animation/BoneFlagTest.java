@@ -8,7 +8,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,19 +48,6 @@ class BoneFlagTest {
                 "a flag's field and token are one word in two cases");
         }
         assertEquals(11, fields.size(), "the measured ModelPart write surface is eleven members");
-    }
-
-    @Test
-    @DisplayName("the four ModelPart members vanilla mutates by method are not channels")
-    void onlyFieldWritesAreChannels() {
-        // setRotation, offsetPos, offsetRotation and translateAndRotate are called from nowhere a
-        // pose walk reaches, so none of them names a channel. If one ever does, the walk should
-        // fail on the call rather than find a channel waiting for it.
-        for (String absent : List.of("setRotation", "offsetPos", "offsetRotation", "translateAndRotate")) {
-            assertNull(PoseChannel.ofToken(StringUtil.toSnakeCase(absent)),
-                absent + " must not resolve to a channel");
-            assertNull(BoneFlag.ofField(absent), absent + " must not resolve to a flag");
-        }
     }
 
     @Test

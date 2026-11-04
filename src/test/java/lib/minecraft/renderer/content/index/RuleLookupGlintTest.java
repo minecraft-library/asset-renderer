@@ -39,15 +39,6 @@ class RuleLookupGlintTest {
     }
 
     @Test
-    @DisplayName("a type=enchantment rule with no items matches any enchanted item")
-    void enchantmentRuleEmptyItemsMatchesAny() {
-        RuleSet rules = rules(Optional.empty(), cit("enchantment", "enchantments", "sharpness", "texture", "g"));
-        // No items= filter on the rule, yet it applies to the diamond sword via the enchantment.
-        GlintPolicy policy = RuleLookup.glint(rules, sword().enchantment("minecraft:sharpness", 1).build());
-        assertThat(policy, is(instanceOf(GlintPolicy.Replaced.class)));
-    }
-
-    @Test
     @DisplayName("useGlint=false with no matching enchantment rule suppresses the glint")
     void useGlintFalseSuppresses() {
         RuleSet rules = rules(Optional.of(false));

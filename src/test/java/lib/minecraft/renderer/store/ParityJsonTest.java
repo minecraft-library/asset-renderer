@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -22,12 +21,11 @@ import static org.hamcrest.Matchers.not;
 /**
  * The store-canonical form, asserted on the bytes the Java writer emits.
  *
- * <p>Its Python twin has a suite of its own and this side had none, so nothing on this side of the
- * store held any clause of the form it writes. The asymmetry matters most where the two writers do
- * <b>not</b> agree: Python refuses a non-finite float outright and Gson is configured to emit one, so
- * the clause that keeps {@code Infinity} out of the store is enforced at the Python end alone and the
- * files this writer emits directly - the dump sections a manifest hashes byte for byte - are outside
- * it. That is recorded here as the case it is rather than left to be rediscovered.
+ * <p>Its Python twin has a suite of its own, which holds the toolkit's writer and nothing on this
+ * side of the store. The two writers do <b>not</b> agree on a non-finite float: Python refuses one
+ * outright and Gson is configured to emit one, so the clause that keeps {@code Infinity} out of the
+ * store is enforced at the Python end alone, and asserted by that suite, while the files this writer
+ * emits directly - the dump sections a manifest hashes byte for byte - are outside it.
  */
 @DisplayName("The Java canonical writer emits the store-canonical form")
 final class ParityJsonTest {
@@ -127,27 +125,6 @@ final class ParityJsonTest {
             ParityJson.sha256Normalized(crlf), equalTo(ParityJson.sha256Normalized(lf)));
         assertThat("lowercase hex, which is the one spelling every stored digest uses",
             ParityJson.sha256Normalized(lf), equalTo(ParityJson.sha256Normalized(lf).toLowerCase()));
-    }
-
-    @Test
-    @DisplayName("this writer emits a non-finite float where the toolkit's writer refuses one")
-    void theNonFiniteClauseIsEnforcedOnTheOtherSideAlone() throws IOException {
-        JsonObject root = new JsonObject();
-        root.addProperty("delta", Double.POSITIVE_INFINITY);
-
-        // Recorded rather than asserted away. JSON has no Infinity, and a failed subject is carried
-        // as an explicit status field for exactly that reason - so the clause is real, and the
-        // refusal that carries it lives at the other end. Everything self-captured is re-emitted
-        // through the toolkit's writer on its way into the store, so the only bytes this one
-        // contributes directly are the dump sections a manifest hashes, and their floor-5
-        // determinism runs are what says the form they came out in is stable.
-        assertThat("Gson is built here with serializeSpecialFloatingPointValues, so what this writer "
-                + "produces is bare Infinity",
-            ParityJson.text(root), equalTo("{\n  \"delta\": Infinity\n}"));
-        assertThat("and the refusal really is at the capture, which is the whole reason the "
-                + "asymmetry above is admissible rather than a hole. Read off the toolkit's writer, "
-                + "because a sentence here saying so is not the mechanism",
-            Files.readString(Path.of("parity/scripts/parity/norm.py")), containsString("allow_nan=False"));
     }
 
     /**

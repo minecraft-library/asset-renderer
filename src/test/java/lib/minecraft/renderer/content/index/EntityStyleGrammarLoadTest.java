@@ -20,6 +20,7 @@ import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -43,14 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The style grammar the model table's rows carry beyond what the shipped table uses, loaded from fixture
  * tables and held to what each member draws and what each refuses.
  *
- * <p>A pass's {@code opacity} is an expression over the render state alone, so it evaluates against one
- * frame's binding with nothing else in hand: a read of a bone or of a shared entry has no table to
- * answer from, and is refused where the row is read. Where a frame poses nothing - a bind render - the
- * pass draws at the expression's value with every input at rest, which the load writes onto the
- * declaration through the one conversion every frame's opacity takes - a constant opacity, the grammar's
- * own {@code const}, drawing at its value. A constant at or under zero is refused, the generator dropping
- * any pass that would draw nothing. Each row's opacity is read once by its place in the table, so a baby
- * form draws the very expression its adult row does.
+ * <p>A pass's {@code opacity} lands on the pass as the tree the row spells. It is an expression over the
+ * render state alone, so it evaluates against one frame's binding with nothing else in hand: a read of a
+ * bone or of a shared entry has no table to answer from, and is refused where the row is read. Where a
+ * frame poses nothing - a bind render - the pass draws at the expression's value with every input at
+ * rest, which the load writes onto the declaration through the one conversion every frame's opacity
+ * takes - a constant opacity, the grammar's own {@code const}, drawing at its value. A constant at or
+ * under zero is refused, the generator dropping any pass that would draw nothing. Each row's opacity is
+ * read once by its place in the table, so a baby form draws the very expression its adult row does.
  *
  * <p>A stroke's {@code rate} and a trapezoid's four spans load onto the driver's wave, a span the row
  * does not spell reading zero. A timing member on a wave that does not read it, a stroke that does not
@@ -93,6 +94,15 @@ class EntityStyleGrammarLoadTest {
     /** A standing row ramping elapsed age, which a stride composes over. */
     private static final @NotNull String IDLE_ROW = "{\"id\": \"idle\", \"sources\": [\"figure\"], "
         + "\"drives\": [{\"field\": \"ageInTicks\", \"wave\": \"ramp\", \"extent\": 1.0}]}";
+
+    @Test
+    @DisplayName("an overlay's opacity loads onto its pass as the expression the row spells")
+    void anOpacityLoadsOntoItsPass() {
+        assertEquals(Optional.of(new PoseExpr.Op(PoseOperator.MUL, Concurrent.newUnmodifiableList(
+                new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.01f)))),
+            pass("{\"mul\": [{\"input\": \"ageInTicks\"}, {\"const\": 0.01}]}").opacity(),
+            "the pass holds the tree the row spells, operand for operand");
+    }
 
     @Test
     @DisplayName("an opacity loads its pass at its value with every input at rest, as a constant opacity loads")

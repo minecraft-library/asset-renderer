@@ -24,8 +24,7 @@ import static org.hamcrest.Matchers.is;
  * tintindex N) only when the model declares no elements. An element-bearing model with no face
  * owning the layer reports untinted ({@code -1}).
  * <p>
- * Full item rendering is covered end-to-end by the slow {@code ClientAcquisitionIntegrationTest};
- * these cases isolate the dispatch logic without booting the pipeline.
+ * These cases isolate the dispatch logic without booting the pipeline.
  */
 class ItemTintIndexTest {
 

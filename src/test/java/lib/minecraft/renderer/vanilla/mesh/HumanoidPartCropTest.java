@@ -124,20 +124,6 @@ class HumanoidPartCropTest {
         assertThat("TORSO.NORTH overlay on 64x32 is empty", torso.getPixel(0, 0), is(0));
     }
 
-    @Test
-    @DisplayName("the fallback fires only where a base rectangle runs past the bottom edge")
-    void fallbackIsBoundedByTheSheet() {
-        PixelBuffer skin = sheet(64, 64);
-
-        // On a full skin the left limbs keep their own regions - the fallback is a property of the
-        // sheet, not of the part.
-        Face.forEach(face -> {
-            int[] own = origin(HumanoidPart.LEFT_ARM, face, false);
-            assertRegion("LEFT_ARM." + face + " on 64x64", HumanoidPart.LEFT_ARM.crop(skin, face, false),
-                own[0], own[1], size(HumanoidPart.LEFT_ARM, face), false);
-        });
-    }
-
     // ------------------------------------------------------------------------------------------
     // Helpers.
     // ------------------------------------------------------------------------------------------

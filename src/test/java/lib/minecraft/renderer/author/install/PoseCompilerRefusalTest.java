@@ -377,15 +377,6 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a raw float literal no float holds exactly refuses")
-    void inexactFloatLiteralRefuses() {
-        StyleException refusal = refusalOf(Poses.custom("hatch")
-            .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseWidth.FLOAT))
-            .build());
-        assertTrue(refusal.getMessage().contains("float"), refusal.getMessage());
-    }
-
-    @Test
     @DisplayName("a generator's own vocabulary handed in by a style refuses rather than reaching a pose")
     void anAnsweredArmRefuses() {
         // `PoseExpr.Answered` is public and `Poses.custom(...).expr(...)` takes any `PoseExpr`, so a
@@ -477,17 +468,6 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("a raw scale on one axis refuses - a raw scale writes all three axes with one graph")
-    void aRawScaleOnOneAxisRefuses() {
-        StyleException refusal = refusalOf(Poses.custom("swell")
-            .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
-            .build());
-        assertTrue(refusal.getMessage().contains("'right_arm'"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("'x_scale' alone"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("all three axes"), refusal.getMessage());
-    }
-
-    @Test
     @DisplayName("a raw scale on one axis refuses on every subject, the ones its bone reaches and the ones it does not")
     void aRawScaleOnOneAxisRefusesOnEverySubject() {
         BuiltStyle swell = Poses.custom("swell")
@@ -497,6 +477,8 @@ class PoseCompilerRefusalTest {
         StyleException placed = refusalOf(swell, humanoid(), EntityPose.NONE);
         StyleException unplaced = refusalOf(swell, fused(), EntityPose.NONE);
 
+        assertTrue(placed.getMessage().contains("'right_arm'"), placed.getMessage());
+        assertTrue(placed.getMessage().contains("'x_scale' alone"), placed.getMessage());
         assertTrue(placed.getMessage().contains("all three axes"), placed.getMessage());
         assertEquals(placed.getMessage(), unplaced.getMessage(),
             "which axes a raw scale names is a fact about the text, so one chain reaches one verdict "

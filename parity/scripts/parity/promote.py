@@ -13,6 +13,8 @@ below is a mechanism for an invariant rather than a policy someone has to rememb
   that moved and the tree hashes cleanly either way;
 - a root whose digests disagree with its own capture index, no promotion, so a plan cannot be
   applied to a root that has since been re-captured;
+- a root another toolkit closed, no promotion, because the suite the capture ran answered for that
+  toolkit and the promotion would write the tracked store with this one;
 - no compare of this capture covering this artifact, no promotion, so a promotion can only ever
   apply a diff a human has been shown. ``--bootstrap`` is its one exemption, because a first
   baseline has nothing to be diffed against - and the exemption is per-INVOCATION, so a bootstrap
@@ -169,6 +171,7 @@ def check(root: Path, entries: Sequence[Entry], reason: str, index: dict,
         raise Refused("promote-apply requires --reason: a promotion is a recorded act")
 
     capture_mod.require_unmoved(root)
+    capture_mod.require_same_toolkit(root)
     # `--bootstrap` is the one exemption, and it is per-INVOCATION where the thing it excuses is
     # per-ARTIFACT: the flag is typed because a row has no baseline, and it cannot say which row
     # that was. So a bootstrap promotion over a whole root writes the already-baselined rows beside
@@ -412,7 +415,7 @@ def _index_row(entry: Entry, payload: dict, floor: int, previous_duration: int |
         "sha256": sha256_text(canonical_json(payload)),
     }
     # The count under the payload member's OWN name, which is the one every writer already spells:
-    # a sweep records `rows`, a manifest `files`, a self-captured row `digests` or `values`. So this
+    # a sweep records `rows`, a manifest `files`, a self-captured row `values`. So this
     # is one rule rather than a list of count keys that a new kind has to be added to - and it
     # reproduces every promoted row exactly. `manifest.tooling-tables` counts its `files` alone where
     # the gate joins `files` and `logs`, because `logs` is the second payload key and `entries` is the

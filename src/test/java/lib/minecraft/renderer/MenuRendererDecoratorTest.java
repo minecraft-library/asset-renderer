@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.is;
  * A caller's {@link MenuOptions#getLayerDecorator() layerDecorator} splices into the same stack the
  * built-in layers went into, so a spliced animation is a layer of the composite like any other and
  * the output has to play it. The menu here carries no animated layer of its own - no slot, no fill,
- * no obfuscated title - so the decorator is the only thing that could animate it, and the control
- * render below is what holds that.
+ * no obfuscated title - so the decorator is the only thing that could animate it, and the still layer
+ * spliced in below, which leaves the menu still, is what holds that.
  * <p>
  * A spliced layer is drawn as it was placed, too: a still menu rescales a placement its caller fitted
  * to an extent across that extent, as an animated one does.
@@ -67,34 +67,11 @@ class MenuRendererDecoratorTest {
     }
 
     /**
-     * The control: without a decorator the same menu is static, so an animated result below is the
-     * spliced layer's doing and not something the chest was going to do anyway.
-     */
-    @Test
-    @DisplayName("a chest with no animated layer of its own renders static")
-    void aChestWithNothingAnimatedRendersStatic() {
-        assertThat("a bare chest has nothing to animate",
-            render(staticMenu()).isAnimated(), is(false));
-    }
-
-    @Test
-    @DisplayName("an animated layer spliced through the decorator animates the menu")
-    void aSplicedAnimatedLayerAnimatesTheMenu() {
-        MenuOptions decorated = staticMenu().mutate()
-            .layerDecorator(stack -> stack.append(MenuSlot.TEXT,
-                sink -> sink.add(new FramePlacement(0, 0, twoFrames()))))
-            .build();
-
-        assertThat("the menu plays the animation its caller spliced in",
-            render(decorated).isAnimated(), is(true));
-    }
-
-    /**
      * Animating is not enough on its own - a composite that flipped the flag and then sampled every
-     * layer at frame zero would pass the claim above while drawing one still twice.
+     * layer at frame zero would animate while drawing one still twice, so each frame's ink is read too.
      */
     @Test
-    @DisplayName("the spliced layer's frames each reach the output")
+    @DisplayName("an animated layer spliced through the decorator animates the menu, each of its frames reaching the output")
     void theSplicedFramesReachTheOutput() {
         MenuOptions decorated = staticMenu().mutate()
             .layerDecorator(stack -> stack.append(MenuSlot.TEXT,
@@ -102,6 +79,8 @@ class MenuRendererDecoratorTest {
             .build();
 
         ImageData rendered = render(decorated);
+        assertThat("the menu plays the animation its caller spliced in", rendered.isAnimated(), is(true));
+
         PixelBuffer first = rendered.getFrames().getFirst().pixels();
         PixelBuffer last = rendered.getFrames().getLast().pixels();
         int differing = 0;

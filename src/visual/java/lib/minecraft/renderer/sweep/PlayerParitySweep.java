@@ -1,21 +1,16 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,12 +42,13 @@ import java.util.Optional;
  * <b>lighting</b> (R7's subject) from framing / geometry differences. The mean-delta number consequently
  * includes some residual silhouette-edge and geometry mismatch and is a LOOK gauge, not a byte gate.
  *
- * <p>Output: one folder per scope under {@code cache/visual/player-parity-vanilla/} with six files,
- * plus a top-level {@code parity-report.tsv}. {@code vanilla.png} and {@code java.png} are the
- * <b>raw</b> renders, byte-for-byte what each pipeline produced and the only pair here a digest can
- * be taken over. {@code aligned_vanilla.png} and {@code aligned_java.png} are those two rescaled onto
+ * <p>Output: one folder per scope under {@code cache/visual/player-parity-vanilla/}, plus a
+ * top-level {@code parity-report.tsv}. {@code java.png} is the <b>raw</b> render, byte-for-byte what
+ * this renderer produced and the one file here {@code manifest.player-raw} digests; {@code vanilla.png}
+ * is the harness reference written back as it was read, whose source {@code manifest.references}
+ * hashes. {@code aligned_vanilla.png} and {@code aligned_java.png} are those two rescaled onto
  * the common box; {@code diff.png} and {@code diff_panel.png} are built from the aligned pair, as is
- * the reported delta.
+ * the reported delta, and are written where the aligned pair differs.
  *
  * <p>Usage: {@code ./gradlew playerParityVanilla}. Run
  * {@code renderVanillaPlayerReferences} first if the references are missing.
@@ -79,10 +75,24 @@ public final class PlayerParitySweep {
     private static final float ALIGN_FILL = 0.94f;
 
     /**
-     * Runs the player parity sweep across the {@link PlayerOptions.Type#FULL} and
-     * {@link PlayerOptions.Type#SKULL} scopes.
+     * Runs the player parity sweep over a context of its own, loaded over vanilla's own client options.
+     *
+     * @param args what {@link #run} reads
+     * @throws IOException if the output cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(SweepPair.acquire(ClientOptions.defaults())), args);
+    }
+
+    /**
+     * Runs the player parity sweep across the {@link PlayerOptions.Type#FULL} and
+     * {@link PlayerOptions.Type#SKULL} scopes.
+     *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
+     * @param args unread, the roster being fixed
+     * @throws IOException if the output cannot be written
+     */
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         if (!Files.isDirectory(VANILLA_DIR)) {
             System.err.printf("Vanilla player reference directory missing: %s%n  Run renderVanillaPlayerReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
@@ -90,14 +100,7 @@ public final class PlayerParitySweep {
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-        PlayerRenderer javaRenderer = new PlayerRenderer(RendererContext.load(result));
+        PlayerRenderer javaRenderer = new PlayerRenderer(context);
 
         List<Row> rows = new ArrayList<>();
         for (PlayerOptions.Type scope : List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL))
@@ -120,7 +123,8 @@ public final class PlayerParitySweep {
 
     /**
      * Renders one scope through the Java pipeline, alpha-aligns it against the vanilla reference, writes the
-     * per-scope raw, aligned, diff and panel PNGs, and returns the comparison {@link Row}.
+     * per-scope raw and aligned PNGs and, where the aligned pair differs, its diff and panel, and returns
+     * the comparison {@link Row}.
      */
     private static @NotNull Row renderAndCompare(@NotNull PlayerOptions.Type scope, @NotNull PlayerRenderer javaRenderer) {
         String name = scope.name().toLowerCase(Locale.ROOT);
@@ -150,8 +154,9 @@ public final class PlayerParitySweep {
             // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
             BufferedImage javaRaw = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
 
-            // The raw pair goes to disk FIRST and under the plain names, because it is the only output
-            // of this sweep that is what a renderer actually produced and can therefore be hashed.
+            // The raw pair goes to disk FIRST and under the plain names: java.png is the one output of
+            // this sweep that is what this renderer produced and can therefore be hashed, and
+            // vanilla.png is the reference beside it, written back as it was read.
             ImageIO.write(vanillaRaw, "PNG", new File(scopeDir.toFile(), "vanilla.png"));
             ImageIO.write(javaRaw, "PNG", new File(scopeDir.toFile(), "java.png"));
 
@@ -162,14 +167,7 @@ public final class PlayerParitySweep {
 
             ImageIO.write(vanillaImg, "PNG", new File(scopeDir.toFile(), "aligned_vanilla.png"));
             ImageIO.write(javaImg, "PNG", new File(scopeDir.toFile(), "aligned_java.png"));
-            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaImg);
-            PixelBuffer javaPB = PixelBuffer.wrap(javaImg);
-            BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
-            ImageIO.write(diffImg, "PNG", new File(scopeDir.toFile(), "diff.png"));
-            BufferedImage panelImg = ParityMetrics.panelDiff(vanillaImg, javaImg, vanillaPB, javaPB);
-            ImageIO.write(panelImg, "PNG", new File(scopeDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaImg, javaImg);
+            ParityMetrics.Stats stats = SweepPair.compare(scopeDir, vanillaImg, javaImg);
             System.out.printf("  %-8s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%n",
                 name, stats.meanDelta(), stats.differingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);

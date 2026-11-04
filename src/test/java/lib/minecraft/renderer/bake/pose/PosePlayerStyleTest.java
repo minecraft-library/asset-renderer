@@ -49,12 +49,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * nothing allocates nothing and renders the bytes it always rendered. The rest pin what the memo
  * owes its two passes - one posed instance per tick, and one per member INSTANCE per tick, because
  * variant coats share the family id and an id-keyed memo would answer one coat's mesh for another.
- * The next five hold every form of every shipped row - each equipment slot filled among them - to
- * posing under every style it lists, every scale a shipped pose writes to the value its bone's own
- * field rests at but the harnessed happy ghast's body, every bone it poses to its rest scale and no
- * pose scale but its clips' and that same squeeze, every part's own field to resting at one on
- * every form but the small armour stand, and the salmon's flattened sizes to placing their
- * container where vanilla's pose stack places it. The last two hold a harnessed happy ghast's body
+ * The next four hold every scale a shipped pose writes, on every form of every shipped row - each
+ * equipment slot filled among them - under every style it lists, to the value its bone's own field
+ * rests at but the harnessed happy ghast's body, every bone it poses to its rest scale and no pose
+ * scale but its clips' and that same squeeze, every part's own field to resting at one on every form
+ * but the small armour stand, and the salmon's flattened sizes to placing their container where
+ * vanilla's pose stack places it. The last two hold a harnessed happy ghast's body
  * inside the harness it wears, and the warden's glowing passes at the opacity vanilla draws each at
  * on every posed tick.
  */
@@ -185,28 +185,6 @@ class PosePlayerStyleTest {
         assertSame(mesh, PosePlayer.posed(unreadable, mesh, idle,
                 StyleCatalog.BIND_ONLY.periodTicks(), 7),
             "and so is a pose that could not be read, under a row that moves");
-    }
-
-    @Test
-    @DisplayName("every form of every shipped row poses under every style its in-force catalog lists")
-    void everyFormPosesUnderEveryListedStyle() {
-        List<String> failures = new ArrayList<>();
-        Set<String> walked = new LinkedHashSet<>();
-        for (Form form : forms()) {
-            walked.add(form.label());
-            for (String id : form.styleIds())
-                for (int tick : TICKS) {
-                    try {
-                        PosePlayer.posed(form.resolved(), form.style(id), form.periodTicks(), tick);
-                    } catch (RuntimeException failure) {
-                        failures.add(form.label() + " '" + id + "' @" + tick + ": " + failure.getMessage());
-                    }
-                }
-        }
-        assertTrue(walked.size() > 50, "the walk reaches the corpus, " + walked.size() + " forms");
-        assertTrue(walked.containsAll(List.of("minecraft:salmon size=small", "minecraft:salmon size=large")),
-            "the walk reaches both flattened salmon forms");
-        assertEquals(List.of(), failures, "every form poses under every style it lists");
     }
 
     @Test

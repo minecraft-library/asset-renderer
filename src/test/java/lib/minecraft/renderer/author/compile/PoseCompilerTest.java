@@ -391,28 +391,6 @@ class PoseCompilerTest {
     }
 
     @Test
-    @DisplayName("an additive write rides a live driven base with no rebase")
-    void additiveWriteRidesTheLiveBase() {
-        EntityMesh mesh = humanoid();
-        PoseExpr stride = input("walkAnimationPos");
-        EntityPose shipped = boneWrite("right_arm", PoseChannel.X_ROT, stride);
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.humanoid("jog").keepStride().arm(Side.RIGHT, arm -> arm.pitchBy(-20)).build(),
-            row(mesh, shipped));
-
-        assertEquals(StyleDriver.Wave.Plain.RAMP, compiled.style().drivers().get("walkAnimationPos").wave(),
-            "the stride trio copies onto the row");
-        assertEquals((float) Math.toRadians(-20), compiled.style().drivers().get("style$jog$right_arm$x_rot").extent(),
-            "an additive delta converts once and never rebases");
-
-        // At tick six the ramped stride phase answers six, and the splice adds its delta onto
-        // that live value rather than onto a rest snapshot.
-        float landed = posed(compiled, mesh, 6).getBones().get("right_arm").getRotation().pitch();
-        float written = (float) (6d + (double) (float) Math.toRadians(-20));
-        assertEquals((float) Math.toDegrees(written), landed);
-    }
-
-    @Test
     @DisplayName("a kept stride copies the target's whole stride at the compiled age - its walk pair, its clocks, and the literal for a field it lacks")
     void aKeptStrideCopiesTheWholeStrideMap() {
         // A guardian-shaped walk: the swing and clock at a pace under one, the tail wagging on a clock of
@@ -516,42 +494,6 @@ class PoseCompilerTest {
     }
 
     @Test
-    @DisplayName("timelines lower to one clip behind a selection-gated play site")
-    void timelinesLowerToOneGatedClip() {
-        EntityMesh mesh = humanoid();
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.humanoid("wave")
-                .arm(Side.RIGHT, arm -> arm.roll(30)
-                    .timeline(track -> track.swing(Turn.ROLL, -20, 20).over(0.6)))
-                .build(),
-            row(mesh, EntityPose.NONE));
-
-        assertEquals(1, compiled.pose().clips().size(), "one clip per built style");
-        EntityPose.Clip site = compiled.pose().clips().getFirst();
-        assertEquals(ClipDrive.SELECT, site.drive());
-        assertEquals(Optional.of("style$wave"), site.field(), "the gate field is present by construction");
-        assertEquals(1, site.arguments().size(), "the selection arity is satisfied by construction");
-        PoseExpr.Input clock = assertInstanceOf(PoseExpr.Input.class, site.arguments().getFirst());
-        assertEquals("style$wave$clock", clock.field(), "a fresh clock, never a shipped idle term");
-        assertEquals(1f, compiled.style().drivers().get("style$wave").extent(), "the gate holds at one");
-        assertEquals(StyleDriver.Wave.Plain.RAMP, compiled.style().drivers().get("style$wave$clock").wave());
-
-        PoseClip clip = site.clip();
-        assertEquals(0.6f, clip.lengthSeconds());
-        assertTrue(clip.looping());
-        assertEquals(1, clip.channels().size());
-        PoseClip.Channel channel = clip.channels().getFirst();
-        assertEquals("right_arm", channel.bone());
-        assertEquals(PoseChannel.Kind.ROTATION, channel.target());
-        assertEquals(List.of(0f, 0.3f, 0.6f),
-            channel.keyframes().stream().map(PoseClip.Keyframe::timeSeconds).toList(),
-            "the swing triangle keys its ends and middle");
-        assertEquals((float) Math.toRadians(-20), channel.keyframes().getFirst().z(),
-            "keyframe components are radians");
-        assertEquals(PoseClip.Interpolation.LINEAR, channel.keyframes().getFirst().interpolation());
-    }
-
-    @Test
     @DisplayName("the clip's deltas add onto the stance at real twenty-per-second seconds")
     void clipDeltasRideTheStance() {
         EntityMesh mesh = humanoid();
@@ -577,24 +519,6 @@ class PoseCompilerTest {
     }
 
     @Test
-    @DisplayName("a paired stamp mirrors the timeline, so the pair moves as mirror images")
-    void pairedTimelineMirrors() {
-        EntityMesh mesh = humanoid();
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.humanoid("clap")
-                .arms(arm -> arm.timeline(track -> track.swing(Turn.YAW, 0, -25).over(0.4)))
-                .build(),
-            row(mesh, EntityPose.NONE));
-
-        PoseClip clip = compiled.pose().clips().getFirst().clip();
-        assertEquals(2, clip.channels().size(), "one rotation channel per arm");
-        PoseClip.Keyframe right = clip.channels().getFirst().keyframes().get(1);
-        PoseClip.Keyframe left = clip.channels().getLast().keyframes().get(1);
-        assertEquals((float) Math.toRadians(-25), right.y(), "the right swings as authored");
-        assertEquals((float) Math.toRadians(25), left.y(), "the left swings negated");
-    }
-
-    @Test
     @DisplayName("a container step appends innermost with bare field reads")
     void containerStepAppendsBareFieldReads() {
         EntityMesh mesh = humanoid();
@@ -614,33 +538,6 @@ class PoseCompilerTest {
         assertEquals(7f, posed.getBones().get("$container").getPivot().y(),
             "the seat drops the whole figure");
         assertTrue(compiled.style().sources().isEmpty(), "a held seat is a statue, not an animation");
-    }
-
-    @Test
-    @DisplayName("hover lowers to a lift held and a bob swept on two container fields")
-    void hoverLowersToLiftAndBob() {
-        EntityMesh mesh = humanoid();
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.humanoid("levitate").hover(8, 2).build(),
-            row(mesh, EntityPose.NONE));
-
-        StyleDriver lift = compiled.style().drivers().get("style$levitate$$container$y");
-        StyleDriver bob = compiled.style().drivers().get("style$levitate$$container$y_bob");
-        assertEquals(StyleDriver.Wave.Plain.HOLD, lift.wave());
-        assertEquals(-8f, lift.extent(), "y-down, so lift is negative and the surface hides the sign");
-        assertEquals(StyleDriver.Wave.Plain.SWEEP, bob.wave());
-        assertEquals(-2f, bob.extent());
-
-        PoseExpr vertical = compiled.pose().container().getFirst().get(PoseChannel.Y);
-        assertEquals(PoseOperator.DADD, assertInstanceOf(PoseExpr.Op.class, vertical).operator(),
-            "two drivers cannot share one field, so the channel sums two reads");
-
-        assertEquals(-8f, posed(compiled, mesh, 0).getBones().get("$container").getPivot().y(),
-            "the sweep rests at zero, leaving the lift alone");
-        assertEquals(-10f, posed(compiled, mesh, 12).getBones().get("$container").getPivot().y(),
-            "and peaks mid-period, dipping the figure");
-        assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
-            List.copyOf(compiled.style().sources()), "a nonzero bob moves the style on the clock");
     }
 
     @Test

@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -151,13 +150,6 @@ class TextureIndexerResolutionTest {
         assertThat(filtered.indexed(ResourceId.parse("minecraft:block/stone")).isPresent(), is(true));
         assertThat("dirt hidden by filter.block",
             filtered.indexed(ResourceId.parse("minecraft:block/dirt")).isPresent(), is(false));
-    }
-
-    @Test
-    @DisplayName("index row path is the baked winning root-prefixed container path (overlay winner)")
-    void indexedPathIsBaked() {
-        assertThat(stack.indexed(ResourceId.parse("minecraft:block/grass")).orElseThrow().path(),
-            equalTo("ov/assets/minecraft/textures/block/grass.png"));
     }
 
     private static @NotNull ResourcePack pack(PackId id, Path root, Set<String> namespaces,

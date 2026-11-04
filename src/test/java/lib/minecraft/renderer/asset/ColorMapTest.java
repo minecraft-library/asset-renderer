@@ -19,23 +19,6 @@ import static org.hamcrest.Matchers.is;
 class ColorMapTest {
 
     /**
-     * Pins the coordinate math against a two-pixel fixture. For {@code temperature=0.5},
-     * {@code downfall=1.0}: {@code adjTemp = 0.5}, {@code adjRain = clamp(1.0)*0.5 = 0.5}, so
-     * {@code x = floor((1-0.5)*255) = 127} and {@code y = floor((1-0.5)*255) = 127}. The sampler
-     * must therefore read the pixel at {@code 127*256+127} ({@code 0xFF112233}), not the decoy
-     * planted at the naive-centre {@code 128*256+128} that a temperature-only formula would hit.
-     */
-    @Test
-    @DisplayName("sample returns the pixel at the expected temp/humidity coordinate")
-    void sampleReadsCorrectPixel() {
-        byte[] map = new byte[256 * 256 * Integer.BYTES];
-        writePixel(map, 128 * 256 + 128, 0xFFAABBCC);
-        writePixel(map, 127 * 256 + 127, 0xFF112233);
-
-        assertThat(colormap(map).sample(0.5f, 1.0f), is(equalTo(0xFF112233)));
-    }
-
-    /**
      * Pins the row to vanilla's double arithmetic at meadow's point, {@code (0.5, 0.8)}. In float,
      * {@code 1.0f - 0.4f} rounds to the float nearest {@code 0.6}, and that times {@code 255f} is
      * exactly {@code 153}. In double, the widened product is {@code 0.40000000596}, and

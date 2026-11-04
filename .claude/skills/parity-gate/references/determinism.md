@@ -30,13 +30,21 @@ those artifacts carry a floor of one.
 ## What is reproducible
 
 - **The entity sweep.** Exactly reproducible: four fresh JVM forks, 0 of 401 rows different, sum
-  spread `0.0000`. No other sweep's table carries a reproducibility measurement of its own here.
+  spread `0.0000`.
+- **The vanilla sweeps in their one JVM.** The ten tables `vanillaSweepRun` writes over one context
+  are the tables each sweep writes in a JVM of its own, byte for byte, over two runs of the shared
+  JVM: a sweep's rows do not depend on which sweeps ran before it. The item and glint sweeps render
+  their subjects in parallel, and their tables and renders are the ones a sequential loop writes.
 - **All eight tooling flows.** Every shipped table reproduces its own bytes, which is what makes the
   regen A/B admissible at all.
-- **`fluidRenderer` and `portalRenderer`.** 12 files each, byte-for-byte across two `--rerun-tasks`
+- **The visual drivers in their one JVM.** The files `visualSweepSet` writes over one context are
+  the files each of its eight drivers writes in a JVM of its own, byte for byte, over two runs of
+  the shared JVM: a driver's renders do not depend on which drivers ran before it.
+- **`fluidRenderer` and `portalRenderer`.** 9 and 6 files, byte-for-byte across two fresh-JVM
   runs. This is what converts them from a look-at-it task into a real gate.
-- **The player contact sheets.** 104 files across the ten offline sheet groups.
-- **The raw player and armour renders.** 18 files. The *rescaled* pair those sweeps also write is
+- **The player contact sheets.** 104 files across the ten offline sheet groups, 97 of them the
+  artifact's: the seven it leaves out are cells drawn from another cell's options.
+- **The raw player and armour renders.** 9 files. The *rescaled* pair those sweeps also write is
   not in that artifact: it is an AWT resample, and digesting it would fold a JDK-owned computation
   into a value that is supposed to name this renderer.
 - **The reference tree**, given one client boot. A partial refresh is the failure mode, not a

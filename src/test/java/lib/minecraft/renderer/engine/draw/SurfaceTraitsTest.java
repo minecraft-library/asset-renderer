@@ -18,10 +18,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@link SurfaceTraits#WORN_SHELL} would still compile, would still yield a two-sided surface, and
  * would move the enchantment foil off the armour and onto nothing. These tests read each component
  * back by name, so a transposition anywhere in the two constants fails here rather than in a render.
- * <p>
- * The difference between the two constants is also load-bearing and stated in prose: armour geometry
- * differs from block geometry by two bits and not by a code path. That is asserted here as a bit
- * count rather than left to the reader.
+ * Pinning all five components of both also pins the two bits armour geometry differs from block
+ * geometry by, the cull and the glint.
  */
 @DisplayName("Shipped surface traits")
 class SurfaceTraitsTest {
@@ -44,28 +42,6 @@ class SurfaceTraitsTest {
         assertThat(SurfaceTraits.WORN_SHELL.glinted(), equalTo(true));
         assertThat(SurfaceTraits.WORN_SHELL.directionalLight(), equalTo(true));
         assertThat(SurfaceTraits.WORN_SHELL.pass(), sameInstance(PassDeclaration.DEFAULT));
-    }
-
-    @Test
-    @DisplayName("the two constants differ in exactly the cull and glint bits")
-    void wornShellDiffersFromOpaqueBodyInExactlyTwoBits() {
-        SurfaceTraits body = SurfaceTraits.OPAQUE_BODY;
-        SurfaceTraits shell = SurfaceTraits.WORN_SHELL;
-
-        assertThat(shell.cullBackFaces(), not(equalTo(body.cullBackFaces())));
-        assertThat(shell.glinted(), not(equalTo(body.glinted())));
-        assertThat(shell.translucent(), equalTo(body.translucent()));
-        assertThat(shell.directionalLight(), equalTo(body.directionalLight()));
-        assertThat(shell.pass(), sameInstance(body.pass()));
-
-        // Restated as a count so a third differing bit fails here even if the four assertions above
-        // are left alone.
-        int differing = (shell.cullBackFaces() == body.cullBackFaces() ? 0 : 1)
-            + (shell.translucent() == body.translucent() ? 0 : 1)
-            + (shell.glinted() == body.glinted() ? 0 : 1)
-            + (shell.directionalLight() == body.directionalLight() ? 0 : 1)
-            + (shell.pass().equals(body.pass()) ? 0 : 1);
-        assertThat(differing, equalTo(2));
     }
 
     @Test

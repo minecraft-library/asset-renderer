@@ -79,6 +79,22 @@ It does not judge pixels, re-derive a sum, or decide whether a mover is acceptab
 ./gradlew parityCompare                 # the verdict; the only task that can fail
 ```
 
+**The fast suite is a step of its own, before the commit.** A capture runs the test classes that
+write the self-captured rows - `parityPinTest`, the fast suite filtered to them - and no other test,
+so a green verdict says nothing about the rest of `src/test`. Once the verdict is in, run `test`, or
+`check`, which adds the toolkit's suite, the harness compile, the tooling suite and the reach check,
+and commit only on green; `references/procedures.md` spells the command, and `gradle-verify-gate`
+runs it. **A re-based pin is the one red a commit is taken over.** A pin writer asserts against the
+stored value, which only the promotion moves, so a pin the verdict found GREEN as a registered mover
+keeps its writer red until then - and the promotion needs the content committed first. Where that
+is every failure, commit, promote, run the suite again, and amend the promotion into the commit;
+`references/procedures.md` spells that too.
+
+The toolkit's own suite needs no step of its own in a gate that captures: `parityCapture` runs it
+behind its producers, and `parityCompare` and `parityPromote` refuse a capture another toolkit
+closed, so a toolkit edited after the capture is re-captured rather than trusted. A gate whose plan
+captures nothing runs it by name, as the rule a toolkit change fires says.
+
 `parityExpect` runs before the capture and the compare because the manifest it writes is the
 compare's other input, and it is the one file a capture does not erase - so a previous change's
 registration is still in force until this clears it. For a change that intends to move rows,
@@ -98,15 +114,17 @@ dropped. A registration with no `-Pto` is refused rather than accepted as "this 
 with no key or value:
 
 ```bash
-./gradlew parityExpect -Partifact=digest.shipped-tables -Punproduced \
-    -Preason="its writer asserts on the value being re-based"
+./gradlew parityExpect -Partifact=pin.block-crc -Punproduced \
+    -Preason="its writer's determinism check fails before it records the pin"
 ```
 
 A capture step is a finalizer, so it runs after a producer that failed; where one did, it records
 that instead of reading output nothing wrote, and the compare reports the row as **UNPRODUCED** and
-fails unless it was registered. `-Punproduced` cannot be given `-Pkey` or `-Pto` - what is wrong with
-such a row is that it has no value - and it needs `-Preason`, because a producer nobody expected to
-fail is the finding rather than a state to wave through.
+fails unless it was registered. A writer red on the pinned value itself is not this case: it records
+before it asserts and the step reads after it, so its row is captured and moves like any other, and
+is registered with `-Pkey` / `-Pto` or `-PfromVerdict`. `-Punproduced` cannot be given `-Pkey` or
+`-Pto` - what is wrong with such a row is that it has no value - and it needs `-Preason`, because a
+producer nobody expected to fail is the finding rather than a state to wave through.
 
 **`-Pkey` is the row's key exactly as the stored artifact spells it**, and nothing checks that it is
 one. A registration whose key matches no moved row is written, counted in the `N mover(s)
@@ -167,8 +185,12 @@ cannot resolve (34 recorded failures).
 
 If the plan's budget exceeds **110s**, run `parityCapture` in the background; the default shell
 budget is 120s and a full bundle exceeds it. The budget is the sum of what each planned artifact's
-producers took the last time that artifact was **promoted**, so a row promoted before the build
-started measuring wall time contributes nothing. It is a scheduling fact and not a question to put to
+producers took the last time that artifact was **promoted**, with a producer several planned rows
+share counted once, so a row promoted before the build started measuring wall time contributes
+nothing. The vanilla sweeps run in one JVM whichever of them a capture names, so each is stamped with
+its own span plus an equal share of that JVM's start and context load: a plan naming every sweep the
+last capture ran prices the start once, and one naming fewer prices only their shares of it. It is a
+scheduling fact and not a question to put to
 the operator: the plan is the cheapest sufficient bundle by construction, so the answer to a large
 budget is a narrower CHANGE, never a narrower gate.
 
@@ -179,6 +201,23 @@ is a floor and not the cost)` means the number is real for `k` artifacts and sil
 which is the dangerous reading: a bundle whose measured half is a two-second table and whose
 unmeasured half boots the client prints comfortably under the 110s rule. A bare `BUDGET N ms` is the
 whole cost. In the first two states, read the producer list instead.
+
+**A plan holding `manifest.references` says on its `REFERENCES` line what the capture does to the
+tree.** `boot` re-renders the whole tree in one client boot before hashing it, and is the answer
+whenever a harness rule or the tooltip roster selected the row. `roster` is the answer when every rule
+that selected it reaches the tree through the entity schedule roster alone - the version pins, the
+roster's own inputs, or a derived rule's graph answer: the capture regenerates the roster, runs
+`parityScheduleCheck`, and boots the client wherever the check disagrees. It resolves the tree again
+from git rather than trusting the plan, so an edit made after the plan that selects a booting rule
+boots; it requires `references-rendered.json` beside the tree - the record the whole untargeted
+render seals once its boot exits 0, and every other run into the tree deletes - to name the harness
+inputs the tree holds now; and it projects the roster onto the schedules `idle/` and `walk/`
+recorded. Where all three agree, the boot is skipped and the capture hashes the tree already on
+disk, through the same step and into the same digest form, stamping no mode and recording
+`tree_refresh: hashed` - which the pre-commit hook refuses as a gating of any change whose plan boots
+the tree. BUDGET prices the boot either way. A `-Partifacts` naming the row always boots, which the
+reference refresh in `references/procedures.md` relies on, and so does an invocation whose graph
+holds `parityPlan` beside the capture.
 
 ## Common flags
 
@@ -325,7 +364,8 @@ would re-stamp artifacts the phase never measured.
 **Do not pre-check what the tasks already refuse.** Every precondition in the table above is enforced
 by the task that owns it - `parityPromote` refuses a dirty tree (R4), a promotion the compare did not
 cover (R8), a determinism count below the floor (R5) and a moved population (R9); `parityCompare`
-refuses a mixed-vintage root and an unproduced row. Reading `git status`, counting UNPRODUCED rows or
+refuses a mixed-vintage root and an unproduced row, and both refuse a capture another toolkit
+closed. Reading `git status`, counting UNPRODUCED rows or
 checking coverage by hand before running them measures nothing the refusal would not, and each is a
 call spent to learn what the next line was about to say. Run the task and read its refusal.
 
@@ -338,8 +378,8 @@ Quote that file; never retype a number out of it.
   before and after value and any canvas change.
 - **BLIND** - every artifact a reader might expect, with the rule id and its mechanism. Printed
   even when empty.
-- **PROVENANCE** - the repo sha and dirty flag, MC version, the reference-manifest digest and
-  sub-tree counts, and the determinism run counts in force. There is one sha: the harness is a
+- **PROVENANCE** - the repo sha and dirty flag, MC version, the reference-manifest digest, and the
+  determinism run counts in force. There is one sha: the harness is a
   directory in this repo, so a second one would be equal by construction.
 - **NEXT** - the one action to take.
 
@@ -393,9 +433,10 @@ Three reasons a hand-rolled compare gets this wrong, each measured in this repo:
   BLIND to a generator refactor (`B13`) because it reads the shipped JSON, so re-running the flow is
   the measurement and `manifest.tooling-tables` only confirms the digest of those bytes afterwards.
   Run that gate first; a green verdict here alone says nothing about a tooling change.
-- `gradle-verify-gate` covers `compileJava` + `test` alone; this gate supersedes it before a
-  commit that touches a trigger path. `jmh-regression-gate` is the benchmark equivalent and is
-  never part of a parity bundle.
+- `gradle-verify-gate` covers `compileJava` + `test`, and this gate does not replace it: a capture
+  runs the pin writers alone, so the fast suite is a step of its own before a commit that touches a
+  trigger path, taken once the verdict is in. `jmh-regression-gate` is the benchmark equivalent and
+  is never part of a parity bundle.
 
 ## Invariants
 

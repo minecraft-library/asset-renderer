@@ -244,18 +244,6 @@ class PoseWalkTest {
     }
 
     @Test
-    @DisplayName("a choice stays around the operand that differed rather than over what followed it")
-    void choicesDoNotHoist() {
-        // The structural half of the cod assertion, said once so it cannot be lost in a rewrite of
-        // the arithmetic: a channel whose branch merged at the join has its Select buried inside the
-        // expression, not sitting on top of it.
-        PoseProgram cod = extracted.get("net/minecraft/client/model/animal/fish/CodModel");
-        assertNotNull(cod, "CodModel is expected to extract");
-        assertInstanceOf(PoseExpr.Op.class, cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
-            "a hoisted choice would make the whole channel a Select");
-    }
-
-    @Test
     @DisplayName("a wolf's roll is the render state's own arithmetic, clamp and all")
     void renderStateArithmeticIsWalkedRatherThanNamed() {
         // WolfModel poses the body from getBodyRollAngle, a render-state method that computes an

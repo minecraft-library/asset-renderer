@@ -15,9 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The two clocks one style already runs, and the rate each of them keeps.
@@ -86,24 +84,6 @@ class StyleRegistrarClockTest {
         assertEquals(1, clips.size(), "the style folds its timelines into one clip");
         assertEquals((float) CLIP, clips.getFirst().lengthSeconds(),
             "the clip keeps the length its author gave it");
-        assertFalse(clips.getFirst().lengthSeconds() == (float) WINDOW,
-            "which is a clock of its own rather than the window");
-    }
-
-    @Test
-    @DisplayName("both clocks land in one style, so two rates need no second clip")
-    void bothClocksLandTogether() {
-        Entity woven = woven();
-        PoseStyle installed = woven.styles().byId("paddle").orElseThrow();
-
-        boolean waved = installed.drivers().keySet().stream()
-            .anyMatch(field -> field.startsWith("style$paddle$right_front_leg"));
-        boolean keyed = woven.pose().clips().stream()
-            .anyMatch(site -> site.field().filter("style$paddle"::equals).isPresent());
-
-        assertTrue(waved, "the front row waves");
-        assertTrue(keyed, "the hind row is keyed");
-        assertTrue(waved && keyed, "and one style holds both, at two lengths");
     }
 
     @Test

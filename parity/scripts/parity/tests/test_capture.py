@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +13,26 @@ from parity.norm import MissingInput, Refused, read_json, write_json, write_text
 from parity.norm import fixed as norm_fixed
 
 DATA = Path(__file__).resolve().parent / "data"
-REPO = Path(__file__).resolve().parents[4]
+
+#: The floor of every artifact the normalize cases stamp, one per row the way the store declares
+#: it. A case passing no ``runs`` reads its floor off the store's index before any reader runs, so an
+#: artifact missing here refuses for want of a floor rather than reaching the branch the case names.
+FLOORS = {"pin.block-crc": 1, "pin.player-crc": 1, "roster.blindness-rules": 1,
+          "sweep.armor": 2, "sweep.glint": 2}
+
+
+def indexed_repo() -> Path:
+    """A repository holding nothing but a store index that declares :data:`FLOORS`.
+
+    ``normalize`` gathers provenance over the repository it is handed, and over the live checkout
+    that is a hash of every tracked file for fields no case here reads. Outside git the gather
+    records those fields as null and says so on stderr, which the classes using this silence, and
+    the floors are all it still needs from the repository.
+    """
+    repo = Path(tempfile.mkdtemp())
+    floors = {name: {promote.FLOOR_FIELD: floor} for name, floor in FLOORS.items()}
+    write_json(repo / store.PRODUCTION / "index.json", {"artifacts": floors})
+    return repo
 
 
 class Wipe(unittest.TestCase):
@@ -210,6 +231,8 @@ class Normalize(unittest.TestCase):
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "run"
+        self.repo = indexed_repo()
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
 
     def test_a_tsv_goes_in_and_canonical_json_comes_out(self):
         """The store never holds a TSV and never holds a CRLF.
@@ -219,7 +242,7 @@ class Normalize(unittest.TestCase):
         """
         source = (DATA / "sweep-armor.tsv").read_bytes()
         self.assertIn(b"\r\n", source)  # the fixture really is the mixed form
-        capture.normalize("sweep.armor", DATA, self.root, REPO, producer="x", runs=2)
+        capture.normalize("sweep.armor", DATA, self.root, self.repo, producer="x", runs=2)
         target = self.root / "sweeps" / "armor.json"
         self.assertNotIn(b"\r", target.read_bytes())
         payload = read_json(target)
@@ -227,7 +250,7 @@ class Normalize(unittest.TestCase):
         self.assertEqual(payload["key"], "subject")
 
     def test_the_delta_column_is_resolved_by_name_for_glint(self):
-        capture.normalize("sweep.glint", DATA, self.root, REPO)
+        capture.normalize("sweep.glint", DATA, self.root, self.repo)
         rows = read_json(self.root / "sweeps" / "glint.json")["rows"]
         self.assertEqual(rows[0]["frames"], "30")
         self.assertIn("mean_argb_delta", rows[0])
@@ -239,7 +262,7 @@ class Normalize(unittest.TestCase):
         it: no stored sweep carried one, so four registered pointers into `#/summary` resolved
         nowhere and the index row a promotion writes had nothing to lift.
         """
-        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        capture.normalize("sweep.armor", DATA, self.root, self.repo, runs=2)
         payload = read_json(self.root / "sweeps" / "armor.json")
         table = sweep.read_table(DATA / "sweep-armor.tsv", "armor")
         self.assertEqual(payload["summary"], {
@@ -249,36 +272,36 @@ class Normalize(unittest.TestCase):
     def test_the_summary_sum_is_the_metric_form_every_delta_beside_it_uses(self):
         """A binary float's shortest repr moves with the last bit of an fsum over a thousand rows,
         and it would be the one number in the file spelled unlike its neighbours."""
-        capture.normalize("sweep.armor", DATA, self.root, REPO, runs=2)
+        capture.normalize("sweep.armor", DATA, self.root, self.repo, runs=2)
         summary = read_json(self.root / "sweeps" / "armor.json")["summary"]
         self.assertRegex(summary["sum"], r"^-?\d+\.\d{4}$")
 
     def test_provenance_rides_inside_the_artifact(self):
-        capture.normalize("sweep.armor", DATA, self.root, REPO, producer="armorParityVanilla")
+        capture.normalize("sweep.armor", DATA, self.root, self.repo, producer="armorParityVanilla")
         payload = read_json(self.root / "sweeps" / "armor.json")
         self.assertEqual(payload["provenance"]["producer"], "armorParityVanilla")
         self.assertFalse((self.root / "provenance").exists())
 
     def test_an_unknown_artifact_kind_has_no_reader(self):
         with self.assertRaises(MissingInput):
-            capture.normalize("roster.blindness-rules", DATA, self.root, REPO)
+            capture.normalize("roster.blindness-rules", DATA, self.root, self.repo)
 
     def test_a_self_captured_row_must_name_the_working_root(self):
         with self.assertRaises(MissingInput) as caught:
-            capture.normalize("pin.player-crc", DATA, self.root, REPO)
+            capture.normalize("pin.player-crc", DATA, self.root, self.repo)
         self.assertIn("self-captured", str(caught.exception))
 
     def test_a_self_captured_row_absent_from_the_root_is_a_failure(self):
         """The backstop for a filtered test run, which no onlyIf can see."""
         with self.assertRaises(MissingInput) as caught:
-            capture.normalize("pin.player-crc", self.root, self.root, REPO)
+            capture.normalize("pin.player-crc", self.root, self.root, self.repo)
         self.assertIn("not written by its producer", str(caught.exception))
 
     def test_a_self_captured_row_present_is_validated_and_stamped(self):
         write_json(self.root / "pins" / "player-crc.json",
                    {"artifact": "pin.player-crc", "key": "pin_key", "kind": "pin-set",
                     "values": {}})
-        capture.normalize("pin.player-crc", self.root, self.root, REPO, runs=2)
+        capture.normalize("pin.player-crc", self.root, self.root, self.repo, runs=2)
         self.assertIn("provenance", read_json(self.root / "pins" / "player-crc.json"))
 
 
@@ -300,37 +323,37 @@ class RunsDefaultsToTheFloor(unittest.TestCase):
 
         The store is a fixture rather than the shipped one, because what is under test is which
         table answers: two artifacts of one kind with different floors cannot both be a literal, and
-        the shipped roster gives every digest set the same number.
+        the shipped roster gives every pin set the same number.
         """
         declared = floors or {artifact_id: 2}
         write_json(self.repo / store.PRODUCTION / "index.json",
                    {"artifacts": {name: {promote.FLOOR_FIELD: floor}
                                   for name, floor in declared.items()}})
         write_json(self.root / store.path_of(artifact_id),
-                   {"artifact": artifact_id, "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"sha256": "a"}}})
+                   {"artifact": artifact_id, "key": "pin_key", "kind": "pin-set",
+                    "values": {"stone": {"crc32": "0x0000000A"}}})
         capture.normalize(artifact_id, self.root, self.root, self.repo, **kwargs)
         return read_json(self.root / store.path_of(artifact_id))["provenance"]["determinism_runs"]
 
     def test_an_absent_runs_stamps_the_declared_floor(self):
-        self.assertEqual(self._runs("digest.shipped-tables"), 2)
+        self.assertEqual(self._runs("pin.block-crc"), 2)
 
     def test_the_default_is_the_ARTIFACT_s_floor_and_not_the_common_one(self):
-        floors = {"digest.colormap-lut": 5, "digest.shipped-tables": 2}
-        self.assertEqual(self._runs("digest.colormap-lut", floors), 5)
-        self.assertEqual(self._runs("digest.shipped-tables", floors), 2)
+        floors = {"pin.fluid-crc": 5, "pin.block-crc": 2}
+        self.assertEqual(self._runs("pin.fluid-crc", floors), 5)
+        self.assertEqual(self._runs("pin.block-crc", floors), 2)
 
     def test_an_unregistered_artifact_refuses_rather_than_defaulting(self):
         """A default here is a second table, and the shipped pair disagreed for the store's life."""
         with self.assertRaises(MissingInput):
-            self._runs("digest.colormap-lut", {"digest.shipped-tables": 2})
+            self._runs("pin.fluid-crc", {"pin.block-crc": 2})
 
     def test_an_explicit_runs_is_never_overwritten_by_the_floor(self):
-        self.assertEqual(self._runs("digest.colormap-lut", runs=7), 7)
+        self.assertEqual(self._runs("pin.fluid-crc", runs=7), 7)
 
     def test_an_explicit_zero_stays_zero_so_the_default_is_absence_and_not_falsehood(self):
         """A measured zero is a claim someone made, and it must still be refused at promote."""
-        self.assertEqual(self._runs("digest.colormap-lut", runs=0), 0)
+        self.assertEqual(self._runs("pin.fluid-crc", runs=0), 0)
 
 
 class SelfCapturedPayload(unittest.TestCase):
@@ -338,22 +361,24 @@ class SelfCapturedPayload(unittest.TestCase):
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp()) / "run"
+        self.repo = indexed_repo()
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
 
     def _write(self, **extra) -> None:
-        write_json(self.root / "digests" / "shipped-tables.json",
-                   {"artifact": "digest.shipped-tables", "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"form": "table-canonical", "sha256": "a"},
-                                "glint_items": {"form": "table-canonical", "sha256": "b"}},
+        write_json(self.root / "pins" / "block-crc.json",
+                   {"artifact": "pin.block-crc", "key": "pin_key", "kind": "pin-set",
+                    "values": {"piston_serial": {"crc32": "0x0000000A", "type": "crc32"},
+                               "stone_serial": {"crc32": "0x0000000B", "type": "crc32"}},
                     **extra})
 
     def _capture(self, **kwargs) -> dict:
-        capture.normalize("digest.shipped-tables", self.root, self.root, REPO, **kwargs)
-        return read_json(self.root / "digests" / "shipped-tables.json")
+        capture.normalize("pin.block-crc", self.root, self.root, self.repo, **kwargs)
+        return read_json(self.root / "pins" / "block-crc.json")
 
     def test_the_entries_are_counted_rather_than_declared(self):
         """Counted from the finished file, so the number cannot disagree with what is stored."""
         self._write()
-        self.assertEqual(self._capture()["provenance"]["counts"], {"digests": 2})
+        self.assertEqual(self._capture()["provenance"]["counts"], {"values": 2})
 
     def test_a_producer_declared_flag_reaches_provenance(self):
         """The only channel for a value only the measuring process knows."""
@@ -373,7 +398,7 @@ class SelfCapturedPayload(unittest.TestCase):
     def test_a_payload_with_no_countable_member_records_no_counts(self):
         write_json(self.root / "pins" / "player-crc.json",
                    {"artifact": "pin.player-crc", "key": "pin_key", "kind": "pin-set"})
-        capture.normalize("pin.player-crc", self.root, self.root, REPO)
+        capture.normalize("pin.player-crc", self.root, self.root, self.repo)
         self.assertNotIn("counts", read_json(self.root / "pins" / "player-crc.json")["provenance"])
 
 
@@ -395,14 +420,6 @@ class Index(unittest.TestCase):
         recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
         self.assertEqual([entry["path"] for entry in recorded["files"]], ["sweeps/entity.json"])
         self.assertEqual(len(recorded["files"][0]["sha256"]), 64)
-
-    def test_it_records_the_tree_and_nothing_the_build_never_sent(self):
-        """Four fields were structurally empty on every capture and read by nothing anywhere: the
-        build's argv sent no producer and no flag, the timestamp had no command-line spelling at
-        all, and the run count is answered per artifact by the provenance object that measured it."""
-        capture.index(self.root)
-        recorded = read_json(self.root / store.RUN_DIR / "_capture.json")
-        self.assertEqual(sorted(recorded), ["artifacts", "files", "format", "kind"])
 
     def test_run_files_are_not_indexed_as_artifacts(self):
         capture.index(self.root)
@@ -442,6 +459,59 @@ class Index(unittest.TestCase):
         write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity", "x": 1})
         capture.index(self.root)
         self.assertNotEqual(capture.content_digest(self.root), first)
+
+
+class SameToolkit(unittest.TestCase):
+    """A capture names the toolkit that closed it, and its readers refuse any other.
+
+    The capture is the one invocation of a gate that runs the toolkit's suite, so the compare and the
+    promotion after it run code that suite answered for only while that code is unchanged.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "run"
+        write_json(self.root / "sweeps" / "entity.json", {"artifact": "sweep.entity"})
+        capture.index(self.root)
+
+    def _recorded(self, toolkit: str | None) -> None:
+        recorded = read_json(self.root / store.RUN_DIR / capture.CAPTURE_INDEX)
+        recorded.pop(capture.TOOLKIT_MEMBER)
+        if toolkit is not None:
+            recorded[capture.TOOLKIT_MEMBER] = toolkit
+        write_json(self.root / store.RUN_DIR / capture.CAPTURE_INDEX, recorded)
+
+    def test_the_index_names_the_toolkit_that_closed_it(self):
+        recorded = read_json(self.root / store.RUN_DIR / capture.CAPTURE_INDEX)
+        self.assertEqual(recorded[capture.TOOLKIT_MEMBER], capture.toolkit_digest())
+
+    def test_the_toolkit_that_closed_it_reads_it(self):
+        capture.require_same_toolkit(self.root)
+
+    def test_another_toolkit_is_refused(self):
+        self._recorded("0" * 64)
+        with self.assertRaises(Refused) as caught:
+            capture.require_same_toolkit(self.root)
+        self.assertIn("Re-capture", str(caught.exception))
+
+    def test_an_index_naming_no_toolkit_is_refused(self):
+        """A capture an earlier toolkit closed says nothing about which suite answered for it."""
+        self._recorded(None)
+        with self.assertRaises(Refused) as caught:
+            capture.require_same_toolkit(self.root)
+        self.assertIn("does not name", str(caught.exception))
+
+    def test_the_digest_moves_with_any_module_and_with_nothing_else(self):
+        """Over the modules themselves, the suite's among them, so an edit to any is another toolkit
+        - and over nothing a run leaves beside them, or a compiled cache would read as an edit."""
+        package = Path(tempfile.mkdtemp()) / "parity"
+        write_text(package / "norm.py", "VALUE = 1\n")
+        write_text(package / "tests" / "test_norm.py", "CASE = 1\n")
+        before = capture.toolkit_digest(package)
+        write_text(package / "__pycache__" / "norm.cpython-313.pyc", "compiled")
+        write_text(package / "tests" / "data" / "sweep.tsv", "subject\n")
+        self.assertEqual(capture.toolkit_digest(package), before)
+        write_text(package / "tests" / "test_norm.py", "CASE = 2\n")
+        self.assertNotEqual(capture.toolkit_digest(package), before)
 
 
 if __name__ == "__main__":

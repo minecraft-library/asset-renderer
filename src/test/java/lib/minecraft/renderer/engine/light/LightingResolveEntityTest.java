@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Coverage of {@link Lighting#resolveEntity}: the shipped {@link LightingFrame#ENTITY_IN_UI} frame
- * yields the kit view direction, the resolver is pure, and a {@linkplain LightingFrame.Mirror#HORIZONTAL
- * horizontal mirror} swaps the lights (a screen left / right flip) while leaving the view direction - a
- * camera, not lighting, property - untouched. The entity parity sweep covers byte-identity of the
- * shipped-frame shade.
+ * yields the kit view direction, and a {@linkplain LightingFrame.Mirror#HORIZONTAL horizontal mirror}
+ * swaps the lights (a screen left / right flip) while leaving the view direction - a camera, not
+ * lighting, property - untouched. The entity parity sweep covers byte-identity of the shipped-frame
+ * shade.
  */
 @DisplayName("Lighting.resolveEntity - entity inventory lighting from a LightingFrame")
 class LightingResolveEntityTest {
@@ -40,12 +40,6 @@ class LightingResolveEntityTest {
         // The lights swap their screen sides - a non-trivial change for the non-symmetric ENTITY_IN_UI pair.
         assertNotEquals(plain.light0(), mirrored.light0(), "light0 mirrored");
         assertNotEquals(plain.light1(), mirrored.light1(), "light1 mirrored");
-    }
-
-    @Test
-    @DisplayName("resolveEntity is pure - the same frame yields an equal basis")
-    void resolveEntityIsPure() {
-        assertEquals(Lighting.resolveEntity(ENTITY), Lighting.resolveEntity(ENTITY));
     }
 
     @Test

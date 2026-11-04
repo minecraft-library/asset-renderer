@@ -6,8 +6,6 @@ import com.google.gson.JsonObject;
 import dev.simplified.annotations.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-
 /**
  * Typed access to a pinned value, by artifact id and key.
  *
@@ -63,18 +61,6 @@ public final class Pins {
     }
 
     /**
-     * Returns a pinned digest.
-     *
-     * @param artifactId the digest-set artifact id
-     * @param key the digested item's name
-     * @return the lowercase hex digest
-     * @throws ParityStoreException if the artifact, the key or the value is absent
-     */
-    public static @NotNull String digest(@NotNull String artifactId, @NotNull String key) {
-        return string(artifactId, key, "sha256");
-    }
-
-    /**
      * Returns a pinned float vector.
      *
      * <p>The expected length is an argument rather than a property of the file, which is what carries
@@ -122,54 +108,6 @@ public final class Pins {
         for (int index = 0; index < values.length; index++)
             values[index] = Float.parseFloat(array.get(index).getAsJsonPrimitive().getAsString());
         return values;
-    }
-
-    /**
-     * Returns a pinned exact count.
-     *
-     * @param artifactId the pin-set artifact id
-     * @param key the counted thing's name
-     * @return the pinned count
-     * @throws ParityStoreException if the artifact, the key or the value is absent
-     */
-    public static int count(@NotNull String artifactId, @NotNull String key) {
-        JsonObject entry = entry(artifactId, key);
-        JsonElement raw = entry.get("count");
-        if (raw == null)
-            throw new ParityStoreException(
-                "Pin '%s' key '%s' carries no 'count'. Regenerate with %s",
-                artifactId, key, regenCommand(artifactId));
-        return raw.getAsInt();
-    }
-
-    /**
-     * Returns whether a pin-set already holds a value under a key.
-     * <p>
-     * The per-key counterpart of {@link SelfCapture#requireBaseline}, which answers for a whole
-     * artifact. A key ADDED to a pin-set the store has already baselined is the one case neither
-     * covers: the artifact is baselined, so the whole-artifact guard passes, and the key is absent, so
-     * {@link #count} raises - which fails the very capture that would give the key its first value.
-     * A producer asks this first and skips its assertion on the round that bootstraps the key.
-     *
-     * @param artifactId the pin-set artifact id
-     * @param key the counted thing's name
-     * @return {@code true} when the store holds a value under that key
-     */
-    public static boolean holds(@NotNull String artifactId, @NotNull String key) {
-        if (!ParityStore.isBaselined(artifactId)) return false;
-        JsonObject values = ParityStore.read(artifactId).getAsJsonObject("values");
-        return values != null && values.has(key);
-    }
-
-    /**
-     * Returns every key a pin-set or digest-set holds, in sorted order.
-     *
-     * @param artifactId the artifact id
-     * @return its keys
-     * @throws ParityStoreException if the artifact is absent
-     */
-    public static @NotNull List<String> keys(@NotNull String artifactId) {
-        return payload(artifactId).keySet().stream().sorted().toList();
     }
 
     /**
@@ -223,7 +161,7 @@ public final class Pins {
     }
 
     /**
-     * Returns one entry of a pin-set or digest-set.
+     * Returns one entry of a pin-set.
      *
      * @param artifactId the artifact id
      * @param key the entry's key
@@ -261,22 +199,20 @@ public final class Pins {
     }
 
     /**
-     * Returns the payload object of a pin-set or a digest-set, whichever this artifact is.
+     * Returns the payload object of a pin-set.
      *
      * @param artifactId the artifact id
-     * @return the {@code values} or {@code digests} object
-     * @throws ParityStoreException if the artifact is absent or carries neither payload
+     * @return the {@code values} object
+     * @throws ParityStoreException if the artifact is absent or carries no {@code values} payload
      */
     private static @NotNull JsonObject payload(@NotNull String artifactId) {
-        JsonObject envelope = ParityStore.read(artifactId);
-        for (String name : List.of("values", "digests")) {
-            JsonElement payload = envelope.get(name);
-            if (payload != null && payload.isJsonObject()) return payload.getAsJsonObject();
-        }
-        throw new ParityStoreException(
-            "Parity artifact '%s' carries neither a 'values' nor a 'digests' payload, so it is not a "
-                + "pinned value. Regenerate with %s",
-            artifactId, regenCommand(artifactId));
+        JsonElement payload = ParityStore.read(artifactId).get("values");
+        if (payload == null || !payload.isJsonObject())
+            throw new ParityStoreException(
+                "Parity artifact '%s' carries no 'values' payload, so it is not a pinned value. "
+                    + "Regenerate with %s",
+                artifactId, regenCommand(artifactId));
+        return payload.getAsJsonObject();
     }
 
 }

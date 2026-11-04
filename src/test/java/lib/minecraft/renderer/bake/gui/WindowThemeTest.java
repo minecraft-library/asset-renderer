@@ -3,19 +3,16 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.Resample;
-import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.text.font.MinecraftFont;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,73 +45,28 @@ class WindowThemeTest {
     }
 
     @Test
-    @DisplayName("every theme paints the same pixels in different ink")
-    void everyThemePaintsTheSamePixelsInDifferentInk() {
-        for (Window.Theme theme : Window.Theme.values()) {
-            PixelBuffer vanilla = paint(Window.Theme.VANILLA, 96, 64);
-            PixelBuffer other = paint(theme, 96, 64);
-
-            int shapeDiffers = 0;
-            for (int y = 0; y < 64; y++)
-                for (int x = 0; x < 96; x++) {
-                    boolean a = vanilla.getPixel(x, y) != 0;
-                    boolean b = other.getPixel(x, y) != 0;
-                    if (a != b) shapeDiffers++;
-                }
-
-            assertThat(theme + " paints where vanilla paints", shapeDiffers, is(equalTo(0)));
-        }
-    }
-
-    @Test
-    @DisplayName("a re-inking actually changes the ink")
+    @DisplayName("a re-inking paints the pixels vanilla paints and actually changes their ink")
     void aReInkingActuallyChangesTheInk() {
         PixelBuffer vanilla = paint(Window.Theme.VANILLA, 96, 64);
 
-        for (Window.Theme theme : List.of(Window.Theme.DARK)) {
+        for (Window.Theme theme : EnumSet.complementOf(EnumSet.of(Window.Theme.VANILLA))) {
             PixelBuffer other = paint(theme, 96, 64);
 
+            int shapeDiffers = 0;
             int same = 0;
             for (int y = 0; y < 64; y++)
-                for (int x = 0; x < 96; x++)
+                for (int x = 0; x < 96; x++) {
+                    if ((vanilla.getPixel(x, y) == 0) != (other.getPixel(x, y) == 0)) shapeDiffers++;
                     if (vanilla.getPixel(x, y) != 0 && vanilla.getPixel(x, y) == other.getPixel(x, y)) same++;
+                }
+
+            assertThat(theme + " paints where vanilla paints", shapeDiffers, is(equalTo(0)));
 
             // The outline is black in every palette, so a handful of pixels legitimately agree; the
             // panel, the bevels and the cell must not.
             assertThat(theme + " differs from vanilla somewhere", same, is(not(equalTo(0))));
             assertThat(theme + " is not vanilla repainted", same < 3000, is(true));
         }
-    }
-
-    /**
-     * The seven inks the vanilla theme paints in, which are read off the shipped art - the container
-     * sheets, and the recipe-book button's sprite for its right-hand chamfers - and are what the
-     * oracle's byte assertions rest on. Every other theme is free to be authored; this one answers to a
-     * texture, so its palette is pinned here rather than left to the constant.
-     */
-    @Test
-    @DisplayName("the vanilla theme paints in the ink the shipped art is drawn in")
-    void theVanillaThemePaintsInTheShippedInk() {
-        assertThat(Window.Theme.VANILLA.palette(), is(equalTo(new Window.Palette(
-            0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737, 0xFF0C0500))));
-    }
-
-    @Test
-    @DisplayName("every style selects the theme of its own name, and every theme is some style's")
-    void everyStyleSelectsTheThemeOfItsOwnName() {
-        for (ThemeStyle style : ThemeStyle.values())
-            assertThat(style + " selects its namesake", Window.Theme.of(style).name(), is(equalTo(style.name())));
-
-        assertThat("no theme is out of a caller's reach",
-            Arrays.stream(ThemeStyle.values()).map(Window.Theme::of).collect(Collectors.toSet()),
-            is(equalTo(EnumSet.allOf(Window.Theme.class))));
-    }
-
-    @Test
-    @DisplayName("every theme's floor is the frame's, because the geometry is one geometry")
-    void everyThemeFloorIsTheFrames() {
-        for (Window.Theme theme : Window.Theme.values())
-            assertThat(theme.minimum(), is(equalTo(Window.Theme.VANILLA.minimum())));
     }
 
     /**

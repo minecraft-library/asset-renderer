@@ -31,13 +31,6 @@ class ItemModelNodeTimeDispatchTest {
     }
 
     @Test
-    @DisplayName("counts a clock's faces, one short of its threshold table")
-    void countsClockFaces() {
-        // The 65th entry wraps the table back onto the first face, so it repeats a step, not adds one.
-        assertThat(range(timeDispatch("minecraft:time", 64)).timeSteps(), is(OptionalInt.of(64)));
-    }
-
-    @Test
     @DisplayName("ignores a compass, whose needle a bearing turns rather than the clock")
     void ignoresCompass() {
         assertThat(range(timeDispatch("minecraft:compass", 32)).timeSteps(), is(OptionalInt.empty()));

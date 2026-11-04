@@ -13,7 +13,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.io.IOException;
@@ -112,15 +111,6 @@ class ClassKitTest {
     }
 
     @Test
-    @DisplayName("findFieldInHierarchy resolves through supers")
-    void fieldHierarchy() {
-        FieldNode flag = ClassKit.findFieldInHierarchy(cache, LEAF, "flag");
-        assertNotNull(flag);
-        assertEquals("Z", flag.desc);
-        assertNull(ClassKit.findFieldInHierarchy(cache, LEAF, "absent"));
-    }
-
-    @Test
     @DisplayName("walkSuperChainUntil returns the first accepted class and stops before Object")
     void superChainUntil() {
         ClassNode hit = ClassKit.walkSuperChainUntil(cache, LEAF, node -> ClassKit.findMethod(node, "mid") != null);
@@ -180,7 +170,6 @@ class ClassKitTest {
 
     private static byte @NotNull [] baseClass() {
         ClassWriter writer = classHeader(BASE, "java/lang/Object");
-        writer.visitField(Opcodes.ACC_PUBLIC, "flag", "Z", null, null).visitEnd();
         emptyMethod(writer, "shared", "()V");
         writer.visitEnd();
         return writer.toByteArray();

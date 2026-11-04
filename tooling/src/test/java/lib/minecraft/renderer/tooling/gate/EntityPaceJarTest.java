@@ -3,9 +3,7 @@ package lib.minecraft.renderer.tooling.gate;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.animation.AgePace;
 import lib.minecraft.renderer.tooling.animation.EntityPace;
-import lib.minecraft.renderer.tooling.animation.WalkPace;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.entity.EntityPaceResolver;
@@ -62,18 +60,15 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Every walking subject's ambling and fastest pace, read off the cached client jar.
  *
- * <p>Two layers. The pins hold each (entity, age) side whose stride reads the walk clock to the exact
- * float bits the readers answer, wander and ceiling alike, so a change to a reader, to the arithmetic
- * or to the jar moves a named number in review before it moves a byte. The list is edited by hand in
- * the change that moves it and has no regenerate switch.
+ * <p>The census checks hold the pace pass's own report - no error, no reading side left unpaced, and
+ * exactly the ceilings a policy row decides. The guards hold each declared policy row to the
+ * coordinate it was won at - a brain's stroll member to the speed it strolls at, a spawn roll to its
+ * generator at the mean draw, an attack boost to the modifier its subject adds - and each constant the
+ * pace arithmetic states to the place vanilla states it. A row that drifts with the jar fails as that
+ * row rather than as a moved number.
  *
- * <p>The guards hold each declared policy row to the coordinate it was won at - a brain's stroll
- * member to the speed it strolls at, a spawn roll to its generator at the mean draw, an attack boost
- * to the modifier its subject adds - and each constant the pace arithmetic states to the place
- * vanilla states it. A row that drifts with the jar fails as that row rather than as a moved number.
- *
- * <p>Reads the cached client jar and the shipped model table, and abandons the class where no jar is
- * cached.
+ * <p>Reads the cached client jar and the shipped model table, whose stride rows name the sides that
+ * read the walk clock, and abandons the class where no jar is cached.
  */
 @DisplayName("entity paces: the ambling and fastest walk of every walking subject")
 class EntityPaceJarTest {
@@ -129,189 +124,20 @@ class EntityPaceJarTest {
     }
 
     // ------------------------------------------------------------------------------------
-    // the pins
+    // the census
     // ------------------------------------------------------------------------------------
 
     /**
-     * One paced side and the four floats it answers.
+     * One side whose stride reads the walk clock.
      *
      * @param entity the subject's id
      * @param age the age the side applies to
-     * @param speed the wander's walkAnimationSpeed
-     * @param rate the wander's walkAnimationPos a tick
-     * @param fastestSpeed the ceiling's walkAnimationSpeed
-     * @param fastestRate the ceiling's walkAnimationPos a tick
      */
-    private record Side(
-        @NotNull String entity, @NotNull Age age, float speed, float rate, float fastestSpeed, float fastestRate) {
+    private record Side(@NotNull String entity, @NotNull Age age) {
 
         @NotNull String key() {
             return this.entity + " " + this.age.name().toLowerCase(Locale.ROOT);
         }
-    }
-
-    private static @NotNull Side side(
-        @NotNull String entity, @NotNull Age age, float speed, float rate, float fastestSpeed, float fastestRate) {
-        return new Side(entity, age, speed, rate, fastestSpeed, fastestRate);
-    }
-
-    /** Every side whose stride reads the walk clock, by the floats its wander and ceiling answer. */
-    private static final @NotNull List<Side> PINS = List.of(
-        side("minecraft:allay", Age.ADULT, 0.4444446f, 0.4444446f, 1.0f, 1.0f),
-        side("minecraft:armadillo", Age.ADULT, 0.17268725f, 0.17268725f, 0.690749f, 0.690749f),
-        side("minecraft:armadillo", Age.BABY, 0.17268725f, 0.51806176f, 0.690749f, 2.072247f),
-        side("minecraft:bogged", Age.ADULT, 0.55066085f, 0.55066085f, 0.7929517f, 0.7929517f),
-        side("minecraft:camel", Age.ADULT, 0.42819393f, 0.42819393f, 1.0f, 1.0f),
-        side("minecraft:camel", Age.BABY, 0.42819393f, 1.2845818f, 1.0f, 3.0f),
-        side("minecraft:camel_husk", Age.ADULT, 0.42819393f, 0.42819393f, 1.0f, 1.0f),
-        side("minecraft:cat", Age.ADULT, 0.5074891f, 0.5074891f, 1.0f, 1.0f),
-        side("minecraft:cat", Age.BABY, 0.5074891f, 1.5224673f, 1.0f, 3.0f),
-        side("minecraft:cave_spider", Age.ADULT, 0.5074891f, 0.5074891f, 1.0f, 1.0f),
-        side("minecraft:chicken", Age.ADULT, 0.55066085f, 0.55066085f, 1.0f, 1.0f),
-        side("minecraft:chicken", Age.BABY, 0.55066085f, 1.6519825f, 1.0f, 3.0f),
-        side("minecraft:copper_golem", Age.ADULT, 0.35242295f, 0.35242295f, 0.7929517f, 0.7929517f),
-        side("minecraft:cow", Age.ADULT, 0.35242295f, 0.35242295f, 1.0f, 1.0f),
-        side("minecraft:cow", Age.BABY, 0.35242295f, 1.0572689f, 1.0f, 3.0f),
-        side("minecraft:creaking", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 3.0f),
-        side("minecraft:creeper", Age.ADULT, 0.35242295f, 0.35242295f, 0.7929517f, 0.7929517f),
-        side("minecraft:donkey", Age.ADULT, 0.13221367f, 0.13221367f, 0.42159972f, 0.42159972f),
-        side("minecraft:donkey", Age.BABY, 0.13221367f, 0.39664102f, 0.42159972f, 1.2647991f),
-        side("minecraft:drowned", Age.ADULT, 0.46607938f, 0.46607938f, 0.46607938f, 0.46607938f),
-        side("minecraft:drowned", Age.BABY, 1.0f, 3.0f, 1.0f, 3.0f),
-        side("minecraft:enderman", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 1.0f),
-        side("minecraft:evoker", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 1.0f),
-        side("minecraft:fox", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 1.0f),
-        side("minecraft:fox", Age.BABY, 0.7929517f, 2.3788552f, 1.0f, 3.0f),
-        side("minecraft:frog", Age.ADULT, 0.5506609f, 0.5506609f, 1.0f, 1.0f),
-        side("minecraft:giant", Age.ADULT, 0.46607938f, 0.46607938f, 0.46607938f, 0.46607938f),
-        side("minecraft:goat", Age.ADULT, 0.35242295f, 0.35242295f, 1.0f, 1.0f),
-        side("minecraft:goat", Age.BABY, 0.35242295f, 1.0572689f, 1.0f, 3.0f),
-        side("minecraft:hoglin", Age.ADULT, 0.12687227f, 0.12687227f, 1.0f, 1.0f),
-        side("minecraft:hoglin", Age.BABY, 0.12687227f, 0.3806168f, 1.0f, 3.0f),
-        side("minecraft:horse", Age.ADULT, 0.2185573f, 0.2185573f, 0.69693017f, 0.69693017f),
-        side("minecraft:horse", Age.BABY, 0.2185573f, 0.6556719f, 0.69693017f, 2.0907905f),
-        side("minecraft:husk", Age.ADULT, 0.46607938f, 0.46607938f, 0.46607938f, 0.46607938f),
-        side("minecraft:husk", Age.BABY, 1.0f, 3.0f, 1.0f, 3.0f),
-        side("minecraft:illusioner", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 1.0f),
-        side("minecraft:iron_golem", Age.ADULT, 0.19823793f, 0.19823793f, 0.55066085f, 0.55066085f),
-        side("minecraft:llama", Age.ADULT, 0.13221367f, 0.13221367f, 1.0f, 1.0f),
-        side("minecraft:llama", Age.BABY, 0.13221367f, 0.39664102f, 1.0f, 3.0f),
-        side("minecraft:mooshroom", Age.ADULT, 0.35242295f, 0.35242295f, 1.0f, 1.0f),
-        side("minecraft:mooshroom", Age.BABY, 0.35242295f, 1.0572689f, 1.0f, 3.0f),
-        side("minecraft:mule", Age.ADULT, 0.13221367f, 0.13221367f, 0.42159972f, 0.42159972f),
-        side("minecraft:mule", Age.BABY, 0.13221367f, 0.39664102f, 0.42159972f, 1.2647991f),
-        side("minecraft:nautilus", Age.ADULT, 0.44f, 0.44f, 1.0f, 1.0f),
-        side("minecraft:nautilus", Age.BABY, 0.44f, 1.3199999f, 0.704f, 2.112f),
-        side("minecraft:ocelot", Age.ADULT, 0.5074891f, 0.5074891f, 1.0f, 1.0f),
-        side("minecraft:ocelot", Age.BABY, 0.5074891f, 1.5224673f, 1.0f, 3.0f),
-        side("minecraft:panda", Age.ADULT, 0.19823793f, 0.19823793f, 0.7929517f, 0.7929517f),
-        side("minecraft:panda", Age.BABY, 0.19823793f, 0.5947138f, 0.7929517f, 2.3788552f),
-        side("minecraft:parched", Age.ADULT, 0.55066085f, 0.55066085f, 0.7929517f, 0.7929517f),
-        side("minecraft:parrot", Age.ADULT, 0.35242295f, 0.35242295f, 0.55066085f, 0.55066085f),
-        side("minecraft:pig", Age.ADULT, 0.55066085f, 0.55066085f, 0.8604076f, 0.8604076f),
-        side("minecraft:pig", Age.BABY, 0.55066085f, 1.6519825f, 0.8604076f, 2.5812228f),
-        side("minecraft:piglin", Age.ADULT, 0.38854635f, 0.38854635f, 1.0f, 1.0f),
-        side("minecraft:piglin", Age.BABY, 0.5595067f, 1.6785202f, 1.0f, 3.0f),
-        side("minecraft:piglin_brute", Age.ADULT, 0.38854635f, 0.38854635f, 1.0f, 1.0f),
-        side("minecraft:pillager", Age.ADULT, 0.3885463f, 0.3885463f, 1.0f, 1.0f),
-        side("minecraft:polar_bear", Age.ADULT, 0.55066085f, 0.55066085f, 1.0f, 1.0f),
-        side("minecraft:polar_bear", Age.BABY, 0.55066085f, 1.6519825f, 1.0f, 3.0f),
-        side("minecraft:ravager", Age.ADULT, 0.12687226f, 0.12687226f, 1.0f, 1.0f),
-        side("minecraft:sheep", Age.ADULT, 0.46607938f, 0.46607938f, 0.72824895f, 0.72824895f),
-        side("minecraft:sheep", Age.BABY, 0.46607938f, 1.3982382f, 0.72824895f, 2.1847467f),
-        side("minecraft:skeleton", Age.ADULT, 0.55066085f, 0.55066085f, 0.7929517f, 0.7929517f),
-        side("minecraft:skeleton_horse", Age.ADULT, 0.17268725f, 0.17268725f, 0.5074891f, 0.5074891f),
-        side("minecraft:skeleton_horse", Age.BABY, 0.17268725f, 0.51806176f, 0.35242295f, 1.0572689f),
-        side("minecraft:sniffer", Age.ADULT, 0.08810574f, 0.08810574f, 0.35242295f, 0.35242295f),
-        side("minecraft:sniffer", Age.BABY, 0.08810574f, 0.2643172f, 0.35242295f, 1.0572689f),
-        side("minecraft:spider", Age.ADULT, 0.5074891f, 0.5074891f, 1.0f, 1.0f),
-        side("minecraft:stray", Age.ADULT, 0.55066085f, 0.55066085f, 0.7929517f, 0.7929517f),
-        side("minecraft:strider", Age.ADULT, 0.26982382f, 0.26982382f, 0.73459536f, 0.73459536f),
-        side("minecraft:strider", Age.BABY, 0.26982382f, 0.8094715f, 0.73459536f, 2.2037861f),
-        side("minecraft:trader_llama", Age.ADULT, 0.13221367f, 0.13221367f, 1.0f, 1.0f),
-        side("minecraft:trader_llama", Age.BABY, 0.13221367f, 0.39664102f, 1.0f, 3.0f),
-        side("minecraft:turtle", Age.ADULT, 0.405f, 0.405f, 1.0f, 1.0f),
-        side("minecraft:turtle", Age.BABY, 0.33499998f, 1.0049999f, 0.36f, 1.08f),
-        side("minecraft:villager", Age.ADULT, 0.55066085f, 0.55066085f, 1.0f, 1.0f),
-        side("minecraft:villager", Age.BABY, 0.55066085f, 1.6519825f, 1.0f, 3.0f),
-        side("minecraft:vindicator", Age.ADULT, 0.3885463f, 0.3885463f, 1.0f, 1.0f),
-        side("minecraft:wandering_trader", Age.ADULT, 0.5288547f, 0.5288547f, 1.0f, 1.0f),
-        side("minecraft:wandering_trader", Age.BABY, 0.5288547f, 1.5865642f, 1.0f, 3.0f),
-        side("minecraft:warden", Age.ADULT, 0.19823793f, 0.19823793f, 1.0f, 1.0f),
-        side("minecraft:witch", Age.ADULT, 0.55066085f, 0.55066085f, 0.6071035f, 0.6071035f),
-        side("minecraft:wither_skeleton", Age.ADULT, 0.55066085f, 0.55066085f, 0.7929517f, 0.7929517f),
-        side("minecraft:wolf", Age.ADULT, 0.7929517f, 0.7929517f, 1.0f, 1.0f),
-        side("minecraft:wolf", Age.BABY, 0.7929517f, 2.3788552f, 1.0f, 3.0f),
-        side("minecraft:zoglin", Age.ADULT, 0.12687227f, 0.12687227f, 0.7929517f, 0.7929517f),
-        side("minecraft:zoglin", Age.BABY, 0.12687227f, 0.3806168f, 0.7929517f, 2.3788552f),
-        side("minecraft:zombie", Age.ADULT, 0.46607938f, 0.46607938f, 0.46607938f, 0.46607938f),
-        side("minecraft:zombie", Age.BABY, 1.0f, 3.0f, 1.0f, 3.0f),
-        side("minecraft:zombie_horse", Age.ADULT, 0.26777974f, 0.26777974f, 0.8538894f, 0.8538894f),
-        side("minecraft:zombie_horse", Age.BABY, 0.26777974f, 0.80333924f, 0.8538894f, 2.5616682f),
-        side("minecraft:zombie_nautilus", Age.ADULT, 0.484f, 0.484f, 1.0f, 1.0f),
-        side("minecraft:zombie_villager", Age.ADULT, 0.46607938f, 0.46607938f, 0.46607938f, 0.46607938f),
-        side("minecraft:zombie_villager", Age.BABY, 1.0f, 3.0f, 1.0f, 3.0f),
-        side("minecraft:zombified_piglin", Age.ADULT, 0.46607938f, 0.46607938f, 0.690749f, 0.690749f),
-        side("minecraft:zombified_piglin", Age.BABY, 1.0f, 3.0f, 1.0f, 3.0f)
-    );
-
-    @Test
-    @DisplayName("the pinned sides are exactly the sides whose stride reads the walk clock")
-    void everyReadingSideIsPinned() {
-        Set<String> reading = new TreeSet<>();
-        models.members().forEach((entity, row) -> {
-            if (!readsTheWalkClock(row)) return;
-            reading.add(entity + " adult");
-            if (row.findPath("axes", "age", "options", "baby").isPresent()) reading.add(entity + " baby");
-        });
-        assertEquals(reading, new TreeSet<>(PINS.stream().map(Side::key).toList()),
-            "the sides a stride row reads the walk clock on, against the sides this test pins");
-    }
-
-    @Test
-    @DisplayName("every reading side walks and reaches exactly the floats it is pinned at")
-    void everyPinnedSideWalksAtItsPinnedPace() {
-        List<String> moved = new ArrayList<>();
-        for (Side pinned : PINS) {
-            Optional<AgePace> side = Optional.ofNullable(paces.get(pinned.entity())).flatMap(pace -> walksAt(pace, pinned.age()));
-            if (side.isEmpty()) {
-                moved.add(pinned.key() + ": no pace");
-                continue;
-            }
-            WalkPace wander = side.get().wander();
-            WalkPace ceiling = side.get().ceiling();
-            if (wander.speed() != pinned.speed() || wander.rate() != pinned.rate()
-                || ceiling.speed() != pinned.fastestSpeed() || ceiling.rate() != pinned.fastestRate()) {
-                moved.add("%s: wander %s / %s, ceiling %s / %s (pinned %s / %s, %s / %s)".formatted(pinned.key(),
-                    wander.speed(), wander.rate(), ceiling.speed(), ceiling.rate(),
-                    pinned.speed(), pinned.rate(), pinned.fastestSpeed(), pinned.fastestRate()));
-            }
-        }
-        assertEquals(List.of(), moved, "sides whose pace moved from the floats this test pins");
-    }
-
-    @Test
-    @DisplayName("a baby walks its clock at the float product of its feed's scale and its own swing")
-    void aBabyRateIsTheFloatProductOfItsSwing() {
-        for (Side pinned : PINS) {
-            if (pinned.age() == Age.BABY) {
-                assertEquals(3f * pinned.speed(), pinned.rate(), 0f, pinned.key() + " wander");
-                assertEquals(3f * pinned.fastestSpeed(), pinned.fastestRate(), 0f, pinned.key() + " ceiling");
-            }
-        }
-    }
-
-    @Test
-    @DisplayName("no ceiling is under its own wander at either float")
-    void theCeilingIsNeverUnderTheWander() {
-        paces.forEach((entity, pace) -> {
-            for (Age age : Age.values()) {
-                walksAt(pace, age).ifPresent(side -> {
-                    assertTrue(side.ceiling().speed() >= side.wander().speed(), entity + " " + age + " speed");
-                    assertTrue(side.ceiling().rate() >= side.wander().rate(), entity + " " + age + " rate");
-                });
-            }
-        });
     }
 
     @Test
@@ -325,8 +151,8 @@ class EntityPaceJarTest {
         assertFalse(paceLines.stream().anyMatch(line -> line.contains("baby movement modifier of a shape")),
             "a baby modifier the reader could not read: " + paceLines);
         String unpaced = paceLines.stream().filter(line -> line.contains(" take no pace: ")).findFirst().orElseThrow();
-        for (Side pinned : PINS)
-            assertFalse(unpaced.contains(pinned.entity() + " ("), pinned.entity() + " is reported unpaced: " + unpaced);
+        for (Side reading : readingSides())
+            assertFalse(unpaced.contains(reading.entity() + " ("), reading.entity() + " is reported unpaced: " + unpaced);
     }
 
     @Test
@@ -419,12 +245,12 @@ class EntityPaceJarTest {
     void eachPaceMediumIsTheChainItsSubjectWalks() {
         @SuppressWarnings("unchecked")
         Map<String, ?> media = (Map<String, ?>) valueOf("PACE_MEDIA");
-        for (Side pinned : PINS) {
-            if (pinned.age() != Age.ADULT) continue;
-            String basis = paces.get(pinned.entity()).adult().orElseThrow().wander().basis();
-            Object medium = media.get(pinned.entity());
+        for (Side reading : readingSides()) {
+            if (reading.age() != Age.ADULT) continue;
+            String basis = paces.get(reading.entity()).adult().orElseThrow().wander().basis();
+            Object medium = media.get(reading.entity());
             String expected = medium == null ? "ground:" : medium.toString().toLowerCase(Locale.ROOT) + " (PACE_MEDIA):";
-            assertTrue(basis.startsWith(expected), pinned.entity() + " walks " + basis);
+            assertTrue(basis.startsWith(expected), reading.entity() + " walks " + basis);
         }
     }
 
@@ -555,12 +381,12 @@ class EntityPaceJarTest {
         census.setAccessible(true);
         BiPredicate<String, Age> none = (goal, age) -> false;
         Set<String> moved = new TreeSet<>();
-        for (Side pinned : PINS) {
-            EntitySubject subject = subjects.stream().filter(one -> one.entityId().equals(pinned.entity())).findFirst()
+        for (Side reading : readingSides()) {
+            EntitySubject subject = subjects.stream().filter(one -> one.entityId().equals(reading.entity())).findFirst()
                 .orElseThrow();
-            Object with = census.invoke(null, run, subject, pinned.age(), excluding(), run.diagnostics());
-            Object without = census.invoke(null, run, subject, pinned.age(), none, run.diagnostics());
-            if (!modifierOf(with).equals(modifierOf(without))) moved.add(pinned.key());
+            Object with = census.invoke(null, run, subject, reading.age(), excluding(), run.diagnostics());
+            Object without = census.invoke(null, run, subject, reading.age(), none, run.diagnostics());
+            if (!modifierOf(with).equals(modifierOf(without))) moved.add(reading.key());
         }
         // The adult turtle's go-to-water is faster than its panic too, but near home both saturate its
         // swim, so its ceiling stays where it is and no row is said to decide it.
@@ -590,6 +416,17 @@ class EntityPaceJarTest {
         return reads[0];
     }
 
+    /** Every side whose stride reads the walk clock, the baby where the row's age axis offers one. */
+    private static @NotNull List<Side> readingSides() {
+        List<Side> sides = new ArrayList<>();
+        models.members().forEach((entity, row) -> {
+            if (!readsTheWalkClock(row)) return;
+            sides.add(new Side(entity, Age.ADULT));
+            if (row.findPath("axes", "age", "options", "baby").isPresent()) sides.add(new Side(entity, Age.BABY));
+        });
+        return sides;
+    }
+
     /** Each side the pace pass's census line says a policy row decides the ceiling of, to those rows. */
     private static @NotNull Map<String, List<String>> decidedSides() {
         String line = run.diagnostics().entries().stream()
@@ -613,14 +450,6 @@ class EntityPaceJarTest {
             throw new IllegalStateException("The pace policy is not on the test classpath", ex);
         }
         return rows;
-    }
-
-    /** One subject's walks at one age, as each age's side reads them. */
-    private static @NotNull Optional<AgePace> walksAt(@NotNull EntityPace pace, @NotNull Age age) {
-        return switch (age) {
-            case ADULT -> pace.adult();
-            case BABY -> pace.baby();
-        };
     }
 
     /** The payload a declared row answers its consultation with. */

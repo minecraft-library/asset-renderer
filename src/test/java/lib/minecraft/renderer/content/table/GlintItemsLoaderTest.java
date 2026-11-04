@@ -13,8 +13,8 @@ import static org.hamcrest.Matchers.is;
  * vanilla MC 26.1 set is the seven intrinsically-foil items; the test pins those ids and a couple of
  * non-glint negatives so regressions in either the ASM tooling or the JSON loader get caught early.
  * <p>
- * The set's SIZE is not asserted here: it is one key of {@code pin.corpus-count}, whose other key
- * comes from a different loader, so both are captured and asserted in {@link CorpusCountPinTest}.
+ * The set's SIZE is not asserted here: the table's bytes are held to {@code manifest.tooling-tables}
+ * by {@code BundledResourceShaTest}, and the loaded set is a section of {@code manifest.dump.vanilla}.
  * The ids below are a deliberate second copy of shipped data and stay in Java.
  */
 class GlintItemsLoaderTest {

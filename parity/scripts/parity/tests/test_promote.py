@@ -21,13 +21,13 @@ def artifact(runs: int = 2, failed: int = 0, delta: str = "1.0000", dirty: bool 
     }
 
 
-def digest_set(runs: int = 2) -> dict:
+def pin_set(runs: int = 2) -> dict:
     """A second capturable artifact, of a second kind, for the cases that need two rows at once."""
     return {
-        "artifact": "digest.shipped-tables", "format": 1, "key": "name", "kind": "digest-set",
-        "digests": {"block_models": {"sha256": "a"}},
-        "provenance": {"artifact": "digest.shipped-tables", "asset_dirty": False,
-                       "asset_sha": "abc123", "counts": {"digests": 1},
+        "artifact": "pin.block-crc", "format": 1, "key": "pin_key", "kind": "pin-set",
+        "values": {"stone": {"crc32": "0x0000000A", "type": "crc32"}},
+        "provenance": {"artifact": "pin.block-crc", "asset_dirty": False,
+                       "asset_sha": "abc123", "counts": {"values": 1},
                        "determinism_runs": runs},
     }
 
@@ -35,7 +35,7 @@ def digest_set(runs: int = 2) -> dict:
 #: Every artifact these fixtures capture. The store declares a floor per artifact before any
 #: capture of it can be judged, so a fixture store has to be registered as the real one is.
 REGISTERED = ("sweep.entity", "manifest.fluid", "manifest.tooling-tables",
-              "digest.shipped-tables", "pin.corpus-count")
+              "pin.block-crc", "pin.fluid-crc")
 
 
 def registered(*artifacts: str, floor: int = 2, **columns) -> dict:
@@ -459,12 +459,6 @@ class Apply(Base):
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
         self.assertNotIn("last_duration_ms", self.store.index()["artifacts"]["sweep.entity"])
 
-    def test_there_is_no_provenance_directory_on_either_side(self):
-        self._capture(artifact())
-        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
-        self.assertFalse((self.store.root / "provenance").exists())
-        self.assertFalse((self.root / "provenance").exists())
-
     def test_a_crlf_capture_is_normalized_on_the_way_in(self):
         """Why the copy is Python and not a Kotlin copy { }: a byte copy carries CRLF into the store."""
         write_text(self.root / "sweeps" / "entity.json", "{}")
@@ -525,19 +519,13 @@ class IndexEntryCount(Base):
             "provenance": {"counts": {"files": 1, "logs": 2}, "determinism_runs": 2}})
         self.assertEqual(row["entries"], 1)
 
-    def test_a_digest_set_counts_its_digests(self):
-        row = self._promote("digest.shipped-tables", "digests/shipped-tables.json", {
-            "artifact": "digest.shipped-tables", "format": 1, "key": "name", "kind": "digest-set",
-            "digests": {"block_models": {"sha256": "a"}, "glint_items": {"sha256": "b"}},
-            "provenance": {"counts": {"digests": 2}, "determinism_runs": 2}})
-        self.assertEqual(row["entries"], 2)
-
     def test_a_pin_set_counts_its_values(self):
-        row = self._promote("pin.corpus-count", "pins/corpus-count.json", {
-            "artifact": "pin.corpus-count", "format": 1, "key": "pin_key", "kind": "pin-set",
-            "values": {"glint_items": {"count": 7, "type": "int"}},
-            "provenance": {"counts": {"values": 1}, "determinism_runs": 2}})
-        self.assertEqual(row["entries"], 1)
+        row = self._promote("pin.fluid-crc", "pins/fluid-crc.json", {
+            "artifact": "pin.fluid-crc", "format": 1, "key": "pin_key", "kind": "pin-set",
+            "values": {"still_water": {"crc32": "0x0000000A", "type": "crc32"},
+                       "still_lava": {"crc32": "0x0000000B", "type": "crc32"}},
+            "provenance": {"counts": {"values": 2}, "determinism_runs": 2}})
+        self.assertEqual(row["entries"], 2)
 
 
 class TheIndexRowCarriesTheRegistrationAndTheHeadline(Base):
@@ -552,7 +540,7 @@ class TheIndexRowCarriesTheRegistrationAndTheHeadline(Base):
     #: Two artifacts declaring DIFFERENT floors. A fixture where every row carries the same number
     #: cannot tell a row's own registration from a literal written into the rebuild - and a literal
     #: is exactly what the second table this replaced was.
-    FLOORS = {"sweep.entity": 3, "digest.shipped-tables": 5}
+    FLOORS = {"sweep.entity": 3, "pin.block-crc": 5}
 
     def setUp(self):
         super().setUp()
@@ -567,8 +555,8 @@ class TheIndexRowCarriesTheRegistrationAndTheHeadline(Base):
 
     def test_each_row_carries_the_floor_ITS_OWN_registration_declares(self):
         self.assertEqual(self._promote("sweeps/entity.json", artifact())[promote.FLOOR_FIELD], 3)
-        self.assertEqual(self._promote("digests/shipped-tables.json", digest_set(),
-                                       "digest.shipped-tables")[promote.FLOOR_FIELD], 5)
+        self.assertEqual(self._promote("pins/block-crc.json", pin_set(),
+                                       "pin.block-crc")[promote.FLOOR_FIELD], 5)
 
     def test_the_fleet_sum_is_lifted_out_of_the_summary(self):
         payload = artifact()

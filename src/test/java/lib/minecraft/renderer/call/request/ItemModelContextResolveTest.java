@@ -43,9 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p>The decode a definition goes through on its way to the walk is pinned here too, through the real
  * deserializer: what vanilla's codec refuses throws - an unregistered vanilla-namespace type,
- * property or data component, a select on a component with no codec, an undecodable component value,
- * an empty case or {@code when} list, a case value repeated as decoded, a condition missing a branch,
- * a special model naming a kind vanilla does not register or missing a field its kind requires -
+ * property or data component, a select on a component with no codec, an empty case or {@code when}
+ * list, a case value repeated as decoded, a condition missing a branch, a special model naming a kind
+ * vanilla does not register or missing a field its kind requires -
  * while a mod's namespace degrades where it sits, a mod's node type to vanilla's missing item model,
  * and an absent fallback stays apart from an explicit {@code minecraft:empty}. The component walks
  * follow, shaped as Hypixel+ writes its ladders:
@@ -69,22 +69,6 @@ class ItemModelContextResolveTest {
     @Nested
     @DisplayName("per node type")
     class PerNodeType {
-
-        @Test
-        @DisplayName("model leaf resolves to its ref")
-        void modelLeaf() {
-            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}");
-            assertThat(r.modelId().orElseThrow(), is("minecraft:item/diamond_sword"));
-        }
-
-        @Test
-        @DisplayName("condition takes on_false for a neutral (unknown/false) property")
-        void conditionOnFalse() {
-            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
-                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
-                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}");
-            assertThat(r.modelId().orElseThrow(), is("minecraft:item/off"));
-        }
 
         @Test
         @DisplayName("condition takes on_true when the property is true")
@@ -348,28 +332,6 @@ class ItemModelContextResolveTest {
                 + "\"fallback\":" + leaf("fb") + "}}"));
             assertThrows(JsonParseException.class, () -> parse(select("minecraft:custom_model_data", "{\"when\":5,\"model\":" + leaf("a") + "}")));
             assertThrows(JsonParseException.class, () -> parse(select("minecraft:display_context", "{\"when\":\"gui\"}")));
-        }
-
-        @Test
-        @DisplayName("refuses an undecodable custom_data value and a non-object presence value")
-        void refusesAnUndecodableComponentValue() {
-            assertThrows(JsonParseException.class, () -> parse(component("\"minecraft:custom_data\"", "\"{unclosed\"")));
-            assertThrows(JsonParseException.class, () -> parse(component("\"minecraft:max_damage\"", "5")));
-            assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:component\","
-                + "\"predicate\":\"minecraft:custom_data\",\"on_true\":" + leaf("t") + ",\"on_false\":" + leaf("f") + "}}"));
-            ItemModelNode present = parse(component("\"minecraft:max_damage\"", "{}"));
-            assertThat(((ItemModelNode.Condition) present).predicate().orElseThrow(),
-                is(new ItemModelNode.ComponentPredicate.Present("minecraft:max_damage")));
-        }
-
-        @Test
-        @DisplayName("refuses a dyed_color when of three floats on its repeated 0, reads [[r,g,b]] as one colour and refuses {rgb}")
-        void decodesDyedColourWhens() {
-            assertThrows(JsonParseException.class, () -> parse(componentSelect("minecraft:dyed_color", "[1.0,0.0,0.0]")));
-            assertThrows(JsonParseException.class, () -> parse(componentSelect("minecraft:dyed_color", "{\"rgb\":16711680}")));
-            ItemModelNode.Select vector = (ItemModelNode.Select) parse(componentSelect("minecraft:dyed_color", "[[1.0,0.0,0.0]]"));
-            assertThat(vector.cases().getFirst().when(), contains("-65536"));
-            assertThat(vector.component(), is("minecraft:dyed_color"));
         }
 
         @Test

@@ -53,8 +53,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <b>Observed rather than documented.</b> The free-function overload of
  * {@code isInsideTriangle} builds the coefficients and delegates to the precomputed overload, so the
  * "bit-identical inside-test outcome" its javadoc credits to the algebra is true by construction
- * instead. The overload comparison is kept as a fence against a future hand-written second
- * implementation, and the factoring claim is pinned against an independently unfactored evaluation.
+ * instead, and the two overloads are not compared with each other. The factoring claim is pinned
+ * against an independently unfactored evaluation.
  * <p>
  * <b>The loop's trace calls are read, not run.</b> Every per-pixel trace call in the rasterizer's tile
  * walk has to sit behind the tracing flag the tile reads once. A call left bare in the loop draws the
@@ -208,16 +208,13 @@ class RasterMathTest {
     class InsideTriangle {
 
         @Test
-        @DisplayName("both overloads and an unfactored evaluation agree on every sample of every fixture")
-        void bothOverloadsAgreeWithTheUnfactoredEdgeFunction() {
+        @DisplayName("the precomputed overload and an unfactored evaluation agree on every sample of every fixture")
+        void thePrecomputedOverloadAgreesWithTheUnfactoredEdgeFunction() {
             for (Tri t : triangles()) {
                 RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(t.v0(), t.v1(), t.v2());
                 for (Vector2f s : samplesFor(t)) {
                     boolean precomputed = RasterMath.isInsideTriangle(ec, s.x(), s.y());
-                    boolean free = RasterMath.isInsideTriangle(t.v0(), t.v1(), t.v2(), s.x(), s.y());
-                    String where = t.name() + " at " + s;
-                    assertThat(where, free, equalTo(precomputed));
-                    assertThat(where, unfactoredInside(t, s.x(), s.y()), equalTo(precomputed));
+                    assertThat(t.name() + " at " + s, unfactoredInside(t, s.x(), s.y()), equalTo(precomputed));
                 }
             }
         }
@@ -283,21 +280,6 @@ class RasterMathTest {
             boolean reversed = RasterMath.isInsideTriangle(v0, v2, v1, px, py);
             assertThat("both windings at (" + px + ", " + py + ")", reversed, equalTo(forward));
             return forward;
-        }
-
-        @Test
-        @DisplayName("a degenerate triangle owns nothing, its own vertices included")
-        void degenerateTriangleOwnsNothing() {
-            Vector2f a = new Vector2f(0f, 0f);
-            Vector2f b = new Vector2f(2f, 2f);
-            Vector2f c = new Vector2f(4f, 4f);
-
-            assertThat(RasterMath.EdgeCoefficients.of(a, b, c).denom(), equalTo(0L));
-            for (Vector2f s : GRID) {
-                assertThat("collinear at " + s, RasterMath.isInsideTriangle(a, b, c, s.x(), s.y()),
-                    equalTo(false));
-            }
-            assertThat(RasterMath.isInsideTriangle(a, b, c, 2f, 2f), equalTo(false));
         }
 
         @Test

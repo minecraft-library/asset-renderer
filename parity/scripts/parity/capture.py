@@ -58,6 +58,7 @@ prints, and the build forwards the line to the console.
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 from pathlib import Path
 from typing import Sequence
@@ -86,6 +87,12 @@ COMPLETE = "COMPLETE"
 OPEN = "OPEN"
 
 CAPTURE_INDEX = "_capture.json"
+
+#: The capture index's member naming the toolkit that closed it, as :func:`toolkit_digest` answers.
+TOOLKIT_MEMBER = "toolkit"
+
+#: The toolkit's own package: every module it runs, and the suite that answers for them.
+TOOLKIT = Path(__file__).resolve().parent
 
 #: Where a row whose producer failed is recorded, inside ``_run/`` and therefore outside the capture.
 #:
@@ -178,7 +185,7 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
               mode: str | None = None, flags: Sequence[str] = (), runs: int | None = None,
               logs: Path | None = None, reference_tree: Path | None = None,
               reference_artifact: str | None = None, wall_time_ms: int | None = None,
-              store: str | None = None) -> Path:
+              store: str | None = None, tree_refresh: str | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path.
 
     An absent ``runs`` means the artifact's declared floor, which is the value the build has always
@@ -200,6 +207,10 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     is the milliseconds of a normalize rather than the minutes the plan's budget exists to warn
     about. An absent one records nothing, so a hand-run capture stamps no duration instead of
     stamping a zero every later reader would sum.
+
+    ``tree_refresh`` says the tree a manifest row hashes was hashed as it stood rather than rendered,
+    the schedule check having found it current, so a gate whose plan boots the tree can tell this
+    capture from one a render wrote.
     """
     # Imported at call time rather than at module scope: `promote` reads this module for its root
     # checks, and the floor is the one value that has to travel back the other way.
@@ -216,19 +227,21 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
         # its own and cannot drift from the row that declares them.
         payload = _manifest(artifact, source, logs,
                             [name for name in producer.split(",") if name])
-    elif kind in ("digest", "pin"):
+    elif kind == "pin":
         payload = _self_captured(artifact, source, root, target)
     else:
         raise MissingInput(f"no capture reader for artifact {artifact!r}")
 
     # A producer's own `_flags` come LAST, so an observed value beats a declared one: only the
     # process that took the measurement knows which version of a dependency the form encodes, and a
-    # `--flag` guessed on the build side must not overwrite it.
+    # `--flag` guessed on the build side must not overwrite it. The reference digest goes through the
+    # capture's memo, so the steps of one capture read the tree once between them.
     payload["provenance"] = provenance_mod.gather(
-        artifact, repo, producer=producer, mode=mode, runs=runs,
+        artifact, repo, producer=producer, mode=mode, tree_refresh=tree_refresh, runs=runs,
         flags=[*flags, *payload.pop("_flags", [])],
         counts=payload.pop("_counts", None), root=payload.pop("_root", None),
         reference_tree=reference_tree, reference_artifact=reference_artifact,
+        memo=root / store_mod.RUN_DIR / provenance_mod.REFERENCE_DIGEST_MEMO,
         wall_time_ms=wall_time_ms)
     write_json(target, payload)
     return target
@@ -339,11 +352,12 @@ def unproduced_rows(root: Path) -> list[dict]:
 def index(root: Path) -> Path:
     """Write ``_run/_capture.json``, then ``_run/COMPLETE`` last.
 
-    What it records is the tree: which artifacts this capture holds and what each of their files
-    hashes to, and nothing beside them. Which producer ran, under which flags, over how many runs
-    and when, each artifact's own provenance answers - ``producer``, ``flags``, ``determinism_runs``
-    and ``timestamp`` - stamped by the step that measured the value rather than by the step that
-    closes the invocation. The promotion reads the run count from there.
+    What it records is the tree - which artifacts this capture holds and what each of their files
+    hashes to - and the toolkit that closed it, which :func:`require_same_toolkit` holds the compare
+    and the promotion to. Which producer ran, under which flags, over how many runs and when, each
+    artifact's own provenance answers - ``producer``, ``flags``, ``determinism_runs`` and
+    ``timestamp`` - stamped by the step that measured the value rather than by the step that closes
+    the invocation. The promotion reads the run count from there.
     """
     run = root / store_mod.RUN_DIR
     files = []
@@ -356,6 +370,7 @@ def index(root: Path) -> Path:
         "files": files,
         "format": 1,
         "kind": "capture-index",
+        TOOLKIT_MEMBER: toolkit_digest(),
     }
     write_json(run / CAPTURE_INDEX, payload)
     # Closed before it is marked complete, so the next invocation's first step erases rather than
@@ -402,6 +417,44 @@ def require_unmoved(root: Path) -> None:
             f"{len(moved)} file(s) under {root} have changed since its capture index was written, "
             f"first {moved[0]}: a root that moved under its own index is mixed vintage, and nothing "
             "downstream can tell which run produced which byte. Re-capture")
+
+
+def toolkit_digest(package: Path = TOOLKIT) -> str:
+    """A digest over every module of the toolkit, its suite's included, by relative path and bytes.
+
+    :param package: the toolkit's package directory
+    :return: the hex digest
+    """
+    digest = hashlib.sha256()
+    modules = {path.relative_to(package).as_posix(): path for path in package.rglob("*.py")}
+    for name in sorted(modules):
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(modules[name].read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def require_same_toolkit(root: Path) -> None:
+    """Refuse a capture closed by a toolkit other than the one now reading it.
+
+    A gate runs the toolkit's suite once, in the capture invocation and before the capture closes,
+    so what that suite answered for is the toolkit the capture index names. The compare and the
+    promotion run toolkit code as well - the one writes the verdict and the other the tracked store -
+    and code edited between the capture and either of them has had no suite run over it in this
+    gate. Both call this, and the answer is the capture again, which runs the suite over the edit.
+
+    :param root: the working root
+    :raises Refused: if the capture never finished, or its index names no toolkit or another one
+    """
+    recorded = require_complete(root).get(TOOLKIT_MEMBER)
+    current = toolkit_digest()
+    if recorded != current:
+        closer = (f"toolkit {recorded[:12]}" if isinstance(recorded, str)
+                  else "a toolkit it does not name")
+        raise Refused(
+            f"{root} was closed by {closer} and this is toolkit {current[:12]}: "
+            "the suite a capture runs answered for the toolkit that closed it, and the code reading "
+            "this capture has had no suite run over it in this gate. Re-capture")
 
 
 def content_digest(root: Path) -> str:

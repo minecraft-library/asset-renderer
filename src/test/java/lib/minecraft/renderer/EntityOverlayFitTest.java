@@ -1,14 +1,11 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
-import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -28,7 +25,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Canvas-fit coverage for an entity's conditional overlays - worn equipment and elytra wings - which
@@ -142,8 +138,6 @@ class EntityOverlayFitTest {
 
     @BeforeAll
     static void bootstrap() {
-        ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
         entityRenderer = new EntityRenderer(ClientAssetsExtension.context());
     }
 

@@ -155,10 +155,6 @@
       "sha256": "678d52d2dfbaa41cf5d4f3523cbd6517948aaf876525e0794eb74eb9a96f5a5c"
     },
     {
-      "path": "facing/portrait_--.png",
-      "sha256": "66c644e9be0c928e498257961f742517dd36f0e49d6a77d2e34abefb4eb172b1"
-    },
-    {
       "path": "facing/portrait_-F.png",
       "sha256": "03bacc4c3503064a1a01b96e286ddacd5686153d85e942f66223d17736fbc58c"
     },
@@ -231,14 +227,6 @@
       "sha256": "f13ba5781f4324805626f3daeabd23dfa80f7e5de10a98fa4857649e445835c6"
     },
     {
-      "path": "leather-dye/default_THREE_D.png",
-      "sha256": "935175f8f38b15b2477e2e3bbab8cbe6e7617286a5e252afcc41f3783435a502"
-    },
-    {
-      "path": "leather-dye/default_TWO_D.png",
-      "sha256": "4f075e9f6520094da7c605ba293dc252ac04e5887027ed9e3c7f96033d0a3d2e"
-    },
-    {
       "path": "leather-dye/green_THREE_D.png",
       "sha256": "92de275b377ba290f407b554c5473fe482583fda1b2e112c7f62797f78e44c41"
     },
@@ -269,10 +257,6 @@
     {
       "path": "projections/cabinet.png",
       "sha256": "8b8b7062013bfd97604b2d7c147eed14a69b3b8514b11603ef6e2a397548467e"
-    },
-    {
-      "path": "projections/cavalier.png",
-      "sha256": "161cc4924a71b4933d7f6508d7c6d8be23f0033030ad2fd37dc214bf508d2f88"
     },
     {
       "path": "projections/dimetric.png",
@@ -311,20 +295,12 @@
       "sha256": "92885e038bb39609014a526f3b50d63cb03e50a550fb41dad23bcbf8becbaf15"
     },
     {
-      "path": "projections/vanilla_iso.png",
-      "sha256": "924c47b7fa6a8b38558935d44ada29e350105cf29dd75d78c812ae1daacb2d4b"
-    },
-    {
       "path": "toggles.png",
       "sha256": "842d3030d9099b149fa2a272171a6c92589e71fccef25b46d4a315b28cc18eb7"
     },
     {
       "path": "toggles/2D_bg_solid.png",
       "sha256": "749e5efb3b13504ff345180f5ec59a0b8411da6b0f782beb8455acc515157a26"
-    },
-    {
-      "path": "toggles/FULL_3D_base.png",
-      "sha256": "1dafe817f30f4aab781230690034094a0552c8e14761a812125cf8c17647109d"
     },
     {
       "path": "toggles/bg_checkerboard.png",
@@ -353,10 +329,6 @@
     {
       "path": "toggles/overlay_off.png",
       "sha256": "81d6938e2ae251ae1e94bba650b781d27eab07fe8ad113f7a497b402614f4c67"
-    },
-    {
-      "path": "toggles/rot_0_0_0_front_.png",
-      "sha256": "1dafe817f30f4aab781230690034094a0552c8e14761a812125cf8c17647109d"
     },
     {
       "path": "toggles/rot_15_210_0.png",
@@ -424,32 +396,22 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "231b4c8445a7b73ad07bd618f50af5168d74b42ff397b6c3b037c98a220ebfc3",
-    "asset_dirty": true,
-    "asset_sha": "5e04b56f6a5d1918fa9cb985475e642cbf1b9b61",
+    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
+    "asset_dirty": false,
+    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
     "counts": {
-      "files": 104
+      "files": 97
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "playerRender",
-    "reason": "Every render is marked premultiplied where it is built (7342ed6a), so each encoded see-through render is written un-premultiplied: the colour drawn rather than one scaled by its alpha twice. Held pixels unchanged - the nine sweeps, the four CRC pins, manifest.player-raw and manifest.references held.",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 10,
-      "players": 2,
-      "walk": 4896
-    },
+    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
     "root": "cache/visual/player-render",
-    "timestamp": "2026-10-24T05:01:46Z",
+    "timestamp": "2026-11-04T16:15:49Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 7645
+    "wall_time_ms": 6416
   }
 }

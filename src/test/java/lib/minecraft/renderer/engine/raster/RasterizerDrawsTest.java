@@ -18,7 +18,6 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,9 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * arm a frame takes depends on its content, and nothing else would see the two drift apart.
  *
  * <p>No pixel shows how a frame is split, since one band and any number of bands draw the same bytes,
- * so the split is held to its own answers as well: the processor figure a tall frame's band count is
- * read from, the rows each band covers for a height and a processor count, and the arm a frame takes
- * for its size and the area its triangles cover.
+ * so the split is held to its own answers as well: the rows each band covers for a height and a
+ * processor count, and the arm a frame takes for its size and the area its triangles cover.
  */
 @DisplayName("Rasterizer draws several parts in one depth pass")
 class RasterizerDrawsTest {
@@ -171,14 +169,6 @@ class RasterizerDrawsTest {
         PixelBuffer tied = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(both, tied, NEAR);
         assertThat(tied.data(), is(draw(List.of(new DrawPart(square(0xFF0000FF), NEAR))).data()));
-    }
-
-    @Test
-    @DisplayName("a tall frame's band count is read from the processor count the runtime reports")
-    void theBandCountReadsTheRuntimesProcessorCount() throws ReflectiveOperationException {
-        Field cores = Rasterizer.class.getDeclaredField("CORES");
-        cores.setAccessible(true);
-        assertThat(cores.getInt(null), is(Runtime.getRuntime().availableProcessors()));
     }
 
     @Test

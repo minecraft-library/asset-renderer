@@ -133,11 +133,6 @@ class ShadingTest {
         // write and nowhere else. Tinting the texel to an int first and shading that rounds twice: a
         // channel of 1 under a half tint and a half shade is 0.251, which is 0 once and 1 twice.
         assertThat(Shading.apply(0xFF010101, 0xFF808080, 0.5f), equalTo(0xFF000000));
-
-        // The same fragment through the two-step arithmetic, spelled out - this is what the rasterizer
-        // used to compute, and it is a whole channel step brighter.
-        int tintedFirst = Math.round(1 * 128 / 255f);
-        assertThat(Math.round(tintedFirst * 0.5f), equalTo(1));
     }
 
     @Test

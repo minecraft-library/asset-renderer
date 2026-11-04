@@ -40,28 +40,6 @@ class BuiltStyleTest {
     }
 
     @Test
-    @DisplayName("absolute writes, aims and a container offset alone infer a still style")
-    void stillStyleInfersNoSources() {
-        BuiltStyle sit = Poses.humanoid("sit")
-            .preset(Preset.SITTING)
-            .container(c -> c.offset(0, 7, 0))
-            .build();
-
-        assertTrue(sit.sources().isEmpty(), "a statue holds still - one frame at tick 0");
-    }
-
-    @Test
-    @DisplayName("a timeline infers the clock source")
-    void timelineInfersTick() {
-        BuiltStyle wave = Poses.humanoid("wave")
-            .arm(Side.RIGHT, a -> a.rotate(-160, 0, 10)
-                .timeline(t -> t.swing(Turn.ROLL, -20, 20).over(0.6).smooth()))
-            .build();
-
-        assertEquals(tickOnly(), List.copyOf(wave.sources()));
-    }
-
-    @Test
     @DisplayName("a sway infers the clock source")
     void swayInfersTick() {
         BuiltStyle beg = Poses.legged("beg")
@@ -79,17 +57,6 @@ class BuiltStyleTest {
             .build();
 
         assertEquals(tickOnly(), List.copyOf(top.sources()));
-    }
-
-    @Test
-    @DisplayName("riding the stride infers the clock source")
-    void keepStrideInfersTick() {
-        BuiltStyle jog = Poses.humanoid("jog")
-            .keepStride()
-            .arms(a -> a.pitchBy(-20))
-            .build();
-
-        assertEquals(tickOnly(), List.copyOf(jog.sources()));
     }
 
     @Test

@@ -8,7 +8,6 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
-import lib.minecraft.renderer.engine.pose.PoseChannel;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,21 +62,6 @@ class PoseStatesBlindnessTest {
         }
         assertTrue(carrying > 0, "the shipped tables carry silhouettes, so the comparison is not vacuous");
         assertTrue(compared > 0);
-    }
-
-    @Test
-    @DisplayName("the shipped wolf carries its sitting silhouette - the body lowered, tail and hind legs placed")
-    void shippedWolfCarriesTheSittingSilhouette() {
-        Entity wolf = EntityModelLoader.load().get("minecraft:wolf");
-        assumeTrue(wolf != null, "bundled entity tables answer the wolf");
-
-        EntityPose.Silhouette sitting = wolf.pose().states().get("isSitting=true");
-        assertTrue(sitting != null, "the sitting branch is carried: " + wolf.pose().states().keySet());
-        for (String placed : List.of("body", "upper_body", "tail", "right_hind_leg", "left_hind_leg"))
-            assertTrue(sitting.bones().containsKey(placed), "'" + placed + "' is placed by the sitting branch");
-        assertTrue(sitting.bones().get("body").containsKey(PoseChannel.Y), "the body is lowered");
-        assertTrue(sitting.bones().get("body").containsKey(PoseChannel.X_ROT), "and tilted");
-        assertTrue(sitting.bones().get("tail").containsKey(PoseChannel.Z), "the tail is moved forward");
     }
 
     /** What posing one mesh answers - its bones, which every shipped style poses to without a refusal. */

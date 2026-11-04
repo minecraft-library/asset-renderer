@@ -88,15 +88,15 @@ public final class ParityArtifacts {
             return new Registration(id, Home.EXTERNAL, List.of(), 0);
         }
 
-        /** A roster or pin whose home is Java source. */
+        /** A pin whose home is Java source. */
         private static @NotNull Registration source(@NotNull String id) {
             return new Registration(id, Home.SOURCE, List.of(), 0);
         }
     }
 
     /**
-     * The roster, grouped by kind in this order: sweep-table, render-manifest, file-digest-set,
-     * value-pin, roster, report, probe.
+     * The roster, grouped by kind in this order: sweep-table, render-manifest, value-pin, roster,
+     * report, probe.
      */
     public static final @NotNull List<Registration> ALL = List.of(
         // --- sweep-table. A sweep is exactly reproducible - four fresh JVM forks have agreed row for
@@ -159,70 +159,43 @@ public final class ParityArtifacts {
         Registration.store("manifest.tooling-tables", 2, "entityModels", "blockModels", "blockDefaults",
             "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
 
-        // --- file-digest-set. A digest of a shipped file is a pure function of that file, so one run
-        // is the whole of the proof. digest.dump-sections is the same 28 values the two dump
-        // manifests already carry, one per section file, so storing it would be a third copy.
-        Registration.store("digest.shipped-tables", 1, "test"),
-        Registration.store("digest.colormap-lut", 1, "slowTest"),
-        Registration.external("digest.dump-sections"),
-
-        // --- value-pin. Computed inside a test JVM from bytes the same JVM produced.
-        Registration.store("pin.vanilla-iso-pose", 1, "test"),
-        Registration.store("pin.kit-corners", 1, "test"),
-        Registration.store("pin.corpus-count", 1, "test"),
-        Registration.store("pin.player-crc", 1, "test"),
-        Registration.store("pin.block-crc", 1, "test"),
-        Registration.store("pin.portal-crc", 1, "test"),
-        Registration.store("pin.fluid-crc", 1, "test"),
+        // --- value-pin. A stored pin is computed inside a test JVM from bytes the same JVM produced,
+        // by the fast suite filtered to the classes that write them; the one homed in Java source is
+        // held by the test that asserts it, and no capture runs that test.
+        Registration.store("pin.vanilla-iso-pose", 1, "parityPinTest"),
+        Registration.store("pin.player-crc", 1, "parityPinTest"),
+        Registration.store("pin.block-crc", 1, "parityPinTest"),
+        Registration.store("pin.portal-crc", 1, "parityPinTest"),
+        Registration.store("pin.fluid-crc", 1, "parityPinTest"),
         Registration.source("pin.armor-span"),
-        // An identity rather than a captured value: re-baselining is not a concept for it.
-        Registration.external("pin.tick-lattice"),
 
-        // --- roster. Twelve stay in Java because the second copy IS the mechanism; the thirteenth
-        // becomes a store file because it has no home today and its reader is mechanical.
-        Registration.source("roster.humanoid-armor"),
-        Registration.source("roster.overlay-pipeline"),
-        Registration.source("roster.humanoid-part-crop"),
-        Registration.source("roster.face-phase"),
-        Registration.source("roster.frame-turn"),
-        Registration.source("roster.armor-subjects"),
-        Registration.source("roster.glint-subjects"),
-        Registration.source("roster.player-scopes"),
-        Registration.source("roster.sheet-groups"),
-        Registration.source("roster.dump-sections"),
-        Registration.source("roster.pack-fixtures"),
-        Registration.source("roster.appearance-axes"),
+        // --- roster. A store file, because its reader is mechanical.
         Registration.store("roster.blindness-rules", 1),
 
         // --- report. A pointer is derived by the writer of the file it points into and rides that
-        // file as one of its fields, so it has no producer of its own. Three more were registered
-        // over row columns no sweep writer has ever emitted - a canvas mismatch, the panel numbers
-        // and a glint frame delta - and each is a diagnosis a human reads off a panel rather than a
-        // value a gate reproduces, so they are retired instead of grown a producer.
+        // file as one of its fields, so it has no producer of its own - and it is registered only
+        // over a field some writer emits. A diagnosis a human reads off a panel is not a value a
+        // gate reproduces, so it is no pointer here.
         Registration.pointer("report.sum"),
         Registration.pointer("report.buckets"),
-        Registration.pointer("report.coverage-gaps"),
         Registration.pointer("report.wall-time"),
-        Registration.pointer("report.worst-list"),
         Registration.pointer("report.failure-rows"),
         Registration.pointer("report.run-provenance"),
         Registration.pointer("report.diagnostics-log"),
         Registration.pointer("report.harness-sweep-counts"),
         // Statements ABOUT a run rather than values a run produces, so none of them is ever
         // promoted. Where each one lives is its own answer and index.json carries it: the plan, the
-        // movers and the expected-diff under the working root's _run/, the capture note in a commit
-        // message, the harness fit log in the tee under build/.
+        // movers and the expected-diff under the working root's _run/, the harness fit log in the
+        // tee under build/.
         Registration.external("report.movers"),
         Registration.external("report.expected-diff"),
         Registration.external("report.plan"),
-        Registration.external("report.capture-note"),
         Registration.external("report.harness-fit-log"),
         Registration.store("report.oracle-index", 1, "parityPromote"),
 
         // --- probe. Produced by instrumented builds and deliberate off-tree harness runs, so none can
         // be captured, compared or promoted - the three verbs this store exists for.
         Registration.external("probe.pixel"),
-        Registration.external("probe.depth-quantum"),
         Registration.external("probe.pack-icons"),
         Registration.external("probe.pack-sources")
     );

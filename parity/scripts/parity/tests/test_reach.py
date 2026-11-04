@@ -727,15 +727,6 @@ class OverTheRealTree(unittest.TestCase):
                          "manifest.dump.vanilla", "manifest.visual", "pin.block-crc"):
             self.assertIn(artifact, found)
 
-    def test_even_a_tensor_type_cannot_move_a_digest_of_shipped_resources(self):
-        """The narrowing that survives at the widest reach there is.
-
-        `digest.shipped-tables` hashes the JSON this build ships and renders nothing, so no geometry
-        can move it. Rooting it at the suite that runs its writer would have said the opposite.
-        """
-        self.assertNotIn("digest.shipped-tables", self._artifacts("Vector3f"))
-        self.assertIn("digest.shipped-tables", self.graph.roots)
-
     def test_a_javadoc_only_reference_is_no_edge(self):
         """RendererContext documents BlockRenderer and does not depend on it.
 
@@ -842,7 +833,7 @@ class OverTheRealTree(unittest.TestCase):
         sealed = self._binary("ContentException")
         self.assertNotIn(self._binary("ColorMapException"), self.graph.edges.get(sealed, ()))
         found = self._artifacts("ColorMapException")
-        self.assertIn("digest.colormap-lut", found)
+        self.assertIn("manifest.dump.vanilla", found)
         self.assertNotIn("sweep.block", found)
 
     def test_a_permitted_subtype_keeps_what_reaches_it(self):

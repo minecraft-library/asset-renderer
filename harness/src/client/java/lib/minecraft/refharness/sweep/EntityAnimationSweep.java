@@ -457,8 +457,11 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
      *
      * <p>A stem whose every frame was written is recorded as rendered; a stem with a skipped or failed
      * frame has its entry removed, so the asset side fails that row rather than comparing a partial
-     * strip as a whole one. Every stem this run did not enumerate keeps the entry it had, so a narrowed
-     * run leaves the rest of the record standing.
+     * strip as a whole one. A run naming targets enumerates only those, so every stem it did not
+     * enumerate keeps the entry it had and the rest of the record stands. A run naming none enumerates
+     * every subject the roster names, so it keeps no entry it did not enumerate: a stem the roster no
+     * longer names, or one of a spelling no subject takes, leaves the record rather than standing
+     * beside the stem that now records its subject.
      *
      * @param ctx the sweep context
      * @throws IllegalStateException if an existing sidecar does not parse or is of another format
@@ -468,6 +471,8 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
     public void afterSweep(SweepContext ctx) {
         Path file = ctx.outputRoot().resolve(outputDir()).resolve("schedule.json");
         Map<String, JsonElement> subjects = new TreeMap<>(recorded(file));
+        if (ctx.targets().isEmpty())
+            subjects.keySet().retainAll(this.scheduled.keySet());
         int recorded = 0;
         for (Map.Entry<String, Scheduled> stem : this.scheduled.entrySet()) {
             if (this.written.getOrDefault(stem.getKey(), 0) == stem.getValue().schedule().frames()) {

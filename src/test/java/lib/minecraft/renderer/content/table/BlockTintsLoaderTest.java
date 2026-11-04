@@ -9,6 +9,7 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Coverage of {@link BlockTintsLoader} against the bundled {@code block_tints.json} snapshot: the
@@ -25,6 +26,10 @@ class BlockTintsLoaderTest {
         assertThat(grass.target(), is(TintSource.GRASS));
         assertThat("a colormap-target tint carries no constant", grass.constant().isEmpty(), is(true));
         assertThat(tints.get("minecraft:oak_leaves").target(), is(TintSource.FOLIAGE));
+
+        Block.Tint leafLitter = tints.get("minecraft:leaf_litter");
+        assertThat(leafLitter, is(notNullValue()));
+        assertThat(leafLitter.target(), is(TintSource.DRY_FOLIAGE));
     }
 
     @Test

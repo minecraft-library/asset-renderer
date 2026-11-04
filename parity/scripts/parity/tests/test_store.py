@@ -15,7 +15,6 @@ class ArtifactPaths(unittest.TestCase):
     def test_kind_prefix_maps_to_a_directory(self):
         self.assertEqual(store.path_of("sweep.entity"), "sweeps/entity.json")
         self.assertEqual(store.path_of("manifest.references"), "manifests/references.json")
-        self.assertEqual(store.path_of("digest.shipped-tables"), "digests/shipped-tables.json")
         self.assertEqual(store.path_of("pin.player-crc"), "pins/player-crc.json")
 
     def test_a_qualifier_becomes_a_hyphen(self):
@@ -53,11 +52,6 @@ class WorkingRoot(unittest.TestCase):
         for candidate in ("notes/parity", "build/parity", "../cache/parity"):
             with self.assertRaises(Refused):
                 store.resolve_working(candidate, self.base)
-
-    def test_there_is_no_slot_api(self):
-        """The root is a path. A two-constant enum is still two slots."""
-        self.assertFalse(hasattr(store, "Slot"))
-        self.assertFalse(hasattr(store, "ParitySlot"))
 
 
 class ProductionIsReadOnly(unittest.TestCase):

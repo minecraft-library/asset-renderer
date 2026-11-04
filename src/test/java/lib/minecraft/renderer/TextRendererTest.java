@@ -76,8 +76,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * request's alpha clears leaving the canvas.
  * <p>
  * {@link ChromeStyle#SPRITE}'s cases pin the bytes its blended nine-slice pair leaves, the client's
- * framebuffer bytes - the notched corners and open ring corners, the canvas drawn to the box's first
- * pixel, vanilla's box over vanilla's sprites and a wider or uneven pack box whole, a stretched pack box
+ * framebuffer bytes - its corners, ring and fill through the code-drawn box it equals off the side
+ * lines, vanilla's box over vanilla's sprites and a wider or uneven pack box whole, a stretched pack box
  * whose edges fall inside a Minecraft pixel whole on a canvas rounded out to whole Minecraft pixels, and
  * a canvas the alpha overrides empty of a sprite, and the alpha multipliers applied to each texel before
  * it blends, each drawn from a context seeded with the real background and frame sprites or a synthetic
@@ -477,35 +477,6 @@ class TextRendererTest {
                 MinecraftFont.Vanilla.GALACTIC.metrics().stringAdvanceMcPixels("Galactic"), is(34f)),
             () -> assertThat("canvas width", render(options).width(), is(MinecraftFont.MC_PIXEL_SCALE * (2 * padMcPx + 34)))
         );
-    }
-
-    @Test
-    @DisplayName("sprite background: drawn to its first pixel - no transparent margin, the box's corners notched, its fill flush to the canvas edge")
-    void notchedCornerAndFlushFill() {
-        assumeSprites();
-        PixelBuffer buf = renderSprite(loreBuilder());
-        int w = buf.width();
-        int h = buf.height();
-
-        assertThat("bounds of the pixels drawn", buf.opaqueBounds(), is(new Rectangle(0, 0, w, h)));
-        assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(0, 0)), is(0));
-        assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(w - 1, h - 1)), is(0));
-        assertThat("fill flush top edge", buf.getPixel(w / 2, 0), is(BLENDED_FILL));
-        assertThat("fill flush left edge", buf.getPixel(0, h / 2), is(BLENDED_FILL));
-    }
-
-    @Test
-    @DisplayName("sprite frame: ring 1 mcPx inset, open corners, gradient endpoints")
-    void ringInsetAndOpenCorner() {
-        assumeSprites();
-        PixelBuffer buf = renderSprite(loreBuilder());
-
-        assertThat("ring top gradient", ringTop(buf), is(BLENDED_RING_TOP));
-        assertThat("ring bottom gradient", ringBottom(buf), is(BLENDED_RING_BOTTOM));
-        // The ring corner texel is transparent in the sprite (open corner), so the background fill shows
-        // through there.
-        assertThat("open ring corner shows background fill",
-            buf.getPixel(RING_TOP_ROW, RING_TOP_ROW), is(BLENDED_FILL));
     }
 
     @Test

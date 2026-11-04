@@ -55,7 +55,7 @@ val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 val assetPropertyPrefix: String = "asset."
 
 // Forward every -Dasset.* system property to every forked Test + JavaExec JVM, in ONE place, so any
-// future asset.* debug flag (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump, -Dasset.glint.itemScale)
+// future asset.* debug flag (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump, -Dasset.glint.atlasUv)
 // auto-propagates to every task without per-task wiring. The CLI -D lands in the gradle daemon's
 // System.getProperties(); the `asset.` prefix keeps gradle-internal properties out of the fork.
 fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
@@ -126,7 +126,7 @@ tasks.named<Javadoc>("javadoc") {
 }
 // The two parity roots go AFTER forwardAssetProperties() so the resolved value wins whether or not
 // one was also forwarded from the command line. The working root on the Test hook is what lets the
-// self-capturing pin and digest rows write their observed value into it from inside the test JVM; the
+// self-capturing pin rows write their observed value into it from inside the test JVM; the
 // references path is the single owner of the reference tree, which the Java side reads instead of
 // holding one VANILLA_DIR literal per sweep main.
 tasks.withType<Test>().configureEach {
@@ -173,20 +173,20 @@ dependencies {
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("6842129") } }
     api("com.github.simplified-dev:utils") { version { strictly("7cc206f") } }
-    api("com.github.simplified-dev:image") { version { strictly("628db41") } }
+    api("com.github.simplified-dev:image") { version { strictly("867b842") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("be044c2") } }
     api("com.github.simplified-dev:reflection") { version { strictly("cc90b40") } }
     api("com.github.simplified-dev:client") { version { strictly("2399b33") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("b646f6c") } }
+    api("com.github.simplified-api:mojang") { version { strictly("3436a9f") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("45d084f") } }
+    api("com.github.minecraft-library:text") { version { strictly("72a693a") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface

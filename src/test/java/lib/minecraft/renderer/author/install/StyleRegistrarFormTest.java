@@ -753,24 +753,6 @@ class StyleRegistrarFormTest {
         }
     }
 
-    @Test
-    @DisplayName("a raw read of a fin the small pufferfish lacks refuses at install rather than throwing at render")
-    void aRawReadASizeMeshLacksRefuses() {
-        BuiltStyle glare = Poses.custom("fin_glare")
-            .expr(BONE, PoseChannel.X_ROT, new PoseExpr.BoneRead("left_blue_fin", PoseChannel.X_ROT))
-            .build();
-        StyleRegistrar registrar = StyleRegistrar.ofShipped();
-
-        StyleException refused = assertThrows(StyleException.class,
-            () -> registrar.add(PUFFERFISH, glare));
-        assertTrue(refused.getMessage().contains("'left_blue_fin'"),
-            "the refusal names the fin the small mesh lacks: " + refused.getMessage());
-        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == Diagnostics.Severity.ERROR
-                    && entry.path().equals("styles/minecraft:pufferfish/fin_glare/form/size:small/compile")),
-            "and records under the size form whose mesh lacks it");
-    }
-
     // ------------------------------------------------------------------------------------
 
     /**

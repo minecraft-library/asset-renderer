@@ -1,24 +1,18 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.call.request.MenuOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,8 +41,8 @@ import java.util.Map;
  * Every subject draws the player's section, because that is the panel the client draws.
  *
  * <p>Output: one folder per subject under {@code cache/visual/menu-parity-vanilla/} holding
- * {@code vanilla.png}, {@code java.png}, {@code diff.png} and {@code diff_panel.png}, plus a
- * top-level {@code parity-report.tsv}.
+ * {@code vanilla.png} and {@code java.png}, and {@code diff.png} and {@code diff_panel.png} where the
+ * two differ, plus a top-level {@code parity-report.tsv}.
  *
  * <p>Usage: {@code ./gradlew menuParityVanilla}. Run {@code renderVanillaMenuReferences} first if the
  * references are missing.
@@ -183,12 +177,23 @@ public final class MenuParitySweep {
     }
 
     /**
+     * Runs the menu parity sweep over a context of its own, loaded over vanilla's own client options.
+     *
+     * @param args what {@link #run} reads
+     * @throws IOException if the output cannot be written
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(SweepPair.acquire(ClientOptions.defaults())), args);
+    }
+
+    /**
      * Runs the menu parity sweep over the roster, or over the one subject named by the first argument.
      *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
      * @param args an optional subject name to scope the run to
      * @throws IOException if the report cannot be written
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         if (!Files.isDirectory(VANILLA_DIR)) {
             System.err.printf("Vanilla menu reference directory missing: %s%n  Run renderVanillaMenuReferences first.%n",
                 VANILLA_DIR.toAbsolutePath());
@@ -196,14 +201,7 @@ public final class MenuParitySweep {
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-        MenuRenderer javaRenderer = new MenuRenderer(RendererContext.load(result));
+        MenuRenderer javaRenderer = new MenuRenderer(context);
 
         List<Subject> subjects = roster().stream()
             .filter(subject -> args.length == 0 || subject.name().equals(args[0]))
@@ -253,8 +251,7 @@ public final class MenuParitySweep {
             // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
             BufferedImage javaImg = PixelBuffer.ofStraight(held.data(), held.width(), held.height()).toBufferedImage();
 
-            ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(subjectDir.toFile(), "java.png"));
+            SweepPair.writeRenders(subjectDir, vanillaPng, javaImg);
 
             if (vanillaImg.getWidth() != javaImg.getWidth() || vanillaImg.getHeight() != javaImg.getHeight()) {
                 System.err.printf("       %-15s canvas %dx%d against vanilla's %dx%d - not comparable%n",
@@ -262,14 +259,7 @@ public final class MenuParitySweep {
                 return new Row(name, Double.POSITIVE_INFINITY, -1, 0, 0);
             }
 
-            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaImg);
-            PixelBuffer javaPB = PixelBuffer.wrap(javaImg);
-            ImageIO.write(vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage(), "PNG",
-                new File(subjectDir.toFile(), "diff.png"));
-            ImageIO.write(ParityMetrics.panelDiff(vanillaImg, javaImg, vanillaPB, javaPB), "PNG",
-                new File(subjectDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaImg, javaImg);
+            ParityMetrics.Stats stats = SweepPair.compare(subjectDir, vanillaImg, javaImg);
             System.out.printf("  %-15s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%n",
                 name, stats.meanDelta(), stats.differingPixels(),
                 stats.javaCoverage() * 100, stats.vanillaCoverage() * 100);

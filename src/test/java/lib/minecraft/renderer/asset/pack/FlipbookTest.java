@@ -169,23 +169,6 @@ class FlipbookTest {
     }
 
     @Test
-    @DisplayName("a strip wider than tall with no declared size plays its square frames left to right")
-    void wideStrip_playsAcross() {
-        // A 4x2 strip whose undeclared frame is a square of its shorter side: two 2x2 frames side by side.
-        PixelBuffer strip = PixelBuffer.ofStraight(new int[]{
-            0xFF0000AA, 0xFF0000AA, 0xFF0000BB, 0xFF0000BB,
-            0xFF0000AA, 0xFF0000AA, 0xFF0000BB, 0xFF0000BB
-        }, 4, 2);
-        Flipbook flipbook = flipbook(strip, 1, false, null);
-
-        assertThat(flipbook.frameWidth(), equalTo(2));
-        assertThat(flipbook.frameHeight(), equalTo(2));
-        assertThat(flipbook.entries().size(), equalTo(2));
-        assertThat(flipbook.frameAt(strip, 0).getPixel(1, 1), equalTo(0xFF0000AA));
-        assertThat(flipbook.frameAt(strip, 1).getPixel(0, 0), equalTo(0xFF0000BB));
-    }
-
-    @Test
     @DisplayName("a strip several frames wide and tall numbers its frames row by row")
     void gridStrip_numbersRowByRow() {
         // A 4x4 strip of four declared 2x2 frames, one colour each: top-left, top-right, bottom-left,

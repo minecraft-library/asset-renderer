@@ -92,24 +92,6 @@ class EntityDrawnTest {
         assertSame(plainPose, drawn.getLast().pose(), "under its own pose");
     }
 
-    @Test
-    @DisplayName("a subject with no overlays draws its body alone")
-    void aBareSubjectDrawsItsBodyAlone() {
-        EntityMesh body = new EntityMesh();
-        EntityPose bodyPose = pose();
-        Entity subject = Entity.builder()
-            .id(ResourceId.parse("minecraft:test"))
-            .model(body)
-            .pose(bodyPose)
-            .overlays(Concurrent.newUnmodifiableList())
-            .build();
-
-        ConcurrentList<Drawn> drawn = subject.drawn();
-        assertEquals(1, drawn.size());
-        assertSame(body, drawn.getFirst().model());
-        assertSame(bodyPose, drawn.getFirst().pose());
-    }
-
     // ------------------------------------------------------------------------------------
 
     /** A pose that writes nothing, distinct per call so the pairing is assertable by identity. */

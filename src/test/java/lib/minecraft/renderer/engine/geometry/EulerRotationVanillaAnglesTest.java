@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -39,6 +38,9 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>An element angle is read in both spellings vanilla accepts - {@code axis} with {@code angle}, and
  * {@code x}, {@code y} and {@code z} - so an angle authored in the second still counts.
+ *
+ * <p>That the two routes do part on some degrees, which is what lets this scan fail at all, needs no
+ * client jar and is held by {@link EulerRotationTest}.
  */
 @DisplayName("EulerRotation's radian is vanilla's for every display and element angle the client authors")
 @ExtendWith(ClientAssetsExtension.class)
@@ -82,15 +84,6 @@ class EulerRotationVanillaAnglesTest {
                 + RULE + " rests on there being none - re-measure that decision at this client version rather"
                 + " than reading this as a renderer defect",
             parted, is(empty()));
-    }
-
-    @Test
-    @DisplayName("the two routes part on 66 of the 721 integer degrees in [-360, 360]")
-    void theRoutesPartOnSixtySixIntegerDegrees() {
-        long parted = IntStream.rangeClosed(-360, 360).filter(EulerRotationVanillaAnglesTest::parts).count();
-
-        assertThat("integer degrees in [-360, 360] where EulerRotation's radian is not vanilla's - the figure "
-            + RULE + " states, and what lets the authored-angle check fail at all", parted, is(66L));
     }
 
     /**

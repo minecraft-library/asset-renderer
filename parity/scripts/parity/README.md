@@ -90,6 +90,8 @@ renamed or retired without the row moving with it.
 | `capture-begin` | erase the working root and open a capture; the erase happens here, once |
 | `capture-normalize` | read a producer's raw output into the working root as canonical JSON |
 | `capture-index` | write _run/_capture.json then COMPLETE last |
+| `schedule-check` | whether the reference tree on disk is the one a render would write now - the plan held to the tree as it stands, the harness inputs to the record of the last whole render, and the entity schedule roster to the schedules the posed reference sub-trees recorded; writes `_run/schedule-check.json`, which the build reads to decide whether a capture whose plan reaches the tree through the roster alone boots the client |
+| `render-record` | digest what a whole-tree render reads beside the schedule roster into `references-rendered.pending.json` beside the reference tree, which the build renames to `references-rendered.json` once the boot exits 0 |
 | `plan` | resolve which artifacts can SEE the working tree's change |
 | `triggers` | regenerate every rule's trigger_paths from the source tree; `--check` writes nothing |
 | `reach` | which artifacts a changed Java type can move, off the compiled constant pool |
@@ -107,9 +109,9 @@ and it refuses with `MissingDependency` (exit 4) at the first PNG it opens. Ever
 stdlib-only - `cli` asks `pixels.available()` before registering the group above, and that answer
 needs neither.
 
-The build invokes `selftest`, `capture-begin`, `capture-normalize`, `capture-index`, `compare`,
-`expect`, `promote-apply` and `plan`; the pre-commit hook invokes `plan`. The rest are for a human
-at a terminal.
+The build invokes `selftest`, `capture-begin`, `capture-normalize`, `capture-index`,
+`schedule-check`, `render-record`, `compare`, `expect`, `promote-apply` and `plan`; the
+pre-commit hook invokes `plan`. The rest are for a human at a terminal.
 
 A capture step is a finalizer, so it runs whether or not the producer it follows succeeded, and the
 build tells it which producers failed with `capture-normalize --failed`. It reads the producer's
@@ -132,6 +134,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `declarations.py` | the `@Parity` declarations, read out of source text: the lexer, every refusal, and the trigger paths a claim's carriers derive |
 | `reach.py` | class-level reach off the compiled constant pool - the pool reader, the reference graph, and the producer-rooted closure that says which artifacts one type can move. Bytecode rather than imports, because the javadoc convention makes an import of a `{@link}` target that is not a dependency, and a same-package reference needs no import at all; a class file carries neither error. The roots are producers rather than renderers, since no renderer references a loader |
 | `provenance.py` | the record that makes a baseline self-identifying: the commit, the tree state, the reference set |
+| `schedule.py` | whether a capture boots the client to refresh the reference tree: the plan's answer off the rules that selected the tree's row, and the capture's three holds - that answer against the tree as it stands, the harness inputs against the record of the last whole render, and the regenerated schedule roster projected onto the schedules `idle/` and `walk/` recorded |
 | `manifest.py` | tree digest manifests - build, verify, and the generated `sha256sum` view |
 | `sweep.py` | the sweep-table reader in both the producer's TSV form and the stored one, and the one implementation of the fleet sum and the buckets |
 | `ids.py` | the five subject-id spellings, the appearance-key grammar, the armour stem |
@@ -142,7 +145,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `pixels.py` | the whole optional-dependency surface: nothing else may import numpy or Pillow |
 | `cli.py` | the argparse tree and the one place an exception becomes an exit code |
 | `lab/` | the `[PX]` fragment family - probes, never a gate. Its own README names all six and records what was deliberately not ported. |
-| `tests/` | `unittest`, run by `python parity/scripts/parity selftest`; fast and offline |
+| `tests/` | `unittest`, run by `python parity/scripts/parity selftest` one module per process, each under a scratch root of its own, and reported in module order; fast and offline |
 
 `norm` being the sole writer is enforced by a test that reads the package's own source, so a module
 written next year is covered without being registered anywhere. The table above is enforced the

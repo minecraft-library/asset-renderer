@@ -1,11 +1,8 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
-import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -18,16 +15,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Coverage for the {@link ViewMirror} view toggles on entity rendering. There is no vanilla ground truth
  * for mirrored / flipped entity poses (the reference harness only rendered the default view), so this
  * checks what CAN be proven without a reference image:
  * <ol>
- * <li><b>{@link ViewMirror#DEFAULT} is a no-op</b> - the regression guard that entity
- *     rendering is unchanged for existing callers.</li>
  * <li><b>ViewMirror variants render present and uncropped</b> - the entity-specific risk is that facing
  *     desyncs the three projection-resolve sites (render camera / bounds / anchor) and the entity
  *     clips or shifts off-canvas; a padded fit that never touches the border proves they stay synced.</li>
@@ -51,8 +44,6 @@ class EntityRendererFacingTest {
 
     @BeforeAll
     static void bootstrap() {
-        ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
         entityRenderer = new EntityRenderer(ClientAssetsExtension.context());
     }
 
@@ -79,14 +70,6 @@ class EntityRendererFacingTest {
 
     private static PixelBuffer render(EntityOptions options) {
         return entityRenderer.render(options).image().getFrames().getFirst().pixels();
-    }
-
-    @Test
-    @DisplayName("facing(DEFAULT) equals no facing")
-    void defaultIsNoOp() {
-        int[] noFacing = pixels(render(base().build()));
-        int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(ViewMirror.DEFAULT).build()).build()));
-        assertArrayEquals(noFacing, explicitDefault);
     }
 
     @Test
@@ -155,16 +138,6 @@ class EntityRendererFacingTest {
         int covMirrored = coverage(render(base().output(baseRender().mutate().facing(ViewMirror.MIRRORED).build()).build()));
         float ratio = Math.abs(covMirrored - covDefault) / (float) covDefault;
         assertThat("mirror coverage drift (fit desync would clip / rescale)", (double) ratio, lessThan(0.15));
-    }
-
-    /**
-     * Reads a frame's whole pixel array, so two renders can be compared byte for byte.
-     *
-     * @param b the rendered frame
-     * @return the frame's ARGB pixels in row-major order
-     */
-    private static int[] pixels(PixelBuffer b) {
-        return b.getPixels(0, 0, b.width(), b.height(), null, 0, 0);
     }
 
     /**

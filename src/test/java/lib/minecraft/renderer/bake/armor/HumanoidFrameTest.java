@@ -6,38 +6,26 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
-import lib.minecraft.renderer.engine.camera.Placement;
-import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
-import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
-import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
-import javax.imageio.ImageIO;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.DoubleStream;
@@ -45,7 +33,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -66,8 +53,7 @@ import static org.hamcrest.Matchers.is;
  * polygon gives the same corner.
  * <p>
  * The probe sheet paints each texel with its own {@code (u, v)} - {@code u} in red, {@code v} in green -
- * so a sampled texel names the sheet position it came from. {@link #writesTheUndersideViewsForALook}
- * rasterizes the probe head and torso from below into {@code build/humanoid-frame/}.
+ * so a sampled texel names the sheet position it came from.
  */
 @DisplayName("Boxes built upright from a vanilla cube read every strip where vanilla's cube walk puts it")
 class HumanoidFrameTest {
@@ -119,24 +105,6 @@ class HumanoidFrameTest {
 
     /** The blue every probe texel carries, which tells a probe texel from a transparent miss. */
     private static final int PROBE_BLUE = 0x40;
-
-    /** Where the look renders are written, under the build directory the suite runs from. */
-    private static final @NotNull Path LOOK_DIRECTORY = Path.of("build", "humanoid-frame");
-
-    /** The look renders' canvas edge, in pixels. */
-    private static final int LOOK_SIZE = 256;
-
-    /** The fraction of the canvas the fitted box fills. */
-    private static final float LOOK_FILL = 0.9f;
-
-    /** The skull scope's scale, which makes the head the unit cube and keeps each box clear of the portrait camera. */
-    private static final float LOOK_UNITS_PER_PIXEL = 0.125f;
-
-    /** The pitch added to the portrait pose, so the flipped view looks up at the underside rather than past it. */
-    private static final @NotNull EulerRotation LOOK_TILT = new EulerRotation(45f, 0f, 0f);
-
-    /** The placement every 3D player scope is rasterized through - the half turn about Y. */
-    private static final @NotNull Placement PLAYER_FACING = new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
 
     @TestFactory
     @DisplayName("every corner of every part's faces, on both layers, samples the texel vanilla's walk puts there")
@@ -209,29 +177,6 @@ class HumanoidFrameTest {
                 "plate " + face, () -> assertFaceReadsVanillasTexels(plate, face, SHIELD_PLATE, false))),
             Stream.of(Face.values()).map(face -> DynamicTest.dynamicTest(
                 "handle " + face, () -> assertFaceReadsVanillasTexels(handle, face, SHIELD_HANDLE, false))));
-    }
-
-    @Test
-    @DisplayName("the probe sheet and the probe head and torso seen from below are written under build/humanoid-frame for a look")
-    void writesTheUndersideViewsForALook() throws IOException {
-        Path directory = Files.createDirectories(LOOK_DIRECTORY);
-        PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
-        Path sheet = directory.resolve("probe.png");
-        ImageIO.write(probe.toBufferedImage(), "PNG", sheet.toFile());
-        assertThat(sheet + " holds an image", Files.size(sheet), greaterThan(0L));
-
-        Rasterizer rasterizer = new Rasterizer(
-            Projection.PORTRAIT.resolve(LOOK_TILT, ViewMirror.FLIPPED).camera(), PLAYER_FACING);
-        for (HumanoidPart part : new HumanoidPart[]{ HumanoidPart.HEAD, HumanoidPart.TORSO }) {
-            PixelBuffer target = PixelBuffer.canvas(LOOK_SIZE, LOOK_SIZE);
-            rasterizer.rasterizeFitted(
-                BoxKit.buildBox(part.centred(LOOK_UNITS_PER_PIXEL), part.textures(probe, false), ColorMath.WHITE),
-                target, EulerRotation.NONE, LOOK_FILL);
-
-            Path render = directory.resolve("underside_" + part.name().toLowerCase(Locale.ROOT) + ".png");
-            ImageIO.write(target.toBufferedImage(), "PNG", render.toFile());
-            assertThat(render + " holds an image", Files.size(render), greaterThan(0L));
-        }
     }
 
     /**

@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -43,9 +42,10 @@ import static org.hamcrest.Matchers.is;
  * drawn as well as its chrome. Everything the panel draws reproduces; what is left is the rectangle
  * of flat red the panel carries where its name field goes, which the client covers on every draw
  * and never once shows. That residual is the field being drawn from rules rather than read off art,
- * and a second test pins the red so the reason stays visible. Against the client's frame - the sheet,
- * the field sprite its first input picks and the cross where the client draws one - the theme paints
- * the anvil whole in every state its slots give, field and cross included.
+ * and {@link WindowSlicedTest} pins the red beside its own check that a sliced anvil shows none of it.
+ * Against the client's frame - the sheet, the field sprite its first input picks and the cross where
+ * the client draws one - the theme paints the anvil whole in every state its slots give, field and
+ * cross included.
  * <p>
  * The crafting table's recipe-book button is pinned beside them: the theme's bevel with the item it
  * carries is the client's button sprite.
@@ -54,14 +54,17 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
 class WindowVanillaOracleTest {
 
-    /** the nine columns every full-width slot row sits at */
-    private static final int[] NINE = { 7, 25, 43, 61, 79, 97, 115, 133, 151 };
-
     /** the vanilla slot cell's side, in Minecraft pixels */
     private static final int SLOT = 18;
 
     /** the output pixels a Minecraft pixel is laid at on a side */
     private static final int S = MinecraftFont.MC_PIXEL_SCALE;
+
+    /**
+     * The sheet every chest is composed out of - no screen is its shape, one sheet serving each row count
+     * the client opens through a composition it takes two draws over.
+     */
+    private static final String GENERIC_54 = "minecraft:gui/container/generic_54";
 
     private static final String ANVIL = "minecraft:gui/container/anvil";
 
@@ -87,8 +90,6 @@ class WindowVanillaOracleTest {
      * <p>
      * Every screen the client blits whole is named by the screen the renderer lays it out as, so this
      * asserts the roster's own numbers against the art rather than against a second table beside it.
-     * The chest sheet is the exception and carries its cells by hand: no screen is that shape, one
-     * sheet serving each row count the client opens through a composition it takes two draws over.
      *
      * @param id the texture id, without the {@code textures/} prefix and the extension
      * @param width the drawn width in Minecraft pixels
@@ -96,18 +97,6 @@ class WindowVanillaOracleTest {
      * @param cells every slot cell, as {@code x, y, side} triples
      */
     private record Container(String id, int width, int height, List<int[]> cells) {}
-
-    private static List<int[]> grid(int[] xs, int[] ys) {
-        return Arrays.stream(ys)
-            .boxed()
-            .flatMap(y -> Arrays.stream(xs).mapToObj(x -> new int[] { x, y, SLOT }))
-            .toList();
-    }
-
-    @SafeVarargs
-    private static List<int[]> cells(List<int[]>... parts) {
-        return Arrays.stream(parts).flatMap(List::stream).toList();
-    }
 
     /** The container the given screen is laid out as, with the player's section drawn. */
     private static Container of(String id, ScreenMetrics screen) {
@@ -118,11 +107,6 @@ class WindowVanillaOracleTest {
 
     private static Container shulkerBox() {
         return of("minecraft:gui/container/shulker_box", ScreenMetrics.shulkerBox());
-    }
-
-    private static Container genericFiftyFour() {
-        return new Container("minecraft:gui/container/generic_54", 176, 222,
-            cells(grid(NINE, new int[] { 17, 35, 53, 71, 89, 107 }), grid(NINE, new int[] { 139, 157, 175, 197 })));
     }
 
     private static Container dispenser() {
@@ -185,12 +169,6 @@ class WindowVanillaOracleTest {
     }
 
     @Test
-    @DisplayName("the sheet every chest is composed out of reproduces whole")
-    void theChestSheetReproducesWhole() {
-        assertThat(differingPixels(genericFiftyFour()), is(equalTo(0)));
-    }
-
-    @Test
     @DisplayName("the dispenser reproduces whole, its own grid starting one pixel above the chest's")
     void dispenserReproducesWhole() {
         assertThat(differingPixels(dispenser()), is(equalTo(0)));
@@ -233,7 +211,7 @@ class WindowVanillaOracleTest {
      * panel a pixel shorter than the sheet.
      */
     private static PixelBuffer composedChest(int rows) {
-        PixelBuffer sheet = shipped(genericFiftyFour());
+        PixelBuffer sheet = texture(GENERIC_54);
         int split = rows * ScreenMetrics.CELL + 17;
         PixelBuffer out = PixelBuffer.straight(176, split + 96);
 
@@ -310,23 +288,6 @@ class WindowVanillaOracleTest {
         // shows, so the whole of it differs and that is the field being drawn rather than read.
         assertThat("residual pixel count", differing, is(equalTo(110 * 16)));
         assertThat("residual bounds", List.of(minX, minY, maxX, maxY), is(equalTo(List.of(59, 20, 168, 35))));
-    }
-
-    @Test
-    @DisplayName("the dead field really is flat red, the hole the client covers with the field sprite")
-    void theDeadFieldIsFlatRed() {
-        Possible<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
-        assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
-        PixelBuffer art = resolved.get();
-
-        // This is the hole the client covers by blitting the field sprite over it on every draw, which
-        // is why a sliced window draws that sprite there rather than showing the art.
-        int red = 0;
-        for (int y = 20; y < 36; y++)
-            for (int x = 59; x < 169; x++)
-                if (art.getPixel(x, y) == 0xFFFF0000) red++;
-
-        assertThat("every pixel of the field's rectangle", red, is(equalTo(110 * 16)));
     }
 
     @Test

@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.LoopCount;
 import dev.simplified.image.option.GifWriteOptions;
 import dev.simplified.image.pixel.Background;
@@ -58,6 +59,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,10 +89,10 @@ import static org.hamcrest.Matchers.is;
  * not by hand.
  *
  * <p><b>Two arms.</b> Unset, every case asserts only that its committed image is present and carries
- * the container the README expects, and for a GIF that the case writes it with a transparent slot
- * and its first frame holds a transparent pixel - no render runs, so the fast suite pays for none of
- * eleven subjects' renders. With {@code -Dasset.showcase.regenerate=true} each case renders its subject and overwrites
- * the image, which dirties tracked files on purpose. {@link #REGENERATE_COMMAND} is the command, and
+ * the container the README expects, and for a GIF that its first frame holds a transparent pixel -
+ * no render runs, so the fast suite pays for none of eleven subjects' renders. With
+ * {@code -Dasset.showcase.regenerate=true} each case renders its subject and overwrites the image,
+ * which dirties tracked files on purpose. {@link #REGENERATE_COMMAND} is the command, and
  * it is quoted in every failure that wants it.
  *
  * <p>The cases are ORDERED, and only for the regenerating arm: the last one holds the README's image
@@ -365,9 +370,9 @@ final class ReadmeShowcaseTest {
      * strips and one of them an atlas - is not a cost the fast suite should carry to learn that a PNG
      * is still on disk, and what it can learn without rendering is the half that goes wrong in
      * practice: a file deleted, truncated, or written in the wrong container. A GIF must be written
-     * with a transparent slot, so the README's page shows through it, and its committed bytes are
-     * decoded, still without a render: the first frame must hold a transparent pixel, since one
-     * holding none was written without the slot.
+     * with a transparent slot, so the README's page shows through it, and its first frame is decoded
+     * from the committed bytes, still without a render: that frame must hold a transparent pixel,
+     * since one holding none was written without the slot.
      *
      * @param name the file name under {@link #IMAGES}, which is also what the README must reference
      * @param format the container the image is written in
@@ -386,10 +391,7 @@ final class ReadmeShowcaseTest {
             assertThat(name + " is not a " + format.getFormatName() + ", so the README shows a container "
                 + "this case does not write", format.matches(committed), is(true));
             if (format == ImageFormat.GIF) {
-                assertThat(name + " is a showcase GIF written without a transparent slot, so the README's page "
-                    + "does not show through it", options != null && options.transparent(), is(true));
-                ImageData decoded = ImageFactory.fromByteArray(committed, format);
-                boolean holdsTransparent = Arrays.stream(decoded.getFrames().getFirst().pixels().data())
+                boolean holdsTransparent = Arrays.stream(firstFrame(committed))
                     .anyMatch(argb -> ColorMath.alpha(argb) == 0);
                 assertThat(name + " is written with a transparent slot and its first frame holds no transparent "
                     + "pixel, so the committed file was written without it - regenerate with " + REGENERATE_COMMAND,
@@ -408,6 +410,30 @@ final class ReadmeShowcaseTest {
         Files.write(file, options == null
             ? ImageFactory.toByteArray(image, format)
             : ImageFactory.toByteArray(image, format, options));
+    }
+
+    /**
+     * Decodes a GIF's first frame and none of the frames after it.
+     *
+     * <p>{@link ImageFactory#fromByteArray(byte[], ImageFormat)} decodes every frame of a GIF, and the
+     * assert arm reads only the first, so the reader the image library drives is driven here and
+     * stopped after frame 0. The frame is wrapped the way the library wraps each frame it reads, so
+     * its pixels are the ones the library's own decode answers for that frame.
+     *
+     * @param committed the GIF's bytes
+     * @return the first frame's ARGB pixels
+     * @throws IOException if the bytes cannot be read as a GIF
+     */
+    private static int @NotNull [] firstFrame(byte @NotNull [] committed) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(committed))) {
+            ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
+            try {
+                reader.setInput(stream, true);
+                return PixelBuffer.wrap(reader.read(0)).data();
+            } finally {
+                reader.dispose();
+            }
+        }
     }
 
     /**

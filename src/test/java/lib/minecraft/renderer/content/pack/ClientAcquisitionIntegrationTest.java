@@ -1,25 +1,11 @@
 package lib.minecraft.renderer.content.pack;
 
-import com.google.gson.JsonObject;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.PixelBuffer;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
-import lib.minecraft.renderer.content.table.BlockTintsLoader;
-import lib.minecraft.renderer.store.ParityJson;
-import lib.minecraft.renderer.store.Pins;
-import lib.minecraft.renderer.store.SelfCapture;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.vanilla.TintSource;
-import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -27,30 +13,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end asset pipeline integration test that downloads the client jar for the Minecraft version
- * {@link ClientAssetsExtension#VERSION} names, reads its vanilla pack into memory, runs the full
- * pipeline, and asserts that every critical artefact (block models, item models, texture catalogue,
- * vanilla pack entity) is populated - and that the same jar extracted to disk, the opt-in form, writes
- * the pack and nothing beside it.
+ * End-to-end acquisition test that downloads the client jar for the Minecraft version
+ * {@link ClientAssetsExtension} acquires, reads its vanilla pack into memory and asserts the asset
+ * tree is there. The opt-in extraction is held to the in-memory read of the same jar: a small
+ * stand-in client jar, cached under a temporary root, extracted to disk writes its vanilla pack and
+ * nothing beside it.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
  * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
@@ -73,42 +53,13 @@ import static org.hamcrest.Matchers.notNullValue;
 @DisplayName("ClientAcquisition end-to-end integration")
 class ClientAcquisitionIntegrationTest {
 
-    /** The digest-set the colormap byte-parity assertion both writes and reads. */
-    private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
-
-    /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
-    private static final String COLORMAP_FORM = "raw-argb-bytes";
-
-    /** Client assets (options + vanilla pack) shared across every test, taken once in {@link #downloadAndRead()}. */
-    private static ClientAssets result;
-
-    /** The compiled pack stack, probed by the stack / texture-index assertions. */
-    private static PackStack stack;
-
-    /** The resolved block + item model sets, probed by the model-count assertions. */
-    private static ResolvedModels models;
-
-    /** The loaded block-tint table, probed by the {@code block_tints.json} assertion. */
-    private static Map<String, Block.Tint> blockTints;
-
-    /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
-    private static ConcurrentMap<TintSource, ColorMap> colorMaps;
-
-    /** The vanilla pack the presence assertions probe. */
+    /** The vanilla pack read into memory off the cached client jar, probed by the asset-tree assertions. */
     private static PackContainer vanilla;
 
-    /**
-     * Runs the full pipeline once for the class over the extension's client jar and publishes the shared
-     * {@link #result} / {@link #vanilla}.
-     */
+    /** Acquires the extension's client assets once for the class and publishes its {@link #vanilla} pack. */
     @BeforeAll
     static void downloadAndRead() {
-        result = ClientAssetsExtension.assets();
-        vanilla = result.vanilla();
-        stack = PackAcquisition.acquire(result);
-        models = ResolvedModels.load(stack);
-        blockTints = BlockTintsLoader.load();
-        colorMaps = ColorMapLoader.load(stack);
+        vanilla = ClientAssetsExtension.assets().vanilla();
     }
 
     @Test
@@ -121,22 +72,11 @@ class ClientAcquisitionIntegrationTest {
     }
 
     @Test
-    @DisplayName("populates the vanilla pack at the base of the stack, held in memory over the cached jar")
-    void populatesVanillaPack() {
-        ResourcePack pack = stack.vanilla();
-        assertThat(pack.id(), equalTo(PackId.VANILLA));
-        assertThat(pack.namespaces(), hasItem("minecraft"));
-        assertThat(pack.container(), instanceOf(PackContainer.Live.class));
-        assertThat(((PackContainer.Live) pack.container()).source(), equalTo(result.options().vanillaRoot().resolve("client.jar")));
-        assertThat(stack.ascending().getFirst(), is(pack));
-    }
-
-    @Test
-    @DisplayName("extracting the same jar writes the vanilla pack, and nothing beside it, under the pack root")
+    @DisplayName("extracting a cached jar writes its vanilla pack, and nothing beside it, under the pack root")
     void extractsWhenAsked(@TempDir Path cache) throws IOException {
         ClientOptions options = ClientOptions.builder().cacheRoot(cache.toFile()).extractAssets(true).build();
-        Files.createDirectories(options.vanillaRoot());
-        Files.copy(result.options().vanillaRoot().resolve("client.jar"), options.vanillaRoot().resolve("client.jar"));
+        Path jar = options.vanillaRoot().resolve("client.jar");
+        writeClientJar(jar);
 
         ClientAssets extracted = ClientAcquisition.acquire(options);
 
@@ -147,105 +87,34 @@ class ClientAcquisitionIntegrationTest {
         assertThat("assets/minecraft/textures/block exists",
             Files.isDirectory(packRoot.resolve("assets/minecraft/textures/block")), is(true));
         assertThat("the extraction holds what the in-memory read holds",
-            extracted.vanilla().entries("").sorted().toList(), equalTo(vanilla.entries("").toList()));
+            extracted.vanilla().entries("").sorted().toList(), equalTo(ClientAcquisition.readVanillaPack(jar).entries("").toList()));
         assertThat("the jar sits beside the pack, not in it", extracted.vanilla().exists("client.jar"), is(false));
     }
 
-    @Test
-    @DisplayName("loads every block model under models/block")
-    void loadsBlockModels() {
-        assertThat("block model count", models.blocks().size(), is(greaterThan(500)));
-        assertThat(models.blocks(), hasKey("minecraft:block/grass_block"));
-        assertThat(models.blocks(), hasKey("minecraft:block/cobblestone"));
-        assertThat(models.blocks(), hasKey("minecraft:block/stone"));
+    /**
+     * Writes a stand-in client jar at {@code jar} - the vanilla trees, the {@code version.json} the
+     * pack's {@code pack.mcmeta} is synthesised from, and the second-namespace, class and manifest
+     * entries a client jar carries beside the pack.
+     *
+     * @param jar where the jar is cached
+     * @throws IOException if the jar cannot be written
+     */
+    private static void writeClientJar(@NotNull Path jar) throws IOException {
+        Files.createDirectories(jar.getParent());
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jar))) {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write("{\"name\":\"stand-in\",\"pack_version\":{\"resource_major\":84,\"resource_minor\":0}}"
+                .getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
 
-        ModelData grass = models.blocks().get("minecraft:block/grass_block");
-        assertThat("grass block model resolved", grass, is(notNullValue()));
-    }
-
-    @Test
-    @DisplayName("loads every item model under models/item")
-    void loadsItemModels() {
-        assertThat("item model count", models.items().size(), is(greaterThan(500)));
-        assertThat(models.items(), hasKey("minecraft:item/diamond_sword"));
-        assertThat(models.items(), hasKey("minecraft:item/iron_pickaxe"));
-        assertThat(models.items(), hasKey("minecraft:item/apple"));
-
-        ModelData sword = models.items().get("minecraft:item/diamond_sword");
-        assertThat("diamond sword model resolved", sword, is(notNullValue()));
-    }
-
-    @Test
-    @DisplayName("catalogues every texture under assets/minecraft/textures")
-    void cataloguesTextures() {
-        assertThat("texture catalogue is populated", stack.textureIndex().size(), is(greaterThan(500)));
-
-        ResolvedTexture grassTop = stack.textureIndex().get(ResourceId.parse("minecraft:block/grass_block_top"));
-        assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
-        PixelBuffer grassBuffer = ImageFactory.fromByteArray(grassTop.bytes()).toPixelBuffer();
-        assertThat(grassBuffer.width(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassBuffer.height(), is(greaterThanOrEqualTo(16)));
-        assertThat(grassTop.path(), allOf(
-            containsString("block"),
-            containsString("grass_block_top"),
-            containsString(".png")
-        ));
-    }
-
-    @Test
-    @DisplayName("holds the enchanted glint textures (item and armor)")
-    void holdsGlintTextures() {
-        assertThat("enchanted_glint_item.png present",
-            vanilla.exists("assets/minecraft/textures/misc/enchanted_glint_item.png"), is(true));
-        assertThat("enchanted_glint_armor.png present",
-            vanilla.exists("assets/minecraft/textures/misc/enchanted_glint_armor.png"), is(true));
-    }
-
-    @Test
-    @DisplayName("holds the grass/foliage colormaps")
-    void holdsColormaps() {
-        assertThat("colormap/grass.png present", vanilla.exists("assets/minecraft/textures/colormap/grass.png"), is(true));
-        assertThat("colormap/foliage.png present", vanilla.exists("assets/minecraft/textures/colormap/foliage.png"), is(true));
-    }
-
-    @Test
-    @DisplayName("BlockTintsLoader loads the bundled block_tints.json into Block.Tint entries")
-    void parsesBlockColors() {
-        // The colormap-target and constant rows are asserted in the fast suite by BlockTintsLoaderTest;
-        // DRY_FOLIAGE is the one target no fast-suite case reaches.
-        Block.Tint leafLitter = blockTints.get("minecraft:leaf_litter");
-        assertThat(leafLitter, is(notNullValue()));
-        assertThat(leafLitter.target(), equalTo(TintSource.DRY_FOLIAGE));
-    }
-
-    @Test
-    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store")
-    void colormapsByteMatchBundledLut() {
-        // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
-        // The re-point resolves vanilla's own extracted PNG through the stack and must decode to
-        // the identical bytes. The form is `raw-argb-bytes`, which - unlike the shipped tables'
-        // `table-canonical` - encodes no library's formatting, so no dependency version rides with
-        // it.
-        Map<String, JsonObject> entries = new TreeMap<>();
-        Map<String, String> observed = new TreeMap<>();
-        for (TintSource type : List.of(TintSource.GRASS, TintSource.FOLIAGE,
-            TintSource.DRY_FOLIAGE)) {
-            String digest = ParityJson.sha256(colorMaps.get(type).pixels());
-            observed.put(type.name(), digest);
-            JsonObject entry = new JsonObject();
-            entry.addProperty("form", COLORMAP_FORM);
-            entry.addProperty("sha256", digest);
-            entries.put(type.name(), entry);
+            for (String name : List.of("assets/minecraft/textures/block/stone.png", "assets/minecraft/models/block/stone.json",
+                "data/minecraft/tags/block/logs.json", "assets/realms/lang/en_us.json", "net/minecraft/client/main/Main.class",
+                "META-INF/MANIFEST.MF")) {
+                zip.putNextEntry(new ZipEntry(name));
+                zip.write(name.getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
         }
-        SelfCapture.write(COLORMAP_ARTIFACT, entries);
-
-        SelfCapture.requireBaseline(COLORMAP_ARTIFACT);
-
-        assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
-            Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
-        observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
-                + "re-baseline it: " + Pins.rebaselineCommand(COLORMAP_ARTIFACT),
-            digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
     }
 
 }

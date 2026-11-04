@@ -99,21 +99,12 @@ public final class EntityRenderDriver {
     private static final int DEFAULT_SIZE = 512;
 
     /**
-     * Runs the Java-pipeline entity sweep.
+     * Loads vanilla's context and runs the Java-pipeline entity sweep.
      *
-     * @param args {@code args[0]} is an optional render size; {@code args[1]} an optional single entity id
-     *     (blank to render all); {@code args[2]} an optional {@link Projection} name (default
-     *     {@code VANILLA_ISO})
+     * @param args the arguments {@link #run} takes
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        int size = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_SIZE;
-        Optional<String> singleEntityId = args.length > 1 && !args[1].isBlank() ? Optional.of(args[1]) : Optional.empty();
-        Projection projection = args.length > 2 && !args[2].isBlank()
-            ? Projection.valueOf(args[2].toUpperCase(Locale.ROOT)) : Projection.VANILLA_ISO;
-
-        Files.createDirectories(OUTPUT_DIR);
-
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
@@ -122,7 +113,26 @@ public final class EntityRenderDriver {
             throw ex;
         }
 
-        RendererContext context = RendererContext.load(result);
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Runs the Java-pipeline entity sweep.
+     *
+     * @param context the loaded vanilla context
+     * @param args {@code args[0]} is an optional render size; {@code args[1]} an optional single entity id
+     *     (blank to render all); {@code args[2]} an optional {@link Projection} name (default
+     *     {@code VANILLA_ISO})
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
+        int size = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_SIZE;
+        Optional<String> singleEntityId = args.length > 1 && !args[1].isBlank() ? Optional.of(args[1]) : Optional.empty();
+        Projection projection = args.length > 2 && !args[2].isBlank()
+            ? Projection.valueOf(args[2].toUpperCase(Locale.ROOT)) : Projection.VANILLA_ISO;
+
+        Files.createDirectories(OUTPUT_DIR);
+
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew entityModels first");

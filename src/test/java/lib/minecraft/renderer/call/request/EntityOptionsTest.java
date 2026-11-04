@@ -45,16 +45,6 @@ class EntityOptionsTest {
     }
 
     @Test
-    @DisplayName("a style the caller names is held by the builder")
-    void aNamedStyleIsHeld() {
-        EntityOptions options = EntityOptions.builder()
-            .entityId("minecraft:frog")
-            .style("croak")
-            .build();
-        assertEquals("croak", options.getStyle());
-    }
-
-    @Test
     @DisplayName("a baby-only row applies to a baby and refuses an adult")
     void aBabyOnlyRowFiltersOnAge() {
         PoseStyle rollUp = new PoseStyle("roll_up",

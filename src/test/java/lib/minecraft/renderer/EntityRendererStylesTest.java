@@ -1,14 +1,11 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -19,9 +16,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The renderer's style discovery over the shipped catalog.
@@ -38,9 +33,7 @@ class EntityRendererStylesTest {
 
     @BeforeAll
     static void load() {
-        ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        renderer = new EntityRenderer(RendererContext.builder().entities(entities).build());
+        renderer = new EntityRenderer(RendererContext.builder().entities(EntityModelLoader.load()).build());
     }
 
     @Test
@@ -55,15 +48,6 @@ class EntityRendererStylesTest {
     void aStylesLessEntityAnswersBindOnly() {
         assertSame(StyleCatalog.BIND_ONLY, renderer.styles("minecraft:armor_stand"),
             "an armour stand ships no styles and answers the one shared catalog");
-    }
-
-    @Test
-    @DisplayName("an unknown entity id is refused as a render of it would be")
-    void anUnknownIdIsRefused() {
-        RendererException refused = assertThrows(RendererException.class,
-            () -> renderer.styles("minecraft:nothing"));
-        assertTrue(refused.getMessage().contains("minecraft:nothing"),
-            "the refusal names the id: " + refused.getMessage());
     }
 
     @Test

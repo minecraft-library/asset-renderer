@@ -1,18 +1,29 @@
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.support.serviceOf
 import org.gradle.process.ExecOperations
+import org.gradle.workers.WorkAction
+import org.gradle.workers.WorkParameters
+import org.gradle.workers.WorkerExecutor
 
 import javax.inject.Inject
 
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Callable
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 // Everything the parity store is gated by: the roots, the artifact roster, the harness runs, the
@@ -111,11 +122,102 @@ class TeeStream(private val console: OutputStream, private val log: OutputStream
     }
 }
 
+/**
+ * What one client boot is handed: where the harness's wrapper runs, the argv it runs, and the log its
+ * stdout is teed to.
+ */
+interface HarnessBootParameters : WorkParameters {
+    /** The harness build's directory, which the wrapper runs in. */
+    val workingDirectory: DirectoryProperty
+
+    /** The wrapper's whole argv. */
+    val commandLine: ListProperty<String>
+
+    /** Where the harness's stdout is teed beside the console. */
+    val log: RegularFileProperty
+}
+
+/**
+ * Boots the client once through the harness's own wrapper, its stdout teed to the console and a log.
+ *
+ * <p>The harness prints `<sweep>: done. rendered= skipped= failed= total=` and one fit line per cohort,
+ * and both are discarded with its gitignored logs. `failed=` is the only signal a partially failed
+ * sweep leaves, so the stream is teed rather than swallowed. A non-zero exit fails the work and so the
+ * task that submitted it.
+ */
+abstract class HarnessBoot @Inject constructor(private val execOps: ExecOperations) :
+    WorkAction<HarnessBootParameters> {
+
+    override fun execute() {
+        val log = parameters.log.get().asFile
+        log.parentFile.mkdirs()
+        TeeStream(System.out, FileOutputStream(log)).use { tee ->
+            execOps.exec {
+                workingDir = parameters.workingDirectory.get().asFile
+                commandLine(parameters.commandLine.get())
+                standardOutput = tee
+            }
+        }
+    }
+}
+
+/**
+ * One harness run: a client boot handed to the Worker API rather than run on the task's own thread.
+ *
+ * <p>That is the whole difference from an `Exec`, and it is what frees the root project while the
+ * client renders. Gradle runs one task of a project at a time unless a task's work is in flight
+ * through the Worker API, so an `Exec` boot would hold every root-project producer behind it for the
+ * length of the render, including the ones that read nothing of the tree. A task is complete only once its
+ * work is, so its `doLast` actions - the stamp of the mode that ran and the producer's wall time - run
+ * after the boot, and every edge ordering a reader after this task still waits for the render.
+ */
+abstract class HarnessRunTask @Inject constructor(private val workers: WorkerExecutor) : DefaultTask() {
+
+    /** The harness build's directory, which the wrapper runs in. */
+    @get:Internal
+    abstract val workingDirectory: DirectoryProperty
+
+    /** The wrapper's whole argv. */
+    @get:Input
+    abstract val commandLine: ListProperty<String>
+
+    /** Where the harness's stdout is teed beside the console. */
+    @get:Internal
+    abstract val log: RegularFileProperty
+
+    @TaskAction
+    fun boot() {
+        val directory = workingDirectory
+        val argv = commandLine
+        val teeTo = log
+        workers.noIsolation().submit(HarnessBoot::class.java) {
+            workingDirectory.set(directory)
+            commandLine.set(argv)
+            log.set(teeTo)
+        }
+    }
+}
+
+/**
+ * The one client a build boots at a time, leased by every harness run and by the harness compile.
+ *
+ * <p>Every run boots the same run directory - one options file, one world save the run deletes before
+ * it starts - and the compile runs the same nested build, so two of them at once would race over both.
+ * A lease is held until its task completes, the boot's work included, so a second run waits for the
+ * first client to stop while everything else in the project goes on around it.
+ */
+abstract class HarnessClient : BuildService<BuildServiceParameters.None>
+
 // The vanilla-reference-harness Fabric mod, which lives inside this repo at harness/ and stays its
 // own Gradle build - its own gradlew, its own JDK 25 toolchain, and no Loom in settings.gradle.kts.
 // The five reference-render tasks below drive it externally through that wrapper, so this is the one
 // place the path is written and the only thing a future relocation has to edit.
 val harnessDir = layout.projectDirectory.dir("harness")
+
+/** The lease on the one client a build boots at a time. */
+val harnessClient = gradle.sharedServices.registerIfAbsent("harnessClient", HarnessClient::class) {
+    maxParallelUsages.set(1)
+}
 
 // ---- reading a -P without hitting a Project bean property ----------------------------------------
 // Project.findProperty resolves a project's BEAN properties as well as its project properties, and
@@ -153,12 +255,14 @@ fun parityFlag(name: String): Boolean =
 /**
  * Returns whether one of this invocation's typed tokens may have named the task.
  *
- * <p><b>It decides one thing: an up-to-date rule.</b> Its single caller marks a self-capturing
- * producer never-up-to-date while a capture is being run, because such a producer's real output is
- * a file in the root the erase has just emptied and Gradle cannot see that - on an unchanged tree
- * `test` is UP-TO-DATE, does not run, and the step then fails on a file nothing rewrote. Answering
- * true for an invocation that goes on to capture nothing costs that invocation a cache entry and
- * nothing else, which is the property that makes an imprecise predicate safe here.
+ * <p><b>It decides one thing: whether a producer's earlier outputs may stand in for a run.</b> Its
+ * single caller marks a self-capturing producer never-up-to-date and never cached while a capture is
+ * being run, because such a producer's real output is a file in the root the erase has just emptied
+ * and Gradle cannot see that - on an unchanged tree `parityPinTest` is UP-TO-DATE or FROM-CACHE,
+ * does not run, and the step then fails on a file nothing rewrote. Answering true for an invocation
+ * that goes on to capture nothing costs that invocation one run of the suite and the cache entry it
+ * would have stored, and nothing else, which is the property that makes an imprecise predicate safe
+ * here.
  *
  * <p><b>It over-answers, and cannot be made not to.</b> A task OPTION and its value ride this same
  * list - `tasks --group parity` arrives as `[tasks, --group, parity]` - and nothing on this side
@@ -268,9 +372,11 @@ val paritySkillReferences: String = ".claude/skills/parity-gate/references"
 // leaves the suite UP-TO-DATE and the guard never runs on the edit it exists for.
 val paritySkillFile: String = ".claude/skills/parity-gate/SKILL.md"
 
-// The topic files under docs/, the markdown alone: the blindness map's `source` fields cite their
-// headings by name, and BlindnessMapTest holds both those citations and their prose to the map. The
-// README's showcase images sit beside them and are read by no guard here, so they stay out.
+// The topic files under docs/, the markdown alone: VectorModuleWiringTest holds the build bullet in
+// docs/project/BuildScripts.md to the task types the build hands the Vector flag, and
+// ParityTaskWiringTest holds the output-directory bullet in docs/harness/Running.md to the reference
+// sub-trees the build lists. The README's showcase images sit beside them and are read by no guard
+// here, so they stay out.
 val parityDocs: FileCollection = fileTree("docs") { include("**/*.md") }
 
 // This checkout's git index, wherever git keeps it. `.git` at the project root is the git directory
@@ -357,6 +463,13 @@ val parityReferenceRoot: String =
 // resolves the same sibling, in TooltipParitySweep.
 val parityPackTooltipRoot: String = parityReferenceRoot.substringBeforeLast('/') + "/pack-tooltips"
 
+// The record of the last whole-tree render, a sibling of the tree so the manifest hashing the tree
+// never reads it, and the pending copy a whole-tree render writes of its inputs before it boots. The
+// toolkit writes the pending one and the schedule check reads the sealed one; the build seals it.
+val parityReferenceRecord: String = parityReferenceRoot.substringBeforeLast('/') + "/references-rendered.json"
+val parityReferenceRecordPending: String =
+    parityReferenceRoot.substringBeforeLast('/') + "/references-rendered.pending.json"
+
 
 /**
  * Where every parity producer's stdout is teed, as a project-relative path the toolkit can read.
@@ -371,6 +484,16 @@ val parityProducerLogDir: String = layout.buildDirectory.dir("parity").get().asF
 /** Where one producer's teed diagnostics land, named after the task so a flow's log is its own. */
 fun parityProducerLog(producer: String): File =
     layout.buildDirectory.file("parity/producer-$producer.log").get().asFile
+
+// The producers whose sweeps run in the one vanilla sweep JVM visual.gradle.kts declares. None of them
+// starts a process of its own, so nothing below can tee its stdout or time its span: the JVM copies
+// each sweep's stdout into the log handed to it here, and times each sweep for the stamp below.
+val vanillaSweepProducerNames: List<String> = (extra["vanillaSweepProducerNames"] as List<*>).map { it.toString() }
+@Suppress("UNCHECKED_CAST")
+val vanillaSweepWallMs = extra["vanillaSweepWallMs"] as Map<String, Long>
+@Suppress("UNCHECKED_CAST")
+val vanillaSweepLogs = extra["vanillaSweepLogs"] as MutableMap<String, File>
+vanillaSweepLogs.putAll(vanillaSweepProducerNames.associateWith(::parityProducerLog))
 
 // ---- the parity toolkit invocation --------------------------------------------------------------
 // The default is RESOLVED against PATH rather than left as the bare name, because a bare name is not
@@ -463,16 +586,12 @@ data class ParityArtifact(
         groundTruth ?: artifact.takeIf { id -> parityArtifacts.any { it.groundTruth == id } }
 }
 
-// The digest and pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those
-// producers self-capture from inside the test JVM, so the capture step validates and stamps the
-// already-canonical file at its own production-relative path rather than reading a producer directory.
-// `--source` naming the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses
-// exactly as the shipped-tables directory does. `digest.shipped-tables` is one of them and not an
-// exception: `table-canonical` is Gson's number formatting, which Python cannot reproduce for the seven
-// float-bearing tables, so no reader outside the test JVM can take that digest at all.
-// `digest.shipped-tables` names `test` and `digest.colormap-lut` names `slowTest` because
-// BundledResourceShaTest runs in the fast suite while ClientAcquisitionIntegrationTest is @Tag("slow") -
-// naming `test` for the latter would let a fast-suite run credit itself with a value it never computed.
+// The pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
+// self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
+// file at its own production-relative path rather than reading a producer directory. `--source` naming
+// the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses. Every one names
+// `parityPinTest`, the fast suite filtered to the classes that write these rows - see
+// `parityPinWriters` - so a capture runs those writers rather than the whole suite around them.
 //
 // manifest.references names ONE producer where several tasks write into that tree: every narrow run
 // leaves the sub-trees it does not name stale, and a whole-tree manifest taken after one of them hashes
@@ -530,9 +649,12 @@ val parityArtifacts = listOf(
     ParityArtifact("manifest.dump.vanilla", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/vanilla"),
     ParityArtifact("manifest.dump.packs", listOf("parityDump"), "cache/parity-dump/$parityDumpLabel/packs"),
     ParityArtifact("manifest.player-sheets", listOf("playerRender"), "cache/visual/player-render",
-        listOf("sheets", "account", "renderSize", "pack")),
+        listOf("sheets", "account", "renderSize")),
     ParityArtifact("manifest.fluid", listOf("fluidRenderer"), "cache/visual/fluid-renderer"),
-    ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer"),
+    // `portalLattice` scopes it although it narrows nothing: the run writes this tree as a plain run
+    // does and four more strips outside it, so its population would capture clean while the wall time
+    // stamped beside it priced the next plan from a diagnostic's cost.
+    ParityArtifact("manifest.portal", listOf("portalRenderer"), "cache/visual/portal-renderer", listOf("portalLattice")),
     // The only row with a logSource: a shipped table reproducing byte for byte is not the same claim
     // as the run that produced it being unchanged, and the entity flow has already moved an INFO line
     // from position 9 to 6 with every emitted byte identical.
@@ -547,15 +669,11 @@ val parityArtifacts = listOf(
         "src/main/resources/lib/minecraft/renderer",
         listOf("toolingOut"),
         logSource = parityProducerLogDir),
-    ParityArtifact("digest.shipped-tables", listOf("test"), parityWorkingRoot),
-    ParityArtifact("digest.colormap-lut", listOf("slowTest"), parityWorkingRoot),
-    ParityArtifact("pin.vanilla-iso-pose", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.kit-corners", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.corpus-count", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.player-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.block-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.portal-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.fluid-crc", listOf("test"), parityWorkingRoot)
+    ParityArtifact("pin.vanilla-iso-pose", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.player-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.block-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.portal-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.fluid-crc", listOf("parityPinTest"), parityWorkingRoot)
 )
 
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
@@ -566,13 +684,12 @@ val parityProducerNames: Set<String> = parityArtifacts.flatMap { it.producers }.
  *
  * An aggregator does its work through `dependsOn`, so its own span opens only once every dependency
  * has finished and rounds to zero. Declared rather than walked off the task graph, because which
- * dependencies a row's budget should COUNT is a decision rather than a fact - `visualSweepClean` is a
- * dependency of `visualSweepSet` and is not work the budget is about - and because a name typed here
+ * dependencies a row's budget should COUNT is a decision rather than a fact - a clear that runs ahead
+ * of a producer is a dependency and is not work the budget is about - and because a name typed here
  * fails loudly at configuration where a graph walk would answer zero in silence, which is the failure
  * this exists to end.
  */
 val parityAggregatedProducers: Map<String, List<String>> = mapOf(
-    "visualSweepSet" to (extra["visualSweepProducerNames"] as List<*>).map { it.toString() },
     "playerRawSweepSet" to listOf("playerParityVanilla", "armorParityVanilla")
 )
 
@@ -592,17 +709,17 @@ val parityProducerElapsedMs: MutableMap<String, Long> = linkedMapOf()
 
 // Every alias that can be derived from the table is derived from it, so a new row joins its alias
 // without a second edit. `renders`, `dump` and `tables` name their members because those three are
-// groupings rather than kinds. manifest.references is deliberately in `all`: naming it means booting
-// the Minecraft client for 152 seconds, which is correct, because the alternative is a reference
-// manifest captured against whatever happened to be on disk.
+// groupings rather than kinds. manifest.references is deliberately in `all`: a -Partifacts naming
+// the row always boots the client and renders the whole tree before hashing it. Only a capture of a
+// plan's own set, whose every rule reaches the tree through the schedule roster, may hash the tree on
+// disk instead, and only once the schedule check has found it current.
 val parityArtifactAliases: Map<String, List<String>> = mapOf(
     "all" to parityArtifacts.map { it.artifact },
     "sweeps" to parityArtifacts.map { it.artifact }.filter { it.startsWith("sweep.") },
     "renders" to listOf("manifest.player-sheets", "manifest.fluid", "manifest.portal"),
     "dump" to listOf("manifest.dump.vanilla", "manifest.dump.packs"),
     "tables" to listOf("manifest.tooling-tables"),
-    "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") },
-    "digests" to parityArtifacts.map { it.artifact }.filter { it.startsWith("digest.") }
+    "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") }
 )
 
 /**
@@ -653,11 +770,81 @@ fun parityPlannedArtifacts(): List<String>? {
 }
 
 /**
+ * How the plan says a capture refreshes the reference tree, or null where no plan holds that row.
+ *
+ * <p>`roster` where every rule that put manifest.references in the plan reaches the tree through the
+ * entity schedule roster alone - B47's version pins, B65's roster inputs or a derived rule's graph
+ * answer - and `boot` where any other rule did. The toolkit decides it and prints it on the plan's
+ * REFERENCES line; this reads the plan `parityPlannedArtifacts` reads, through the same declared input.
+ *
+ * @return the plan's refresh, or null when no plan has been written or it holds no such row
+ */
+fun parityPlannedReferencesRefresh(): String? {
+    val text = providers
+        .fileContents(layout.projectDirectory.file("$parityWorkingRoot/_run/plan.json"))
+        .asText.orNull ?: return null
+    val plan = groovy.json.JsonSlurper().parseText(text) as Map<*, *>
+    return (plan["references"] as Map<*, *>?)?.get("refresh")?.toString()
+}
+
+/**
+ * Whether a capture's boot of the reference tree waits on the schedule check and may be skipped.
+ *
+ * <p>True where no -Partifacts was given, so the capture is the plan's own set, and that plan says
+ * `roster`. A -Partifacts naming the row asks for the render, and a plan saying `boot` - or holding no
+ * such row - has no check to wait on.
+ *
+ * <p>The plan read here only decides whether the check is scheduled. The check resolves the tree
+ * again when the capture runs and disagrees wherever its answer is not the plan's.
+ *
+ * @return whether the plan gates the boot on the roster
+ */
+fun parityReferencesRosterGated(): Boolean =
+    parityProperty("artifacts") == null && parityPlannedReferencesRefresh() == "roster"
+
+/**
+ * Whether the schedule check this capture ran found the reference tree on disk current.
+ *
+ * <p>Read where the boot decides, at execution, off the verdict the check has just written into the
+ * working root. Absent or unreadable answers no, so a check that never wrote one costs the boot the
+ * capture would have paid without it rather than a capture of a tree nobody judged current.
+ *
+ * @param verdict the check's `_run/schedule-check.json`
+ * @return whether it says the tree is current
+ */
+fun parityScheduleAgrees(verdict: File): Boolean {
+    if (!verdict.isFile) return false
+    val read = runCatching { groovy.json.JsonSlurper().parse(verdict) as Map<*, *> }.getOrNull()
+    return read?.get("agrees") == true
+}
+
+/**
+ * Whether this invocation's resolved graph is one whose boot the skip may take, filled once the
+ * graph is ready.
+ *
+ * <p>It holds the capture, and it holds no `parityPlan`: the build read the last plan to choose the
+ * capture's rows and to schedule the check before that task writes the next one. Asked of the graph
+ * rather than of the typed tokens for the reason `parityTaskRequested` gives: a token that names no
+ * capture must never cost a hand-run render its refresh.
+ */
+val parityBootSkippable = AtomicBoolean(false)
+gradle.taskGraph.whenReady { parityBootSkippable.set(hasTask(":parityCapture") && !hasTask(":parityPlan")) }
+
+/**
+ * Whether this invocation skipped the whole-tree boot, filled where the skip is decided.
+ *
+ * <p>The capture of manifest.references records it, so a gate whose plan boots the tree can tell a
+ * capture that hashed the tree as it stood from one a render wrote.
+ */
+val parityReferencesHashed = AtomicBoolean(false)
+
+/**
  * Expands `-Partifacts` into the rows to capture.
  *
  * Three branches in order: an explicit comma list of ids and aliases; absent with a plan, which
  * resolves to the plan's capture set so a human never has to know the ids; absent with no plan,
- * which throws carrying the full id list.
+ * which throws carrying the full id list. An id no row answers throws on either of the first two,
+ * and the one read off a plan says to plan again, since that plan predates the table.
  *
  * @param spec the -Partifacts value, or null when it was not given
  * @return the named rows, in table order and without duplicates
@@ -666,13 +853,22 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
     val known = parityArtifacts.associateBy { it.artifact }
     val roster = "known artifacts: ${known.keys.joinToString(", ")}\n" +
         "known aliases: ${parityArtifactAliases.keys.joinToString(", ")}"
-    val requested = spec?.let { expandParityAliases(it).split(",").filter(String::isNotEmpty) }
+    val named = spec?.let { expandParityAliases(it).split(",").filter(String::isNotEmpty) }
+    val requested = named
         ?: parityPlannedArtifacts()
         ?: throw GradleException(
             "-Partifacts is required when no plan has been written: run parityPlan first, or name " +
                 "the artifacts.\n$roster")
     val ids = requested.distinct()
     ids.firstOrNull { it !in known }?.let {
+        // A plan names the rows the artifact table held when it was written, and it outlives the
+        // capture wipe, so one naming a row the table no longer answers was planned before that row
+        // was retired or renamed - and planning again is the answer rather than a corrected id.
+        if (named == null)
+            throw GradleException(
+                "the plan in $parityWorkingRoot/_run/plan.json names '$it', which no capture row " +
+                    "answers: it was written before that artifact was retired or renamed. Run " +
+                    "parityPlan again.\n$roster")
         throw GradleException("unknown artifact id '$it'.\n$roster")
     }
     return parityArtifacts.filter { it.artifact in ids }
@@ -691,8 +887,21 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 val referenceSubTrees =
     listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "tooltips", "idle", "walk")
 
-/** The whole-suite producers, which order a capture step but are never finalized by one. */
-val paritySuiteProducers = setOf("test", "slowTest")
+/** The suite producer, which orders a capture step but is never finalized by one. */
+val paritySuiteProducers = setOf("parityPinTest")
+
+// The test classes that write a self-captured row, and everything `parityPinTest` runs. Each is the
+// class reach.py roots its row at, and ParityTaskWiringTest holds the two lists to each other: a
+// writer missing here leaves its row unwritten by every capture, which the capture step then records
+// as UNPRODUCED - correct, but only once every producer of the bundle has run, where the fast suite
+// says it before any of them does.
+val parityPinWriters = listOf(
+    "lib.minecraft.renderer.BlockRendererRasterPinTest",
+    "lib.minecraft.renderer.FluidRendererFrameBakePinTest",
+    "lib.minecraft.renderer.PlayerRendererFittedGoldenTest",
+    "lib.minecraft.renderer.PortalRendererFrameBakePinTest",
+    "lib.minecraft.renderer.engine.camera.VanillaIsoPoseGoldenTest"
+)
 
 // Which ground-truth row each harness run WRITES, filled as the run is REGISTERED so the ordering
 // edges below can name every run writing a tree without a second list of their names. A run that
@@ -745,7 +954,7 @@ fun TaskContainer.registerHarnessRun(
     refreshes: List<String>,
     describe: String,
     extraArgs: List<String> = emptyList()
-): TaskProvider<Exec> {
+): TaskProvider<HarnessRunTask> {
     // The ground-truth row this run writes: the reference tree's when it refreshes a sub-tree of it,
     // otherwise the row the artifact table names it the producer of, and none for a probe. Recorded
     // here, where the run is REGISTERED: the configuration block below runs only when the task is
@@ -761,10 +970,12 @@ fun TaskContainer.registerHarnessRun(
         drawn.singleOrNull()?.artifact
     }
     if (writes != null) harnessRunTrees[name] = writes
-    return register<Exec>(name) {
+    return register<HarnessRunTask>(name) {
         description = describe
         group = "tooling"
-        workingDir = harnessDir.asFile
+        workingDirectory.set(harnessDir)
+        // One client at a time: two runs in one invocation boot the same run directory.
+        usesService(harnessClient)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         // layout.projectDirectory, never File(relative): a bare File resolves against the JVM's
@@ -777,7 +988,7 @@ fun TaskContainer.registerHarnessRun(
         // so a run handed the tree itself lands INSIDE it - and manifest.references walks that root for
         // `*.png` at any depth with no member list, so one such run would enter its whole grid as rows
         // of a manifest no reference render had touched. The store already says where a probe's output
-        // belongs: index.json homes probe.depth-quantum at a SIBLING of the tree, "written
+        // belongs: index.json homes probe.pack-icons at a SIBLING of the tree, "written
         // deliberately outside the reference tree". This is what makes that true.
         val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile else referenceDir
         val argv = mutableListOf<String>()
@@ -797,20 +1008,39 @@ fun TaskContainer.registerHarnessRun(
         harnessDiagnosticProperties.filter { project.hasProperty(it) }
             .forEach { argv += "-P$it=${project.property(it)}" }
         argv += extraArgs
-        commandLine = argv
-        val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
+        commandLine.set(argv)
+        log.set(layout.buildDirectory.file("parity/harness-$name.log"))
         val stale = referenceSubTrees - refreshes.toSet()
         doFirst {
-            log.parentFile.mkdirs()
-            // The harness prints "<sweep>: done. rendered= skipped= failed= total=" and one fit line
-            // per cohort, and both are discarded with its gitignored logs. failed= is the only signal a
-            // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
-            standardOutput = TeeStream(System.out, FileOutputStream(log))
             outputDir.mkdirs()
             println("$name -> ${outputDir.toPath().toAbsolutePath().normalize()}")
             if (refreshes.isNotEmpty() && stale.isNotEmpty())
                 println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep " +
                     "whatever produced them. After any harness render change run renderVanillaAllReferences.")
+        }
+        // The record of the last whole-tree render, which the schedule check holds the tree's inputs
+        // to before a capture may hash the tree in place of a render. Every run writing into the tree
+        // deletes it before it boots: a narrow run leaves the sub-trees it never touched, a targeted
+        // run the subjects it filtered out, and a boot that fails part-way whatever it had not reached.
+        // So it stands only over a tree last written by a whole, untargeted boot that exited 0, and
+        // that run seals the record parityReferenceRenderRecord wrote of its inputs before it booted.
+        // Sealed in doLast, which runs only once the boot's work has completed without failing.
+        if (refreshes.isNotEmpty()) {
+            val record = layout.projectDirectory.file(parityReferenceRecord).asFile
+            val pending = layout.projectDirectory.file(parityReferenceRecordPending).asFile
+            val seals = refreshes.toSet() == referenceSubTrees.toSet() &&
+                !(forwardsTargets && project.hasProperty("refharnessTargets"))
+            doFirst {
+                record.delete()
+                if (!seals) pending.delete()
+            }
+            if (seals) {
+                dependsOn("parityReferenceRenderRecord")
+                doLast {
+                    if (pending.isFile)
+                        Files.move(pending.toPath(), record.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
         }
         // The run happened, so any capture still to come in this invocation reads a tree this mode
         // wrote. doLast rather than doFirst: a render that failed left a half-written tree, and a
@@ -931,6 +1161,11 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
                 if (ran.isNotEmpty()) args("--mode", ran)
             }
         }
+        // And, on the row hashing the reference tree, that this invocation hashed the tree as it stood
+        // rather than rendering it - the skip having found it current. A gate whose plan boots the
+        // tree reads this, because an unrendered tree matches its baseline whatever the change does.
+        if (spec.artifact == parityReferencesArtifact)
+            doFirst { if (parityReferencesHashed.get()) args("--tree-refresh", "hashed") }
         // And the wall time of this row's producers, appended for the same reason: how long they
         // took is not known while the graph is configured. Only what RAN is summed, so a step whose
         // producers were up to date or absent from the invocation stamps no duration at all - a zero
@@ -953,7 +1188,7 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     }
     // Ordering first, and it holds for every producer: a capture reads what a producer wrote, so it
     // runs after one whenever both are in the graph. That is what a finalizer edge was implicitly
-    // giving, and the two suites below do not get one.
+    // giving, and the suite below does not get one.
     step.configure {
         mustRunAfter(spec.producers)
         mustRunAfter(parityCaptureBeginTask)
@@ -967,22 +1202,21 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
         spec.tree?.let { tree -> mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }
     }
 
-    // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
-    // producers. `test` and `slowTest` produce their nine rows from inside the test JVM, and a
-    // finalizer on them would make every ordinary `./gradlew test` write into the parity working root,
-    // wiping whatever capture was sitting there waiting to be compared. It would also fail the repo's
-    // primary gate outright until those rows have a writer, which was measured rather than foreseen.
-    // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
-    // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
+    // A hand-run producer captures without anyone remembering a flag - EXCEPT the suite producer.
+    // `parityPinTest` produces its rows from inside the test JVM, and a finalizer on it would make a
+    // hand run of the pin suite take a capture step into the parity working root, wiping whatever
+    // capture was sitting there waiting to be compared. Its rows are still rows: parityCapture
+    // -Partifacts=pins runs the suite and then the step, and the step still fails on an absent file,
+    // which is the backstop a --tests-filtered run needs.
     spec.producers.forEach { producer ->
         named(producer) {
             // Every producer is ordered after the erase, not merely every capture step. Rows whose
             // source IS the working root are written there by the test JVM, so an erase on the far
-            // side of `slowTest` deletes the pins that run just wrote. mustRunAfter binds only when
-            // both tasks are in the graph, so a hand-run producer is unaffected by this edge.
+            // side of `parityPinTest` deletes the pins that run just wrote. mustRunAfter binds only
+            // when both tasks are in the graph, so a hand-run producer is unaffected by this edge.
             mustRunAfter(parityCaptureBeginTask)
             if (producer !in paritySuiteProducers) finalizedBy(step)
-            // A whole-suite producer is SCHEDULED by the erase rather than depended on by the index,
+            // A suite producer is SCHEDULED by the erase rather than depended on by the index,
             // and that is what makes an intentionally moved pin re-baselineable. A self-captured row's
             // writer asserts on the value it just wrote, so the run a re-baseline most needs recorded
             // is the one whose assertion fails - `SelfCapture` writes before asserting for exactly
@@ -991,27 +1225,36 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // prescribes cannot answer: measured on three player CRCs, under `--continue` and without
             // it. A finalizer is the one edge Gradle still runs after the task it finalizes failed,
             // and the erase is the right task to hang it on: it exists only inside a capture graph, so
-            // an ordinary `./gradlew test` neither schedules a step nor meets one. Ordering the index
+            // an ordinary run of the suite neither schedules a step nor meets one. Ordering the index
             // after the suite is the other half and cannot be the whole of it - `mustRunAfter` never
             // schedules, so on its own it drops the suite out of the graph and the step then fails on
             // a file nothing wrote, which is the same measurement one task earlier.
             // That edge is declared ON the erase, behind a Callable over the resolved set, rather than
             // reached back to from here - see `parityCaptureBeginTask`. Attached from here it would be
-            // eager: this function runs for every row at configuration time, so it scheduled BOTH
-            // suites on every capture whatever -Partifacts named. Measured at 1325 fast tests and 85
-            // slow ones for a capture scoped to the two dump rows, whose producer is neither.
+            // eager: this function runs for every row at configuration time, so it scheduled the
+            // suite on every capture whatever -Partifacts named. Measured at 1325 fast tests for a
+            // capture scoped to the two dump rows, whose producer it is not.
             // A self-capturing producer's real output is a file in the root the erase just emptied,
-            // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
-            // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
-            // suite that feeds a capture is never up to date - only while a capture is being run,
-            // because an ordinary `./gradlew test` has no erase in front of it and keeps its cache.
-            if (spec.selfCaptured && parityTaskRequested("parityCapture")) outputs.upToDateWhen { false }
+            // and Gradle cannot see that: on an unchanged tree `parityPinTest` is UP-TO-DATE, does
+            // not run, and the capture step then fails on a file the erase deleted and nothing
+            // rewrote. So a suite that feeds a capture is never up to date - only while a capture is
+            // being run, because an ordinary run of it has no erase in front of it and keeps its cache.
+            // Nor is it taken from the build cache, which is the same skip by another route: an
+            // up-to-date rule decides whether the outputs on disk are reused and says nothing about
+            // the cache, and a Test task is cacheable, so a second capture of an unchanged tree would
+            // restore the reports, run no writer and leave the erased root empty all the same.
+            if (spec.selfCaptured && parityTaskRequested("parityCapture")) {
+                outputs.upToDateWhen { false }
+                outputs.doNotCacheIf("a self-capturing producer inside a capture writes into the working root") { true }
+            }
         }
     }
 }
 
 // The parity half of the fast suite's configuration. A second `configureEach` beside the root
-// script's, which carries the toolchain flag and the property forwarding; Gradle unions them.
+// script's, which carries the toolchain flag and the property forwarding; Gradle unions them. Every
+// Test task takes both, which is how `parityPinTest` runs its writers under exactly the JVM, the
+// properties and the declared inputs `test` runs them under.
 tasks.withType<Test>().configureEach {
     systemProperty("asset.parity.root", parityWorkingRoot)
     systemProperty("asset.parity.references", parityReferenceRoot)
@@ -1078,10 +1321,11 @@ tasks.withType<Test>().configureEach {
     // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
     // with nothing in this file having moved.
     inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
-    // The topic files under docs/ for the same reason, those holding the sections the renderer's own
-    // claims and the texel fetch's cite. The check reading them reads the orientation too, so leaving
-    // them undeclared would let a heading move there against an UP-TO-DATE suite while the
-    // orientation beside them is watched.
+    // The topic files under docs/, for the same citations and because two guards read a bullet of
+    // one back against what this build wires: VectorModuleWiringTest the Vector flag's consumers,
+    // and ParityTaskWiringTest the reference sub-trees a harness run writes. Undeclared, renaming a
+    // cited heading or rewording either bullet leaves `test` UP-TO-DATE and the guard never runs on
+    // the edit.
     inputs.files(parityDocs).withPropertyName("parityDocs")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
@@ -1137,38 +1381,36 @@ tasks {
         }
     }
 
-    // The harness runs. Seven rows over one helper, where there used to be five 30-line Exec bodies
-    // re-declaring workingDir, the wrapper path, the OS test and the argv prologue verbatim and
-    // differing only by a mode flag, whether they forward -PrefharnessTargets, and which sub-trees
-    // they refresh. Those are three columns, so they are rows. The argument for keeping clones is
-    // that one can diverge; the recorded history is that divergence IS the defect - one of the five
-    // forwarded a MODE flag as if it were a filter, and two accepted no properties at all with no
-    // stated reason.
+    // The harness runs, as rows over one helper. What differs between them is a mode flag, whether
+    // they forward -PrefharnessTargets, and which sub-trees they refresh - three columns, so they are
+    // rows, and the working directory, the wrapper path, the OS test and the argv prologue are written
+    // once. A run declared as a body of its own is a place for one run to diverge from the rest - a
+    // mode flag forwarded as if it were a filter, a property accepted by one and not another - with
+    // nothing to show it.
     //
-    // A mode is a task, never a pass-through. -PrefharnessPitchRollSweep used to ride
-    // renderVanillaReferences, where it made the task render no reference at all - under a name
-    // claiming otherwise, and exiting 0. It has its own task now, and so does the depth-quantum
-    // probe, which was previously reachable only by cd-ing into the harness.
+    // A mode is a task, never a pass-through: a mode flag riding another task makes a task named for
+    // the references render none and exit 0. Every reference mode is named through
+    // -PrefharnessModes, the one spelling the harness reads a reference mode from, so no task names a
+    // sub-tree through a line of its own that could go missing and render FULL instead.
     registerHarnessRun("renderVanillaReferences", null, "FULL", true,
         listOf("blocks", "items", "entities", "players"),
         "Runs the harness in FULL mode: blocks, items, entities and the player. Refreshes those four " +
         "sub-trees and no other - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
 
-    registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", "GLINT", true, listOf("glint"),
+    registerHarnessRun("renderVanillaGlintReferences", "refharnessModes=GLINT", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
     // forwardsTargets = false on the player, armour, menu and tooltip runs, and the reason is in the
-    // sweep rather than in the task: PlayerSweep.honoursTargetFilter(), ArmorSweep.honoursTargetFilter(),
-    // MenuSweep.honoursTargetFilter() and TooltipSweep.honoursTargetFilter() all return false because
-    // none of those sweeps' subjects have a registry id, so a filter would match nothing and the run
-    // would write no reference at all.
-    registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", "PLAYERS", false, listOf("players"),
+    // sweeps: none of their subjects has a registry id, so none of them reads -PrefharnessTargets in
+    // the enumerate where the block, item, entity and glint sweeps filter, and each renders its whole
+    // roster whatever the filter names. Forwarding it would read as a scoped run that is not one.
+    registerHarnessRun("renderVanillaPlayerReferences", "refharnessModes=PLAYERS", "PLAYERS", false, listOf("players"),
         "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
-    registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", "ARMOR", false, listOf("armor"),
+    registerHarnessRun("renderVanillaArmorReferences", "refharnessModes=ARMOR", "ARMOR", false, listOf("armor"),
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
-    registerHarnessRun("renderVanillaMenuReferences", "refharnessMenusOnly", "MENUS", false, listOf("menus"),
+    registerHarnessRun("renderVanillaMenuReferences", "refharnessModes=MENUS", "MENUS", false, listOf("menus"),
         "Runs the harness in MENUS mode: references/menus/ only - every subject of MenuSweep's " +
         "roster, each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
@@ -1179,13 +1421,13 @@ tasks {
         "line through the text draw of the client's hotbar-name call, into tooltips/plain/. Then run " +
         "tooltipParityVanilla.")
 
-    registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
+    registerHarnessRun("renderVanillaAnimationReferences", "refharnessModes=ANIMATION", "ANIMATION", true,
         listOf("idle"),
         "Runs the harness in ANIMATION mode: references/idle/ only - every entity posed at each tick " +
         "of its own schedule, with vanilla's own setupAnim running; the roster is written first. " +
         "Then run entityAnimationParityVanilla.")
 
-    registerHarnessRun("renderVanillaWalkReferences", "refharnessWalking", "WALK", true,
+    registerHarnessRun("renderVanillaWalkReferences", "refharnessModes=WALK", "WALK", true,
         listOf("walk"),
         "Runs the harness in WALK mode: references/walk/ only - the same subjects, each at its walk " +
         "schedule, the stride armed at the walk speed and walk-clock rate the roster names. " +
@@ -1207,10 +1449,6 @@ tasks {
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +
         "grid into entities-pitch-roll-sweep/, OUTSIDE the reference tree. Refreshes no reference. " +
         "Requires -PrefharnessTargets.")
-
-    registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", "DEPTH_QUANTUM", false, emptyList(),
-        "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
-        "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
 
     // renderVanillaPackSources, renderVanillaPackTooltipsHypixelSkyblock and renderVanillaPackIcons are
     // the runs that load resource packs, one per pack mode. HarnessMode.resolve refuses packs beside any
@@ -1299,6 +1537,15 @@ tasks {
 
     named("renderVanillaPackIcons") { dependsOn("packIconRoster") }
 
+    // A harness run's boot is Worker API work, so the project's other tasks run beside it, and every
+    // task that reads what one draws waits for it. The sweeps and the capture steps take that edge off
+    // the trees the runs write, further down, and the schedule check and the toolkit's suite where
+    // each is registered; the slow suite reads the entity sub-tree, and each probe report reads the
+    // directory its own probe draws beside the tree.
+    named("slowTest") { mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }.keys) }
+    named("packIconParityVanilla") { mustRunAfter("renderVanillaPackIcons") }
+    named("packSourceParityVanilla") { mustRunAfter("renderVanillaPackSources") }
+
     // The schedule every posed reference run renders at, written by the asset side's own resolution
     // before each of the three runs that read it, so no posed run boots the client over a stale roster.
     // It declares no outputs and is never up to date, as packIconRoster is not.
@@ -1310,6 +1557,81 @@ tasks {
     }
     listOf("renderVanillaAnimationReferences", "renderVanillaWalkReferences", "renderVanillaAllReferences")
         .forEach { named(it) { dependsOn("entityScheduleRoster") } }
+
+    // Whether the tree on disk is the one a render would write now, for a capture whose plan reaches
+    // it through the roster alone: the plan held to the tree as it stands, the harness inputs to the
+    // record of the last whole render, and the roster the asset side has just written projected onto
+    // the schedules the posed sub-trees recorded - every frozen sub-tree reads nothing of the roster.
+    // The toolkit answers it, so each comparison is written once, and writes its verdict into the
+    // working root's _run/ - after the erase, which is the one edge that keeps the verdict this
+    // capture's.
+    register<ParityToolkitTask>("parityScheduleCheck") {
+        description = "Holds the reference tree on disk to the one a render would write now - the plan to the tree " +
+            "as it stands, the harness inputs to the record of the last whole render, and the entity schedule " +
+            "roster to the schedules the posed sub-trees recorded - and writes the verdict to the working root's " +
+            "_run/schedule-check.json. A capture whose plan reaches the reference tree through the roster alone " +
+            "runs it, and boots the client only where it disagrees."
+        dependsOn("entityScheduleRoster")
+        mustRunAfter(parityCaptureBeginTask)
+        // And after every narrow run writing the tree, which rewrites what the check reads - a
+        // sidecar, the record - while it boots. The whole-tree run waits on this check instead.
+        mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }.keys - "renderVanillaAllReferences")
+        pythonExe.set(parityPythonExe)
+        argv.set(buildList {
+            add("schedule-check")
+            add("--root"); add(parityWorkingRoot)
+            add("--store"); add(parityProductionStore)
+            add("--references"); add(parityReferenceRoot)
+            add("--client-version"); add(minecraftVersion)
+        })
+        outputs.upToDateWhen { false }
+    }
+
+    // What a whole-tree render reads beside the schedule roster - the trigger paths of every rule that
+    // boots the tree, the harness's sources and wiring and the tooltip roster - digested into a pending
+    // record beside the tree before the boot. The whole, untargeted renderVanillaAllReferences depends
+    // on it and seals the record once its boot exits 0.
+    register<ParityToolkitTask>("parityReferenceRenderRecord") {
+        description = "Digests what a whole-tree render reads beside the entity schedule roster into " +
+            "references-rendered.pending.json beside the reference tree, which renderVanillaAllReferences " +
+            "renames to references-rendered.json once its boot exits 0."
+        pythonExe.set(parityPythonExe)
+        argv.set(buildList {
+            add("render-record")
+            add("--store"); add(parityProductionStore)
+            add("--references"); add(parityReferenceRoot)
+        })
+        outputs.upToDateWhen { false }
+    }
+
+    // The boot a capture skips. A plan whose rules reach the reference tree through the schedule
+    // roster alone says `roster`, and a capture of that plan's own set schedules the check, which this
+    // run waits on. The check resolves the tree again rather than trusting the plan, holds the
+    // harness inputs to the record of the last whole render, and projects the roster onto what the
+    // posed sub-trees recorded; the boot runs wherever any of the three disagrees. Where all three
+    // agree, the run is skipped and the capture step behind it hashes the tree as it stands, through
+    // the same step and into the same digest form a boot would have led to, stamping no mode and
+    // recording that it hashed. A -Partifacts naming the row and a plan any harness rule or the
+    // tooltip roster selected the row in never schedule the check; a graph holding parityPlan never
+    // skips; and a run outside a capture always renders, the skip asking the resolved graph whether
+    // the capture is in it. Typed beside a bare capture of a roster plan, the render is that
+    // capture's producer and is skipped where the check finds the tree current.
+    named("renderVanillaAllReferences") {
+        mustRunAfter("parityScheduleCheck")
+        val rosterGated = parityReferencesRosterGated()
+        val verdict = layout.projectDirectory.file("$parityWorkingRoot/_run/schedule-check.json").asFile
+        onlyIf("the schedule check did not find the reference tree current") {
+            val current = rosterGated && parityBootSkippable.get() && parityScheduleAgrees(verdict)
+            if (current) {
+                parityReferencesHashed.set(true)
+                logger.lifecycle("parity: renderVanillaAllReferences skipped - every rule selecting " +
+                    "$parityReferencesArtifact reaches the tree through the schedule roster, the tree was " +
+                    "last rendered whole from the inputs it holds now, and the roster agrees with what " +
+                    "idle/ and walk/ recorded, so the capture hashes the tree on disk.")
+            }
+            !current
+        }
+    }
 
     // All eight tooling flows write through one constant into src/main/resources/lib/minecraft/renderer/
     // and therefore dirty tracked files on every run. That is the signal, not a problem, so nothing
@@ -1339,25 +1661,41 @@ tasks {
     // Minecraft version bump requires regenerating the OTF files.
 
     // ---- parity: the entry points, and the capture step behind every producer --------------------
-    // Group `parity` is deliberately small and countable. The 24 capture steps below carry NO group,
+    // Group `parity` is deliberately small and countable. The capture steps below carry NO group,
     // because they are finalizers rather than something to run: a human runs a producer, and the
     // capture happens. That is the whole of "route through the same store without remembering a flag".
 
+    // Once per gate that captures: `parityCapture` depends on it and so does `check`, and nothing
+    // else does. A gate is four invocations over one tree and the suite answers the same in each, so a
+    // dependency of all four would run it four times for one answer. The capture is the one that
+    // carries it: no verdict is read off a capture that did not close, and a capture closes only
+    // behind a green suite. One tree is held rather than assumed - the capture index names the
+    // toolkit that closed it, and the compare and the promotion refuse a capture another toolkit
+    // closed, so code edited after the capture never writes a verdict or the store unchecked. A gate
+    // whose plan captures nothing runs the suite by name, as the rule a toolkit change fires says.
     register<Exec>("paritySelfTest") {
-        description = "Runs the parity toolkit's own unit suite. Every parity task depends on it, because a gate a broken toolkit computed is worse than no gate at all."
+        description = "Runs the parity toolkit's own unit suite. parityCapture and check depend on it, because a gate a broken toolkit computed is worse than no gate at all."
         group = "verification"
         parityToolkit("selftest")
         outputs.upToDateWhen { false }
-        // The suite's real-tree reach cases read every class root and skip where one is missing, so
-        // wherever the same invocation compiles the roots - `check` does - they run after it rather
-        // than beside it. Ordering only: a parity task on its own compiles nothing for them.
-        mustRunAfter("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
+        // The suite's real-tree reach cases read the class roots the reach graph walks and skip
+        // where one is missing, so the suite compiles them itself: a capture compiles only what its
+        // producers need, and a sweep-only one would otherwise leave the test and generator roots at
+        // whatever the last build wrote. Its cache-reading cases read what the producers write, so
+        // wherever the same invocation runs a producer the suite runs after it rather than beside it.
+        dependsOn("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
+        mustRunAfter(parityProducerNames)
+        // And after every harness run, a boot leaving the project free around it: the corpus case
+        // walks the reference tree a narrow run may be rewriting.
+        mustRunAfter(harnessRunTrees.keys)
     }
 
     register<Exec>("harnessClasses") {
         description = "Compiles the vanilla-reference-harness through its own wrapper. The cheap gate on a harness edit: nothing else in this build compiles those sources, so a mistake in them otherwise surfaces at the next client boot."
         group = "verification"
         workingDir = harnessDir.asFile
+        // The client's lease too: it runs the same nested build a boot does, over the same directory.
+        usesService(harnessClient)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         // Both source sets, and `clientClasses` is the load-bearing one: Loom's
@@ -1376,8 +1714,8 @@ tasks {
     }
 
     // `check`, below, is the one edge that puts this build's four cheap gates on a verification run;
-    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and every parity task
-    // depends on it - so a break was caught, but not before the next gate, which is the very run the
+    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and a capture runs it
+    // - so off this edge a break was caught, but not before the next gate, which is the very run the
     // toolkit is being trusted to compute, and the reach map answers a toolkit change with an empty
     // sees and names this task as the gate instead. `harnessClasses` is the only task here that
     // compiles the harness at all, and off this edge it runs only when it is asked for by name, so a
@@ -1408,6 +1746,27 @@ tasks {
         dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck")
     }
 
+    // The fast suite filtered to the classes that write a self-captured row, and the producer those
+    // rows name. A capture needs their values and not the suite around them, so this is what it runs
+    // rather than `test`. Everything else `test` runs under it takes from the two `withType<Test>`
+    // blocks - the Vector flag, the forwarded `-Dasset.*`, both parity roots, the declared inputs and
+    // the forwarded task registry - and the up-to-date rule a capture puts on a self-capturing
+    // producer reaches it through the artifact table. The tag filter is `test`'s own, so a writer
+    // tagged slow is left out here exactly as it is there.
+    //
+    // It gates nothing on its own. The fast suite is the gate on the rest of the tree and a capture
+    // does not run it, so it runs as a step of its own before the commit, which the parity-gate
+    // skill's runbook says.
+    register<Test>("parityPinTest") {
+        description = "Runs the test classes that write the self-captured pin rows - the fast suite filtered to " +
+            "parityPinWriters - which is what a capture of those rows runs in place of the whole suite."
+        group = "verification"
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        useJUnitPlatform { excludeTags("slow") }
+        filter { parityPinWriters.forEach { includeTestsMatching(it) } }
+    }
+
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task
         // rather than as something each capture step does, because the erase has to happen ONCE per
@@ -1422,20 +1781,20 @@ tasks {
         // parityExpect` in one invocation schedules the registration last, and the sentence saying
         // the registration runs before the capture is false of the case a reader is likeliest to try.
         mustRunAfter("parityExpect")
-        // The two whole-suite producers are SCHEDULED from here, and only when the resolved set holds
-        // a row one of them writes. A finalizer rather than a dependency for the reason
-        // `registerParityCapture` gives: a self-captured row's writer asserts on the value it just
-        // wrote, so a red suite must still leave the capture closeable. Hung on the erase because the
-        // erase exists only inside a capture graph, so an ordinary `./gradlew test` neither schedules
-        // a capture step nor meets one.
+        // The suite producer is SCHEDULED from here, and only when the resolved set holds a row it
+        // writes. A finalizer rather than a dependency for the reason `registerParityCapture` gives: a
+        // self-captured row's writer asserts on the value it just wrote, so a red suite must still
+        // leave the capture closeable. Hung on the erase because the erase exists only inside a
+        // capture graph, so an ordinary run of the suite neither schedules a capture step nor meets
+        // one.
         //
         // Behind a Callable for the reason parityCapture's own dependsOn is: Gradle resolves it while
         // it builds the graph, so `resolveParityArtifacts`'s no-plan refusal stays on the invocations
         // that will actually capture. Declared here rather than reached back to from
-        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached both
-        // suites to every capture whatever -Partifacts named - 1325 fast tests and 85 slow ones for a
-        // capture scoped to the two dump rows, whose producer is neither. Of the 26 rows carrying a
-        // step, 9 want a suite and 17 want neither.
+        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached the
+        // suite to every capture whatever -Partifacts named - 1325 fast tests for a capture scoped to
+        // the two dump rows, whose producer it is not. Of the 26 rows carrying a step, 5 want the
+        // suite and 21 do not.
         finalizedBy(Callable {
             resolveParityArtifacts(parityProperty("artifacts"))
                 .flatMap { spec -> spec.producers.filter { it in paritySuiteProducers } }
@@ -1451,7 +1810,6 @@ tasks {
             "previous change's registration stands until this clears it. -PexpectEmpty | -PfromVerdict -Preason= | " +
             "-Partifact= -Pkey= -Pto= -Preason= | -Partifact= -Punproduced -Preason="
         group = "parity"
-        dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val empty = parityFlag("expectEmpty")
         val fromVerdict = parityFlag("fromVerdict")
@@ -1534,9 +1892,12 @@ tasks {
 
     register<ParityToolkitTask>("parityCapture") {
         description = "Runs the producers of -Partifacts and writes their captures into the parity working root. " +
-            "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins | digests. " +
+            "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins. " +
             "Absent, it reads the plan's capture set. -Pruns=<n> -PparityRoot=<dir>"
         group = "parity"
+        // The gate's one run of the toolkit's suite, ordered behind every producer of the bundle and
+        // compiling the class roots it reads - see `paritySelfTest` for why it is this task and no
+        // other parity task.
         dependsOn("paritySelfTest")
         dependsOn(parityCaptureBeginTask)
         requireParityRootUnderCache()
@@ -1581,7 +1942,7 @@ tasks {
         // any checkout carrying no plan: the same shape of refusal-at-configuration the promotion
         // reason was moved off. It still lands before the first task executes, so a missing plan
         // costs no producer.
-        // A whole-suite producer is ordered rather than depended on: the erase schedules it (see the
+        // A suite producer is ordered rather than depended on: the erase schedules it (see the
         // finalizer above), and depending on it here would put _run/COMPLETE back behind a green
         // assertion the capture exists to re-baseline. Every other producer keeps the dependency,
         // because nothing else schedules those.
@@ -1595,6 +1956,10 @@ tasks {
         mustRunAfter(Callable {
             resolveParityArtifacts(parityProperty("artifacts")).flatMap { spec -> spec.producers }
         })
+        // The schedule check, where the plan gates the reference tree's boot on it. Scheduled from
+        // here, behind a Callable, because the capture is the one graph the check belongs in and this
+        // edge resolves only for a graph holding the capture - a hand run of the render never meets it.
+        dependsOn(Callable { if (parityReferencesRosterGated()) listOf("parityScheduleCheck") else emptyList() })
         outputs.upToDateWhen { false }
     }
 
@@ -1603,7 +1968,6 @@ tasks {
             "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= " +
             "-Pbootstrap -Psummary -PphaseGate"
         group = "parity"
-        dependsOn("paritySelfTest")
         // A compare reads what a capture wrote, so it never runs before one in the same invocation.
         // Command-line order decided it, and the sanctioned three-invocation runbook happens to get
         // it right; nothing made it so.
@@ -1649,7 +2013,6 @@ tasks {
         description = "Promotes the parity working root into the production store as the new baseline and writes the " +
             "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap -PallowDirty -PallowPartial"
         group = "parity"
-        dependsOn("paritySelfTest")
         // `parityPromote parityCompare` promoted the root into the store and then diffed the root
         // against the store it had just been written into - necessarily zero movers - leaving a
         // verdict that says this exact tree was gated. Nothing wipes after a promote, so the hook
@@ -1700,9 +2063,9 @@ tasks {
             "changed where nothing is - prints SEES / BLIND / PLAN / BUDGET and writes _run/plan.json. Runs no " +
             "producer and measures nothing. -Pchanged=<paths> -Psince=<ref> -Pformat=json"
         group = "parity"
-        // The only dependency, and deliberately not a producer of any kind: a plan a broken toolkit
-        // produced is worse than no plan.
-        dependsOn("paritySelfTest")
+        // No dependency at all, the toolkit's suite included: the plan is the gate's first
+        // invocation and runs nothing, and the capture it plans runs the suite behind its producers,
+        // where the suite's real-tree cases read class roots and outputs that invocation wrote.
         requireParityRootUnderCache()
         val changed = parityProperty("changed")
         // Which ref a CLEAN tree is measured from, the toolkit defaulting to the trunk merge-base.
@@ -1742,14 +2105,26 @@ tasks {
         }
     }
 
+    // The vanilla sweeps' producers are slots in one JVM, and the JVM is what reads the tree and writes
+    // the tables, so it takes the edges its producers take: after the erase, and after any render of a
+    // tree one of their rows reads. On the producers alone they would order only the slots, and the
+    // JVM they depend on could run ahead of the render.
+    named("vanillaSweepRun") {
+        mustRunAfter(parityCaptureBeginTask)
+        parityArtifacts.filter { row -> row.producers.any { it in vanillaSweepProducerNames } }
+            .mapNotNull { it.tree }.distinct()
+            .forEach { tree -> mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }
+    }
+
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
     // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the
-    // artifact table so a new row needs no second edit. `test` and `slowTest` are Test rather than
-    // either shape below and are deliberately not reached - their rows self-capture a value instead
-    // of printing a count to be parsed.
+    // artifact table so a new row needs no second edit. `parityPinTest` is a Test rather than either
+    // shape below and is deliberately not reached - its rows self-capture a value instead of printing
+    // a count to be parsed.
     //
     // BOTH exec shapes and BOTH projects, because how a producer is STARTED says nothing about
-    // whether its output is worth keeping, and neither does WHERE it is registered. The renderer's
+    // whether its output is worth keeping, and neither does WHERE it is registered. The harness runs
+    // are neither shape: each tees its own boot into build/parity/harness-<name>.log. The renderer's
     // own producers are JavaExec on this project; the eight generator flows are JavaExec on
     // `:tooling`, reached here through an alias that does its work by `dependsOn` alone. An alias is
     // a DefaultTask, so neither `withType` below matches it and attaching to this container alone
@@ -1792,18 +2167,27 @@ tasks {
             doLast { parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L }
         }
 
+    // A vanilla sweep's producer does its work in the shared JVM, so its own span is no measure of it:
+    // the JVM times each sweep, and the producer is stamped with what it timed plus an equal share of
+    // the JVM's start and context load, so no sweep's stamp hangs on the order it ran in. Declared
+    // ahead of the block below, so the time is recorded before that block reads it back as the
+    // producer's own.
+    vanillaSweepProducerNames.forEach { producer ->
+        named(producer) { doLast { vanillaSweepWallMs[name]?.let { parityProducerElapsedMs[name] = it } } }
+    }
+
     // And its wall time, which is the other thing only the producer can answer. Every producer,
-    // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
-    // and a budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
+    // whatever its type: the pin suite is a Test task and the reference render a HarnessRunTask, and a
+    // budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
     // start is taken before any action the task already carries.
     //
     // An AGGREGATOR is the shape that reading its own span misses. A producer that does its work
     // through `dependsOn` alone opens its own `doFirst` only once every dependency has finished, so
     // the span rounds to zero, the sum below never exceeds it, and no `--wall-time` is passed at all -
-    // which is why the two of them carried no duration and the budget printed as a floor. Their
-    // dependencies are timed here too and summed instead, the aggregator's `doLast` running after
-    // every one of theirs. `maxOf` rather than the sum outright, so a producer that really does its
-    // own work still answers for it.
+    // so the row carries no duration and the budget prints as a floor. Its dependencies are timed
+    // here too and summed instead, the aggregator's `doLast` running after every one of theirs.
+    // `maxOf` rather than the sum outright, so a producer that really does its own work still
+    // answers for it.
     (parityProducerNames + parityAggregatedProducers.values.flatten()).forEach { producer ->
         named(producer) {
             val startedAt = AtomicLong()

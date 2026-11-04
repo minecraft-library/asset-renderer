@@ -30,7 +30,6 @@ RUN_DIR = "_run"
 _KIND_DIR = {
     "sweep": "sweeps",
     "manifest": "manifests",
-    "digest": "digests",
     "pin": "pins",
 }
 
@@ -46,11 +45,10 @@ _ROOT_FILES = {
 #: the format that three modules need: ``compare`` joins on it, ``capture`` counts it, and
 #: ``promote`` reads that count into the index's display column.
 #:
-#: Two of the five members are OBJECTS keyed by the entry's own name; three are arrays of rows.
+#: One of the four members is an OBJECT keyed by the entry's own name; three are arrays of rows.
 ROWS_MEMBER = {
     "sweep-table": "rows",
     "manifest": "files",
-    "digest-set": "digests",
     "pin-set": "values",
     "blindness-roster": "rules",
 }
@@ -70,9 +68,9 @@ def artifact_files(root: Path) -> list[tuple[str, bool]]:
     """Every artifact file under a root, each with whether a capture step STAMPED it.
 
     The two are different sets and conflating them is a live hazard. A self-capturing producer
-    writes its file whenever it runs, so ``-Partifacts=pins`` leaves the two digest sets in the root
-    as well - written by the same ``test`` / ``slowTest`` invocation, named by no capture step, and
-    therefore carrying no provenance and still carrying the private ``_flags`` key that
+    writes its file whenever it runs, so a capture naming one pin leaves the suite's other pins in
+    the root as well - written by the same ``parityPinTest`` invocation, named by no capture step,
+    and therefore carrying no provenance and still carrying the private ``_flags`` key that
     ``capture-normalize`` pops. Enumerating the root by filename alone credits this run with
     capturing them: measured, where a bare ``promote-plan`` on a pins root planned to **replace** a
     promoted digest set with the unstamped by-product, differing from it by ``_flags`` alone.

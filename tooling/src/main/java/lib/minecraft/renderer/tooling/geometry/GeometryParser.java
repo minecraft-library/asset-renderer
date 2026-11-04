@@ -104,10 +104,10 @@ public final class GeometryParser {
      * way in {@code EntityMesh.flattenedShift}, so that what it seats on a scaled wearer itself - an
      * elytra - lands where this pass put the wearer's own bone pivots and its armour shell's. Both
      * sit in one build, this subproject taking the renderer's project on {@code implementation}, yet
-     * each declares the number itself and nothing compares the two, so each side pins its own value
-     * and an edit to either moves a test rather than a render. This side is pinned by
-     * {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches this expansion and is
-     * value-matched against the shipped entry with floats exact; the renderer's side is pinned by
+     * each declares the number itself and nothing compares the two, so each side is held on its own.
+     * This side reaches the shipped geometry table through the ghast's in-factory scale of 4.5, so an
+     * edit to it moves the emitted {@code entity_geometry.json} bytes the tooling-tables manifest
+     * hashes when the flows re-run; the renderer's side is pinned by
      * {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
      */
     private static final float FEET_ANCHOR = 24.016f;

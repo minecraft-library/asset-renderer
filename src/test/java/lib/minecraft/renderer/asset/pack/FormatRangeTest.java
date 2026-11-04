@@ -18,8 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Row-by-row coverage of {@link FormatRange}, the one normalization of all three pack-format
  * generations: legacy {@code pack_format}, the three {@code supported_formats} encodings, the modern int
  * and {@code [major,minor]} {@code min_format}/{@code max_format} forms, the minor-widened bare-int max,
- * newest-generation-wins when keys coexist on a pack root or an overlay entry, and inclusive
- * containment.
+ * newest-generation-wins when keys coexist on an overlay entry, and inclusive containment. A pack
+ * root carrying all three generations at once is read through {@code MCMetaParser}, whose own test
+ * holds that case.
  */
 @DisplayName("FormatRange three-generation normalization")
 class FormatRangeTest {
@@ -58,21 +59,6 @@ class FormatRangeTest {
     void modernInts() {
         assertThat(fromPack("{\"pack\":{\"min_format\":88,\"max_format\":88}}"), is(expect(88, 0, 88, MAX)));
         assertThat(fromPack("{\"pack\":{\"min_format\":69,\"max_format\":255}}"), is(expect(69, 0, 255, MAX)));
-    }
-
-    @Test
-    @DisplayName("modern [major,minor] arrays are taken exactly")
-    void modernArrays() {
-        assertThat(fromPack("{\"pack\":{\"min_format\":[34,1],\"max_format\":[75,1]}}"), is(expect(34, 1, 75, 1)));
-    }
-
-    @Test
-    @DisplayName("newest generation wins when all three coexist (defrosted)")
-    void newestGenerationWins() {
-        String defrosted = "{\"pack\":{\"pack_format\":34,"
-            + "\"supported_formats\":{\"min_inclusive\":34,\"max_inclusive\":64},"
-            + "\"min_format\":[34,1],\"max_format\":[75,1]}}";
-        assertThat(fromPack(defrosted), is(expect(34, 1, 75, 1)));
     }
 
     @Test

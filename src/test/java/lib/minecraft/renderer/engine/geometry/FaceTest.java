@@ -14,8 +14,9 @@ import static org.hamcrest.Matchers.nullValue;
  * <p>
  * Covers name lookup ({@link Face#fromName} is case-insensitive and null-safe, unknown names
  * return {@code null}), each face's lowercase {@link Face#direction} JSON key, the outward unit
- * {@link Face#normal}s, the {@link Face#axis} read off each face's normal, and the
- * {@link Face#opposite} the declaration order makes one bit of the ordinal.
+ * {@link Face#normal}s, and the {@link Face#axis} read off each face's normal. The
+ * {@link Face#opposite} the declaration order makes one bit of the ordinal is held by
+ * {@link AxisSignsTest}, which asserts the opposing pairs.
  */
 @DisplayName("Face lookup, direction names and normals")
 class FaceTest {
@@ -57,17 +58,6 @@ class FaceTest {
         assertThat(Face.SOUTH.axis(), is(2));
         assertThat(Face.WEST.axis(), is(0));
         assertThat(Face.EAST.axis(), is(0));
-    }
-
-    @Test
-    @DisplayName("opposite pairs each face with the other face on its own axis")
-    void opposites() {
-        assertThat(Face.DOWN.opposite(), is(Face.UP));
-        assertThat(Face.UP.opposite(), is(Face.DOWN));
-        assertThat(Face.NORTH.opposite(), is(Face.SOUTH));
-        assertThat(Face.SOUTH.opposite(), is(Face.NORTH));
-        assertThat(Face.WEST.opposite(), is(Face.EAST));
-        assertThat(Face.EAST.opposite(), is(Face.WEST));
     }
 
 }

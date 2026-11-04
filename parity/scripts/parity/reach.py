@@ -56,17 +56,21 @@ STORED = "reach.json"
 
 #: Each artifact's producer entry point, by simple type name.
 #:
-#: A row produced by a whole SUITE is rooted at the class that WRITES it rather than at the suite,
-#: which is the same distinction the capture wiring draws: ``test`` runs the whole fast suite to
-#: write the shipped-tables digest and the pins the store keeps, and what those rows can be moved by
-#: is what their own writer reaches. A suite as a root would be every test class, which answers
-#: "everything" and says nothing.
+#: A row produced by a SUITE is rooted at the class that WRITES it rather than at the suite, which
+#: is the same distinction the capture wiring draws: ``parityPinTest`` runs the fast suite filtered
+#: to these writers to write the pins the store keeps, and what those rows can be moved by is what
+#: their own writer reaches. A suite as a root would be every test class it runs, which answers
+#: "everything" and says nothing. The build's filter and these roots name the same classes, and
+#: ``ParityTaskWiringTest`` holds the two to each other.
 #:
-#: A row one class writes under a property is rooted at that class, because a property changes what
-#: the class measures and never its constant pool, which is all this graph reads.
-#: ``sweep.entity-walk`` is ``EntityAnimationParitySweep`` run under ``asset.parity.gait=walk``, so
-#: it roots where ``sweep.entity-animation`` does and a type answers the walk row wherever it answers
-#: that one.
+#: A row one class writes under a property or an argument is rooted at that class, because either
+#: changes what the class measures and never its constant pool, which is all this graph reads.
+#: ``sweep.entity-walk`` is ``EntityAnimationParitySweep`` handed the walk gait, so it roots where
+#: ``sweep.entity-animation`` does and a type answers the walk row wherever it answers that one.
+#:
+#: A sweep roots at its writer and never at ``SweepBundle``, the one JVM that runs the vanilla sweeps
+#: beside each other: rooted there, every type one sweep reaches would answer every sweep that JVM
+#: runs, and a plan would capture all of them for a change one of them can see.
 #:
 #: What is rooted is the index's ``artifacts`` map, the one home a capture writes a file into and
 #: so the one a plan can name. Its ``pointers``, ``sources`` and ``external`` maps register
@@ -107,7 +111,7 @@ STORED = "reach.json"
 #: whichever sorts first rather than being refused, and nothing reports the tie, so give one a name
 #: only its own tree carries.
 ROOTS: dict[str, tuple[str, ...]] = {
-    # --- sweeps, each a JavaExec main of its own
+    # --- sweeps, each at the writer whose run writes its table
     "sweep.entity": ("EntityParitySweep",),
     "sweep.entity-animation": ("EntityAnimationParitySweep",),
     # the same driver at a gait, measured against the walk/ sub-tree rather than idle/
@@ -130,16 +134,13 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "manifest.dump.packs": ("PipelineParityDump",),
     # --- the reference tree, at its asset-side input, since the harness's own build writes it
     "manifest.references": ("StyleResolution",),
-    # --- the eight visual drivers whose cache/visual sub-tree no other artifact covers
-    "manifest.visual": ("BlockRenderDriver", "EntityProjectionsDriver", "EntityRenderDriver",
-                        "ItemDayCycleDriver", "ItemRenderDriver", "LoreTooltipDriver",
-                        "MenuRenderDriver", "BlockProjectionsDriver"),
+    # --- the eight visual drivers whose cache/visual sub-tree no other artifact covers, and the one
+    # JVM that runs them for the artifact's producer - every driver it reaches is this artifact's
+    "manifest.visual": ("DriverBundle", "BlockRenderDriver", "EntityProjectionsDriver",
+                        "EntityRenderDriver", "ItemDayCycleDriver", "ItemRenderDriver",
+                        "LoreTooltipDriver", "MenuRenderDriver", "BlockProjectionsDriver"),
     # --- self-captured rows, at their writer rather than at the suite that runs it
-    "digest.shipped-tables": ("BundledResourceShaTest",),
-    "digest.colormap-lut": ("ClientAcquisitionIntegrationTest",),
     "pin.vanilla-iso-pose": ("VanillaIsoPoseGoldenTest",),
-    "pin.kit-corners": ("VanillaEntityTransformGoldenTest",),
-    "pin.corpus-count": ("CorpusCountPinTest",),
     "pin.player-crc": ("PlayerRendererFittedGoldenTest",),
     "pin.block-crc": ("BlockRendererRasterPinTest",),
     "pin.portal-crc": ("PortalRendererFrameBakePinTest",),

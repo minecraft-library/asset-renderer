@@ -6,7 +6,7 @@ Single-purpose headless Fabric mod that drives the real MC client to produce the
 order is load-bearing**: `HarnessMode.resolve` sorts `BIND` before `IDLE` before `WALK`, because a
 freeze SKIPS `setupAnim` rather than undoing it, so a posed sweep ahead of a frozen one leaves every
 bone it touched posed and the frozen sub-trees record that. `-Drefharness.modes=a,b,c` is how a run
-names more than one mode; the single-mode booleans each name one and compose with it.
+names its modes, one or several; the pitch-roll probe's boolean is the one other spelling of a mode.
 
 ## Where the rest is written down
 
@@ -27,14 +27,14 @@ before you touch it. The renderer's side of every contract below is routed from
 
 ## Build / run
 
-- JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16-SNAPSHOT, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
+- JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16.3, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
 - Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew renderVanillaAllReferences` from asset-renderer, which passes `-PrefharnessModes=EVERY,ANIMATION,WALK`. The narrow modes stay for scoped iteration; relying on them is what left stale ground truth on disk twice. `renderVanillaReferences` - mode `FULL` - is one of them: it leaves `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/` and `walk/` alone. Every mode, what each writes and what the whole-tree boot was measured at are [Running](../docs/harness/Running.md).
 - World corruption from a hard JVM exit: `./gradlew resetRefharnessWorld`.
 - **Nothing in this build is under a test** - it has `main` and `client` source sets and no test one, so a change here is caught by the compiler or by an actual run and by nothing in between.
 
 ## Adding a sweep
 
-Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, and one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree. A narrowing mode is named through `-PrefharnessModes`, which `build.gradle.kts` already forwards, so it needs no line of its own there. **A boolean property, where a mode has one, is the line whose omission silently runs `FULL`**: the `-P` never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
+Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, and one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree. A narrowing mode is named through `-PrefharnessModes`, which `build.gradle.kts` already forwards, so it needs no line of its own there - **and a new mode takes no boolean property of its own**: a `-P` the build does not forward never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
 
 The `api.Sweep` contract it implements, the per-tick pacing, and why a frame renderer retires a
 replaced texture rather than closing it are

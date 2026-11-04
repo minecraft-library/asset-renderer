@@ -18,7 +18,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.IntUnaryOperator;
 
@@ -470,7 +469,8 @@ class NineSliceKitTest {
     @DisplayName("degenerate far border keeps the sprite's outermost edge, not its inner pixels")
     void degenerateFarBorderKeepsOuterEdge() {
         // 20x20 sprite: leftmost column blue, rightmost column red, else gray. border 9 all sides.
-        // Blitted into a 5 mcPx rect, near+far (18) exceeds 5, so both borders clamp to 2. The near edge
+        // Blitted into a 5 mcPx rect, near+far (18) exceeds 5, so both borders clamp to 2 rather than
+        // throwing or reading out of bounds, and the slices still cover the whole rect. The near edge
         // must show column 0 (blue) and the far edge column 19 (red) - the sprite's OUTERMOST columns, not
         // the inner border pixels a mis-anchored far slice would read.
         int[] px = new int[20 * 20];
@@ -483,23 +483,9 @@ class NineSliceKitTest {
 
         NineSliceKit.draw(dest, sprite, gui, 0, 0, 5, 5, 1.0f);
 
-        assertThat("near edge is the outermost near column", dest.getPixel(0, 5), is(0xFF0000FF));
-        assertThat("far edge is the outermost far column", dest.getPixel(9, 5), is(0xFFFF0000));
-    }
-
-    @Test
-    @DisplayName("degenerate rect clamps borders so slices never overlap or overrun")
-    void degenerateRectClamps() {
-        int[] px = new int[20 * 20];
-        Arrays.fill(px, 0xFF808080);
-        PixelBuffer sprite = PixelBuffer.ofStraight(px, 20, 20);
-        MCMeta.GuiScaling gui = new MCMeta.GuiScaling.NineSlice(20, 20, new MCMeta.GuiScaling.NineSlice.Border(9, 9, 9, 9), false);
-        PixelBuffer dest = PixelBuffer.canvas(10, 10);
-
-        // 9+9 border mcPx exceed the 5 mcPx rect; must clamp rather than throw / read OOB.
-        NineSliceKit.draw(dest, sprite, gui, 0, 0, 5, 5, 1.0f);
-
         assertThat("clamped center still painted", ColorMath.alpha(dest.getPixel(5, 5)), is(0xFF));
         assertThat("clamped corner painted", ColorMath.alpha(dest.getPixel(0, 0)), is(0xFF));
+        assertThat("near edge is the outermost near column", dest.getPixel(0, 5), is(0xFF0000FF));
+        assertThat("far edge is the outermost far column", dest.getPixel(9, 5), is(0xFFFF0000));
     }
 }

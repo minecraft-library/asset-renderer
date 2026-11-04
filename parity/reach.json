@@ -8,12 +8,6 @@
   ],
   "kind": "class-reach",
   "roots": {
-    "digest.colormap-lut": [
-      "lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest"
-    ],
-    "digest.shipped-tables": [
-      "lib/minecraft/renderer/guard/BundledResourceShaTest"
-    ],
     "manifest.dump.packs": [
       "lib/minecraft/renderer/dump/PipelineParityDump"
     ],
@@ -47,6 +41,7 @@
       "lib/minecraft/renderer/tooling/ColorMapsFlow"
     ],
     "manifest.visual": [
+      "lib/minecraft/renderer/driver/DriverBundle",
       "lib/minecraft/renderer/driver/BlockRenderDriver",
       "lib/minecraft/renderer/driver/EntityProjectionsDriver",
       "lib/minecraft/renderer/driver/EntityRenderDriver",
@@ -59,14 +54,8 @@
     "pin.block-crc": [
       "lib/minecraft/renderer/BlockRendererRasterPinTest"
     ],
-    "pin.corpus-count": [
-      "lib/minecraft/renderer/content/table/CorpusCountPinTest"
-    ],
     "pin.fluid-crc": [
       "lib/minecraft/renderer/FluidRendererFrameBakePinTest"
-    ],
-    "pin.kit-corners": [
-      "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest"
     ],
     "pin.player-crc": [
       "lib/minecraft/renderer/PlayerRendererFittedGoldenTest"
@@ -150,10 +139,6 @@
         "sweep.item",
         "sweep.menu"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/BlockRendererMissingTextureTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/BlockRendererRasterPinTest": {
@@ -365,10 +350,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/PlayerRendererDefaultSkinTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/PlayerRendererFittedGoldenTest": {
       "artifacts": [
         "pin.player-crc"
@@ -447,13 +428,11 @@
     },
     "lib/minecraft/renderer/asset/Block": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -467,7 +446,6 @@
     },
     "lib/minecraft/renderer/asset/ColorMap": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -539,10 +517,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/equipment/EquipmentModelTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/equipment/Shell": {
       "artifacts": [
         "manifest.dump.packs",
@@ -599,7 +573,6 @@
     },
     "lib/minecraft/renderer/asset/mesh/EntityMesh": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -608,8 +581,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -629,7 +600,6 @@
     },
     "lib/minecraft/renderer/asset/mesh/TextureSize": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -638,8 +608,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -655,13 +623,11 @@
     },
     "lib/minecraft/renderer/asset/model/ModelData": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -675,13 +641,11 @@
     },
     "lib/minecraft/renderer/asset/model/ModelElement": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -695,13 +659,11 @@
     },
     "lib/minecraft/renderer/asset/model/ModelFace": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -715,13 +677,11 @@
     },
     "lib/minecraft/renderer/asset/model/ModelTexture": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -735,13 +695,11 @@
     },
     "lib/minecraft/renderer/asset/model/ModelTransform": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -755,7 +713,6 @@
     },
     "lib/minecraft/renderer/asset/pack/Flipbook": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -763,7 +720,6 @@
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "sweep.armor",
@@ -790,7 +746,6 @@
     },
     "lib/minecraft/renderer/asset/pack/FormatRange": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -798,7 +753,6 @@
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "sweep.armor",
@@ -821,7 +775,6 @@
     },
     "lib/minecraft/renderer/asset/pack/MCMeta": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -829,7 +782,6 @@
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "sweep.armor",
@@ -848,10 +800,8 @@
     },
     "lib/minecraft/renderer/asset/pack/PackCapability": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -859,10 +809,8 @@
     },
     "lib/minecraft/renderer/asset/pack/PackRoot": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -877,10 +825,8 @@
     },
     "lib/minecraft/renderer/asset/pack/ResourcePack": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -888,7 +834,6 @@
     },
     "lib/minecraft/renderer/asset/pack/TextPalette": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.visual",
@@ -1013,7 +958,6 @@
     },
     "lib/minecraft/renderer/asset/rule/BlockMatch": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1023,7 +967,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CitOutput": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1046,7 +989,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CitRule": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1069,7 +1011,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CitType": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1092,7 +1033,6 @@
     },
     "lib/minecraft/renderer/asset/rule/ColorProperties": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1102,7 +1042,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CtmExtras": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1112,7 +1051,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CtmMethod": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1122,7 +1060,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CtmRule": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1132,7 +1069,6 @@
     },
     "lib/minecraft/renderer/asset/rule/CtmTarget": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1142,7 +1078,6 @@
     },
     "lib/minecraft/renderer/asset/rule/DamageSpec": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1165,7 +1100,6 @@
     },
     "lib/minecraft/renderer/asset/rule/EnchantmentSpec": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1188,7 +1122,6 @@
     },
     "lib/minecraft/renderer/asset/rule/Hand": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1211,7 +1144,6 @@
     },
     "lib/minecraft/renderer/asset/rule/RuleSet": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1221,7 +1153,6 @@
     },
     "lib/minecraft/renderer/asset/rule/TileRef": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -1231,7 +1162,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/IntRange": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1258,7 +1188,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/IntRanges": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1281,7 +1210,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/NbtPath": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1304,7 +1232,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/NbtPredicate": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1327,7 +1254,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/NbtRule": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1354,7 +1280,6 @@
     },
     "lib/minecraft/renderer/asset/rule/filter/NbtValues": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -1964,7 +1889,6 @@
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1991,7 +1915,6 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.entity",
@@ -2030,12 +1953,6 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest": {
-      "artifacts": [
-        "pin.kit-corners"
       ],
       "source": "derived"
     },
@@ -2574,10 +2491,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/call/request/TextOptionsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/call/request/TextureOptions": {
       "artifacts": [
         "manifest.player-raw",
@@ -2786,7 +2699,6 @@
     },
     "lib/minecraft/renderer/content/client/ClientAcquisition": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2815,7 +2727,6 @@
     },
     "lib/minecraft/renderer/content/client/ClientAssets": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2844,7 +2755,6 @@
     },
     "lib/minecraft/renderer/content/client/ClientOptions": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2883,7 +2793,6 @@
     },
     "lib/minecraft/renderer/content/container/CatsEntry": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2893,7 +2802,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -2913,7 +2821,6 @@
     },
     "lib/minecraft/renderer/content/container/CatsIndex": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2923,7 +2830,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -2943,7 +2849,6 @@
     },
     "lib/minecraft/renderer/content/container/LiveIndex": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2953,7 +2858,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -2977,7 +2881,6 @@
     },
     "lib/minecraft/renderer/content/container/PackContainer": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -2987,7 +2890,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -3191,7 +3093,6 @@
     },
     "lib/minecraft/renderer/content/index/IndexedRendererContext": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -3233,10 +3134,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/index/IndexedRendererContextUnreadableTextureTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/index/ItemIndexBuilder": {
       "artifacts": [],
       "source": "derived"
@@ -3253,7 +3150,6 @@
     },
     "lib/minecraft/renderer/content/index/MapRendererContext": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -3281,7 +3177,6 @@
     },
     "lib/minecraft/renderer/content/index/RendererContext": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -3510,9 +3405,7 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest": {
-      "artifacts": [
-        "digest.colormap-lut"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/ClientAcquisitionMcmetaSynthesisTest": {
@@ -3521,7 +3414,6 @@
     },
     "lib/minecraft/renderer/content/pack/ColorMapLoader": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
@@ -3575,7 +3467,6 @@
     },
     "lib/minecraft/renderer/content/pack/MCMetaParser": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3589,16 +3480,11 @@
     },
     "lib/minecraft/renderer/content/pack/PackAcquisition": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/PackAcquisitionIntegrationTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/PackAcquisitionTest": {
@@ -3607,7 +3493,6 @@
     },
     "lib/minecraft/renderer/content/pack/PackIdDeriver": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3621,7 +3506,6 @@
     },
     "lib/minecraft/renderer/content/pack/PackStack": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3650,7 +3534,6 @@
     },
     "lib/minecraft/renderer/content/pack/ResolvedModels": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
@@ -3662,7 +3545,6 @@
     },
     "lib/minecraft/renderer/content/pack/ResolvedTexture": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3679,7 +3561,6 @@
     },
     "lib/minecraft/renderer/content/pack/TextPaletteLoader": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3689,7 +3570,6 @@
     },
     "lib/minecraft/renderer/content/pack/TextureIndexer": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3711,7 +3591,6 @@
     },
     "lib/minecraft/renderer/content/pack/cats/CatharsisCondition": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3725,7 +3604,6 @@
     },
     "lib/minecraft/renderer/content/pack/cats/CatharsisConfig": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3735,7 +3613,6 @@
     },
     "lib/minecraft/renderer/content/pack/cats/CatharsisOverlays": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3749,7 +3626,6 @@
     },
     "lib/minecraft/renderer/content/pack/cats/CatharsisTarget": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3760,19 +3636,16 @@
     "lib/minecraft/renderer/content/read/BlockRendererOverrides": {
       "artifacts": [
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/read/BundledResource": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.entity",
         "sweep.entity-animation",
@@ -3786,7 +3659,6 @@
     },
     "lib/minecraft/renderer/content/read/PackSubtree": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3800,12 +3672,10 @@
     },
     "lib/minecraft/renderer/content/read/ResourceDocument": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.entity",
         "sweep.entity-animation",
@@ -3819,7 +3689,6 @@
     },
     "lib/minecraft/renderer/content/rule/CitParser": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3841,7 +3710,6 @@
     },
     "lib/minecraft/renderer/content/rule/ColorPropertiesParser": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3859,7 +3727,6 @@
     },
     "lib/minecraft/renderer/content/rule/CtmParser": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3873,7 +3740,6 @@
     },
     "lib/minecraft/renderer/content/rule/RuleScanner": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -3888,8 +3754,7 @@
     "lib/minecraft/renderer/content/table/BlockDefaultsLoader": {
       "artifacts": [
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -3920,21 +3785,13 @@
     },
     "lib/minecraft/renderer/content/table/BlockTintsLoader": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/BlockTintsLoaderTest": {
       "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/CorpusCountPinTest": {
-      "artifacts": [
-        "pin.corpus-count"
-      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/CrossFlowGeometryTest": {
@@ -3991,8 +3848,7 @@
     "lib/minecraft/renderer/content/table/GlintItemsLoader": {
       "artifacts": [
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -4003,16 +3859,11 @@
     "lib/minecraft/renderer/content/table/PotionColorLoader": {
       "artifacts": [
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/PotionColorLoaderTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/ShippedTableCapacityTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4031,7 +3882,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4058,7 +3908,6 @@
     },
     "lib/minecraft/renderer/diagnostic/RuleDiagnostics": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -4068,7 +3917,6 @@
     },
     "lib/minecraft/renderer/diagnostic/Substitutions": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4109,6 +3957,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/driver/BlockRenderDriver": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/driver/DriverBundle": {
       "artifacts": [
         "manifest.visual"
       ],
@@ -4172,10 +4026,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/driver/RedstoneTintsDriver": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/driver/StackCountBadgeDriver": {
       "artifacts": [],
       "source": "derived"
@@ -4218,7 +4068,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4265,7 +4114,6 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.entity",
@@ -4308,7 +4156,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4356,7 +4203,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4391,7 +4237,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4416,7 +4261,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4492,7 +4336,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4520,7 +4363,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4548,7 +4390,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4587,7 +4428,6 @@
     },
     "lib/minecraft/renderer/engine/frame/FrameLoan": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4597,7 +4437,6 @@
         "manifest.references",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -4644,7 +4483,6 @@
     },
     "lib/minecraft/renderer/engine/frame/RasterPass": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4654,7 +4492,6 @@
         "manifest.references",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -4728,7 +4565,6 @@
     },
     "lib/minecraft/renderer/engine/frame/Timeline": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4738,7 +4574,6 @@
         "manifest.references",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -4769,7 +4604,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4797,7 +4631,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4825,7 +4658,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4846,7 +4678,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/EulerRotation": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4857,9 +4688,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4885,7 +4714,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/Face": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4895,7 +4723,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4925,7 +4752,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -4942,7 +4768,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/ModelUnits": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4951,9 +4776,7 @@
         "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -4975,7 +4798,6 @@
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -5094,7 +4916,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -5122,7 +4943,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -5146,7 +4966,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5183,7 +5002,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -5204,7 +5022,6 @@
     },
     "lib/minecraft/renderer/engine/math/Matrix4f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5215,9 +5032,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5241,7 +5056,6 @@
     },
     "lib/minecraft/renderer/engine/math/Quaternionf": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5252,9 +5066,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5274,7 +5086,6 @@
     },
     "lib/minecraft/renderer/engine/math/SimdOps": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5285,9 +5096,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5307,7 +5116,6 @@
     },
     "lib/minecraft/renderer/engine/math/SimdSupport": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5318,9 +5126,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5340,7 +5146,6 @@
     },
     "lib/minecraft/renderer/engine/math/Vector2f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5351,9 +5156,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5371,7 +5174,6 @@
     },
     "lib/minecraft/renderer/engine/math/Vector3f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5382,9 +5184,7 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -5408,15 +5208,12 @@
     },
     "lib/minecraft/renderer/engine/math/Vector4f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -5439,7 +5236,6 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "sweep.armor",
@@ -5745,7 +5541,6 @@
     },
     "lib/minecraft/renderer/engine/texture/MissingSprite": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5803,7 +5598,6 @@
     },
     "lib/minecraft/renderer/exception/ClientException": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5832,7 +5626,6 @@
     },
     "lib/minecraft/renderer/exception/ColorMapException": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
@@ -5840,7 +5633,6 @@
     },
     "lib/minecraft/renderer/exception/ContentException": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5850,7 +5642,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -5870,7 +5661,6 @@
     },
     "lib/minecraft/renderer/exception/RenderException": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5881,7 +5671,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -5901,7 +5690,6 @@
     },
     "lib/minecraft/renderer/exception/RendererException": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5912,7 +5700,6 @@
         "manifest.tooling-tables",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
@@ -5932,7 +5719,6 @@
     },
     "lib/minecraft/renderer/exception/RuleRejection": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "sweep.tooltip",
@@ -5977,9 +5763,7 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/guard/BundledResourceShaTest": {
-      "artifacts": [
-        "digest.shipped-tables"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/guard/ClientJarGuardTest": {
@@ -6040,14 +5824,10 @@
     },
     "lib/minecraft/renderer/store/ParityJson": {
       "artifacts": [
-        "digest.colormap-lut",
-        "digest.shipped-tables",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -6062,14 +5842,10 @@
     },
     "lib/minecraft/renderer/store/ParityStore": {
       "artifacts": [
-        "digest.colormap-lut",
-        "digest.shipped-tables",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -6084,14 +5860,10 @@
     },
     "lib/minecraft/renderer/store/ParityStoreException": {
       "artifacts": [
-        "digest.colormap-lut",
-        "digest.shipped-tables",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -6103,9 +5875,7 @@
     "lib/minecraft/renderer/store/PinSet": {
       "artifacts": [
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose"
@@ -6114,14 +5884,10 @@
     },
     "lib/minecraft/renderer/store/Pins": {
       "artifacts": [
-        "digest.colormap-lut",
-        "digest.shipped-tables",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose",
@@ -6136,12 +5902,8 @@
     },
     "lib/minecraft/renderer/store/SelfCapture": {
       "artifacts": [
-        "digest.colormap-lut",
-        "digest.shipped-tables",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
-        "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
         "pin.vanilla-iso-pose"
@@ -6200,7 +5962,6 @@
     },
     "lib/minecraft/renderer/support/ClientAssetsExtension": {
       "artifacts": [
-        "digest.colormap-lut",
         "pin.block-crc",
         "pin.fluid-crc",
         "pin.player-crc",
@@ -6327,6 +6088,31 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/SweepBundle": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepPair": {
+      "artifacts": [
+        "manifest.player-raw",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepPairTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/SweepReport": {
       "artifacts": [
         "manifest.player-raw",
@@ -6341,6 +6127,14 @@
         "sweep.player",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/SweepStrip": {
+      "artifacts": [
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint"
       ],
       "source": "derived"
     },
@@ -7421,14 +7215,12 @@
     },
     "lib/minecraft/renderer/vanilla/TintSource": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "sweep.armor",
         "sweep.block",
@@ -7443,7 +7235,6 @@
     },
     "lib/minecraft/renderer/vanilla/VanillaPaths": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -7767,13 +7558,11 @@
     },
     "lib/minecraft/renderer/vanilla/id/BlockStateKey": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -7787,13 +7576,11 @@
     },
     "lib/minecraft/renderer/vanilla/id/PackId": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.corpus-count",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -7815,7 +7602,6 @@
     },
     "lib/minecraft/renderer/vanilla/id/ResourceId": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -7824,7 +7610,6 @@
         "manifest.references",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.player-crc",
         "sweep.armor",

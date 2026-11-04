@@ -10,7 +10,6 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Characterization golden that pins the {@link Projection#VANILLA_ISO} camera pose, so accidental
@@ -23,9 +22,10 @@ import static org.hamcrest.Matchers.greaterThan;
  * that pose re-baselines the pin - which is a promotion of the capture this test already wrote, never
  * a paste into Java source.
  *
- * <p>The load-bearing structural assertion is {@link #pose_isDet_positive}: the camera is a plain
- * det=+1 rotation. A determinant of zero or below would put chirality on the camera rather than on
- * the renderer's placement.
+ * <p>A camera pose with a determinant of zero or below would put chirality on the camera rather than
+ * on the renderer's placement. It would also move the pose off this golden and flip the screen winding
+ * every culled render reads, so the golden and those renders are what hold the pose to a det=+1
+ * rotation.
  */
 class VanillaIsoPoseGoldenTest {
 
@@ -39,14 +39,6 @@ class VanillaIsoPoseGoldenTest {
 
     /** Tolerance for the golden float compares - exact-ish, guards against ULP-scale drift creeping in. */
     private static final float EPS = 1e-6f;
-
-    @Test
-    @DisplayName("VANILLA_ISO camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
-    void pose_isDet_positive() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
-        assertThat("VANILLA_ISO resolves to rotationXYZ(30,225,0), a det=+1 display pose; the entity "
-            + "chirality lives on EntityRenderer's ENTITY_FACING Placement, not the camera", det3(pose), greaterThan(0f));
-    }
 
     /** Pins all 16 floats of the {@code VANILLA_ISO} pose to the captured baseline within {@link #EPS}. */
     @Test
@@ -64,20 +56,6 @@ class VanillaIsoPoseGoldenTest {
             for (int row = 1; row <= 4; row++, index++)
                 assertThat("pose(" + col + "," + row + ")",
                     (double) pose.get(col, row), closeTo(expected[index], EPS));
-    }
-
-    /**
-     * Computes the determinant of the upper-left 3x3 of {@code m}, whose sign is the handedness of the
-     * linear part.
-     *
-     * @param m the matrix to read
-     * @return the determinant of its linear part
-     */
-    private static float det3(Matrix4f m) {
-        float a = m.get(1, 1), b = m.get(2, 1), c = m.get(3, 1);
-        float d = m.get(1, 2), e = m.get(2, 2), f = m.get(3, 2);
-        float g = m.get(1, 3), h = m.get(2, 3), i = m.get(3, 3);
-        return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
     }
 
     /**

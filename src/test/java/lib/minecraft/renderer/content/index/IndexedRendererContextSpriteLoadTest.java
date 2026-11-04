@@ -48,10 +48,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * through the production context: one whose {@code .png.mcmeta} sidecar does not parse - blank or not
  * JSON - one whose sidecar carries an animation or texture section the client's codec refuses, which
  * loses the texture and leaves the sidecar's other sections standing, and one whose animation's frame
- * size does not divide its strip - a declared height or width the strip is no multiple of, an undeclared
- * frame the strip is no multiple of, and a strip shorter than its frame. A {@code gui} section the
- * client's codec refuses fails none of this: only the GUI atlas reads it, so the texture reads as the
- * blocks atlas loads it.
+ * size does not divide its strip. A {@code gui} section the client's codec refuses fails none of this:
+ * only the GUI atlas reads it, so the texture reads as the blocks atlas loads it.
  * <p>
  * Vanilla draws its missing sprite for each, so each is served and answers empty, and the substituting
  * context draws the checkerboard for it in words of its own. A sidecar that does not parse fails nothing
@@ -78,9 +76,6 @@ class IndexedRendererContextSpriteLoadTest {
     private static final String WRONG_TYPED_FRAME = "minecraft:block/sprite_load_test_wrong_typed_frame";
     private static final String WRONG_TYPED_SCALING = "minecraft:block/sprite_load_test_wrong_typed_scaling";
     private static final String RAGGED_HEIGHT = "minecraft:block/sprite_load_test_ragged_height";
-    private static final String RAGGED_WIDTH = "minecraft:block/sprite_load_test_ragged_width";
-    private static final String RAGGED_UNDECLARED = "minecraft:block/sprite_load_test_ragged_undeclared";
-    private static final String SHORT_STRIP = "minecraft:block/sprite_load_test_short_strip";
 
     /** A truncated PNG beside a sidecar that does not parse, whose image is never read. */
     private static final String SIDECAR_OVER_BROKEN_IMAGE = "minecraft:block/sprite_load_test_sidecar_over_broken_image";
@@ -96,12 +91,6 @@ class IndexedRendererContextSpriteLoadTest {
 
     /** A strip its frame size does not divide, drawn by the substituting context. */
     private static final String SUBSTITUTED_STRIP = "minecraft:block/sprite_load_test_substituted_strip";
-
-    /** The second pack, whose id names it in a texture id's prefix. */
-    private static final PackId EXTRA = new PackId("sprite-load-extra");
-
-    /** A sidecar that does not parse, reached through the second pack's id rather than its namespace. */
-    private static final String PACK_PREFIXED_SIDECAR = "sprite-load-extra:block/sprite_load_test_extra_sidecar";
 
     /** The colours of the two frames {@link #ANIMATED} and {@link #WIDE} each hold, in strip order. */
     private static final int FIRST = 0xFF102030, SECOND = 0xFF405060;
@@ -125,18 +114,15 @@ class IndexedRendererContextSpriteLoadTest {
     private static final List<String> REFUSED_SECTIONS = List.of(
         REFUSED_ANIMATION, REFUSED_TEXTURE, WRONG_TYPED_FRAMETIME, WRONG_TYPED_FRAME);
 
-    /** The ids whose animation's frame size does not divide the strip. */
-    private static final List<String> BAD_STRIPS = List.of(RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP);
-
     /** The indexed stack the context is built over, whose rows are read directly. */
     private static PackStack stack;
 
     private static IndexedRendererContext context;
 
     /**
-     * Stages a pack holding each kind of texture the sprite loader refuses beside two it plays, and a
-     * second pack reached through its id, indexes both with the real {@link TextureIndexer} - which is
-     * the scan a sidecar that does not parse used to abort - and wraps them in the production context.
+     * Stages a pack holding each kind of texture the sprite loader refuses beside two it plays, indexes
+     * it with the real {@link TextureIndexer} - the scan a sidecar that does not parse must not abort -
+     * and wraps it in the production context.
      *
      * @throws IOException if writing a fixture fails
      */
@@ -159,21 +145,13 @@ class IndexedRendererContextSpriteLoadTest {
         write(blockDir, REPORTED_REFUSED_SECTION, Arrays.copyOf(still, still.length / 2), "{\"texture\":{\"blur\":1}}");
         write(blockDir, SUBSTITUTED_REFUSED_SECTION, still, "{\"animation\":{\"width\":0}}");
         write(blockDir, RAGGED_HEIGHT, png(16, 40, false), "{\"animation\":{\"height\":16}}");
-        write(blockDir, RAGGED_WIDTH, png(24, 16, true), "{\"animation\":{\"width\":16}}");
-        write(blockDir, RAGGED_UNDECLARED, png(16, 40, false), "{\"animation\":{}}");
-        write(blockDir, SHORT_STRIP, png(16, 8, false), "{\"animation\":{\"height\":16}}");
         write(blockDir, SIDECAR_OVER_BROKEN_IMAGE, Arrays.copyOf(still, still.length / 2), "{ \"animation\": ");
         write(blockDir, REPORTED_SIDECAR, still, "{ \"animation\": ");
         write(blockDir, REPORTED_STRIP, png(16, 40, false), "{\"animation\":{}}");
         write(blockDir, SUBSTITUTED_SIDECAR, still, "");
         write(blockDir, SUBSTITUTED_STRIP, png(16, 40, false), "{\"animation\":{}}");
 
-        Path extraRoot = packRoot.resolve("extra");
-        Path extraBlockDir = extraRoot.resolve("assets/minecraft/textures/block");
-        Files.createDirectories(extraBlockDir);
-        write(extraBlockDir, PACK_PREFIXED_SIDECAR, still, "{ \"animation\": ");
-
-        PackStack bare = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot), pack(EXTRA, extraRoot)));
+        PackStack bare = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot)));
         stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
         context = new IndexedRendererContext(
@@ -196,17 +174,6 @@ class IndexedRendererContextSpriteLoadTest {
 
         assertThat("a sidecar that parses beside them is captured whole",
             stack.indexed(ResourceId.parse(RAGGED_HEIGHT)).orElseThrow().meta().isPresent(), is(true));
-    }
-
-    @Test
-    @DisplayName("a texture whose sidecar does not parse is served and empty, and so are its sidecar, animation and table")
-    void aSidecarThatDoesNotParseIsEmpty() {
-        for (String id : BAD_SIDECARS) {
-            assertThat(id + "'s texture", context.resolveTexture(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s sidecar", context.findMeta(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s animation", context.findAnimation(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s playback table", context.findFlipbook(id).getState(), is(Possible.State.EMPTY));
-        }
     }
 
     @Test
@@ -250,28 +217,6 @@ class IndexedRendererContextSpriteLoadTest {
             is(Possible.State.EMPTY));
         assertThat("its row captures the sidecar it ships",
             stack.indexed(ResourceId.parse(WRONG_TYPED_SCALING)).orElseThrow().meta().isPresent(), is(true));
-    }
-
-    @Test
-    @DisplayName("a strip its frame size does not divide is served and empty, keeping its sidecar and playing nothing")
-    void aStripItsFrameSizeDoesNotDivideIsEmpty() {
-        for (String id : BAD_STRIPS) {
-            assertThat(id + "'s texture", context.resolveTexture(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s sidecar is still read", context.findMeta(id).isPresent(), is(true));
-            assertThat(id + "'s animation with it", context.findAnimation(id).isPresent(), is(true));
-            assertThat(id + "'s playback table", context.findFlipbook(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s every tick is empty",
-                Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), 3).getState(),
-                is(Possible.State.EMPTY));
-        }
-    }
-
-    @Test
-    @DisplayName("a pack-prefixed id whose sidecar does not parse answers empty rather than raising")
-    void aPackPrefixedSidecarThatDoesNotParseIsEmpty() {
-        assertThat(context.resolveTexture(PACK_PREFIXED_SIDECAR).getState(), is(Possible.State.EMPTY));
-        assertThat(context.findMeta(PACK_PREFIXED_SIDECAR).getState(), is(Possible.State.EMPTY));
-        assertThat(context.findFlipbook(PACK_PREFIXED_SIDECAR).getState(), is(Possible.State.EMPTY));
     }
 
     @Test

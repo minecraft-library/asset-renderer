@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.exception.ImageException;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -43,9 +45,11 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The contract the four texture lookups keep with one another, held over every context and every
@@ -64,18 +68,24 @@ import static org.hamcrest.Matchers.sameInstance;
  * A wrong state is invisible to every render - a still frame is a still frame, whichever way it came to
  * be still - so these rows are the only witness. The production context is built over a pack holding an
  * animated texture, a static one, a zero-byte file, a truncated file beside an animated sidecar,
- * paletted permutations over readable and unreadable inputs, a blank and a malformed sidecar, a sidecar
- * whose animation section the client's codec refuses and one carrying no animation section, strips
- * their frame size does not divide on either axis and one wider than tall that it does, and over a
- * second pack reached through its pack id; the in-memory context over buffers, and over a source
- * answering empty; and every wrapper over each of them.
+ * paletted permutations over readable and unreadable inputs, a truncated file shipped under the id of a
+ * permutation whose inputs decode, a blank and a malformed sidecar, a sidecar whose animation section
+ * the client's codec refuses and one carrying no animation section, strips their frame size does not
+ * divide on either axis and one wider than tall that it does, and over a second pack reached through its
+ * pack id; the in-memory context over buffers, and over a source answering empty; and every wrapper over
+ * each of them.
+ * <p>
+ * A file the index serves and the decode refuses is served and empty, never absent. The zero-byte and
+ * the truncated fixtures fail the decode on its two arms, such a file is decoded and reported once, it
+ * plays nothing at any tick while keeping its sidecar, and it shadows a permutation registered under its
+ * own id.
  * <p>
  * The reporting sets the substituting wrapper and the pack stack log through are static, so every id
- * here is one no other test names. What was logged is asserted once, of a measuring context, which logs
- * nothing, over ids only that test reads. What a substituting wrapper records lands in the collector of
- * the context it wraps: every wrapper answers that collector in either layering order and reports
- * through to it, and both are asserted, the collector being the context's own. A measuring context
- * records nothing.
+ * here is one no other test names. What was logged is asserted twice, each over ids only that test
+ * reads: of a broken file, reported once, and of a measuring context, which logs nothing. What a
+ * substituting wrapper records lands in the collector of the context it wraps: every wrapper answers
+ * that collector in either layering order and reports through to it, and both are asserted, the
+ * collector being the context's own. A measuring context records nothing.
  */
 @DisplayName("The four texture lookups describe one texture")
 class TextureViewCoherenceTest {
@@ -143,6 +153,15 @@ class TextureViewCoherenceTest {
     /** A permutation whose base no pack ships. */
     private static final String PERMUTED_OVER_MISSING = UNSHIPPED_BASE + "_" + SUFFIX;
 
+    /** A permutation base whose file decodes. */
+    private static final String SHADOWED_BASE = "minecraft:block/coherence_shadowed";
+
+    /** A permutation whose inputs all decode, under whose id the pack ships a truncated file. */
+    private static final String SHADOWED = SHADOWED_BASE + "_" + SUFFIX;
+
+    /** A truncated file whose report is read, by one test alone. */
+    private static final String REPORTED_ONCE = "minecraft:block/coherence_reported_once";
+
     /** The second pack, whose id names it in a texture id's prefix. */
     private static final PackId EXTRA = new PackId("coherence-extra");
 
@@ -200,6 +219,9 @@ class TextureViewCoherenceTest {
         PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MALFORMED, PACK_PREFIXED_RAGGED, PACK_PREFIXED_MISSING,
         UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
 
+    /** The bytes of every truncated fixture: a real PNG cut in half. */
+    private static byte[] truncated;
+
     /** The production context over the two fixture packs. */
     private static RendererContext production;
 
@@ -215,7 +237,7 @@ class TextureViewCoherenceTest {
     @BeforeAll
     static void buildContexts() throws IOException {
         byte[] still = png(16, 16);
-        byte[] truncated = Arrays.copyOf(still, still.length / 2);
+        truncated = Arrays.copyOf(still, still.length / 2);
 
         Path vanillaRoot = tmp.resolve("vanilla");
         Path vanillaBlocks = vanillaRoot.resolve("assets/minecraft/textures/block");
@@ -246,6 +268,9 @@ class TextureViewCoherenceTest {
         animationSidecar(vanillaBlocks, WIDE);
         write(vanillaBlocks, PALETTE_KEY, png(3, 1));
         write(vanillaBlocks, MATERIAL, png(3, 1));
+        write(vanillaBlocks, SHADOWED_BASE, still);
+        write(vanillaBlocks, SHADOWED, truncated);
+        write(vanillaBlocks, REPORTED_ONCE, truncated);
 
         Path extraRoot = tmp.resolve("extra");
         Path extraBlocks = extraRoot.resolve("assets/minecraft/textures/block");
@@ -261,7 +286,7 @@ class TextureViewCoherenceTest {
         PackStack bare = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot), pack(EXTRA, extraRoot)));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
         TextureSynthesizer synthesizer = new TextureSynthesizer(List.of(new PalettedPermutationSource(
-            PALETTE_KEY, Map.of(SUFFIX, MATERIAL), List.of(STATIC, ZERO_BYTE, UNSHIPPED_BASE))));
+            PALETTE_KEY, Map.of(SUFFIX, MATERIAL), List.of(STATIC, ZERO_BYTE, UNSHIPPED_BASE, SHADOWED_BASE))));
 
         production = new IndexedRendererContext(
             stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
@@ -312,6 +337,15 @@ class TextureViewCoherenceTest {
         assertStates(UNKNOWN_PREFIX, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
     }
 
+    @Test
+    @DisplayName("the zero-byte and truncated fixtures fail the decode on its two arms")
+    void theFixturesReachBothArms() {
+        // Without this the broken rows could pass over two files that fail the same way, leaving the
+        // checked IIOException a corrupt body raises unexercised.
+        assertThrows(ImageException.class, () -> ImageFactory.fromByteArray(new byte[0]));
+        assertThrows(IOException.class, () -> ImageFactory.fromByteArray(truncated));
+    }
+
     @TestFactory
     @DisplayName("every context and every wrapper over it keeps the four lookups coherent for every id")
     Stream<DynamicTest> everyContextKeepsTheLookupsCoherent() {
@@ -355,14 +389,32 @@ class TextureViewCoherenceTest {
     }
 
     @Test
-    @DisplayName("a sidecar that does not parse is there and yields nothing - empty in all four lookups, never absent")
-    void aSidecarThatDoesNotParseIsEmptyEverywhere() {
-        for (String id : List.of(BLANK_SIDECAR, MALFORMED_SIDECAR)) {
-            assertThat(id + "'s texture", production.resolveTexture(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s sidecar", production.findMeta(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s animation", production.findAnimation(id).getState(), is(Possible.State.EMPTY));
-            assertThat(id + "'s playback table", production.findFlipbook(id).getState(), is(Possible.State.EMPTY));
-        }
+    @DisplayName("a broken file plays nothing at any tick")
+    void aBrokenFilePlaysNothingAtAnyTick() {
+        assertThat(Flipbook.atTick(production.resolveTexture(BROKEN_ANIMATED), production.findFlipbook(BROKEN_ANIMATED), 5)
+            .getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("a broken file is decoded and reported once, then answered from memory")
+    void aBrokenFileIsReportedOnce() {
+        String first = errDuring(() -> assertThat(
+            production.resolveTexture(REPORTED_ONCE).getState(), is(Possible.State.EMPTY)));
+        String again = errDuring(() -> {
+            assertThat(production.resolveTexture(REPORTED_ONCE).getState(), is(Possible.State.EMPTY));
+            assertThat(production.resolveTexture(REPORTED_ONCE).getState(), is(Possible.State.EMPTY));
+        });
+
+        assertThat(first, containsString("Unreadable texture '" + REPORTED_ONCE + "'"));
+        assertThat("a lookup after the first neither decodes nor reports again", again, is(emptyString()));
+    }
+
+    @Test
+    @DisplayName("a broken file shadows the permutation registered under its own id")
+    void aBrokenFileShadowsAPermutation() {
+        // The permutation's inputs all decode, so consulting the synthesizer would answer present, as it
+        // does for PERMUTED; the file the pack ships under the same id answers first, unreadable as it is.
+        assertThat(production.resolveTexture(SHADOWED).getState(), is(Possible.State.EMPTY));
     }
 
     @Test

@@ -16,8 +16,8 @@ without looking like it.
 |---|---|
 | A `@Parity` declaration, a rule's trigger paths, `Scope.PACKAGE`, an `ignored` seam | [DeclaringReach](../docs/parity/DeclaringReach.md) |
 | `parity/reach.json` - what makes an edge, a sealed type's `permits`, the four compiled trees, held demotes | [ReferenceGraph](../docs/parity/ReferenceGraph.md) |
-| Coining an artifact - `ParityArtifacts.ALL`, `index.json`, `ROOTS` and `UNROOTED` - a failed producer, a provenance reason | [RosterAndIndex](../docs/parity/RosterAndIndex.md) |
-| Renaming a class, a cited heading or the file that holds one; editing above a line the store pins | [StoreState](../docs/parity/StoreState.md) |
+| Coining or retiring an artifact - `ParityArtifacts.ALL`, `index.json`, `ROOTS` and `UNROOTED`, `parityPinWriters` - a failed producer, a provenance reason | [RosterAndIndex](../docs/parity/RosterAndIndex.md) |
+| Renaming or moving a test or visual-set class the store cites, or a heading a rule cites | [StoreState](../docs/parity/StoreState.md) |
 
 ## The build
 
@@ -28,5 +28,8 @@ a roster guard reads `Subject.values()` at run time, and the visual set inherits
 configurations whole.
 
 The toolkit runs as `python parity/scripts/parity <command>` and is documented in its own
-`README.md`. `paritySelfTest` is its suite, and the renderer's `check` schedules it, because a parity
-task is otherwise the only thing that pulls it in.
+`README.md`. `paritySelfTest` is its suite, run one test module per process, and it compiles the
+class roots its reach cases read. `parityCapture` runs it once per gate that captures, behind the
+producers whose outputs its real-tree cases read, and the renderer's `check` schedules it too; no
+other parity task pulls it in. The capture index names the toolkit that closed it, and the compare
+and the promotion refuse a capture another toolkit closed.

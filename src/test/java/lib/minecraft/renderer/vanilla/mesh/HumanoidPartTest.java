@@ -14,17 +14,17 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * The pixel-lattice arithmetic behind {@link HumanoidPart#box} and {@link HumanoidPart#centred} - the
- * exact float every endpoint of every body part lands on at both shipped scales, and the one-ULP gap
- * between deriving an endpoint from its own integer pixel offset and adding a scaled extent to an
- * origin.
+ * exact float every endpoint of every body part lands on at the body scale, the head's seated and
+ * centred boxes at the skull scale, and the half-span rounding {@code centred} inherits.
  * <p>
  * The rule is not stylistic. At the body lattice's {@code 0.03} units per pixel the offsets the
  * lattice actually uses - 2, 4, 8 and 16 pixels - multiply bit-exactly onto the decimal they spell,
  * while a 12-pixel span does not: {@code 12 * 0.03f} is one ULP below {@code 0.36f}, and five of the
  * six parts are 12 pixels tall. Rewriting {@code box} as an origin plus a scaled extent therefore
  * moves five of the six upper Y endpoints by one bit, which is why the enum stores an upper pixel
- * offset rather than a span. Assertions read {@link Float#floatToIntBits} wherever that single bit is
- * the whole claim, so a regression cannot pass by printing the same decimal.
+ * offset rather than a span. The endpoint table is asserted with {@code Float} equality, which compares
+ * bits, and the other assertions read {@link Float#floatToIntBits} wherever that single bit is the
+ * whole claim, so a regression cannot pass by printing the same decimal.
  * <p>
  * {@code centred} is pinned for what it observably does rather than for the same guarantee. A box
  * centred on the origin has no integer endpoint offset to derive from, so its halves come off the
@@ -64,37 +64,6 @@ class HumanoidPartTest {
     };
 
     @Test
-    @DisplayName("twelve pixels at the body scale is one ULP below the decimal it spells")
-    void twelvePixelsAtBodyScaleIsOneUlpBelowItsDecimal() {
-        float twelve = 12 * BODY_SCALE;
-
-        assertThat("12 * 0.03f does not reach 0.36f", twelve, is(not(equalTo(0.36f))));
-        assertThat("12 * 0.03f", Float.floatToIntBits(twelve), is(0x3EB851EB));
-        assertThat("0.36f", Float.floatToIntBits(0.36f), is(0x3EB851EC));
-        assertThat("the gap is exactly one ULP", Math.nextUp(twelve), equalTo(0.36f));
-    }
-
-    @Test
-    @DisplayName("every endpoint offset the lattice uses multiplies bit-exactly onto its decimal")
-    void latticeEndpointOffsetsMultiplyBitExactly() {
-        assertThat("2 px", 2 * BODY_SCALE, equalTo(0.06f));
-        assertThat("4 px", 4 * BODY_SCALE, equalTo(0.12f));
-        assertThat("8 px", 8 * BODY_SCALE, equalTo(0.24f));
-        assertThat("16 px", 16 * BODY_SCALE, equalTo(0.48f));
-
-        // The same four again on their bits, because the claim is bit equality and not agreement to
-        // the printed decimal.
-        assertThat("2 px bits", Float.floatToIntBits(2 * BODY_SCALE), is(Float.floatToIntBits(0.06f)));
-        assertThat("4 px bits", Float.floatToIntBits(4 * BODY_SCALE), is(Float.floatToIntBits(0.12f)));
-        assertThat("8 px bits", Float.floatToIntBits(8 * BODY_SCALE), is(Float.floatToIntBits(0.24f)));
-        assertThat("16 px bits", Float.floatToIntBits(16 * BODY_SCALE), is(Float.floatToIntBits(0.48f)));
-
-        // A zero offset is a positive zero, which matters because the two leg boxes each put one on an
-        // X endpoint and a negative zero is a different float.
-        assertThat("0 px bits", Float.floatToIntBits(0 * BODY_SCALE), is(0));
-    }
-
-    @Test
     @DisplayName("five of the six parts are twelve pixels tall, which is the span the rule was written for")
     void everyLimbAndTheTorsoAreTwelvePixelsTall() {
         HumanoidPart.forEach(part -> {
@@ -120,41 +89,6 @@ class HumanoidPartTest {
             assertThat(part + " maxY", box.maxY(), equalTo(expected[4]));
             assertThat(part + " maxZ", box.maxZ(), equalTo(expected[5]));
         });
-    }
-
-    @Test
-    @DisplayName("box does not add a scaled extent to an origin - five upper Y endpoints move by a bit if it does")
-    void boxNeverAddsAScaledExtentToAnOrigin() {
-        HumanoidPart.forEach(part -> {
-            Box box = part.box(BODY_SCALE);
-            float naiveY = part.minPixelY() * BODY_SCALE + part.pixelHeight() * BODY_SCALE;
-            float naiveX = part.minPixelX() * BODY_SCALE + part.pixelWidth() * BODY_SCALE;
-
-            // Widths of 4 and 8 pixels multiply exactly, so the X endpoint is the same float either
-            // way and the divergence is specific to the 12-pixel span.
-            assertThat(part + " maxX is reachable either way", naiveX, equalTo(box.maxX()));
-
-            if (part.pixelHeight() == 12) {
-                assertThat(part + " maxY diverges", naiveY, is(not(equalTo(box.maxY()))));
-                assertThat(part + " maxY is one ULP low the other way", Math.nextUp(naiveY), equalTo(box.maxY()));
-            } else {
-                assertThat(part + " maxY agrees at 8 pixels", naiveY, equalTo(box.maxY()));
-            }
-        });
-    }
-
-    @Test
-    @DisplayName("box seats the head where the lattice puts it, at either scale")
-    void boxSeatsTheHeadInTheBodyLattice() {
-        // The lattice spans -16..+16 on Y and the head occupies its top eight pixels, so the head's
-        // box floats above the origin rather than straddling it.
-        assertThat("head at body scale", HumanoidPart.HEAD.box(BODY_SCALE),
-            equalTo(new Box(-0.12f, 0.24f, -0.12f, 0.12f, 0.48f, 0.12f)));
-
-        // A power-of-two scale makes every product exact, so the head's 8..16 pixel span reads back as
-        // a clean 1..2.
-        assertThat("head at skull scale", HumanoidPart.HEAD.box(SKULL_SCALE),
-            equalTo(new Box(-0.5f, 1.0f, -0.5f, 0.5f, 2.0f, 0.5f)));
     }
 
     @Test

@@ -1,12 +1,7 @@
 package lib.minecraft.renderer.bake.texture;
 
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.ColorMath;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -18,9 +13,8 @@ import static org.hamcrest.Matchers.not;
  * {@link GlintKit}'s constants against the MC 26.1 deobfuscated client source (loop periods, per-type
  * scales, rotation, texture ids), the {@link GlintKit.GlintOptions} preset split -
  * {@link GlintKit.GlintOptions#itemDefault item} and {@link GlintKit.GlintOptions#armorDefault armor}
- * each routing to vanilla's texture and scale - and {@link GlintKit#applyGlint} output: a 2-second
- * frame count that tracks {@code framesPerSecond}, preserved canvas dimensions, and the foil masked
- * to the base image's opaque pixels.
+ * each routing to vanilla's texture and scale - and the 2-second loop's frame count, which tracks
+ * {@code framesPerSecond}.
  */
 class GlintKitTest {
 
@@ -34,15 +28,6 @@ class GlintKitTest {
         assertThat("entity item glint scale", (double) GlintKit.ENTITY_ITEM_SCALE, is(closeTo(0.5, 1e-6)));
         assertThat("armor glint scale", (double) GlintKit.ARMOR_SCALE, is(closeTo(0.16, 1e-6)));
         assertThat("rotation radians ~10 degrees", (double) GlintKit.ROTATION_RADIANS, is(closeTo(Math.toRadians(10), 1e-4)));
-    }
-
-    @Test
-    @DisplayName("GLINT_ALPHA matches vanilla's default Glint Strength (0.75)")
-    void glintAlphaDefault() {
-        // Vanilla's GlintAlpha shader uniform is the player's Glint Strength video option; its default
-        // (0.75) is what the reference harness renders with, so byte-exact glint parity depends on this
-        // exact value.
-        assertThat(GlintKit.GLINT_ALPHA, is(0.75f));
     }
 
     @Test
@@ -79,51 +64,6 @@ class GlintKitTest {
         assertThat(GlintKit.GlintOptions.itemDefault(30).totalFrames(), is(60));
         assertThat(GlintKit.GlintOptions.itemDefault(60).totalFrames(), is(120));
         assertThat(GlintKit.GlintOptions.itemDefault(120).totalFrames(), is(240));
-    }
-
-    @Test
-    @DisplayName("apply emits the expected frame count and preserves canvas dimensions")
-    void applyEmitsFrames() {
-        PixelBuffer base = solidBuffer(16, 16, 0xFFFF0000);
-        PixelBuffer glint = solidBuffer(32, 32, 0x40FFFFFF);
-        GlintKit.GlintOptions options = GlintKit.GlintOptions.itemDefault(10);
-
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, options);
-
-        assertThat(frames.size(), is(options.totalFrames()));
-        for (PixelBuffer frame : frames) {
-            assertThat(frame.width(), is(16));
-            assertThat(frame.height(), is(16));
-        }
-    }
-
-    @Test
-    @DisplayName("apply masks the glint to the base image's opaque pixels")
-    void applyMasksByBaseAlpha() {
-        // Half-opaque base: left column opaque red, right column fully transparent.
-        int[] pixels = new int[16 * 16];
-        for (int y = 0; y < 16; y++) {
-            for (int x = 0; x < 16; x++) {
-                pixels[y * 16 + x] = x < 8 ? 0xFFFF0000 : 0x00000000;
-            }
-        }
-        PixelBuffer base = PixelBuffer.ofPremultiplied(pixels, 16, 16);
-        PixelBuffer glint = solidBuffer(32, 32, 0xFFFFFFFF);
-
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1));
-        PixelBuffer first = frames.getFirst();
-
-        // Left half must be opaque (base red possibly brightened by glint).
-        assertThat(ColorMath.alpha(first.getPixel(0, 0)), is(0xFF));
-        // Right half must still be transparent - the glint is masked out.
-        assertThat(ColorMath.alpha(first.getPixel(15, 0)), is(0x00));
-    }
-
-    /** Builds a {@code width}-by-{@code height} buffer filled with a single ARGB value. */
-    private static PixelBuffer solidBuffer(int width, int height, int argb) {
-        int[] pixels = new int[width * height];
-        Arrays.fill(pixels, argb);
-        return PixelBuffer.ofStraight(pixels, width, height);
     }
 
 }

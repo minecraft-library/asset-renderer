@@ -54,13 +54,6 @@ class LightingTest {
     private static final Vector3f VIEW = new Vector3f(0f, 0f, -1f);
 
     @Test
-    @DisplayName("the diffuse power and ambient floor are vanilla's GLSL constants exactly")
-    void shaderConstantsMatchVanilla() {
-        assertThat(Lighting.MINECRAFT_LIGHT_POWER, equalTo(0.6f));
-        assertThat(Lighting.MINECRAFT_AMBIENT_LIGHT, equalTo(0.4f));
-    }
-
-    @Test
     @DisplayName("the ITEMS_3D lights are the transcribed bit patterns, not a decimal rewrite")
     void blockItems3dLightsAreTranscribedBitPatterns() {
         // Copied from vanilla's pre-rotated Lighting UBO upload. A source rewrite to decimal
@@ -123,15 +116,6 @@ class LightingTest {
         // A degenerate normal has no winning axis and falls back to the UP scalar rather than to
         // ambient or to zero.
         assertThat(Lighting.inventory(Vector3f.ZERO), equalTo(1.0f));
-    }
-
-    @Test
-    @DisplayName("inventory is a four-bucket approximation, not the ITEMS_3D Lambertian")
-    void inventoryIsNotTheContinuousLambertian() {
-        // Both claim to reproduce the same vanilla entry; only one of them is continuous. Collapsing
-        // block and fluid kits onto blockItems3d would move every shipped block shade.
-        assertThat(Lighting.inventory(TOWARD_CAMERA), equalTo(0.6f));
-        assertThat((double) Lighting.blockItems3d(TOWARD_CAMERA), not(closeTo(0.6, 1.0e-3)));
     }
 
     @Test

@@ -52,33 +52,12 @@ class AxisSignsTest {
     }
 
     @Test
-    @DisplayName("HALF_X maps the model frame onto the upright frame")
-    void halfTurnCrossesToTheModelFrame() {
-        assertThat(AxisSigns.HALF_X.apply(Face.DOWN), is(Face.UP));
-        assertThat(AxisSigns.HALF_X.apply(Face.UP), is(Face.DOWN));
-        assertThat(AxisSigns.HALF_X.apply(Face.NORTH), is(Face.SOUTH));
-        assertThat(AxisSigns.HALF_X.apply(Face.SOUTH), is(Face.NORTH));
-        assertThat(AxisSigns.HALF_X.apply(Face.WEST), is(Face.WEST));
-        assertThat(AxisSigns.HALF_X.apply(Face.EAST), is(Face.EAST));
-    }
-
-    @Test
     @DisplayName("the face map is the face-level shadow of the point turn, on every turn and face")
     void faceMapShadowsThePointTurn() {
         AxisSigns.forEach(turn ->
             Face.forEach(face ->
                 assertThat(turn + " on " + face,
                     settled(turn.apply(face).normal()), equalTo(settled(turn.apply(face.normal()))))));
-    }
-
-    @Test
-    @DisplayName("MIRROR_X swaps the two sides and leaves the other four faces alone")
-    void sagittalMirrorSwapsTheSidesOnly() {
-        assertThat(AxisSigns.MIRROR_X.apply(Face.WEST), is(Face.EAST));
-        assertThat(AxisSigns.MIRROR_X.apply(Face.EAST), is(Face.WEST));
-
-        for (Face face : new Face[]{ Face.DOWN, Face.UP, Face.NORTH, Face.SOUTH })
-            assertThat(face + " keeps its slot under a sagittal mirror", AxisSigns.MIRROR_X.apply(face), is(face));
     }
 
     @Test

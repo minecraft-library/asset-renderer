@@ -58,28 +58,12 @@ class GlintKitScheduleTest {
     // ---- the one fold, both axes ---------------------------------------------------------------
 
     @Test
-    @DisplayName("tick 0 maps to glint time 0")
-    void zeroTick() {
-        assertThat(GlintKit.glintTimeAt(0 * (double) Timeline.MILLIS_PER_TICK), is(0L));
-    }
-
-    @Test
     @DisplayName("glint time = tick * 50 ms * 8.0 speed factor (the * 8 is folded in glintTimeAt)")
     void includesSpeedFactor() {
         // tick 1 -> 50 ms wall-clock -> 400 glint-millis (50 * 8). NOT 50.
         assertThat(GlintKit.glintTimeAt(1 * (double) Timeline.MILLIS_PER_TICK), is(400L));
         assertThat(GlintKit.glintTimeAt(10 * (double) Timeline.MILLIS_PER_TICK), is(4000L));
         assertThat(GlintKit.glintTimeAt(200 * (double) Timeline.MILLIS_PER_TICK), is(80_000L));
-    }
-
-    @Test
-    @DisplayName("tick axis: glintTimeAt(tick * 50.0) matches round(wallMs * 8.0) exactly")
-    void tickAxisConvention() {
-        for (int tick : new int[]{0, 1, 3, 40, 137, 200}) {
-            long wallMs = (long) tick * Timeline.MILLIS_PER_TICK;
-            long expected = Math.round(wallMs * GlintKit.MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
-            assertThat(GlintKit.glintTimeAt(tick * (double) Timeline.MILLIS_PER_TICK), is(expected));
-        }
     }
 
     @Test
@@ -92,13 +76,6 @@ class GlintKitScheduleTest {
                 assertThat(GlintKit.glintTimeAt(loop.millisAt(f)), is(expected));
             }
         }
-    }
-
-    @Test
-    @DisplayName("both glint loop periods are multiples of the tick wall quantum -> clean sweep")
-    void loopPeriodsSweepCleanly() {
-        assertThat(GlintKit.VANILLA_U_LOOP_MILLIS % Timeline.MILLIS_PER_TICK, is(0L));
-        assertThat(GlintKit.VANILLA_V_LOOP_MILLIS % Timeline.MILLIS_PER_TICK, is(0L));
     }
 
     // ---- Foil consumes a Timeline --------------------------------------------------------------

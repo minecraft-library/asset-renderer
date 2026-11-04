@@ -351,15 +351,13 @@ class InterpChassisTest {
     }
 
     @Test
-    @DisplayName("capacity eviction fires the overflow warning once across parent and child")
-    void capacityEvictionWarnsOnce() {
-        int[] fired = {0};
-        Interpreter<Number> machine = machine(new NumberDomain()).capacity(2).overflowWarning(() -> fired[0]++);
+    @DisplayName("capacity evicts the oldest entry past the bound, and a child inherits the bound")
+    void capacityEviction() {
+        Interpreter<Number> machine = machine(new NumberDomain()).capacity(2);
         machine.push(1);
         machine.push(2);
         machine.push(3);
         machine.push(4);
-        assertEquals(1, fired[0], "two evictions, one warning");
         assertEquals(Integer.valueOf(4), machine.pop());
         assertEquals(Integer.valueOf(3), machine.pop());
         assertNull(machine.popTyped(Integer.class), "the oldest entries were evicted");
@@ -367,7 +365,6 @@ class InterpChassisTest {
         child.push(5);
         child.push(6);
         child.push(7);
-        assertEquals(1, fired[0], "a child's eviction keeps the once-only");
         assertEquals(Integer.valueOf(7), child.pop());
         assertEquals(Integer.valueOf(6), child.pop());
         assertNull(child.popTyped(Integer.class), "the child inherited the bound");

@@ -24,9 +24,9 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of {@link BannerPatternLoader} against a {@link TempDir}-staged
  * {@code data/minecraft/banner_pattern} directory: the vanilla JSON shape
- * ({@code asset_id} + {@code translation_key}), the id-derived-from-relative-path convention, the
- * {@code assetId}-derived {@code entity/banner/*} and {@code entity/shield/*} texture ids, the
- * missing-directory empty-map fallback, and the skip-on-missing-{@code asset_id} behaviour.
+ * ({@code asset_id} + {@code translation_key}), the {@code assetId}-derived {@code entity/banner/*}
+ * and {@code entity/shield/*} texture ids, the missing-directory empty-map fallback, and the
+ * skip-on-missing-{@code asset_id} behaviour.
  */
 class BannerPatternLoaderTest {
 
@@ -44,21 +44,6 @@ class BannerPatternLoaderTest {
         assertThat(creeper.id(), is("minecraft:creeper"));
         assertThat(creeper.assetId(), is("minecraft:creeper"));
         assertThat(creeper.translationKey(), is("block.minecraft.banner.creeper"));
-    }
-
-    @Test
-    @DisplayName("derives pattern id from relative path")
-    void derivesIdFromPath(@TempDir Path packRoot) throws IOException {
-        Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
-        Files.createDirectories(patternDir);
-        Files.writeString(patternDir.resolve("base.json"),
-            "{\"asset_id\":\"minecraft:base\",\"translation_key\":\"block.minecraft.banner.base\"}");
-        Files.writeString(patternDir.resolve("flow.json"),
-            "{\"asset_id\":\"minecraft:flow\",\"translation_key\":\"block.minecraft.banner.flow\"}");
-
-        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
-        assertThat(patterns.get("minecraft:base").id(), is("minecraft:base"));
-        assertThat(patterns.get("minecraft:flow").id(), is("minecraft:flow"));
     }
 
     @Test

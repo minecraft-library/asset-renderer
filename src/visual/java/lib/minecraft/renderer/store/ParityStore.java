@@ -47,7 +47,6 @@ public final class ParityStore {
     private static final @NotNull Map<String, String> KIND_DIRECTORIES = Map.of(
         "sweep", "sweeps",
         "manifest", "manifests",
-        "digest", "digests",
         "pin", "pins");
 
     /** The two artifacts read by name rather than through the id rule, because their names predate it. */

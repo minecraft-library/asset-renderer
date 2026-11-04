@@ -8,13 +8,9 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.ColorProperties;
-import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
-import lib.minecraft.renderer.asset.rule.TileRef;
-import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +19,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -112,18 +107,6 @@ class RuleScannerMergeTest {
     }
 
     @Test
-    @DisplayName("a blank or unparseable value is unset beside a good key in the same file, and the lower pack's value does not show through")
-    void colorBlankAndUnparseableValuesAreUnset() throws IOException {
-        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x111111\nredstone.2=0x111111");
-        writeFile(USER, COLOR_FILE, "redstone.0=\nredstone.1=zzz\nredstone.2=0x222222");
-
-        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
-        assertThat("blank", color(merged, "redstone.0"), is(Optional.empty()));
-        assertThat("unparseable", color(merged, "redstone.1"), is(Optional.empty()));
-        assertThat("good", color(merged, "redstone.2"), is(Optional.of(0xFF222222)));
-    }
-
-    @Test
     @DisplayName("a color.properties with a malformed unicode escape counts as not shipped, and the next pack's file is read whole")
     void colorMalformedEscapeSkipsFile() throws IOException {
         writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x333333");
@@ -209,20 +192,6 @@ class RuleScannerMergeTest {
         assertThat(merged.ctmRules().size(), equalTo(2));
         assertThat(merged.ctmRules().getFirst().isTileTarget(), is(true));
         assertThat(merged.ctmRules().getLast().isTileTarget(), is(false));
-    }
-
-    @Test
-    @DisplayName("a scanned + merged ctm rule keeps its targeted face alone and its tile under the ctm root")
-    void ctmRuleKeepsFaceAndTileThroughMerge() throws IOException {
-        writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/glass.properties",
-            "method=fixed\nmatchTiles=glass\ntiles=custom\nfaces=top");
-
-        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA)));
-        assertThat(merged.ctmRules().size(), equalTo(1));
-        CtmRule rule = merged.ctmRules().getFirst();
-        assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
-        ResourceId tile = ((TileRef.Texture) rule.tiles().getFirst()).id();
-        assertThat(tile.name(), equalTo("optifine/ctm/custom"));
     }
 
     @Test

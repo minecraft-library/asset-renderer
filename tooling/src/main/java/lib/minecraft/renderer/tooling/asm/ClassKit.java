@@ -61,8 +61,7 @@ import java.util.regex.Pattern;
  * <p>That inventory is capability, not a call graph. Six of the names it lists have no
  * production caller and are kept deliberately, a bytecode primitive being cheaper to carry
  * than to re-derive on a Minecraft version bump: {@link #findFieldInHierarchy},
- * {@link #argSlotCount}, and all four {@code diag*} formatters. Of those, only
- * {@code findFieldInHierarchy} is reached at all, by this kit's own unit test.
+ * {@link #argSlotCount}, and all four {@code diag*} formatters.
  *
  * <p>None of the helpers here know about the vanilla semantic patterns the callers are
  * hunting for (tint sources, effect colours, cube literals, layer dispatch, lambda targets).

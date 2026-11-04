@@ -29,12 +29,6 @@ import static org.hamcrest.Matchers.is;
 class BlockIndexBuilderNoPositionDrawTest {
 
     @Test
-    @DisplayName("a four-entry array draws its third entry")
-    void fourEntryArrayDrawsThird() {
-        assertThat(BlockIndexBuilder.drawWithoutPosition(applies("a", "b", "c", "d")).model(), is("c"));
-    }
-
-    @Test
     @DisplayName("a carried grass block draws the y=180 entry, not the authored first")
     void grassBlockDrawsHalfTurn() {
         ConcurrentList<ApplyDto> spin = Concurrent.newList();

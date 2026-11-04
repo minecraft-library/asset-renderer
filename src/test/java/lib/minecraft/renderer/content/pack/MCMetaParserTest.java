@@ -33,16 +33,16 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link MCMetaParser}, which reads every {@code .mcmeta} section into an {@link MCMeta}: the
- * five on-disk pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth)
- * as description fixtures - plain string, component object, component array, {@code extra} nesting, §
- * formatting codes, tab indentation - each sidecar section (animation, texture, gui.scaling, villager),
- * overlay and filter parsing, and the hard errors - unreadable JSON, and a value of the wrong type in a
- * pack root - and each sidecar section the client's codec refuses, held as refused.
+ * Coverage of {@link MCMetaParser}, which reads every {@code .mcmeta} section into an {@link MCMeta}: two
+ * on-disk pack.mcmeta shapes (defrosted and the eureka {@code .cats} decoy) as description fixtures -
+ * plain string, component object, component array, {@code extra} nesting, § formatting codes, tab
+ * indentation - each sidecar section (animation, texture, gui.scaling, villager), overlay and filter
+ * parsing, and the hard errors - unreadable JSON, and a value of the wrong type in a pack root - and
+ * each sidecar section the client's codec refuses, held as refused.
  * <p>
  * One format row is kept, on the defrosted fixture where all three generations coexist, to pin that the
  * parser delegates to {@link FormatRange} at all. Every other normalization row is owned row-by-row by
- * {@code FormatRangeTest} in {@link FormatRange}'s own package, against the same fixture strings.
+ * {@code FormatRangeTest} in {@link FormatRange}'s own package, against the on-disk fixture strings.
  */
 @DisplayName("MCMetaParser section parsing")
 class MCMetaParserTest {
@@ -58,7 +58,7 @@ class MCMetaParserTest {
         return parse(json).pack().orElseThrow();
     }
 
-    // the five on-disk pack.mcmeta shapes
+    // on-disk pack.mcmeta shapes
 
     @Test
     @DisplayName("defrosted: legacy and modern coexist (newest wins), § description preserved, tabs tolerated")
@@ -78,31 +78,10 @@ class MCMetaParserTest {
     }
 
     @Test
-    @DisplayName("hypixel-skyblock: compact one-line, clean name")
-    void hypixelSkyblock() {
-        Pack pack = pack("{\"pack\":{\"pack_format\":88,\"min_format\":88,\"max_format\":88,\"description\":\"Hypixel SkyBlock\"}}");
-        assertThat(pack.description().plain(), equalTo("Hypixel SkyBlock"));
-    }
-
-    @Test
     @DisplayName("eureka.cats: a component-object description flattens to its text")
     void eurekaCats() {
         String json = "{\"pack\":{\"description\":{\"text\":\"Use Catharsis-1.0.0-beta.20 or higher!\",\"color\":\"red\",\"bold\":true},\"min_format\":69,\"max_format\":255}}";
         assertThat(pack(json).description().plain(), equalTo("Use Catharsis-1.0.0-beta.20 or higher!"));
-    }
-
-    @Test
-    @DisplayName("FurSky Reborn.cats: same shape, no bold")
-    void furSkyCats() {
-        String json = "{\"pack\":{\"description\":{\"text\":\"Requires Catharsis Mod v1.0.0-beta.17 or higher\",\"color\":\"red\"},\"min_format\":69,\"max_format\":255}}";
-        assertThat(pack(json).description().plain(), equalTo("Requires Catharsis Mod v1.0.0-beta.17 or higher"));
-    }
-
-    @Test
-    @DisplayName("vanilla synth: provenance-string description")
-    void vanillaSynth() {
-        Pack pack = pack("{\"pack\":{\"pack_format\":84,\"description\":\"Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)\"}}");
-        assertThat(pack.description().plain(), equalTo("Minecraft 26.1 vanilla resources (synthesised by asset-renderer ClientAcquisition.extractClientJar)"));
     }
 
     // description normalization forms

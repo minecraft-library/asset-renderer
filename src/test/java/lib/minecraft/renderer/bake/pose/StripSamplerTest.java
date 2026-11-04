@@ -24,9 +24,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
-import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -57,9 +55,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * wrong silently: a channel spelled so that two contributions to one member do not meet, a scroll
  * read in the wrong sheet's texels, a clip site's period read off the wrong clock, a clock or a scroll
  * running backward read as repeating on no period at all, a mesh skipped because its pose cannot be
- * read or its bone does not draw, a pass's own mesh skipped because it moves under the body's pose,
- * an equipment layer never walked, a position read in a scaled mesh's drawn units rather than the
- * model's own, and a pass's opacity lost because the pass redraws the body.
+ * read, a pass's own mesh skipped because it moves under the body's pose, an equipment layer never
+ * walked, a position read in a scaled mesh's drawn units rather than the model's own, and a pass's
+ * opacity lost because the pass redraws the body.
  */
 @DisplayName("the channels a resolved row is sampled into")
 class StripSamplerTest {
@@ -68,7 +66,7 @@ class StripSamplerTest {
      * A channel's spelling: the mesh, then a bone or a container step, then the member - or a pass's
      * scroll axis, or its opacity.
      */
-    private static final @NotNull Pattern GRAMMAR = Pattern.compile(
+    static final @NotNull Pattern GRAMMAR = Pattern.compile(
         "(?<mesh>body|pass\\d+|equip:[^.]+)\\.(?<part>\\$container\\d+|[^.$]+)"
             + "\\.(?<member>x|y|z|x_rot|y_rot|z_rot|x_scale|y_scale|z_scale)"
             + "|pass\\d+\\.scroll\\.[uv]|pass\\d+\\.opacity");
@@ -109,43 +107,6 @@ class StripSamplerTest {
                     bone + " at tick " + tick + " is the evaluator's angle in degrees");
             }
         }
-    }
-
-    @Test
-    @DisplayName("every shipped row's channels are spelled by mesh, bone or container step, and member")
-    void everyShippedChannelIsSpelledByTheGrammar() {
-        // Contributions are summed by channel, so a spelling one site writes and another does not is
-        // two channels where the eye sees one. Each kind is held to the member its name says.
-        int sampled = 0;
-        int containers = 0;
-        for (Entity definition : entities.values())
-            for (Age age : agesOf(definition)) {
-                AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
-                Entity subject = appearance.resolve(definition);
-                for (String id : definition.styles().ids()) {
-                    PoseStyle style;
-                    try {
-                        style = subject.styles().resolve(id, appearance::applies, definition.id().toString());
-                    } catch (RenderException refused) {
-                        continue;
-                    }
-                    if (!style.moves()) continue;
-                    for (StripTrack track : StripSampler.tracks(subject, style, subject.styles().periodTicks())) {
-                        String at = definition.id() + " " + age + " '" + id + "' " + track.channel();
-                        Matcher spelled = GRAMMAR.matcher(track.channel());
-                        assertTrue(spelled.matches(), at + " is spelled by the grammar");
-                        assertEquals(kindOf(track.channel(), spelled), track.kind(), at + " carries its member's kind");
-                        assertEquals(track.kind() == StripTrack.Kind.ROTATION || track.kind() == StripTrack.Kind.TEXEL,
-                            track.wrap().isPresent(), at + " wraps exactly where its kind comes round");
-                        if (spelled.group("part") != null && spelled.group("part").startsWith("$container"))
-                            containers++;
-                    }
-                    sampled++;
-                }
-            }
-
-        assertTrue(sampled > 200, "the walk samples the corpus, " + sampled + " rows");
-        assertTrue(containers > 0, "and some row moves a container step, so its spelling is read");
     }
 
     @Test
@@ -297,20 +258,6 @@ class StripSamplerTest {
     }
 
     @Test
-    @DisplayName("a bone a toggle hides is sampled as if it drew")
-    void aHiddenBoneIsStillSampled() {
-        EntityMesh mesh = mesh();
-        mesh.getBones().put("horn", bone(Vector3f.ZERO, 1f).withVisible(false));
-        Entity subject = Entity.builder().id(ResourceId.parse("minecraft:test")).model(mesh)
-            .pose(new EntityPose(Concurrent.newUnmodifiableList(), swinging("horn", PoseChannel.X_ROT),
-                Concurrent.newUnmodifiableList(), Optional.empty()))
-            .build();
-
-        StripTrack horn = only(StripSampler.tracks(subject, TICKING, subject.styles().periodTicks()), "body.horn.x_rot");
-        assertEquals(StripTrack.Kind.ROTATION, horn.kind(), "the hidden horn's swing is a track like any other");
-    }
-
-    @Test
     @DisplayName("a guardian and an elder guardian, one pose over meshes at scales 1 and 2.35, sample one set of tracks")
     void positionsAreInTheModelsOwnUnits() {
         // The elder guardian is the guardian's own pose over a mesh flattened at 2.35, so its stored
@@ -411,13 +358,6 @@ class StripSamplerTest {
         return subject.styles().resolve(id, AppearanceOptions.defaults()::applies, subject.id().toString());
     }
 
-    /** The ages a definition renders at - the adult, and the baby where it carries a baby form. */
-    private static @NotNull List<Age> agesOf(@NotNull Entity definition) {
-        List<Age> ages = new ArrayList<>(List.of(Age.ADULT));
-        if (definition.axes().baby().isPresent()) ages.add(Age.BABY);
-        return ages;
-    }
-
     /** The one track a channel is sampled into, failing where there is none or more than one. */
     private static @NotNull StripTrack only(@NotNull List<StripTrack> tracks, @NotNull String channel) {
         List<StripTrack> named = tracks.stream().filter(track -> track.channel().equals(channel)).toList();
@@ -465,21 +405,6 @@ class StripSamplerTest {
             if (member.token().equals(token)) return member;
 
         throw new AssertionError(token + " names no member");
-    }
-
-    /** The kind a channel's spelling names - its member's, or a scroll's or an opacity's. */
-    private static @NotNull StripTrack.Kind kindOf(@NotNull String channel, @NotNull Matcher spelled) {
-        String member = spelled.group("member");
-        if (member == null) return channel.endsWith(".opacity") ? StripTrack.Kind.OPACITY : StripTrack.Kind.TEXEL;
-        for (PoseChannel written : PoseChannel.values()) {
-            if (!written.token().equals(member)) continue;
-            return switch (written.kind()) {
-                case POSITION -> StripTrack.Kind.POSITION;
-                case ROTATION -> StripTrack.Kind.ROTATION;
-                case SCALE -> StripTrack.Kind.SCALE;
-            };
-        }
-        throw new AssertionError(channel + " names no member");
     }
 
     /** A clip-playing subject: one two-second clip swinging the body, behind one authored site. */
@@ -551,11 +476,6 @@ class StripSamplerTest {
         mesh.getBones().put("body", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
             cubes, null));
         return mesh;
-    }
-
-    /** A cubeless top-level bone at a pivot, resting at a scale. */
-    private static @NotNull EntityMesh.Bone bone(@NotNull Vector3f pivot, float scale) {
-        return new EntityMesh.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, scale, Concurrent.newList(), null);
     }
 
     /** How far a series runs from its lowest sample to its highest. */

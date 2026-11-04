@@ -7,7 +7,7 @@ Generated from `ParityArtifacts` and `index.json`. **Do not edit** - regenerate 
 ```
 
 Every artifact the store knows about, in roster order: sweep-table,
-render-manifest, file-digest-set, value-pin, roster, report, probe. `home` is where
+render-manifest, value-pin, roster, report, probe. `home` is where
 the value lives - `STORE` has a file, `POINTER` is a field of another artifact's
 file, `SOURCE` is a deliberate second copy held in Java, and `EXTERNAL` is not held
 at all. An artifact that is not `baselined` has no last known value, so a comparison
@@ -34,57 +34,37 @@ capture named none - a record of a claim rather than a measurement of its own.
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 12666 ms | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 38400 ms | yes |
-| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 125632 ms | yes |
-| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
-| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 4800 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 19196 ms | yes |
-| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 15 | 4639 ms | yes |
-| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 25702 ms | yes |
-| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 44406 ms | yes |
-| `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 5612 ms | yes |
-| `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 5849 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 9681 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 10727 ms | yes |
+| `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 2605 ms | yes |
+| `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 883 ms | yes |
+| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 2220 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 1943 ms | yes |
+| `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 15 | 835 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 17127 ms | yes |
+| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 26531 ms | yes |
+| `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 2095 ms | yes |
+| `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 3940 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9827 | 127322 ms | yes |
 | `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 22698 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 211 | 36137 ms | yes |
-| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 8238 ms | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 8691 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 8691 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 7645 ms | yes |
-| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2872 ms | yes |
-| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 17263 ms | yes |
-| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 9418 ms | yes |
-| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
-| `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
-| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
-| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
-| `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.block-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.portal-crc` | pin-set | STORE | `test` | 1 | 2 | 2 | 22053 ms | yes |
-| `pin.fluid-crc` | pin-set | STORE | `test` | 1 | 2 | 13 | 22053 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 169 | 9788 ms | yes |
+| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 9 | 3103 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 7236 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 7236 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6260 ms | yes |
+| `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 9 | 3014 ms | yes |
+| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 20261 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 11857 ms | yes |
+| `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 3041 ms | yes |
+| `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 2 | 3041 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 13 | 3041 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
-| `pin.tick-lattice` | - | EXTERNAL | - | - | - | - | - | - |
-| `roster.humanoid-armor` | - | SOURCE | - | - | - | - | - | - |
-| `roster.overlay-pipeline` | - | SOURCE | - | - | - | - | - | - |
-| `roster.humanoid-part-crop` | - | SOURCE | - | - | - | - | - | - |
-| `roster.face-phase` | - | SOURCE | - | - | - | - | - | - |
-| `roster.frame-turn` | - | SOURCE | - | - | - | - | - | - |
-| `roster.armor-subjects` | - | SOURCE | - | - | - | - | - | - |
-| `roster.glint-subjects` | - | SOURCE | - | - | - | - | - | - |
-| `roster.player-scopes` | - | SOURCE | - | - | - | - | - | - |
-| `roster.sheet-groups` | - | SOURCE | - | - | - | - | - | - |
-| `roster.dump-sections` | - | SOURCE | - | - | - | - | - | - |
-| `roster.pack-fixtures` | - | SOURCE | - | - | - | - | - | - |
-| `roster.appearance-axes` | - | SOURCE | - | - | - | - | - | - |
 | `roster.blindness-rules` | blindness-roster | STORE | - | 1 | - | - | - | **no** |
 | `report.sum` | - | POINTER | - | - | - | - | - | - |
 | `report.buckets` | - | POINTER | - | - | - | - | - | - |
-| `report.coverage-gaps` | - | POINTER | - | - | - | - | - | - |
 | `report.wall-time` | - | POINTER | - | - | - | - | - | - |
-| `report.worst-list` | - | POINTER | - | - | - | - | - | - |
 | `report.failure-rows` | - | POINTER | - | - | - | - | - | - |
 | `report.run-provenance` | - | POINTER | - | - | - | - | - | - |
 | `report.diagnostics-log` | - | POINTER | - | - | - | - | - | - |
@@ -92,11 +72,9 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `report.movers` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.expected-diff` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.plan` | - | EXTERNAL | - | - | - | - | - | - |
-| `report.capture-note` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.harness-fit-log` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.oracle-index` | index | STORE | `parityPromote` | 1 | - | - | - | **no** |
 | `probe.pixel` | - | EXTERNAL | - | - | - | - | - | - |
-| `probe.depth-quantum` | - | EXTERNAL | - | - | - | - | - | - |
 | `probe.pack-icons` | - | EXTERNAL | - | - | - | - | - | - |
 | `probe.pack-sources` | - | EXTERNAL | - | - | - | - | - | - |
 
@@ -110,8 +88,8 @@ selected by `parityPlan`, and none is a gate.
 | `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | It writes `build/atlas/`, outside the `cache/visual` root `manifest.visual` hashes, and no capture step runs it, so no artifact is defined over its output (blindness rule B15). The sheet and its sidecar reproduce byte for byte across fresh JVMs; the atlas tests hold its tiles and their order. |
 | `javadoc` | RED at HEAD, and every error is the same one: a builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |
 | `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |
-| `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
-| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |
+| `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
+| `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the files they write are gated under that id. A capture runs `visualSweepSet`, which runs all eight in one JVM, rather than a task of their own. |
 | `renderVanillaReferences` and every other harness run that refreshes part of the tree | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |
-| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`: evidence rather than a value a gate reproduces. |
+| `renderVanillaPitchRollProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. Each of them but the pitch-roll probe has its output registered as an external row - `probe.pack-sources` and `probe.pack-icons`: evidence rather than a value a gate reproduces. |
 | `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |

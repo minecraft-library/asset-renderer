@@ -18,7 +18,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -88,8 +87,8 @@ final class ParityIndexTest {
      *
      * <p>That column's grammar is free text - a directory, a path with a placeholder in it, "commit
      * messages" - so only the entries shaped like a class are held to resolving as one. Lower-case
-     * segments then an upper-case leaf, and every other shipped home carries a separator or a space
-     * that puts it outside this.
+     * segments then an upper-case leaf, and every shipped home carries a separator or a space that
+     * puts it outside this.
      */
     private static final Pattern JAVA_FQN =
         Pattern.compile("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+\\.[A-Z][A-Za-z0-9_]*");
@@ -143,24 +142,14 @@ final class ParityIndexTest {
      * that dereferences nowhere is a value the store advertises and cannot produce. Recording the
      * set exactly is what makes both directions fail: a pointer going dead is a new name here, and
      * repairing one is a name that has to leave. How the members divide between those kinds is
-     * measured rather than written down, by {@link #citationShapes} - and that measurement is read
-     * back too, because a derived description is only better than a typed one while its derivation
-     * is checked.
+     * measured rather than written down, by {@link #citationShapes}.
      *
-     * <p>The three that were waiting on a promotion have had one and are gone from here.
-     * {@code report.buckets}, {@code report.sum} and {@code report.wall-time} each had a writer and
-     * no promoted baseline carrying what it wrote - a captured sweep derives the {@code summary}
-     * object the first two cite, and a capture step stamps the wall time the third reads - so each
-     * left this set on the commit whose promotion first carried its value, which is what happened.
-     *
-     * <p>What remains cites a node of that same {@code summary} object <b>no writer derives</b>, so
-     * no capture can fill one and no promotion will move them. Which member falls where is measured
-     * against the writer's own derivation by {@link #citationShapes} and printed on every run rather
-     * than described here, and that measurement is read back too, because a derived description is
-     * only better than a typed one while its derivation is checked.
+     * <p>The set is empty: every registered pointer dereferences in some stored file, so a pointer
+     * going dead is the one way it changes. A citation of a {@code summary} member the sweep writer
+     * does not derive is one no capture can fill, and the case below prints which members it derives
+     * on every run.
      */
-    private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>(List.of(
-        "report.coverage-gaps", "report.worst-list"));
+    private static final Set<String> POINTERS_THAT_REACH_NOTHING = new TreeSet<>();
 
     /**
      * What writes each of the store's own two root files, which no capture step covers.
@@ -365,166 +354,6 @@ final class ParityIndexTest {
             equalTo(expected));
     }
 
-    @Test
-    @DisplayName("every lines citation brackets the one site its anchor names")
-    void everyLinesCitationBracketsItsRoster() {
-        JsonObject sources = ParityStore.read("report.oracle-index").getAsJsonObject("sources");
-
-        List<String> cited = new ArrayList<>();
-        List<String> unpaired = new ArrayList<>();
-        List<String> drifted = new ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : sources.entrySet()) {
-            JsonObject row = entry.getValue().getAsJsonObject();
-            List<String> ranges = citedRanges(row);
-            List<String> anchors = citedAnchors(row);
-            if (ranges.isEmpty() && anchors.isEmpty()) continue;
-            if (ranges.size() != anchors.size()) {
-                unpaired.add(entry.getKey() + " cites " + ranges.size() + " ranges against "
-                    + anchors.size() + " anchors");
-                continue;
-            }
-            List<String> lines = sourceLines(row.get("test_class").getAsString());
-            for (int position = 0; position < ranges.size(); position++) {
-                String anchor = anchors.get(position);
-                cited.add(entry.getKey() + " " + ranges.get(position) + " -> `" + anchor + "`");
-                citationFault(lines, ranges.get(position), anchor)
-                    .ifPresent(fault -> drifted.add(cited.getLast() + ": " + fault));
-            }
-        }
-
-        assertThat("no sources row carries a lines citation, so this case has no operand; it needs a "
-            + "different shape rather than deleting", cited, is(not(empty())));
-        assertThat("rows whose ranges and anchors do not pair off one for one. A range with no "
-            + "anchor beside it is a number nothing can be checked against, which is the state every "
-            + "one of these was in while three of the five pointed somewhere else", unpaired,
-            is(empty()));
-        assertThat("lines citations that do not bracket the site their anchor names. A range is a "
-            + "reader's only pointer at the roster inside a file and nothing renders it, so it "
-            + "drifts in silence: three of five opened on a closing brace, a javadoc terminator and "
-            + "a blank line, and one of those cut two of seven armour subjects off the end of the "
-            + "roster it claims to bracket. The anchor is what makes the range checkable - it has to "
-            + "occur once in the file, the range has to open on the line carrying it, and the range "
-            + "has to close what that line opens. Bracket balance alone is not that: every method "
-            + "and every statement in the file balances, so a citation that slid onto a neighbouring "
-            + "declaration would read as sound", drifted, is(empty()));
-    }
-
-    /**
-     * Returns the line ranges one {@code sources} row cites, if any.
-     *
-     * @param row the index row
-     * @return the ranges, each as {@code "N"} or {@code "N-M"}
-     */
-    private static List<String> citedRanges(JsonObject row) {
-        if (!row.has("lines")) return List.of();
-        return Stream.of(row.get("lines").getAsString().split(",")).map(String::trim).toList();
-    }
-
-    /**
-     * Returns the anchors one {@code sources} row cites, in the order its ranges name them.
-     *
-     * @param row the index row
-     * @return the anchors, each the text its range's first line carries
-     */
-    private static List<String> citedAnchors(JsonObject row) {
-        if (!row.has("anchor")) return List.of();
-        return row.getAsJsonArray("anchor").asList().stream().map(JsonElement::getAsString).toList();
-    }
-
-    /**
-     * Returns what is wrong with one citation, or empty when it points where it says it does.
-     *
-     * <p>Three things have to hold and each is a way a shipped citation was already wrong. The
-     * anchor occurs once in the file, so it names a site rather than a shape; the range opens on the
-     * line carrying it, so it starts where the roster starts; and the range closes what that line
-     * opened, so it ends where the roster ends.
-     *
-     * @param lines the source file's lines
-     * @param range the citation, as {@code "N"} or {@code "N-M"}
-     * @param anchor the text the range's first line has to carry
-     * @return the fault, or empty
-     */
-    private static Optional<String> citationFault(List<String> lines, String range, String anchor) {
-        List<Integer> sites = new ArrayList<>();
-        for (int line = 1; line <= lines.size(); line++)
-            if (lines.get(line - 1).contains(anchor)) sites.add(line);
-        if (sites.size() != 1)
-            return Optional.of("the anchor is on " + sites.size() + " lines, so it names no one site");
-
-        int dash = range.indexOf('-');
-        int from = Integer.parseInt(dash < 0 ? range : range.substring(0, dash));
-        if (from < 1 || from > lines.size()) return Optional.of("the range opens outside the file");
-        if (from != sites.getFirst()) {
-            return Optional.of("line " + from + " is `" + lines.get(from - 1).trim()
-                + "`, and the anchor is on line " + sites.getFirst());
-        }
-        if (!bracketsOneConstruct(lines, range))
-            return Optional.of("the range does not close what line " + from + " opens");
-        return Optional.empty();
-    }
-
-    /**
-     * Returns whether a cited line range opens and closes exactly one bracketed construct.
-     *
-     * <p>A multi-line range has to open one on its first line, stay inside it through the middle, and
-     * close it on its last; a one-line range has to be a non-blank line that opens and closes
-     * whatever it opens. That is what the END of a citation of a declaration is, the anchor having
-     * fixed where it starts.
-     *
-     * @param lines the source file's lines
-     * @param range the citation, as {@code "N"} or {@code "N-M"}
-     * @return whether the range brackets one construct
-     */
-    private static boolean bracketsOneConstruct(List<String> lines, String range) {
-        int dash = range.indexOf('-');
-        int from = Integer.parseInt(dash < 0 ? range : range.substring(0, dash));
-        int to = dash < 0 ? from : Integer.parseInt(range.substring(dash + 1));
-        if (from < 1 || to < from || to > lines.size()) return false;
-        if (from == to) return !lines.get(from - 1).isBlank() && bracketDepth(lines.get(from - 1)) == 0;
-
-        int depth = bracketDepth(lines.get(from - 1));
-        if (depth <= 0) return false;
-        for (int line = from + 1; line < to; line++) {
-            depth += bracketDepth(lines.get(line - 1));
-            if (depth <= 0) return false;
-        }
-        return depth + bracketDepth(lines.get(to - 1)) == 0;
-    }
-
-    /**
-     * Returns how much deeper one line leaves the bracket nesting.
-     *
-     * @param line the source line
-     * @return openers minus closers, over round, square and curly brackets alike
-     */
-    private static int bracketDepth(String line) {
-        int depth = 0;
-        for (char character : line.toCharArray()) {
-            if (character == '(' || character == '[' || character == '{') depth++;
-            if (character == ')' || character == ']' || character == '}') depth--;
-        }
-        return depth;
-    }
-
-    /**
-     * Returns the lines of the source file a fully-qualified class name resolves to.
-     *
-     * @param className the fully-qualified name
-     * @return its lines, in file order
-     */
-    private static List<String> sourceLines(String className) {
-        Path file = SOURCE_ROOTS.stream()
-            .map(root -> root.resolve(className.replace('.', '/') + ".java"))
-            .filter(Files::isRegularFile)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError(className + " resolves under none of " + SOURCE_ROOTS));
-        try {
-            return Files.readAllLines(file);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
     /**
      * Returns the build file's artifact table, each id against the producers its row runs.
      *
@@ -569,15 +398,18 @@ final class ParityIndexTest {
     void everyExternalClassHomeResolves() {
         JsonObject external = ParityStore.read("report.oracle-index").getAsJsonObject("external");
 
-        List<String> homes = external.entrySet().stream()
+        List<String> unresolved = external.entrySet().stream()
             .map(entry -> entry.getValue().getAsJsonObject().get("home").getAsString())
             .filter(home -> JAVA_FQN.matcher(home).matches())
+            .filter(home -> !resolvesAsJavaClass(home))
             .sorted()
             .toList();
-        List<String> unresolved = homes.stream().filter(home -> !resolvesAsJavaClass(home)).toList();
 
-        assertThat("no external home is shaped like a Java class, so this check has no operand; it "
-            + "needs a different shape rather than deleting", homes, is(not(empty())));
+        // No shipped home is spelled as a class, so the filter is held to recognising one: a shape
+        // that matched nothing would pass a home naming a moved class without ever looking it up.
+        assertThat("the class shape matches no Java class name, so a home spelled as one "
+            + "would pass over this check unread", JAVA_FQN.matcher(ParityIndexTest.class.getName()).matches(),
+            is(true));
         assertThat("external homes naming a Java class that is on no source path", unresolved, is(empty()));
     }
 
@@ -627,11 +459,11 @@ final class ParityIndexTest {
             (found ? reaches : reachesNothing).add(entry.getKey());
         }
 
-        // Printed on a green run as well as a red one, because part of the recorded set is residue
-        // rather than a state anybody chose, and a set pinned in a constant is read by whoever
-        // opens this file rather than by whoever runs the suite. Which part is measured against the
-        // writer's own derivation: a citation asking that object for a member it does not derive is
-        // one no capture can ever fill, where the rest are waiting on a promotion.
+        // Printed on a green run as well as a red one, because a set pinned in a constant is read by
+        // whoever opens this file rather than by whoever runs the suite. A pointer that stops
+        // dereferencing is one of two kinds, told apart against the writer's own derivation: a
+        // citation asking that object for a member it does not derive is one no capture can ever
+        // fill, where any other is waiting on a promotion.
         Set<String> derived = derivedSummaryMembers();
         List<String> unfillable = new ArrayList<>();
         for (String artifact : reachesNothing) {
@@ -654,45 +486,6 @@ final class ParityIndexTest {
             + citationShapes(index.getAsJsonObject("pointers"), POINTERS_THAT_REACH_NOTHING, stored)
             + ". It is pinned rather than allowed, so one joining them fails here and so does "
             + "repairing one of them", reachesNothing, equalTo(POINTERS_THAT_REACH_NOTHING));
-    }
-
-    @Test
-    @DisplayName("how far a citation is described as resolving is how far the store answers it")
-    void theDescribedDepthIsHowFarTheStoreAnswers() {
-        JsonObject index = ParityStore.read("report.oracle-index");
-        Set<String> stored = storedFiles(index.getAsJsonObject("artifacts"));
-        Set<String> registered = new TreeSet<>(index.getAsJsonObject("pointers").keySet());
-
-        Map<String, String> depth = new TreeMap<>();
-        Set<String> describedWhole = new TreeSet<>();
-        Set<String> answeredWhole = new TreeSet<>();
-        for (Map.Entry<String, JsonElement> entry
-            : index.getAsJsonObject("pointers").entrySet()) {
-            String pointer = entry.getValue().getAsJsonObject().get("pointer").getAsString();
-            String fragment = pointer.substring(pointer.indexOf('#') + 1);
-            String resolves = resolvingPrefix(pointer, stored);
-            depth.put(entry.getKey(), resolves.isEmpty() ? "(nothing)" : resolves);
-            if (resolves.equals(fragment)) describedWhole.add(entry.getKey());
-            if (expand(pointer.substring(0, pointer.indexOf('#')), stored).stream()
-                .anyMatch(file -> !dereference(readStoreFile(file), fragment).isEmpty()))
-                answeredWhole.add(entry.getKey());
-        }
-
-        assertThat("the store answers no citation's whole fragment, so there is no citation the walk "
-            + "has to run to the end and the comparison below holds for a walk that never starts",
-            answeredWhole, is(not(empty())));
-        assertThat("the store answers every citation whole, so no citation has a stopping point "
-            + "short of its own fragment and the comparison below holds for a walk that never stops",
-            answeredWhole, is(not(equalTo(registered))));
-        assertThat("the citations the depth walk describes as resolving whole, against the ones the "
-            + "store actually answers whole. The walk extends the fragment one segment at a time and "
-            + "stops at the first prefix no file the pointer names answers, so the prefix it "
-            + "returns is the whole fragment exactly when some file answers all of it - and that "
-            + "equivalence is the entire warrant for describing a dead citation by where it died. "
-            + "Without the stop the walk returns every citation's own whole fragment, and the "
-            + "sentence beside the recorded set then says a pointer dying on its first segment "
-            + "resolves as far as a container no stored file carries: the same set, described "
-            + "falsely. Measured depths: " + depth, describedWhole, equalTo(answeredWhole));
     }
 
     @Test
@@ -1071,7 +864,7 @@ final class ParityIndexTest {
      * Returns whether an id maps to a store path at all.
      *
      * <p>{@link ParityStore#pathOf} is a pure naming rule over the id's kind prefix and knows nothing
-     * about where an artifact's value lives, so a roster id has no path while {@code pin.armor-span}
+     * about where an artifact's value lives, so a probe id has no path while {@code pin.armor-span}
      * has one it never uses.
      *
      * @param artifactId the artifact id

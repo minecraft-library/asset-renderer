@@ -32,6 +32,7 @@ import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -71,11 +73,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and the opacity is shown on its own, by two subjects sharing every other component and keying
  * apart over the one they differ in, and a mesh differing only where nothing reads it keys with the
  * mesh it copies. Over the shipped corpus, every appearance resolved twice, the key is sufficient:
- * two resolved subjects it keys equal sample equal tracks. A row nothing moves never reaches the key
- * at all, and a fit is shared by the asks of one memo and by no other.
+ * two resolved subjects it keys equal sample equal tracks, and every channel a row samples at an age
+ * is spelled by mesh, bone or container step and member, and carries the kind its member names. A
+ * row nothing moves never reaches the key at all, and a fit is shared by the asks of one memo and by
+ * no other.
  */
 @DisplayName("the fitted strip of a resolved row, held by the memo it was asked under")
 class PoseStripsTest {
+
+    /** The appearances {@link #appearancesOf} names for an age alone, whose rows the corpus walk spells. */
+    private static final @NotNull Set<String> AGES = Set.of("adult", "baby");
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -284,18 +291,26 @@ class PoseStripsTest {
     }
 
     @Test
-    @DisplayName("every two resolved subjects of the shipped corpus keyed equal sample equal tracks")
+    @DisplayName("every two resolved subjects of the shipped corpus keyed equal sample equal tracks, each channel spelled by the grammar")
     void equalKeysSampleEqualTracks() {
         // The key is sufficient where nothing the sampler reads differs between two subjects it keys
         // equal. Each definition is resolved twice under every appearance it offers, at every row it
         // moves under, and a subject meeting a key already asked is sampled against the first to ask
-        // it. A toggled appearance builds its meshes afresh on each resolve, so its second resolve
-        // meets the first over meshes of its own.
+        // it, whose tracks are sampled once however many later asks meet them. A toggled appearance
+        // builds its meshes afresh on each resolve, so its second resolve meets the first over meshes
+        // of its own.
+        //
+        // Contributions are summed by channel, so a spelling one site writes and another does not is
+        // two channels where the eye sees one. Every row the first resolve asks for at an age - the
+        // adult, and the baby where the definition carries one - has each of its channels held to the
+        // grammar and to the kind its member names.
         Map<PoseStrips.Key, Asked> first = new HashMap<>();
         List<String> parted = new ArrayList<>();
         int asked = 0;
         int met = 0;
         int metAfresh = 0;
+        int spelled = 0;
+        int containers = 0;
         for (Entity definition : entities.values())
             for (Map.Entry<String, AppearanceOptions> appearance : appearancesOf(definition).entrySet())
                 for (int resolve = 1; resolve <= 2; resolve++) {
@@ -312,11 +327,15 @@ class PoseStripsTest {
                         asked++;
                         Asked ask = new Asked(definition.id() + " " + appearance.getKey() + " resolve " + resolve
                             + " '" + id + "'", subject, style, period);
+                        if (resolve == 1 && AGES.contains(appearance.getKey())) {
+                            containers += spelledByTheGrammar(ask);
+                            spelled++;
+                        }
                         Asked earlier = first.putIfAbsent(PoseStrips.Key.of(subject, style, period), ask);
                         if (earlier == null) continue;
                         met++;
-                        if (!sameMeshes(earlier.subject(), subject)) metAfresh++;
-                        if (!sameTracks(earlier.tracks(), ask.tracks())) parted.add(earlier.label() + " / " + ask.label());
+                        if (!sameMeshes(earlier.subject, subject)) metAfresh++;
+                        if (!sameTracks(earlier.tracks(), ask.tracks())) parted.add(earlier.label + " / " + ask.label);
                     }
                 }
 
@@ -325,6 +344,8 @@ class PoseStripsTest {
             + first.size() + " keys");
         assertTrue(metAfresh > 20, "and meets one over mesh instances of its own " + metAfresh + " times of them");
         assertTrue(parted.isEmpty(), parted.size() + " pairs keyed equal sample different tracks: " + parted);
+        assertTrue(spelled > 200, "the walk spells the corpus's rows at every age, " + spelled + " rows");
+        assertTrue(containers > 0, "and some row moves a container step, so its spelling is read");
     }
 
     @Test
@@ -422,20 +443,86 @@ class PoseStripsTest {
     // ------------------------------------------------------------------------------------
 
     /**
-     * One resolved row asked for, as the memo would be asked for it.
-     *
-     * @param label how a failure names the ask
-     * @param subject the resolved subject
-     * @param style the resolved row
-     * @param period the figure period the row frames at where it declares none of its own
+     * One resolved row asked for, as the memo would be asked for it, sampled at most once however many
+     * later asks meet it.
      */
-    private record Asked(@NotNull String label, @NotNull Entity subject, @NotNull PoseStyle style, int period) {
+    private static final class Asked {
 
-        /** Samples the row's tracks. */
-        @NotNull List<StripTrack> tracks() {
-            return StripSampler.tracks(this.subject, this.style, this.period);
+        /** How a failure names the ask. */
+        private final @NotNull String label;
+
+        /** The resolved subject. */
+        private final @NotNull Entity subject;
+
+        /** The resolved row. */
+        private final @NotNull PoseStyle style;
+
+        /** The figure period the row frames at where it declares none of its own. */
+        private final int period;
+
+        /** The row's tracks, held from the first sampling on. */
+        private @Nullable List<StripTrack> tracks;
+
+        /**
+         * Constructs a new {@code Asked} for one resolved row, not yet sampled.
+         *
+         * @param label how a failure names the ask
+         * @param subject the resolved subject
+         * @param style the resolved row
+         * @param period the figure period the row frames at where it declares none of its own
+         */
+        Asked(@NotNull String label, @NotNull Entity subject, @NotNull PoseStyle style, int period) {
+            this.label = label;
+            this.subject = subject;
+            this.style = style;
+            this.period = period;
         }
 
+        /** Samples the row's tracks on the first call, and answers that sampling on every later one. */
+        @NotNull List<StripTrack> tracks() {
+            if (this.tracks == null)
+                this.tracks = StripSampler.tracks(this.subject, this.style, this.period);
+
+            return this.tracks;
+        }
+
+    }
+
+    /**
+     * Holds every channel one ask samples to the sampler's grammar, to the kind its member names, and
+     * to wrapping exactly where that kind comes round.
+     *
+     * @param ask the ask whose channels are spelled
+     * @return how many of its channels move a container step
+     */
+    private static int spelledByTheGrammar(@NotNull Asked ask) {
+        int containers = 0;
+        for (StripTrack track : ask.tracks()) {
+            String at = ask.label + " " + track.channel();
+            Matcher spelled = StripSamplerTest.GRAMMAR.matcher(track.channel());
+            assertTrue(spelled.matches(), at + " is spelled by the grammar");
+            assertEquals(kindOf(track.channel(), spelled), track.kind(), at + " carries its member's kind");
+            assertEquals(track.kind() == StripTrack.Kind.ROTATION || track.kind() == StripTrack.Kind.TEXEL,
+                track.wrap().isPresent(), at + " wraps exactly where its kind comes round");
+            if (spelled.group("part") != null && spelled.group("part").startsWith("$container"))
+                containers++;
+        }
+        return containers;
+    }
+
+    /** The kind a channel's spelling names - its member's, or a scroll's or an opacity's. */
+    private static @NotNull StripTrack.Kind kindOf(@NotNull String channel, @NotNull Matcher spelled) {
+        String member = spelled.group("member");
+        if (member == null) return channel.endsWith(".opacity") ? StripTrack.Kind.OPACITY : StripTrack.Kind.TEXEL;
+        for (PoseChannel written : PoseChannel.values()) {
+            if (!written.token().equals(member)) continue;
+            return switch (written.kind()) {
+                case POSITION -> StripTrack.Kind.POSITION;
+                case ROTATION -> StripTrack.Kind.ROTATION;
+                case SCALE -> StripTrack.Kind.SCALE;
+            };
+        }
+        throw new AssertionError(channel + " names no member");
     }
 
     private static @NotNull Entity definition(@NotNull String id) {

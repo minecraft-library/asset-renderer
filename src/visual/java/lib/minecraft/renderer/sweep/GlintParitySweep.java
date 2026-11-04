@@ -1,20 +1,10 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.AnimatedImageData;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.frame.FrameBlend;
-import dev.simplified.image.frame.FrameDisposal;
-import dev.simplified.image.frame.ImageFrame;
-import dev.simplified.image.frame.LoopCount;
-import dev.simplified.image.option.GifWriteOptions;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
@@ -26,20 +16,14 @@ import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -51,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -68,10 +53,11 @@ import java.util.stream.Stream;
  * composites {@link GlintKit#applyGlintAtTimes} at the same schedule, over the glint texture read
  * through the context's missing-texture wrapper, as a render reads it.
  *
- * <p>Output per subject under {@code cache/visual/glint-parity-vanilla/<id>/}: per-frame
- * {@code java/}, {@code vanilla/}, {@code diff/} PNGs, a {@code contact_sheet.png} (vanilla / java /
- * diff rows), and {@code java.gif} + {@code vanilla.gif} for eyeballing the motion. A top-level
- * {@code parity-report.tsv} ranks subjects by mean per-frame ARGB delta.
+ * <p>Output per subject under {@code cache/visual/glint-parity-vanilla/<id>/}, the folder cleared
+ * first so it holds this run's files alone: per-frame {@code java/} PNGs, the reference strip's own
+ * files under {@code vanilla/}, a {@code contact_sheet.png} (vanilla / java / diff rows), and
+ * {@code java.gif} for eyeballing the motion. A top-level {@code parity-report.tsv} ranks subjects by
+ * mean per-frame ARGB delta.
  *
  * <p><b>The atlas-UV residual is expected.</b> Vanilla samples the glint through each fragment's live
  * <em>atlas</em> sprite coordinate, unknowable offline; {@link GlintKit} substitutes the normalized
@@ -104,9 +90,6 @@ public final class GlintParitySweep {
     /** Display delay per GIF frame - decoupled from the glint-time schedule, just a watchable speed. */
     private static final int GIF_FRAME_DELAY_MS = 66;
 
-    /** Edge length (px) of one frame cell in the contact sheet. */
-    private static final int CONTACT_CELL = 96;
-
     /** Subject A: the 7 always-foil GUI items (item glint, {@code enchanted_glint_item}, scale 8.0). */
     private static final List<String> GUI_GLINT_ITEMS = List.of(
         "minecraft:enchanted_book",
@@ -137,13 +120,24 @@ public final class GlintParitySweep {
     private static final byte[] TRANSPARENT_SKIN = transparentSkin();
 
     /**
+     * Runs the animated glint parity sweep over a context of its own, loaded over vanilla's own client options.
+     *
+     * @param args what {@link #run} reads
+     * @throws IOException if the output cannot be written
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(SweepPair.acquire(ClientOptions.defaults())), args);
+    }
+
+    /**
      * Runs the animated glint parity sweep.
      *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
      * @param args {@code args[0]} optional comma-separated list of item ids; absent renders all
      *     {@link #GUI_GLINT_ITEMS}
      * @throws IOException if an output directory or file cannot be written
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         List<String> filter = args.length > 0 ? List.of(args[0].split(",")) : List.of();
         List<String> allSubjects = Stream.concat(GUI_GLINT_ITEMS.stream(), LEATHER_ARMOR_ITEMS.stream()).toList();
         List<String> subjects = filter.isEmpty()
@@ -160,14 +154,6 @@ public final class GlintParitySweep {
                 + " Rendering Java-only frames + GIFs.%n", VANILLA_DIR.toAbsolutePath());
         Files.createDirectories(OUTPUT_DIR);
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-        RendererContext context = RendererContext.load(result);
         ItemRenderer renderer = new ItemRenderer(context);
 
         long[] schedule = new long[FRAME_COUNT];
@@ -175,15 +161,19 @@ public final class GlintParitySweep {
 
         Map<String, GlintKit.SpriteUv> atlasUv = loadAtlasUv();
 
-        List<Row> rows = new ArrayList<>();
-        for (String itemId : subjects) {
-            try {
-                rows.add(renderSubject(context, renderer, itemId, schedule, atlasUv));
-            } catch (Exception ex) {
-                System.err.printf("       %-32s FAILED: %s%n", itemId, ex.getMessage());
-                rows.add(new Row(itemId, 0, Double.POSITIVE_INFINITY, -1, false, LEATHER_ARMOR_ITEMS.contains(itemId)));
-            }
-        }
+        // Parallel across independent subjects: each writes only its own folder, and the context and
+        // the renderer are read-only. The collect keeps encounter order, so the table below is the one
+        // a sequential loop writes.
+        List<Row> rows = subjects.parallelStream()
+            .map(itemId -> {
+                try {
+                    return renderSubject(context, renderer, itemId, schedule, atlasUv);
+                } catch (Exception ex) {
+                    System.err.printf("       %-32s FAILED: %s%n", itemId, ex.getMessage());
+                    return new Row(itemId, 0, Double.POSITIVE_INFINITY, -1, false, LEATHER_ARMOR_ITEMS.contains(itemId));
+                }
+            })
+            .collect(Collectors.toCollection(ArrayList::new));
 
         rows.sort(SweepReport.byDelta(Row::meanDelta));
         List<String> lines = new ArrayList<>(rows.size());
@@ -208,7 +198,7 @@ public final class GlintParitySweep {
 
     /**
      * Renders one subject's Java glint frames, pairs them with the harness frames when present, and
-     * writes the per-frame PNGs, contact sheet, and GIFs.
+     * writes the two strips, the contact sheet and the GIF into the subject's folder, cleared first.
      */
     private static @NotNull Row renderSubject(
         @NotNull RendererContext context,
@@ -220,6 +210,7 @@ public final class GlintParitySweep {
         boolean armor = LEATHER_ARMOR_ITEMS.contains(itemId);
         String safeName = itemId.replace(":", "__");
         Path dir = OUTPUT_DIR.resolve(safeName);
+        SweepStrip.clear(dir);
         Files.createDirectories(dir.resolve("java"));
 
         List<BufferedImage> javaFrames = armor
@@ -235,27 +226,22 @@ public final class GlintParitySweep {
 
         for (int n = 0; n < FRAME_COUNT; n++) {
             BufferedImage java = javaFrames.get(n);
-            ImageIO.write(java, "PNG", dir.resolve("java").resolve(frameName(n)).toFile());
+            ImageIO.write(java, "PNG", dir.resolve("java").resolve(SweepStrip.frameName(n)).toFile());
             if (!haveVanilla) continue;
 
             BufferedImage vanilla = vanillaFrames.get(n);
-            Files.createDirectories(dir.resolve("vanilla"));
-            Files.createDirectories(dir.resolve("diff"));
-            ImageIO.write(vanilla, "PNG", dir.resolve("vanilla").resolve(frameName(n)).toFile());
-
-            BufferedImage diff = PixelBuffer.wrap(vanilla).diff(PixelBuffer.wrap(java), DiffType.OVER_WHITE).toBufferedImage();
-            diffFrames.add(diff);
-            ImageIO.write(diff, "PNG", dir.resolve("diff").resolve(frameName(n)).toFile());
+            diffFrames.add(PixelBuffer.wrap(vanilla).diff(PixelBuffer.wrap(java), DiffType.OVER_WHITE).toBufferedImage());
 
             double delta = ParityMetrics.compareImages(vanilla, java).meanDelta();
             totalDelta += delta;
             if (delta > worstDelta) { worstDelta = delta; worstFrame = n; }
         }
 
-        writeGif(dir.resolve("java.gif"), javaFrames);
+        SweepStrip.writeGif(dir.resolve("java.gif"), javaFrames, GIF_FRAME_DELAY_MS);
         if (haveVanilla) {
-            writeGif(dir.resolve("vanilla.gif"), vanillaFrames);
-            ImageIO.write(contactSheet(vanillaFrames, javaFrames, diffFrames), "PNG", dir.resolve("contact_sheet.png").toFile());
+            SweepStrip.copyFrames(VANILLA_DIR.resolve(safeName), dir.resolve("vanilla"), FRAME_COUNT);
+            ImageIO.write(SweepStrip.contactSheet(vanillaFrames, javaFrames, diffFrames, FRAME_COUNT), "PNG",
+                dir.resolve("contact_sheet.png").toFile());
         }
 
         double mean = haveVanilla ? totalDelta / FRAME_COUNT : Double.NaN;
@@ -322,7 +308,11 @@ public final class GlintParitySweep {
 
     /**
      * Renders the base item icon with glint suppressed, then composites {@link GlintKit} at the
-     * shared glint-time schedule (item glint texture + {@link GlintKit.GlintOptions#itemDefault}).
+     * shared glint-time schedule (item glint texture + {@link GlintKit.GlintOptions#itemDefault}). In
+     * atlas-UV validation mode the glint samples the real atlas {@code UV0}, passed separately to
+     * {@link GlintKit#applyGlintAtTimes}, so the only unknown is removed and every other factor
+     * (scroll, rotation, sampling, blend, alpha) can be checked for bit-parity; otherwise the offline
+     * approximation runs.
      */
     private static @NotNull List<BufferedImage> renderJavaGlintFrames(
         @NotNull RendererContext context,
@@ -341,7 +331,7 @@ public final class GlintParitySweep {
 
         PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
-            base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
+            base, glintTexture, schedule, GlintKit.GlintOptions.itemDefault(30), spriteUv.orElse(null));
 
         // Each PNG holds premultiplied colour as the harness's do: a frame's held ints are its bytes.
         List<BufferedImage> out = new ArrayList<>(frames.size());
@@ -350,33 +340,10 @@ public final class GlintParitySweep {
     }
 
     /**
-     * The item-glint preset. In atlas-UV validation mode the glint samples the real atlas {@code UV0}
-     * (passed separately to {@link GlintKit#applyGlintAtTimes}) at vanilla's raw
-     * {@link GlintKit#ITEM_SCALE}, so the only unknown is removed and every other factor (scroll,
-     * rotation, sampling, blend, alpha) can be checked for bit-parity. Otherwise the offline
-     * approximation runs, with the UV scale overridable via {@code -Dasset.glint.itemScale} for empirical
-     * calibration.
-     */
-    private static GlintKit.@NotNull GlintOptions itemGlintOptions(boolean atlasUvMode) {
-        GlintKit.GlintOptions preset = GlintKit.GlintOptions.itemDefault(30);
-        // Atlas-UV mode uses vanilla's literal ITEM_SCALE; offline mode honours the calibration knob.
-        float scale = atlasUvMode
-            ? preset.textureScale()
-            : Float.parseFloat(System.getProperty("asset.glint.itemScale", String.valueOf(preset.textureScale())));
-        // -Dasset.glint.intensity scales the glint texture down via a grey pre-tint (calibration only).
-        float intensity = Float.parseFloat(System.getProperty("asset.glint.intensity", "1.0"));
-        int v = Math.clamp(Math.round(intensity * 255f), 0, 255);
-        int tint = ColorMath.pack(255, v, v, v);
-        return new GlintKit.GlintOptions(preset.framesPerSecond(), preset.totalFrames(), preset.glintTextureId(),
-            scale, preset.atlasSampled(), preset.uLoopMillis(), preset.vLoopMillis(), tint);
-    }
-
-    /**
      * Loads the harness-extracted per-item atlas sprite-UV rects (atlas-UV validation mode), keyed by
      * item id, from {@code atlas_uv.json} beside the glint references. Returns empty unless
      * {@code -Dasset.glint.atlasUv=true} is set, so default runs stay on the production-representative
-     * offline approximation. {@code -Dasset.glint.atlasUvFlipV=true} swaps {@code v0}/{@code v1} for a
-     * one-shot check of the icon-Y vs atlas-V orientation.
+     * offline approximation.
      */
     private static @NotNull Map<String, GlintKit.SpriteUv> loadAtlasUv() {
         if (!Boolean.getBoolean("asset.glint.atlasUv")) return Map.of();
@@ -385,7 +352,6 @@ public final class GlintParitySweep {
             System.err.printf("asset.glint.atlasUv set but %s missing - run renderVanillaGlintReferences first%n", file);
             return Map.of();
         }
-        boolean flipV = Boolean.getBoolean("asset.glint.atlasUvFlipV");
         Map<String, GlintKit.SpriteUv> map = new HashMap<>();
         try {
             JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
@@ -395,98 +361,27 @@ public final class GlintParitySweep {
                 float v0 = o.get("v0").getAsFloat();
                 float u1 = o.get("u1").getAsFloat();
                 float v1 = o.get("v1").getAsFloat();
-                map.put(entry.getKey(), new GlintKit.SpriteUv(u0, flipV ? v1 : v0, u1, flipV ? v0 : v1));
+                map.put(entry.getKey(), new GlintKit.SpriteUv(u0, v0, u1, v1));
                 System.out.printf("  atlas-uv %-32s u[%.5f,%.5f] v[%.5f,%.5f]  ~%.1f glint texels%n",
                     entry.getKey(), u0, u1, v0, v1, GlintKit.ITEM_SCALE * (u1 - u0) * 128f);
             }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
-        System.out.printf("Atlas-UV mode ON (%d sprites, flipV=%s)%n", map.size(), flipV);
+        System.out.printf("Atlas-UV mode ON (%d sprites)%n", map.size());
         return map;
     }
 
-    /** Reads {@code frame_000.png ... frame_(N-1).png}; returns {@code null} if the set is incomplete. */
-    private static @Nullable List<BufferedImage> readVanillaFrames(@NotNull Path dir) throws IOException {
-        if (!Files.isDirectory(dir)) return null;
-        List<BufferedImage> frames = new ArrayList<>(FRAME_COUNT);
-        for (int n = 0; n < FRAME_COUNT; n++) {
-            Path png = dir.resolve(frameName(n));
-            if (!Files.isRegularFile(png)) return null;
-            BufferedImage img = ImageIO.read(png.toFile());
-            if (img == null) return null;
-            frames.add(img);
-        }
-        return frames;
-    }
-
-    private static @NotNull String frameName(int n) {
-        return String.format("frame_%03d.png", n);
-    }
-
     /**
-     * Builds an animated GIF (infinite loop, transparent background) from the frame list.
+     * Reads a subject's reference strip.
      *
-     * <p><b>Each frame clears the canvas behind it rather than painting over what was there.</b> A
-     * GIF frame carries its own disposal and the default is to leave the previous one standing,
-     * which is right for an opaque strip and wrong for every transparent one: the subject is drawn
-     * on nothing, so the pixels it does not cover are transparent, and a viewer showing the frame
-     * before through them accumulates every pose the subject has held. It reads as smearing rather
-     * than as a missing clear, which is why it survives a look at the PNGs.
+     * @param dir the subject's reference directory
+     * @return the {@link #FRAME_COUNT} frames, or {@code null} where the set is incomplete, which is
+     *     what renders the subject java-only
+     * @throws IOException if a frame cannot be read
      */
-    private static void writeGif(@NotNull Path out, @NotNull List<BufferedImage> frames) throws IOException {
-        AnimatedImageData.Builder builder = AnimatedImageData.builder()
-            .withWidth(frames.getFirst().getWidth())
-            .withHeight(frames.getFirst().getHeight())
-            .withLoopCount(LoopCount.Preset.INFINITE);
-        for (BufferedImage frame : frames)
-            builder.withFrame(ImageFrame.of(PixelBuffer.wrap(frame), GIF_FRAME_DELAY_MS, 0, 0,
-                FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
-
-        GifWriteOptions options = GifWriteOptions.builder()
-            .withLoopCount(LoopCount.Preset.INFINITE)
-            .isTransparent(true)
-            .withAlphaThreshold(8)
-            .build();
-        Files.write(out, ImageFactory.toByteArray(builder.build(), ImageFormat.GIF, options));
-    }
-
-    /**
-     * Builds a contact sheet: three labelled rows (vanilla / java / diff), one downscaled cell per
-     * frame, so the whole animation is scannable in a single image.
-     */
-    private static @NotNull BufferedImage contactSheet(
-        @NotNull List<BufferedImage> vanilla,
-        @NotNull List<BufferedImage> java,
-        @NotNull List<BufferedImage> diff
-    ) {
-        int gap = 2;
-        int leftMargin = 64;
-        int rowH = CONTACT_CELL + gap;
-        int width = leftMargin + FRAME_COUNT * (CONTACT_CELL + gap) + gap;
-        int height = 3 * rowH + gap;
-        BufferedImage sheet = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = sheet.createGraphics();
-        try {
-            g.setColor(new Color(28, 28, 32));
-            g.fillRect(0, 0, width, height);
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            String[] labels = {"vanilla", "java", "diff"};
-            List<List<BufferedImage>> rowsData = List.of(vanilla, java, diff);
-            for (int row = 0; row < 3; row++) {
-                int y = gap + row * rowH;
-                g.setColor(new Color(220, 220, 230));
-                g.drawString(labels[row], 4, y + CONTACT_CELL / 2);
-                List<BufferedImage> cells = rowsData.get(row);
-                for (int n = 0; n < cells.size(); n++) {
-                    int x = leftMargin + n * (CONTACT_CELL + gap);
-                    g.drawImage(cells.get(n), x, y, CONTACT_CELL, CONTACT_CELL, null);
-                }
-            }
-        } finally {
-            g.dispose();
-        }
-        return sheet;
+    private static @Nullable List<BufferedImage> readVanillaFrames(@NotNull Path dir) throws IOException {
+        return SweepStrip.readFrames(dir, FRAME_COUNT).orElse(null);
     }
 
     /** Per-subject row in the TSV report. */

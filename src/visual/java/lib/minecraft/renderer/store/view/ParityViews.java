@@ -122,9 +122,9 @@ public final class ParityViews {
 
         out.add("## Sources");
         out.add("");
-        out.add("Rosters and pins held as a deliberate second copy in Java, so a change to the first");
-        out.add("copy fails loudly. Externalising one would defeat exactly that, so the store records");
-        out.add("where it lives and how to re-derive it, and carries no value.");
+        out.add("Pins held as a deliberate second copy in Java, so a change to the first copy fails");
+        out.add("loudly. Externalising one would defeat exactly that, so the store records where it");
+        out.add("lives and how to re-derive it, and carries no value.");
         out.add("");
         out.add("| artifact | home | re-derive |");
         out.add("|---|---|---|");

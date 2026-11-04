@@ -1,10 +1,8 @@
 package lib.minecraft.renderer.sweep;
 
-import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.pixel.DiffType;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -14,18 +12,14 @@ import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
-import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Per-block parity report comparing the Java pipeline output (via {@link BlockRenderer} in
@@ -57,8 +50,9 @@ import java.util.stream.Stream;
  * icon through {@link ItemRenderer}, the same stack in its context.
  *
  * <p>Output is organised one folder per block under {@code cache/visual/block-parity-vanilla/}
- * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}, {@code diff_panel.png}.
- * A top-level {@code parity-report.tsv} ranks blocks by mean ARGB delta ascending.
+ * - each contains {@code vanilla.png} and {@code java.png}, and {@code diff.png} and
+ * {@code diff_panel.png} where the two differ. A top-level {@code parity-report.tsv} ranks blocks by
+ * mean ARGB delta ascending.
  *
  * <p>Buckets follow the convention {@code <0.25 / <0.50 / <0.75 / <1.0}.
  *
@@ -76,9 +70,6 @@ public final class BlockParitySweep {
     /** Source of the harness-produced reference PNGs. */
     private static final Path VANILLA_DIR = ParityPaths.references("blocks");
 
-    /** Filename prefix the harness writes (block id with {@code :} replaced by {@code __}). */
-    private static final @NotNull String VANILLA_PREFIX = "minecraft__";
-
     /** Square render size (matches harness {@code refharness.size} default). */
     private static final int RENDER_SIZE = 512;
 
@@ -86,14 +77,25 @@ public final class BlockParitySweep {
     private static final char TOKEN = '~';
 
     /**
+     * Runs the parity sweep over a context of its own, loaded over vanilla's own client options.
+     *
+     * @param args what {@link #run} reads
+     * @throws IOException if the output cannot be written
+     */
+    public static void main(String @NotNull [] args) throws IOException {
+        run(RendererContext.load(SweepPair.acquire(ClientOptions.defaults())), args);
+    }
+
+    /**
      * Runs the parity sweep.
      *
+     * @param context the context every render resolves through, loaded over vanilla's own client options
      * @param args {@code args[0]} optional comma-separated list of subjects - block ids
      *     ({@code minecraft:tnt,minecraft:stone}), or a state case as its reference names it
      *     ({@code minecraft:beehive~honey_level=5}). When absent, every harness reference PNG
      *     present in {@link #VANILLA_DIR} whose block the Java pipeline also knows about is rendered.
      */
-    public static void main(String @NotNull [] args) throws IOException {
+    static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         List<String> blockIdFilter = args.length > 0
             ? List.of(args[0].split(","))
             : List.of();
@@ -105,20 +107,11 @@ public final class BlockParitySweep {
         }
         Files.createDirectories(OUTPUT_DIR);
 
-        ClientAssets result;
-        try {
-            result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ClientException | MojangApiException ex) {
-            System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
-            throw ex;
-        }
-
-        RendererContext context = RendererContext.load(result);
         BlockRenderer javaRenderer = new BlockRenderer(context);
         ItemRenderer iconRenderer = new ItemRenderer(context);
 
         TreeSet<String> javaKeys = new TreeSet<>(context.knownBlockIds());
-        TreeSet<String> vanillaKeys = collectVanillaBlockIds();
+        TreeSet<String> vanillaKeys = SweepPair.referenceIds(VANILLA_DIR);
         TreeSet<String> intersection = new TreeSet<>(vanillaKeys);
         intersection.removeIf(subject -> !javaKeys.contains(blockOf(subject)));
 
@@ -169,8 +162,7 @@ public final class BlockParitySweep {
 
     /**
      * Renders one block through the Java pipeline, diffs it against the vanilla reference, writes
-     * the per-block {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
-     * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
+     * the per-block files, and returns the comparison {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
      * blocks via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
      * {@link RendererContext}. Any failure (missing/unreadable reference, render error) is
      * marked {@code POSITIVE_INFINITY} rather than aborting the sweep - which is what sorts it
@@ -184,7 +176,7 @@ public final class BlockParitySweep {
         Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_').replace('=', '_'));
         try {
             Files.createDirectories(blockDir);
-            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + blockId.substring("minecraft:".length()) + ".png");
+            Path vanillaPng = SweepPair.reference(VANILLA_DIR, blockId);
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
             if (vanillaImg == null) {
                 System.err.printf("       %-40s vanilla PNG unreadable: %s%n", blockId, vanillaPng);
@@ -195,9 +187,8 @@ public final class BlockParitySweep {
 
             // No explicit variant: BlockRenderer falls back to the block's tooling-derived
             // default blockstate key (block_defaults.json, baked onto Block.defaultStateKey),
-            // which is vanilla's `block.defaultBlockState()`. This replaces the harness
-            // `.variant` sidecar this test used to consume - blocks like doors /
-            // glazed_terracotta still resolve the correct variant + per-variant rotation.
+            // which is vanilla's `block.defaultBlockState()`, so blocks like doors /
+            // glazed_terracotta resolve the correct variant + per-variant rotation.
             ImageData java = blockId.indexOf(TOKEN) < 0
                 ? javaRenderer.render(BlockOptions.builder()
                     .blockId(blockId)
@@ -219,21 +210,7 @@ public final class BlockParitySweep {
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
 
-            int cw = Math.max(vw, jw);
-            int ch = Math.max(vh, jh);
-            BufferedImage vanillaPadded = ParityMetrics.padToCanvas(vanillaImg, cw, ch);
-            BufferedImage javaPadded = ParityMetrics.padToCanvas(javaImg, cw, ch);
-
-            ImageIO.write(vanillaImg, "PNG", new File(blockDir.toFile(), "vanilla.png"));
-            ImageIO.write(javaImg, "PNG", new File(blockDir.toFile(), "java.png"));
-            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
-            PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
-            BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
-            ImageIO.write(diffImg, "PNG", new File(blockDir.toFile(), "diff.png"));
-            BufferedImage panelImg = ParityMetrics.panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
-            ImageIO.write(panelImg, "PNG", new File(blockDir.toFile(), "diff_panel.png"));
-
-            ParityMetrics.Stats stats = ParityMetrics.compareImages(vanillaPadded, javaPadded);
+            ParityMetrics.Stats stats = SweepPair.writePair(blockDir, vanillaPng, vanillaImg, javaImg);
             String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
             System.out.printf("  %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
                 blockId, stats.meanDelta(), stats.differingPixels(),
@@ -269,24 +246,6 @@ public final class BlockParitySweep {
         stack.put("count", new IntTag(1));
         stack.put("components", components);
         return stack;
-    }
-
-    /**
-     * Walks the harness output directory and converts each {@code minecraft__<name>.png} filename
-     * into the subject {@code minecraft:<name>} - a block id, or a block id carrying the state-case
-     * tokens its reference names - so the cross-reference with the Java pipeline's keyset is exact.
-     */
-    private static @NotNull TreeSet<String> collectVanillaBlockIds() throws IOException {
-        try (Stream<Path> stream = Files.list(VANILLA_DIR)) {
-            TreeSet<String> ids = new TreeSet<>();
-            stream.forEach(path -> {
-                String name = path.getFileName().toString();
-                if (!name.startsWith(VANILLA_PREFIX) || !name.endsWith(".png")) return;
-                String stem = name.substring(VANILLA_PREFIX.length(), name.length() - ".png".length());
-                ids.add("minecraft:" + stem);
-            });
-            return ids;
-        }
     }
 
     /** Per-block row in the TSV report. */

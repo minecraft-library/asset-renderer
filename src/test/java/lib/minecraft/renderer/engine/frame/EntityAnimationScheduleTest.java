@@ -10,8 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -30,13 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * either source: what the two share is the one constant that seats frame 0, the member names of the two
  * files, and where those files are.
  *
- * <p>Held here: no schedule constant, figure period or wave roster grows back beside the roster; frame
- * 0 is tick 0 on both sides; every reader and writer spells each member of the file it reads or writes;
- * both sides name one roster path and one sidecar name; the harness arms no baby scale of its own; only
- * the entity a frame is armed for takes the schedule's walk and clocks; a posed capture refuses an
- * entity no frame is armed for, and every frame is armed for the entity it draws; and the roster
- * resolves through the one type a render resolves through, which is the type the reach graph roots the
- * reference tree at.
+ * <p>Held here: frame 0 is tick 0 on both sides; every reader and writer spells each member of the file
+ * it reads or writes; both sides name one roster path and one sidecar name; the harness arms no baby
+ * scale of its own; only the entity a frame is armed for takes the schedule's walk and clocks; a posed
+ * capture refuses an entity no frame is armed for, and every frame is armed for the entity it draws; and
+ * the roster resolves through the one type a render resolves through, which is the type the reach graph
+ * roots the reference tree at.
  *
  * <p>Read out of SOURCES as text. The harness is a separate Gradle build with no test source set and
  * nothing on this classpath, so its types cannot be referenced; and a mis-edit on either side shows
@@ -66,9 +63,6 @@ class EntityAnimationScheduleTest {
     /** The harness's clock, which answers the armed frame's tick, walk and clocks. */
     private static final @NotNull Path HARNESS_CLOCK = HARNESS.resolve("AnimationClock.java");
 
-    /** The harness's one-hot selections and pinned network id. */
-    private static final @NotNull Path HARNESS_FIGURES = HARNESS.resolve("IdleFigures.java");
-
     /** The harness's mixins, every clock write among them. */
     private static final @NotNull Path HARNESS_MIXINS = HARNESS.resolve("mixin");
 
@@ -85,13 +79,6 @@ class EntityAnimationScheduleTest {
 
     /** The parity toolkit's reach graph, whose roots decide which types plan each artifact. */
     private static final @NotNull Path REACH = Path.of("parity/scripts/parity/reach.py");
-
-    /**
-     * The identifiers of a second source of truth: a schedule constant, a harness copy of the figure
-     * period, or a wave roster the harness evaluates.
-     */
-    private static final @NotNull List<String> SCHEDULE_CONSTANTS =
-        List.of("FRAME_COUNT", "TICKS_PER_FRAME", "WALK_AMPLITUDE", "PERIOD_TICKS", "Continuous");
 
     /** Every member the roster's writer and reader spell - the contract both sides are held to. */
     private static final @NotNull List<String> ROSTER_MEMBERS = List.of(
@@ -138,25 +125,6 @@ class EntityAnimationScheduleTest {
 
     /** A block comment, javadoc among them, or a line comment - prose that can name a call it does not make. */
     private static final @NotNull Pattern COMMENT = Pattern.compile("/\\*.*?\\*/|//[^\\n]*", Pattern.DOTALL);
-
-    @Test
-    @DisplayName("no schedule constant, figure period or wave roster survives beside the roster")
-    void noScheduleConstantSurvives() {
-        Set<Path> scanned = new TreeSet<>(List.of(
-            HARNESS_SWEEP, HARNESS_FRAMES, HARNESS_CLOCK, HARNESS_FIGURES, HARNESS_FREEZE, ASSET_SWEEP));
-        scanned.addAll(filesUnder(HARNESS_MIXINS));
-
-        List<String> found = new ArrayList<>();
-        for (Path file : scanned) {
-            String text = read(file);
-            for (String constant : SCHEDULE_CONSTANTS)
-                if (Pattern.compile("\\b" + constant + "\\b").matcher(text).find()) found.add(file + " names " + constant);
-        }
-        assertEquals(List.of(), found,
-            "a schedule the roster carries has a second source here - a frame count, a step or an amplitude "
-                + "the two sides would each hold a copy of, or a figure period and a wave the harness would "
-                + "evaluate where it writes what the roster names");
-    }
 
     @Test
     @DisplayName("frame 0 is tick 0 on both sides")

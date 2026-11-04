@@ -20,48 +20,55 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Diagnostic task that renders blocks to PNG files for visual inspection. For each block spec it
- * writes the isometric 3D render ({@link BlockOptions.Type#ISOMETRIC_3D}) plus one flat 2D render
- * per {@link Face} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
- * issues can be compared side by side. All output lands under {@code cache/visual/block-render-3d/}.
+ * writes the isometric 3D render ({@link BlockOptions.Type#ISOMETRIC_3D}) plus flat 2D renders of its
+ * faces ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV issues can be compared
+ * side by side. All output lands under {@code cache/visual/block-render-3d/}.
  * <p>
  * With no {@code -PblockId} the task renders {@link #DEFAULT_BLOCKS} (a mix of non-full-cube shapes)
- * at 512px with 2x supersampling.
+ * at 512px with 2x supersampling; a block named by {@code -PblockId} draws all six faces.
  * <p>
  * Usage: {@code ./gradlew blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}
  */
 @UtilityClass
 public final class BlockRenderDriver {
 
-    /** Default block id list when no {@code args[0]} is supplied (mix of non-full cube shapes). */
-    private static final String[] DEFAULT_BLOCKS = {
-        "minecraft:cake",
-        "minecraft:oak_stairs",
-        "minecraft:torch",
-        "minecraft:lever",
-        "minecraft:brewing_stand_bottle1"
-    };
+    /**
+     * The blocks rendered when no {@code args[0]} is supplied, each with the faces drawn flat beside
+     * it. Cake binds three textures across its faces, so it draws all six. Every face of each of the
+     * others binds one texture, so one face stands for all six - the top, which on the brewing stand's
+     * bottle is a face its model declares none of, so it resolves through the block's {@code all} /
+     * {@code side} / {@code particle} fallback chain, the one present-block face no other subject
+     * reaches.
+     */
+    private static final List<Subject> DEFAULT_BLOCKS = List.of(
+        new Subject("minecraft:cake", List.of(Face.values())),
+        new Subject("minecraft:oak_stairs", List.of(Face.UP)),
+        new Subject("minecraft:torch", List.of(Face.UP)),
+        new Subject("minecraft:lever", List.of(Face.UP)),
+        new Subject("minecraft:brewing_stand_bottle1", List.of(Face.UP))
+    );
 
     /**
-     * Runs the block renders - one isometric 3D PNG plus six per-face 2D PNGs per block.
+     * One block to render.
      *
-     * @param args {@code args[0]} is an optional semicolon-separated list of block specs (id
-     *     plus optional {@code [state=foo,...]} suffix parsed as the render variant); {@code args[1]}
-     *     is an optional render size (defaults to 512); {@code args[2]} is an optional supersample
-     *     factor (defaults to 2); {@code args[3]} is an optional semicolon-separated list of texture
-     *     ids to force absent, which is how a texture miss is made reachable on a vanilla-only stack
+     * @param spec the block id, plus an optional {@code [state=foo,...]} suffix parsed as the render
+     *     variant
+     * @param faces the faces drawn flat beside the isometric render
+     */
+    private record Subject(@NotNull String spec, @NotNull List<Face> faces) {}
+
+    /**
+     * Loads vanilla's context and runs the block renders.
+     *
+     * @param args the arguments {@link #run} takes
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        String[] blockIds = args.length > 0
-            ? args[0].split(";")
-            : DEFAULT_BLOCKS;
-        int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
-        int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
-        String[] hidden = args.length > 3 && !args[3].isBlank() ? args[3].split(";") : new String[0];
-
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
@@ -70,7 +77,28 @@ public final class BlockRenderDriver {
             throw ex;
         }
 
-        RendererContext pipeline = RendererContext.load(result);
+        run(RendererContext.load(result), args);
+    }
+
+    /**
+     * Runs the block renders - one isometric 3D PNG plus a 2D PNG per face drawn for each block.
+     *
+     * @param pipeline the loaded vanilla context
+     * @param args {@code args[0]} is an optional semicolon-separated list of block specs (id
+     *     plus optional {@code [state=foo,...]} suffix parsed as the render variant); {@code args[1]}
+     *     is an optional render size (defaults to 512); {@code args[2]} is an optional supersample
+     *     factor (defaults to 2); {@code args[3]} is an optional semicolon-separated list of texture
+     *     ids to force absent, which is how a texture miss is made reachable on a vanilla-only stack
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
+    public static void run(@NotNull RendererContext pipeline, String @NotNull [] args) throws IOException {
+        List<Subject> subjects = args.length > 0
+            ? Arrays.stream(args[0].split(";")).map(spec -> new Subject(spec, List.of(Face.values()))).toList()
+            : DEFAULT_BLOCKS;
+        int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
+        int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
+        String[] hidden = args.length > 3 && !args[3].isBlank() ? args[3].split(";") : new String[0];
+
         RendererContext context = hidden.length == 0
             ? pipeline
             : pipeline.hiding(hidden);
@@ -78,8 +106,8 @@ public final class BlockRenderDriver {
         Path outputDir = Path.of("cache/visual/block-render-3d");
         Files.createDirectories(outputDir);
 
-        for (String blockSpec : blockIds) {
-            blockSpec = blockSpec.trim();
+        for (Subject subject : subjects) {
+            String blockSpec = subject.spec().trim();
             String blockId;
             String variant = "";
             int bracket = blockSpec.indexOf('[');
@@ -115,7 +143,7 @@ public final class BlockRenderDriver {
             }
 
             // Render each 2D face for comparison
-            Face.forEach(face -> {
+            for (Face face : subject.faces()) {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)
@@ -131,7 +159,7 @@ public final class BlockRenderDriver {
                 } catch (Exception ex) {
                     System.err.println("  Failed 2D " + face + ": " + ex.getMessage());
                 }
-            });
+            }
         }
     }
 

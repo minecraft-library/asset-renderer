@@ -182,6 +182,10 @@ class Reach:
     list is empty for an uncontested declaration and non-empty for a **contradiction**, which is a
     thing the plan has to say out loud rather than a row to drop - a claim of blindness that no plan
     can ever print is a claim nobody can check.
+
+    ``selectors`` names, for each artifact of ``sees``, the fired rules that put it there - on a path
+    where it survived that path's demotions, so a rule whose selection was demoted away is not one of
+    them. It is what a plan reads to say why an artifact is in the bundle rather than only that it is.
     """
 
     sees: list[str] = field(default_factory=list)
@@ -189,6 +193,7 @@ class Reach:
     unknown: list[str] = field(default_factory=list)
     fired: list[str] = field(default_factory=list)
     no_reach: list[str] = field(default_factory=list)
+    selectors: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -424,4 +429,5 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     # artifact would otherwise print in whichever sequence somebody last inserted them in.
     reach.blind = sorted(blind, key=lambda entry: (entry["artifact"], entry["rule"]))
     reach.fired = list(dict.fromkeys(rule.id for rule in fired))
+    reach.selectors = {artifact: sorted(selectors.get(artifact, ())) for artifact in reach.sees}
     return reach

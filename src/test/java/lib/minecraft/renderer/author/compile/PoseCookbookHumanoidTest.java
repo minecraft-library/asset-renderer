@@ -116,9 +116,11 @@ class PoseCookbookHumanoidTest {
             assertEquals(1, this.compiled.pose().clips().size());
             EntityPose.Clip site = this.compiled.pose().clips().getFirst();
             assertEquals(ClipDrive.SELECT, site.drive());
-            assertEquals(Optional.of("style$wave"), site.field());
+            assertEquals(Optional.of("style$wave"), site.field(), "the gate field is present by construction");
+            assertEquals(1, site.arguments().size(), "the selection arity is satisfied by construction");
             assertEquals("style$wave$clock",
-                assertInstanceOf(PoseExpr.Input.class, site.arguments().getFirst()).field());
+                assertInstanceOf(PoseExpr.Input.class, site.arguments().getFirst()).field(),
+                "a fresh clock, never a shipped idle term");
 
             PoseClip clip = site.clip();
             assertEquals(0.6f, clip.lengthSeconds());

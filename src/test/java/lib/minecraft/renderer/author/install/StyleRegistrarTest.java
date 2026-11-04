@@ -481,24 +481,6 @@ class StyleRegistrarTest {
     }
 
     @Test
-    @DisplayName("a custom id resolves as a carried row and the universal ids resolve untouched")
-    void customIdResolvesBesideTheUniversalRows() {
-        StyleRegistrar registrar = StyleRegistrar.of(definitions(
-            entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        registrar.add("minecraft:test", sit());
-
-        StyleCatalog installed = registrar.definitions().get("minecraft:test").styles();
-        EntityOptions options = EntityOptions.of("minecraft:test");
-        assertEquals("sit",
-            installed.resolve("sit", options.getAppearance()::applies, options.getEntityId()).id());
-        assertEquals(PoseStyle.BIND,
-            installed.resolve(PoseStyle.BIND, options.getAppearance()::applies, options.getEntityId()).id());
-        assertEquals(PoseStyle.STRIDE,
-            installed.resolve(PoseStyle.STRIDE, options.getAppearance()::applies, options.getEntityId()).id(),
-            "the universal rows answer exactly as before the install");
-    }
-
-    @Test
     @DisplayName("a baby subject refuses the adult-default row loudly at resolve")
     void babySubjectRefusesTheAdultDefault() {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(

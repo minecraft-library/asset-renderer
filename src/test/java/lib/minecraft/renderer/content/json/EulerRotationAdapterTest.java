@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.content.json;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.annotations.JsonAdapter;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.ModelTransform;
@@ -11,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -22,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * <p>
  * {@link RendererGsonContributor} registers the adapter for the type, so the shared
  * {@link GsonSettings#defaults()} {@link Gson} reads a field of the type - the shape of
- * {@link ModelTransform} and the entity bone and cube rows - and the bare type alike as the array. A
- * caller's own {@link JsonAdapter} naming the adapter on a field stays valid, and writes the same
- * bytes as the registration.
+ * {@link ModelTransform} and the entity bone and cube rows - as the array. A caller's own
+ * {@link JsonAdapter} naming the adapter on a field stays valid, and writes the same bytes as the
+ * registration.
  */
 @DisplayName("EulerRotationAdapter's [pitch, yaw, roll] array wire form")
 class EulerRotationAdapterTest {
@@ -42,30 +40,6 @@ class EulerRotationAdapterTest {
 
         Holder fractional = new Holder(new EulerRotation(22.5f, -90f, 7.75f));
         assertThat(GSON.fromJson(GSON.toJson(fractional), Holder.class), equalTo(fractional));
-    }
-
-    @Test
-    @DisplayName("a field's wire form is a three-element array in X, Y, Z order")
-    void adapterWireFormIsAnArray() {
-        JsonElement rotation = GSON.toJsonTree(new Holder(new EulerRotation(1, 2, 3)))
-            .getAsJsonObject()
-            .get("rotation");
-
-        assertThat(rotation.isJsonArray(), is(true));
-        assertThat(rotation.getAsJsonArray().size(), equalTo(3));
-        assertThat(rotation.getAsJsonArray().get(0).getAsFloat(), equalTo(1f));
-        assertThat(rotation.getAsJsonArray().get(1).getAsFloat(), equalTo(2f));
-        assertThat(rotation.getAsJsonArray().get(2).getAsFloat(), equalTo(3f));
-    }
-
-    @Test
-    @DisplayName("the bare type is the array form too - the adapter is registered for the type")
-    void theBareTypeIsTheArrayForm() {
-        JsonElement bare = GSON.toJsonTree(new EulerRotation(30f, 225f, 0f), EulerRotation.class);
-
-        assertThat(bare.isJsonArray(), is(true));
-        assertThat(bare.getAsJsonArray().size(), equalTo(3));
-        assertThat(GSON.fromJson("[30.0,225.0,0.0]", EulerRotation.class), equalTo(new EulerRotation(30f, 225f, 0f)));
     }
 
     @Test

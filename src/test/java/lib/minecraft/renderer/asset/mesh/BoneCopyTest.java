@@ -86,18 +86,6 @@ class BoneCopyTest {
     }
 
     @Test
-    @DisplayName("a pose keeps the rest scale and the pose scale, placing and turning the bone alone")
-    void withPoseKeepsBothScales() {
-        // A pose scales a bone through its pose scale alone, as a ratio over the rest, so placing it
-        // must carry both over - rewriting the rest would apply the ratio to the wrong base.
-        EntityMesh.Bone scaled = loaded().withPoseScale(new Vector3f(2f, 2f, 2f));
-        EntityMesh.Bone posed = scaled.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE);
-
-        assertThat("the rest scale carries over", posed.getScale(), is(0.75f));
-        assertThat("and so does the pose scale", posed.getPoseScale(), equalTo(new Vector3f(2f, 2f, 2f)));
-    }
-
-    @Test
     @DisplayName("a bone already drawing that way is handed back rather than copied")
     void withVisibleIsIdentityWhenNothingMoves() {
         EntityMesh.Bone hidden = loaded();

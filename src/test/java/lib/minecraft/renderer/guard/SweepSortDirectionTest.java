@@ -64,6 +64,9 @@ final class SweepSortDirectionTest {
     /** How a registration names the class it runs, which is where a producer's writer is read from. */
     private static final Pattern RUNS_A_CLASS = Pattern.compile("mainClass\\.set\\(\"([^\"]+)\"\\)");
 
+    /** How the vanilla sweep JVM's table names the class it runs for a producer, by producer name. */
+    private static final String SHARED_JVM_ROW = "\"%s\" to VanillaSweep\\(\"([^\"]+)\"";
+
     /** The one spelling of the ranking, which is the shared comparator applied to the row's delta. */
     private static final String THE_SORT = "rows.sort(SweepReport.byDelta(Row::meanDelta));";
 
@@ -100,8 +103,8 @@ final class SweepSortDirectionTest {
      * The writer file each sweep producer runs, beside the producers whose writer could not be read.
      *
      * @param writers the writer file names, sorted
-     * @param unreadable the producers the build file registers no {@code JavaExec} for, or whose
-     *     registration names no main class
+     * @param unreadable the producers the build file neither registers a {@code JavaExec} naming a
+     *     main class for nor runs in the vanilla sweep JVM
      */
     private record ProducerWriters(List<String> writers, List<String> unreadable) {}
 
@@ -132,15 +135,19 @@ final class SweepSortDirectionTest {
     /**
      * Reads the class one registered producer runs.
      *
-     * <p>Sliced to that registration's own block, so a task registered without a main class reads
-     * as one rather than borrowing the next registration's.
+     * <p>A producer of the vanilla sweep JVM runs the class its row of that JVM's table names. Any
+     * other is read off its own registration, sliced to that registration's block, so a task
+     * registered without a main class reads as one rather than borrowing the next registration's.
      *
      * @param build the build file's text
      * @param producer the task name
-     * @return the fully-qualified class name, or empty when the build file registers no
-     *     {@code JavaExec} by that name or the registration names no main class
+     * @return the fully-qualified class name, or empty when the vanilla sweep JVM runs nothing for the
+     *     producer and the build file registers no {@code JavaExec} by that name, or its registration
+     *     names no main class
      */
     private static Optional<String> classRunBy(String build, String producer) {
+        Matcher shared = Pattern.compile(String.format(SHARED_JVM_ROW, Pattern.quote(producer))).matcher(build);
+        if (shared.find()) return Optional.of(shared.group(1));
         String opening = "register<JavaExec>(\"" + producer + "\") {";
         int start = build.indexOf(opening);
         if (start < 0) return Optional.empty();

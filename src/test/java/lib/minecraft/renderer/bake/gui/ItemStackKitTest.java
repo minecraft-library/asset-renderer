@@ -172,22 +172,6 @@ class ItemStackKitTest {
     }
 
     /**
-     * Pins the observation that the black row borders the coloured run on no side, contradicting the
-     * "black border frames it" wording on the foreground width constant.
-     */
-    @Test
-    @DisplayName("the black row neither underlies nor flanks the coloured run")
-    void backgroundRowFramesNothingAroundTheColouredRun() {
-        PixelBuffer buffer = PixelBuffer.canvas(16, 16);
-        ItemStackKit.drawDamageBar(buffer, 50, 100);
-
-        assertThat("left of the coloured run", buffer.getPixel(1, 14), equalTo(CLEAR));
-        assertThat("right of the coloured run", buffer.getPixel(8, 14), equalTo(CLEAR));
-        assertThat("below the coloured run", buffer.getPixel(2, 15), equalTo(CLEAR));
-        assertThat("black sits only on the row above", buffer.getPixel(2, 13), equalTo(BLACK));
-    }
-
-    /**
      * Pins the foreground width to {@code round(12 * remaining / max)} across four fractions.
      */
     @Test

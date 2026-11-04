@@ -31,13 +31,4 @@ class OutputOptionsTest {
         assertThat(OutputOptions.builder().supersample(4).build().getSupersample(), equalTo(4));
     }
 
-    @Test
-    @DisplayName("the clamp survives a mutate round-trip, so a derived frame carries it too")
-    void supersampleClampedThroughMutate() {
-        OutputOptions derived = OutputOptions.defaults().mutate()
-            .supersample(OutputOptions.builder().supersample(0).build().getSupersample())
-            .build();
-        assertThat(derived.getSupersample(), equalTo(1));
-    }
-
 }

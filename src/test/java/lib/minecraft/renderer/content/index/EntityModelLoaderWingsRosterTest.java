@@ -43,14 +43,6 @@ class EntityModelLoaderWingsRosterTest {
     }
 
     @Test
-    @DisplayName("the giant wears armour and no wings")
-    void giantWearsArmourAndNoWings() {
-        Entity giant = EntityModelLoader.load().get("minecraft:giant");
-        assertThat(giant.humanoidArmor().isPresent(), is(true));
-        assertThat(giant.layers().wings(), is(false));
-    }
-
-    @Test
     @DisplayName("every form of a wings row keeps the wings - its baby form, and the row an appearance resolves at either age")
     void everyFormOfAWingsRowKeepsTheWings() {
         ConcurrentMap<String, Entity> index = EntityModelLoader.load();

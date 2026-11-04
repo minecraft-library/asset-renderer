@@ -1,7 +1,6 @@
 plugins {
     // Version resolved in settings.gradle.kts, where the gradle.properties entry is readable.
     id("net.fabricmc.fabric-loom")
-    id("maven-publish")
 }
 
 val minecraft_version: String by project
@@ -57,48 +56,20 @@ loom {
             property("refharness.size", "512")
             optionalProperty("refharnessTargets")?.let { property("refharness.targets", it) }
             optionalProperty("refharnessPitchRollSweep")?.let { property("refharness.pitchRollSweep", it) }
-            // Depth-quantum probe: two overlapping quads a swept distance apart, measuring how
-            // finely the depth test can tell two surfaces apart. Writes outside the reference tree
-            // and re-renders nothing.
-            //   ./gradlew runRenderReferences -PrefharnessDepthQuantumProbe=true
-            optionalProperty("refharnessDepthQuantumProbe")?.let { property("refharness.depthQuantumProbe", it) }
             // Texture-coordinate probe: the entity fragment shader writes the raw bits of one axis of
             // its interpolated texture coordinate instead of a colour. Point the output outside the
             // reference tree.
             //   ./gradlew runRenderReferences -PrefharnessTexCoordProbe=u -PrefharnessOutputDir=<dir>
             optionalProperty("refharnessTexCoordProbe")?.let { property("refharness.texCoordProbe", it) }
-            // Glint-only fast path: render just the animated-glint references under glint/,
-            // skipping the full block/item/entity sweep. Driven by renderVanillaGlintReferences.
-            optionalProperty("refharnessGlintOnly")?.let { property("refharness.glintOnly", it) }
-            // Players-only fast path: render just the vanilla player references under players/,
-            // skipping the full block/item/entity sweep. Driven by renderVanillaPlayerReferences.
-            optionalProperty("refharnessPlayersOnly")?.let { property("refharness.playersOnly", it) }
-            // Armor-only fast path: render just the armored-mob diagnostics under armor/,
-            // skipping the full block/item/entity sweep. Driven by renderVanillaArmorReferences.
-            optionalProperty("refharnessArmorOnly")?.let { property("refharness.armorOnly", it) }
-            // Menus-only fast path: render just the container screens under menus/, skipping the
-            // full block/item/entity sweep. Driven by renderVanillaMenuReferences.
-            optionalProperty("refharnessMenusOnly")?.let { property("refharness.menusOnly", it) }
-            // Whole-tree sweep: every reference sweep in one client boot, so a change to a
-            // renderer two sweeps share cannot leave one of them behind. Driven by
-            // renderVanillaAllReferences.
-            optionalProperty("refharnessEverySweep")?.let { property("refharness.everySweep", it) }
-            // Animated entity references under idle/, at the gait a subject standing still is
-            // in. Driven by renderVanillaAnimationReferences.
-            optionalProperty("refharnessAnimated")?.let { property("refharness.animated", it) }
-            // The same posed sweep at a gait, under walk/ - it lifts the same freezes and
-            // additionally drives walkAnimationPos / walkAnimationSpeed, which every other run holds
-            // at zero. Driven by renderVanillaWalkReferences.
-            optionalProperty("refharnessWalking")?.let { property("refharness.walking", it) }
-            // Comma-separated mode names, which is how ONE boot renders more than one sub-tree
-            // (-PrefharnessModes=EVERY,ANIMATION,WALK). The booleans above each name one mode and
-            // compose with this, so every task that sets one resolves what it always did. The gait
-            // is armed per sweep rather than per JVM, which is what makes a shared boot legal at all.
+            // Comma-separated mode names, which is how a run names its modes and how ONE boot renders
+            // more than one sub-tree (-PrefharnessModes=EVERY,ANIMATION,WALK). It is the one spelling
+            // of a reference mode, so a run naming a sub-tree has no second line to be missing from and
+            // silently render FULL instead. The gait is armed per sweep rather than per JVM, which is
+            // what makes a shared boot legal at all.
             optionalProperty("refharnessModes")?.let { property("refharness.modes", it) }
             // The tooltip sweep's roster, by path. Set on every run, so no task can forget it: the
             // default is the tracked roster under asset-renderer's src/visual/resources, and a run
-            // pointed elsewhere draws that file instead. TOOLTIPS has no boolean of its own - a run
-            // names it through refharnessModes - so there is no line for it to be missing from.
+            // pointed elsewhere draws that file instead.
             property("refharness.tooltipRoster", optionalProperty("refharnessTooltipRoster")
                 ?: rootProject.file("../src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json").canonicalPath)
             // The pack modes: the packs the client selects over vanilla, by file name, and the folder
@@ -159,7 +130,6 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
-    withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
 }
@@ -200,12 +170,4 @@ val seedRunProfile = tasks.register<Copy>("seedRunProfile") {
 
 tasks.matching { it.name == "runRenderReferences" }.configureEach {
     dependsOn(resetRefharnessWorld, seedRunProfile)
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
-        }
-    }
 }

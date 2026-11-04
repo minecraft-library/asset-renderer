@@ -11,6 +11,9 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
+import multiprocessing
 import os
 import re
 import shutil
@@ -19,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -35,6 +39,7 @@ from parity import jsondiff as jsondiff_mod
 from parity import manifest as manifest_mod
 from parity import render as render_mod
 from parity import report as report_mod
+from parity import schedule as schedule_mod
 from parity import store as store_mod
 from parity import sweep as sweep_mod
 from parity.norm import (
@@ -44,6 +49,7 @@ from parity.norm import (
     Refused,
     canonical_json,
     parse_json,
+    posix,
     read_json,
     write_json,
     write_text,
@@ -316,19 +322,165 @@ def _cmd_reach(args: argparse.Namespace) -> int:
 
 
 def _cmd_selftest(args: argparse.Namespace) -> int:
-    tests_dir = Path(__file__).resolve().parent / "tests"
+    """Runs the toolkit's suite one test module per process, and reports it in module order.
+
+    Every module runs in a fresh process of its own under a scratch root of its own, so no two share
+    a temporary directory, a ``tempfile`` setting or a module-level cache, and a pool runs as many at
+    once as the machine has cores - the run takes as long as its slowest module rather than as long as
+    all of them. What a module printed is held until every module sorting before it has printed, so
+    the output reads in one order on every run whichever module finished first, and the tally is the
+    sum of every module's. A failure, an error or a module whose process died fails the run.
+
+    A ``-k`` pattern is matched in this process first, and only a module holding a matching test is
+    started, so a pattern naming nothing starts no process at all.
+    """
+    return _selftest(Path(__file__).resolve().parent / "tests", args.pattern, args.quiet)
+
+
+def _selftest(tests_dir: Path, pattern: str | None, quiet: bool) -> int:
+    """Runs the test modules of one tests package and prints the summed tally.
+
+    :param tests_dir: the tests package's directory, two levels below the import root
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param quiet: whether the runners print one character per test rather than one line
+    :return: ``OK`` when every module passed, ``DIFFERENCES`` otherwise
+    :raises MissingInput: if there is no tests package
+    :raises Refused: if a package sits below it
+    """
     if not tests_dir.is_dir():
         raise MissingInput(f"no tests package at {tests_dir}")
-    loader = unittest.defaultTestLoader
-    suite = loader.discover(str(tests_dir), top_level_dir=str(tests_dir.parents[1]))
-    if args.pattern:
-        suite = _filter(suite, args.pattern)
-    runner = unittest.TextTestRunner(stream=sys.stderr, verbosity=1 if args.quiet else 2)
-    result = _in_scratch(lambda: runner.run(suite))
+    modules = _selftest_module_names(tests_dir)
+    if pattern:
+        suite = unittest.defaultTestLoader.discover(str(tests_dir), pattern=_SELFTEST_PATTERN,
+                                                    top_level_dir=str(tests_dir.parents[1]))
+        package = _package_of(tests_dir)
+        selected = {_module_of(test, package) for test in _flattened(_filter(suite, pattern))}
+        modules = [name for name in modules if name in selected]
+    outcomes = _selftest_modules(tests_dir, modules, pattern, 1 if quiet else 2)
+    total = {field: sum(outcome[field] for outcome in outcomes)
+             for field in ("ran", "failures", "errors", "skipped")}
     # The skip count is printed because an all-skipped run must not read as a green one.
-    print(f"selftest: ran {result.testsRun}, failures {len(result.failures)}, "
-          f"errors {len(result.errors)}, skipped {len(result.skipped)}")
-    return OK if result.wasSuccessful() else DIFFERENCES
+    print(f"selftest: ran {total['ran']}, failures {total['failures']}, "
+          f"errors {total['errors']}, skipped {total['skipped']}")
+    return OK if all(outcome["successful"] for outcome in outcomes) else DIFFERENCES
+
+
+#: The file pattern a test module matches, which is ``unittest``'s own discovery default.
+_SELFTEST_PATTERN = "test*.py"
+
+
+def _selftest_module_names(tests_dir: Path) -> list[str]:
+    """The modules a run starts a process for, which are the ones directly under the tests package.
+
+    A module is started by its file stem, so only the top level of the package is listed - and a
+    package below it, which discovery would walk into, is refused rather than passed over: its
+    modules would start no process, and the run would report green over a suite it never ran.
+
+    :param tests_dir: the tests package's directory
+    :return: the modules' file stems, sorted
+    :raises Refused: if a package sits below the tests package
+    """
+    nested = sorted(path.parent.name for path in tests_dir.glob("*/__init__.py"))
+    if nested:
+        raise Refused(f"selftest starts one process per module directly under {tests_dir}, and "
+                      f"{', '.join(nested)} is a package below it whose modules none would run; "
+                      "move them up beside the rest")
+    return sorted(path.stem for path in tests_dir.glob(_SELFTEST_PATTERN))
+
+
+def _package_of(tests_dir: Path) -> str:
+    """The dotted package the test modules import as, discovery being rooted two levels above them."""
+    return f"{tests_dir.parent.name}.{tests_dir.name}"
+
+
+def _selftest_modules(tests_dir: Path, modules: Sequence[str], pattern: str | None,
+                      verbosity: int) -> list[dict]:
+    """Runs each test module in a pool process of its own and prints each one's output in order.
+
+    :param tests_dir: the directory holding the test modules, two levels below the import root
+    :param modules: the modules' file stems, in the order their output is printed
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param verbosity: the runner's verbosity
+    :return: one outcome per module, in the order given
+    """
+    if not modules:
+        return []
+    outcomes = []
+    context = multiprocessing.get_context("spawn")
+    workers = min(len(modules), os.cpu_count() or 1)
+    package = _package_of(tests_dir)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context,
+                             max_tasks_per_child=1) as pool:
+        pending = [(name, pool.submit(_selftest_module, str(tests_dir), name, pattern, verbosity))
+                   for name in modules]
+        for name, future in pending:
+            try:
+                outcome = future.result()
+            except Exception as error:
+                # A worker that died, or a module that raised out of the runner, is a failed module
+                # and not a reason to drop the rest of the tally.
+                outcome = {"errors": 1, "failures": 0, "module": name,
+                           "output": f"the process running {name} died: {error!r}\n",
+                           "ran": 0, "skipped": 0, "successful": False}
+            sys.stderr.write(f"selftest: {package}.{name}\n{outcome['output']}")
+            sys.stderr.flush()
+            outcomes.append(outcome)
+    return outcomes
+
+
+def _selftest_module(tests_dir: str, name: str, pattern: str | None, verbosity: int) -> dict:
+    """Runs one test module under a scratch root of its own, in the pool process that calls it.
+
+    Discovered rather than loaded by name, so a module that fails to import is reported as the
+    failed test discovery makes of it rather than raising out of the pool. Its stdout and stderr are
+    held with the runner's own output, so nothing it prints lands between another module's lines.
+
+    :param tests_dir: the tests package's directory
+    :param name: the module's file stem
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param verbosity: the runner's verbosity
+    :return: the module's tally, whether it passed, and everything it printed
+    """
+    directory = Path(tests_dir)
+    suite = unittest.defaultTestLoader.discover(tests_dir, pattern=f"{name}.py",
+                                                top_level_dir=str(directory.parents[1]))
+    if pattern:
+        suite = _filter(suite, pattern)
+    printed = io.StringIO()
+    runner = unittest.TextTestRunner(stream=printed, verbosity=verbosity)
+    with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(printed):
+        result = _in_scratch(lambda: runner.run(suite))
+    return {"errors": len(result.errors), "failures": len(result.failures), "module": name,
+            "output": printed.getvalue(), "ran": result.testsRun, "skipped": len(result.skipped),
+            "successful": result.wasSuccessful()}
+
+
+def _flattened(suite: unittest.TestSuite) -> list[unittest.TestCase]:
+    """Every test case under a suite, nested suites walked through."""
+    found = []
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            found.extend(_flattened(item))
+        else:
+            found.append(item)
+    return found
+
+
+def _module_of(test: unittest.TestCase, package: str) -> str:
+    """The file stem of the test module a case was loaded from.
+
+    A module that failed to import is a case discovery makes in its place, whose id carries the
+    module it stands for after a prefix of its own, so the id is searched rather than read from the
+    front or off the case's class.
+
+    :param test: the case
+    :param package: the dotted package the test modules import as
+    :return: the module's file stem, or the empty string for a case from outside that package
+    """
+    ident = test.id()
+    marker = f"{package}."
+    at = ident.find(marker)
+    return ident[at + len(marker):].split(".")[0] if at >= 0 else ""
 
 
 def _in_scratch(run: Callable[[], Any]) -> Any:
@@ -503,12 +655,6 @@ def _cmd_json(args: argparse.Namespace) -> int:
                 "reported success. Canonicalize them in place, or one at a time")
         for name in args.files:
             path = Path(name)
-            if "shipped-tables" in path.name:
-                raise Refused(
-                    f"{path.name} is digested under the table-canonical form "
-                    "(a Gson reparse-and-compact), not this one; a digest taken under one is "
-                    "meaningless under the other"
-                )
             text = canonical_json(read_json(path))
             write_text(_out_path(args) if args.out else path, text)
             print(f"canonicalized {path}")
@@ -583,8 +729,11 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     # that MOVED after it finished, which is the same trap one step along: a self-capturing producer
     # rewrites its file whenever its suite runs, so a root can be part this capture and part the run
     # after it while COMPLETE still describes the first. `provenance` is outside the compared
-    # payload, so the rewrite is invisible to every number the verdict prints.
+    # payload, so the rewrite is invisible to every number the verdict prints. And refuse one another
+    # toolkit closed: the gate ran its suite over the toolkit that closed the capture, and the verdict
+    # is written by the one reading it.
     capture_mod.require_unmoved(root.root)
+    capture_mod.require_same_toolkit(root.root)
 
     wanted = [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
     if not wanted:
@@ -628,8 +777,6 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             row["reason"] = licensed[row["artifact"]]
     if unproduced:
         payload["unproduced"] = unproduced
-    agreement = _shipped_tables_agreement(args, root)
-    payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
         payload["bootstrap"] = True
     run = root.root / store_mod.RUN_DIR
@@ -665,7 +812,6 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     if not_captured:
         text += (f"\n\n**not captured by this run** (in the root, stamped by no capture step): "
                  f"{', '.join(not_captured)}")
-    text += "\n\n" + report_mod.render_checks(payload["checks"])
     _emit(args, text, payload)
 
     if missing and not args.bootstrap:
@@ -683,50 +829,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             "and the rest of this bundle is a verdict about a narrower set than was planned. Fix the "
             "producer, or register the failure with "
             "`./gradlew parityExpect -Partifact=<id> -Punproduced -Preason=<why>`")
-    # Before the mover gate, because it is a POPULATION check like MISSING_BASELINE rather than a
-    # value one: if the two artifacts disagree about which tables exist, the per-row comparison over
-    # them is answering a question about a covered set that is already wrong.
-    if agreement["status"] == "disagreed":
-        raise ComparisonFailed(
-            f"{compare_mod.AGREEMENT_CHECK} on digest.shipped-tables: "
-            f"{', '.join(agreement['disagreements'])} "
-            f"{'is' if len(agreement['disagreements']) == 1 else 'are'} covered by one of "
-            f"{' / '.join(compare_mod.AGREEMENT_ARTIFACTS)} and not the other. The two digests are "
-            "over different canonical forms and are never comparable value for value; the covered "
-            "set is, and a table a flow added or dropped shows up exactly here")
     compare_mod.raise_on(results)
     return OK
-
-
-def _shipped_tables_agreement(args: argparse.Namespace, root: store_mod.ReadOnlyStore) -> dict:
-    """Resolve both operands and run the cross-artifact covered-set check.
-
-    Each operand is taken from the working root when the root holds it and from the base otherwise,
-    which is the state the store would be in **after** this capture were promoted - the thing a gate
-    is actually asserting about. A capture naming only one of the two is the common case
-    (``-Partifacts=digests``), and reading the other's last known value is what keeps the check
-    evaluable there instead of quietly skipping on nearly every run.
-    """
-    payloads = {}
-    absent = []
-    for artifact in compare_mod.AGREEMENT_ARTIFACTS:
-        for read in (lambda name=artifact: root.read(name),
-                     lambda name=artifact: _load(args, name, args.base)):
-            try:
-                payloads[artifact] = read()
-                break
-            except (MissingInput, ValueError):
-                continue
-        if artifact not in payloads:
-            absent.append(artifact)
-    if absent:
-        # Reported rather than silently omitted: a check that is never evaluated and never says so
-        # is indistinguishable from one that passes.
-        return {"absent": absent, "status": "not_evaluated"}
-    disagreements = compare_mod.shipped_tables_agreement(*(payloads[name]
-                                                           for name in compare_mod.AGREEMENT_ARTIFACTS))
-    return {"disagreements": disagreements,
-            "status": "disagreed" if disagreements else "agreed"}
 
 
 def _cmd_capture_begin(args: argparse.Namespace) -> int:
@@ -766,7 +870,7 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
         try:
             target = capture_mod.normalize(
                 artifact, source, root, repo, producer=args.producer or "",
-                mode=args.mode, flags=args.flag or (), runs=args.runs,
+                mode=args.mode, tree_refresh=args.tree_refresh, flags=args.flag or (), runs=args.runs,
                 logs=Path(args.logs) if args.logs else None,
                 reference_tree=(Path(args.reference_tree) if args.reference_tree else None),
                 reference_artifact=args.reference_artifact,
@@ -804,6 +908,112 @@ def _failed_producers(entries: Sequence[str]) -> list[tuple[str, str]]:
             raise Refused(f"--failed {entry!r} names no task")
         out.append((task, message))
     return out
+
+
+def _cmd_schedule_check(args: argparse.Namespace) -> int:
+    """Answer whether the reference tree on disk is the tree a render would write now.
+
+    Three holds, each of which only the tree as it stands can answer, and a capture may skip the boot
+    only where all three agree. The plan's ``references`` answer is held to the same answer resolved
+    again from git, since the plan is a file that outlives the edits made after it. What the tree is
+    rendered from beside the roster is held to the record of its last whole render. And the roster
+    is projected onto the schedules the posed sub-trees recorded.
+
+    Writes the verdict into the working root's ``_run/`` whatever it says, because the build reads it
+    back to decide whether the capture boots the client, and a disagreement is an answer rather than
+    a failure - the boot it costs is the one the gate would have paid without the check. A tree that
+    cannot be resolved, or files git cannot list, are disagreements of their own. Only a usage error
+    or a root outside ``cache/`` stops it.
+    """
+    base = _bases(args)
+    root = store_mod.working(args.root, base).root
+    refusals: list[str] = []
+    planned = _planned_references(root)
+    live = None
+    try:
+        live = _tree_references(base, args.store)
+        refusals += schedule_mod.held_to_plan(planned, live)
+    except (MissingInput, Refused) as error:
+        refusals.append(f"the tree as it stands could not be resolved: {error}")
+    try:
+        current = schedule_mod.inputs(base, _listed_files(base), _live_rules(base, args.store))
+    except (MissingInput, Refused):
+        current = None
+    refusals += schedule_mod.held_to_record(base / args.references, current)
+    verdict = schedule_mod.check(base, args.references, args.client_version, refusals)
+    verdict["refresh"] = {"plan": planned, "tree": live}
+    target = write_json(root / store_mod.RUN_DIR / schedule_mod.VERDICT, verdict)
+    stems = " + ".join(f"{verdict['stems'][gait]} {gait}" for gait in schedule_mod.GAITS)
+    if verdict["agrees"]:
+        lines = [f"schedule-check: the tree on disk is current - the plan holds for the tree as it "
+                 f"stands, the render record names its inputs, and the roster agrees with the "
+                 f"schedules the posed sub-trees recorded ({stems} stems) -> {posix(target, base)}"]
+    else:
+        lines = [f"schedule-check: {verdict['count']} disagreement(s), so a capture boots the client "
+                 f"({stems} stems) -> {posix(target, base)}"]
+        lines += [f"  {line}" for line in verdict["disagreements"]]
+    _emit(args, "\n".join(lines), verdict)
+    return OK
+
+
+def _planned_references(root: Path) -> dict | None:
+    """The working root's plan's ``references`` answer, or None where it holds no readable one.
+
+    :param root: the working root
+    :return: the answer, or None
+    """
+    try:
+        plan = read_json(root / store_mod.RUN_DIR / "plan.json")
+    except (OSError, ValueError):
+        return None
+    answer = plan.get("references") if isinstance(plan, dict) else None
+    return answer if isinstance(answer, dict) else None
+
+
+def _tree_references(base: Path, store: str | None) -> dict | None:
+    """The plan's ``references`` answer for the tree as it stands, resolved from git as a plan is.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :return: the answer, or None where the tree's plan holds no such row
+    """
+    changed = sorted(_changed_from_git(base))
+    _, reach, rules = _resolved(base, store, changed)
+    plan, _, _ = _split_reach(reach.sees, store_mod.production(store, base).index())
+    return _references(plan, reach, rules)
+
+
+def _listed_files(base: Path) -> list[str]:
+    """Every file git tracks and every one it would track, repo-relative and POSIX.
+
+    What a commit can carry, untracked files included: a new harness source compiles into the client
+    whether or not it has been added. NUL-separated, so no path comes back quoted.
+
+    :param base: the repository root
+    :return: the paths
+    :raises MissingInput: if git cannot list them
+    """
+    result = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                            cwd=base, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise MissingInput(f"git ls-files failed: {result.stderr.decode('utf-8', 'replace').strip()}")
+    return [name.replace("\\", "/") for name in result.stdout.decode("utf-8").split("\0") if name]
+
+
+def _cmd_render_record(args: argparse.Namespace) -> int:
+    """Write the record of what a whole-tree render is about to read, pending beside the tree.
+
+    The build runs this ahead of a whole, untargeted ``renderVanillaAllReferences`` and renames the
+    pending file to the record once the boot exits 0, so the record names the inputs the boot was
+    handed rather than whatever the tree held when it finished.
+    """
+    base = _bases(args)
+    current = schedule_mod.inputs(base, _listed_files(base), _live_rules(base, args.store))
+    payload = schedule_mod.record(args.references, current)
+    target = write_json((base / args.references).parent / schedule_mod.PENDING, payload)
+    _emit(args, f"render-record: {payload['files']} input(s) of {', '.join(payload['rules'])} -> "
+                f"{posix(target, base)}", payload)
+    return OK
 
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
@@ -888,28 +1098,17 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     """
     base = _bases(args)
     root = store_mod.working(args.root, base).root
-    store_root = store_mod.resolve_store(args.store, base)
-    rules, no_reach = blindness_mod.load(store_root)
-    # Re-derived from the tree rather than taken from the file, so a declaration that moved in the
-    # commit being planned is answered by the plan that gates that commit rather than by the next
-    # regeneration. The two halves agree by construction and a guard holds them to it.
-    rules = declarations_mod.live(rules, base)
 
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
         changed = sorted(set(changed) | set(_changed_from_git(base, getattr(args, "since", None))))
-    deleted = sorted(_deleted_from_head(base, changed))
-    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules),
-                                  _committed_map(base, store_root, deleted, rules, no_reach))
-    if reach.unknown:
-        raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
+    deleted, reach, rules = _resolved(base, args.store, changed)
 
-    index = store_mod.production(args.store, base).index()
+    production = store_mod.production(args.store, base)
+    index = production.index()
     plan, covered, manual = _split_reach(reach.sees, index)
-    durations = [index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms")
-                 for artifact in plan]
-    measured = [int(value) for value in durations if value is not None]
-    budget = sum(measured)
+    measured, budget = _budget(plan, index, production)
+    references = _references(plan, reach, rules)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
@@ -917,7 +1116,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         "budget_ms": budget,
         # How much of that number is real. A reader with the sum alone cannot tell a measured bundle
         # from one where most of the cost is missing, and the two call for opposite decisions.
-        "budget_measured": len(measured),
+        "budget_measured": measured,
         "changed": sorted(changed),
         # `sees` answers reach and `plan` selects a capture, which are two different sets: every
         # artifact the change moves, against the ones the store keeps a file for and a producer can
@@ -933,6 +1132,10 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         "kind": "plan",
         "manual": manual,
         "plan": plan,
+        # How the capture refreshes the reference tree, where the plan holds the row that hashes it:
+        # a boot, or the roster check that decides one. The build reads `refresh` back to decide
+        # whether the capture boots the client; null where the plan holds no such row.
+        "references": references,
         "rules_fired": reach.fired,
         "sees": reach.sees,
     }
@@ -953,6 +1156,8 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         lines.append(f"DELETED ({len(deleted)}): {', '.join(deleted)}"
                      " - answered by the map and graph HEAD holds")
     lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))
+    if references is not None:
+        lines.append(_references_line(references))
     planned = set(plan)
     if covered:
         lines.append(f"COVERED ({len(covered)}): no capture row of its own; each one's value is a "
@@ -972,7 +1177,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                    if entry["action"] == _CAPTURE else "read it there")
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
-    lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
+    lines.append(f"BUDGET {budget} ms{_budget_caveat(measured, len(plan))}")
     # The standing verdict, on every plan rather than only under --gate-exit. The predicate is the
     # hook's own, so the two cannot drift; what differs is that this one REPORTS. A plan is a Gradle
     # Exec and a non-zero exit fails the build, so answering "already gated" in the exit code would
@@ -981,14 +1186,140 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     # It is printed because the alternative is what the cost was: a capture is cheaper to re-run than
     # to reason about whether the last one still stands, so it got re-run. Whoever reads a plan is
     # about to spend the budget on the line above it, and this is the line that says they need not.
-    gated = _gate_exit(args, base, root, reach, plan) if reach.sees else OK
+    gated = _gate_exit(args, base, root, reach, plan, references) if reach.sees else OK
     payload["already_gated"] = gated == GATE_ALREADY_GATED
     if gated == GATE_ALREADY_GATED:
         lines.append("VERDICT already gated - a passing compare covers this exact tree state and "
                      "this whole plan. Nothing here needs running; quote _run/compare.md. Editing "
                      "any tracked file re-arms it.")
     _emit(args, "\n".join(lines), payload)
-    return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+    return _gate_exit(args, base, root, reach, plan, references) if args.gate_exit else OK
+
+
+def _live_rules(base: Path, store: str | None) -> list[blindness_mod.Rule]:
+    """The map's rules, their triggers re-derived from the declarations the tree holds now.
+
+    Re-derived from the tree rather than taken from the file, so a declaration that moved in the
+    commit being planned is answered by the plan that gates that commit rather than by the next
+    regeneration. The two halves agree by construction and a guard holds them to it. :func:`_resolved`
+    folds them in the same way over the map it has already loaded.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :return: the rules
+    """
+    rules, _ = blindness_mod.load(store_mod.resolve_store(store, base))
+    return declarations_mod.live(rules, base)
+
+
+def _resolved(base: Path, store: str | None, changed: Sequence[str]) \
+        -> tuple[list[str], blindness_mod.Reach, list[blindness_mod.Rule]]:
+    """Resolve a change set the way a plan does.
+
+    The one resolution behind the plan and behind the schedule check, which resolves the tree again
+    when a capture runs rather than trusting the plan it was handed - two spellings of it could part
+    company, and the check would then certify a tree the plan never described.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :param changed: the changed paths, repo-relative and POSIX
+    :return: the paths the change deletes, the reach, and every rule it was resolved against - the
+        working map's, and the committed map's where the change deletes a path
+    :raises Refused: if a changed path is covered by no rule
+    """
+    store_root = store_mod.resolve_store(store, base)
+    rules, no_reach = blindness_mod.load(store_root)
+    rules = declarations_mod.live(rules, base)
+    deleted = sorted(_deleted_from_head(base, changed))
+    committed = _committed_map(base, store_root, deleted, rules, no_reach)
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules), committed)
+    if reach.unknown:
+        raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
+    return deleted, reach, list(rules) + list(committed.rules if committed else ())
+
+
+def _references(plan: Sequence[str], reach: blindness_mod.Reach,
+                rules: Sequence[blindness_mod.Rule]) -> dict | None:
+    """How a capture of this plan refreshes the reference tree, or None where it holds no such row.
+
+    Read off which fired rules put the row in the plan rather than off which rules fired at all: a
+    harness rule that fired on a path and selected only sweeps reaches no reference byte, and one
+    that selected the row on a path where another rule demoted it away selected nothing. The rules'
+    derived flag comes from both statements of the map the plan resolved against, so a path the
+    change deletes is read as the commit before it held the rule.
+
+    :param plan: the artifacts the plan captures
+    :param reach: the resolved reach, carrying the rules that selected each artifact
+    :param rules: every rule the plan resolved against
+    :return: the refresh and the rules behind it, or None
+    """
+    if schedule_mod.REFERENCES not in plan:
+        return None
+    selected = reach.selectors.get(schedule_mod.REFERENCES, [])
+    derived = {rule.id for rule in rules if rule.derived}
+    return {"refresh": schedule_mod.refresh(selected, derived), "selected_by": selected}
+
+
+def _references_line(references: dict) -> str:
+    """The plan's line saying which of the two a capture does to the reference tree.
+
+    :param references: the plan's ``references`` member
+    :return: the line
+    """
+    rules = ", ".join(references["selected_by"])
+    if references["refresh"] == schedule_mod.ROSTER:
+        return (f"REFERENCES {schedule_mod.ROSTER} ({rules}): every rule selecting "
+                f"{schedule_mod.REFERENCES} reaches the tree through the entity schedule roster "
+                "alone, so the capture regenerates the roster and boots the client only if it "
+                "differs from the schedules idle/ and walk/ recorded; where it agrees, the capture "
+                "hashes the tree already on disk. BUDGET prices the boot")
+    return (f"REFERENCES {schedule_mod.BOOT} ({rules}): the capture re-renders the whole reference "
+            "tree before it hashes it")
+
+
+def _budget(plan: Sequence[str], index: dict,
+            production: store_mod.ReadOnlyStore) -> tuple[int, int]:
+    """How many of the plan's artifacts carry a duration, and what the plan's capture costs.
+
+    An artifact's duration is the wall time of the producers that wrote it, so the rows one producer
+    writes together each carry that producer's whole run: the pin rows carry one run of the pin
+    suite apiece, and the two dump manifests one dump each. A capture runs that producer once, so the
+    budget counts it once - rows are grouped by the producer their stored baseline names, and a group
+    costs the longest duration any of its rows recorded. A row whose baseline names no producer is a
+    group of its own.
+
+    :param plan: the artifacts the plan captures
+    :param index: the production store's index
+    :param production: the production store, whose baselines name each row's producer
+    :return: the number of planned artifacts carrying a duration, and the budget in milliseconds
+    """
+    rows = index.get(_STORE_MAP, {})
+    runs: dict[str, int] = {}
+    measured = 0
+    for artifact in plan:
+        value = (rows.get(artifact) or {}).get("last_duration_ms")
+        if value is None:
+            continue
+        measured += 1
+        producer = _stored_producer(production, artifact)
+        group = f"producer:{producer}" if producer else f"artifact:{artifact}"
+        runs[group] = max(runs.get(group, 0), int(value))
+    return measured, sum(runs.values())
+
+
+def _stored_producer(production: store_mod.ReadOnlyStore, artifact: str) -> str | None:
+    """The producer an artifact's stored baseline names, or None where it names none or is absent.
+
+    :param production: the production store
+    :param artifact: the artifact id
+    """
+    try:
+        payload = production.read(artifact)
+    except (MissingInput, ValueError):
+        return None
+    record = payload.get("provenance") if isinstance(payload, dict) else None
+    producer = record.get("producer") if isinstance(record, dict) else None
+    return producer if isinstance(producer, str) and producer else None
 
 
 def _budget_caveat(measured: int, planned: int) -> str:
@@ -1187,7 +1518,7 @@ GATE_ALREADY_GATED = 20
 
 
 def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
-               reach: blindness_mod.Reach, plan: list[str]) -> int:
+               reach: blindness_mod.Reach, plan: list[str], references: dict | None = None) -> int:
     """Answer the pre-commit hook's question in the exit code.
 
     Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a passing
@@ -1220,6 +1551,8 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     :param root: the working root
     :param reach: the resolved reach, which decides whether there is anything to gate at all
     :param plan: the capture set drawn from it, which is what a verdict is measured against
+    :param references: how a capture of this plan refreshes the reference tree, or None where the
+        plan holds no such row
     :return: the exit code
     """
     if not reach.sees:
@@ -1267,7 +1600,27 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     # by every compare; until here nothing read either.
     if int(recorded.get("unexpected") or 0) > 0 or recorded.get("missing_baseline"):
         return GATE_SEES_UNGATED
+    # A tree this plan boots for and the capture hashed as it stood has not been measured: the
+    # unchanged tree matches its baseline whatever the change does to a render. The capture's own
+    # record says which it did, and it is read out of the root the verdict was written beside.
+    if (references is not None and references.get("refresh") == schedule_mod.BOOT
+            and _hashed_references(verdict.parent.parent)):
+        return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
+
+
+def _hashed_references(root: Path) -> bool:
+    """Whether a working root's capture of the reference tree hashed it rather than rendering it.
+
+    :param root: the working root
+    :return: whether its ``manifest.references`` provenance records the tree as hashed
+    """
+    try:
+        captured = read_json(root / store_mod.path_of(schedule_mod.REFERENCES))
+    except (OSError, ValueError):
+        return False
+    provenance = captured.get("provenance") if isinstance(captured, dict) else None
+    return isinstance(provenance, dict) and provenance.get("tree_refresh") == schedule_mod.HASHED
 
 
 def _newest_verdict(base: Path, root: Path) -> Path | None:
@@ -1963,6 +2316,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "this capture belongs to - the difference between ground truth refreshed "
                           "in part and refreshed whole. A comma-joined set when one invocation ran "
                           "more than one, and absent when it refreshed nothing")
+    cap.add_argument("--tree-refresh", dest="tree_refresh", default=None,
+                     choices=(schedule_mod.HASHED,),
+                     help="that the tree this row hashes was hashed as it stood rather than "
+                          "rendered, the schedule check having found it current; absent when a "
+                          "render wrote it or the row hashes no tree")
     cap.add_argument("--wall-time", dest="wall_time", type=int, default=None, metavar="MS",
                      help="how long this row's producers took, measured by the build. It is what "
                           "the plan's budget sums and what the skill's background-the-capture rule "
@@ -1979,6 +2337,28 @@ def _register(subparsers: Any) -> dict[str, Command]:
 
     subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
     table["capture-index"] = _cmd_capture_index
+
+    sched = subparsers.add_parser(
+        "schedule-check", help="whether the reference tree on disk is the one a render would write now: "
+                               "the plan held to the tree as it stands, the harness inputs to the "
+                               "record of the last whole render, and the entity schedule roster to "
+                               "the schedules the posed sub-trees recorded; writes "
+                               "_run/schedule-check.json")
+    sched.add_argument("--references", required=True, metavar="DIR",
+                       help="the reference tree root, repo-relative; the roster and the render "
+                            "record are read beside it")
+    sched.add_argument("--client-version", required=True, dest="client_version", metavar="VERSION",
+                       help="the version of the client the harness runs, which the roster's "
+                            "source_version is held to by major.minor")
+    table["schedule-check"] = _cmd_schedule_check
+
+    rec = subparsers.add_parser(
+        "render-record", help="digest what a whole-tree render reads beside the schedule roster into "
+                              f"{schedule_mod.PENDING} beside the tree, which the build renames to "
+                              f"{schedule_mod.RECORD} once the boot exits 0")
+    rec.add_argument("--references", required=True, metavar="DIR",
+                     help="the reference tree root, repo-relative; the record is written beside it")
+    table["render-record"] = _cmd_render_record
 
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
     pln.add_argument("--changed-from-git", action="store_true", dest="changed_from_git")

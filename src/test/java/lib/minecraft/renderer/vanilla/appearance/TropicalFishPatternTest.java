@@ -4,10 +4,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -24,10 +20,10 @@ import static org.hamcrest.Matchers.nullValue;
  * silently rather than raising. Pinning the literal refs is the only thing that separates the twelve
  * files vanilla ships from twelve plausible-looking names.
  *
- * <p>The shape split is asserted as arithmetic rather than as a list: the six
- * {@link TropicalFishPattern.Shape#SMALL} patterns index one to six and the six
- * {@link TropicalFishPattern.Shape#LARGE} do the same, which is what makes each pattern's index
- * meaningful only alongside its shape.
+ * <p>The twelve literals pin the shape split with the refs: the six
+ * {@link TropicalFishPattern.Shape#SMALL} patterns index one to six under the {@code a} letter and
+ * the six {@link TropicalFishPattern.Shape#LARGE} do the same under {@code b}, so a collision, a wrong
+ * index, a changed letter or a pattern moved to the other shape renames at least one of them.
  */
 @DisplayName("TropicalFishPattern computed texture refs")
 class TropicalFishPatternTest {
@@ -58,52 +54,6 @@ class TropicalFishPatternTest {
             assertThat(TropicalFishPattern.BLOCKFISH.overlayTexture(), is(equalTo("fish/tropical_b_pattern_4")));
             assertThat(TropicalFishPattern.BETTY.overlayTexture(), is(equalTo("fish/tropical_b_pattern_5")));
             assertThat(TropicalFishPattern.CLAYFISH.overlayTexture(), is(equalTo("fish/tropical_b_pattern_6")));
-        }
-
-        /**
-         * Asserts no two patterns compute the same ref, which a duplicated shape or index would produce
-         * without either constant looking wrong on its own.
-         */
-        @Test
-        @DisplayName("no two patterns compute the same texture ref")
-        void noTwoPatternsComputeTheSameRef() {
-            List<String> refs = Arrays.stream(TropicalFishPattern.values())
-                .map(TropicalFishPattern::overlayTexture)
-                .toList();
-            assertThat("one ref per pattern", Set.copyOf(refs).size(), is(equalTo(refs.size())));
-        }
-
-    }
-
-    @Nested
-    @DisplayName("shape and index")
-    class ShapeAndIndex {
-
-        /**
-         * Asserts each shape carries exactly six patterns indexed one to six, the index restarting when
-         * the shape changes.
-         */
-        @Test
-        @DisplayName("indexes each shape's patterns one to six")
-        void indexesEachShapeOneToSix() {
-            int small = 0;
-            int large = 0;
-
-            for (TropicalFishPattern pattern : TropicalFishPattern.values()) {
-                int expected = pattern.shape() == TropicalFishPattern.Shape.SMALL ? ++small : ++large;
-                assertThat(pattern.name(), pattern.index(), is(equalTo(expected)));
-            }
-
-            assertThat("small body patterns", small, is(equalTo(6)));
-            assertThat("large body patterns", large, is(equalTo(6)));
-        }
-
-        /** Asserts the atlas letter each shape lends the computed ref. */
-        @Test
-        @DisplayName("lends the small body the a letter and the large body the b letter")
-        void lendsEachShapeItsAtlasLetter() {
-            assertThat(TropicalFishPattern.Shape.SMALL.letter(), is(equalTo("a")));
-            assertThat(TropicalFishPattern.Shape.LARGE.letter(), is(equalTo("b")));
         }
 
     }

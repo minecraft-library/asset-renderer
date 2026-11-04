@@ -58,21 +58,6 @@ class EntityRendererVillagerHatTest {
         assertThat(EntityRenderer.useFullModel(Hat.FULL, Hat.FULL), is(false));
     }
 
-    /**
-     * Lists which of the truth table's rows vanilla can actually reach, as an inventory rather than as
-     * added coverage - the three tests above already assert every cell of the table.
-     */
-    @Test
-    @DisplayName("the vanilla-reachable rows: plains/none and plains/butcher keep the robe head, desert/butcher and plains/farmer strip it")
-    void vanillaReachableRows() {
-        // plains ships no sidecar (type NONE); desert and snow ship hat=full. The professions shipping a
-        // sidecar are farmer / fisherman / fletcher / librarian / shepherd (full) and butcher (partial).
-        assertThat("plains villager, no profession", EntityRenderer.useFullModel(Hat.NONE, Hat.NONE), is(true));
-        assertThat("plains butcher keeps the headband over a hatless type", EntityRenderer.useFullModel(Hat.PARTIAL, Hat.NONE), is(true));
-        assertThat("desert butcher drops the turban", EntityRenderer.useFullModel(Hat.PARTIAL, Hat.FULL), is(false));
-        assertThat("plains farmer's straw hat stands alone", EntityRenderer.useFullModel(Hat.FULL, Hat.NONE), is(false));
-    }
-
     @Test
     @DisplayName("the baby robe pass draws the baby directory but reads its type hat flag off the adult type sidecar")
     void babyTypePassReadsTheAdultHatSidecar() {

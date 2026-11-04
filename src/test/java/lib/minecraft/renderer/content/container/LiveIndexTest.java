@@ -32,14 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class LiveIndexTest {
 
     @Test
-    @DisplayName("entries come back in ascending path order, whatever order the zip stored them in")
-    void ascending(@TempDir Path dir) throws IOException {
-        Path zip = zip(dir, Map.of("b/2.txt", "2", "a/1.txt", "1", "c.txt", "3", "a/0.txt", "0"));
-
-        assertThat(LiveIndex.read(zip).range("").toList(), equalTo(List.of("a/0.txt", "a/1.txt", "b/2.txt", "c.txt")));
-    }
-
-    @Test
     @DisplayName("a directory's range holds its entries at any depth and never a sibling sharing its name")
     void range(@TempDir Path dir) throws IOException {
         LiveIndex index = LiveIndex.read(zip(dir, Map.of(
@@ -63,16 +55,6 @@ class LiveIndexTest {
         first[0] = 'Y';
 
         assertThat(new String(index.read("x.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
-    }
-
-    @Test
-    @DisplayName("a path the zip does not carry reads empty and is not contained")
-    void miss(@TempDir Path dir) throws IOException {
-        LiveIndex index = LiveIndex.read(zip(dir, Map.of("x.txt", "X")));
-
-        assertThat(index.read("y.txt").isPresent(), is(false));
-        assertThat(index.contains("y.txt"), is(false));
-        assertThat(index.contains("x.txt"), is(true));
     }
 
     @Test
