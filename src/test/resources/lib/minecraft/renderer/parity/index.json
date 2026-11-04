@@ -65,12 +65,12 @@
     "manifest.portal": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 12,
+      "entries": 6,
       "file": "manifests/portal.json",
       "kind": "manifest",
-      "last_duration_ms": 138573,
-      "promoted_at": "4440fde0ba8af73b02b159814fbd36ba3b73dcce",
-      "sha256": "14920840b5c76ec7b3a8c19c22a4d6bc2faed60d1438800670c06569ca159c17"
+      "last_duration_ms": 30404,
+      "promoted_at": "d99fbb39861a7ecb8af36502129de262820a7977",
+      "sha256": "b7a60e4592bb03ac37f3a6c8a940fcb9e1d8b66cf5b0d5ac36654b77ab3521d3"
     },
     "manifest.references": {
       "baselined": true,

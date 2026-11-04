@@ -53,7 +53,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 8691 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 7645 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2872 ms | yes |
-| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
+| `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 30404 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 17263 ms | yes |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 2666 ms | yes |
 | `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 2666 ms | yes |
