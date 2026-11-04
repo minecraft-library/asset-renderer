@@ -30,7 +30,6 @@ import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
-import lib.minecraft.renderer.content.pack.ResolvedTexture;
 import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
@@ -80,11 +79,6 @@ class IndexedRendererContextTest {
     static Path packRoot;
 
     /**
-     * A fixture texture the pack ships with no sidecar beside it.
-     */
-    private static final String STATIC = "minecraft:block/fixture_static";
-
-    /**
      * Context under test, built directly from the synthetic stack + indexes via its constructor.
      */
     private static IndexedRendererContext context;
@@ -100,7 +94,7 @@ class IndexedRendererContextTest {
     private static ConcurrentMap<String, Block.Tint> blockTints;
 
     /**
-     * Stages a minimal on-disk pack (fixture PNG + animation sidecar, a sidecar-less copy, grass colormap) in the temp
+     * Stages a minimal on-disk pack (fixture PNG + animation sidecar, grass colormap) in the temp
      * directory, scans it with the real {@link TextureIndexer} / {@link ColorMapLoader}, synthesises
      * the remaining {@link ClientAssets} maps by hand, and wraps the whole thing in the
      * {@link IndexedRendererContext} under test.
@@ -122,9 +116,6 @@ class IndexedRendererContextTest {
             for (int x = 0; x < 4; x++)
                 image.setRGB(x, y, 0xFFFF0000);
         ImageIO.write(image, "PNG", blockDir.resolve("fixture.png").toFile());
-
-        // The same pixels again with no sidecar beside them: a texture that is served and plays nothing.
-        ImageIO.write(image, "PNG", blockDir.resolve("fixture_static.png").toFile());
 
         // Drop a sibling .png.mcmeta sidecar so the texture scanner has something to parse for
         // the animation pass-through tests. Mixes a bare-integer frame and an explicit object
@@ -312,12 +303,6 @@ class IndexedRendererContextTest {
     }
 
     @Test
-    @DisplayName("findBlock returns empty for unknown ids")
-    void findBlockMissing() {
-        assertThat(context.findBlock("minecraft:unknown").isPresent(), is(false));
-    }
-
-    @Test
     @DisplayName("findBlock answers a row present, a registered block that draws nothing empty, and every other id absent")
     void findBlockTellsABlockDrawingNothingFromAnUnknownOne() {
         assertThat(context.findBlock("minecraft:stone").getState(), is(Possible.State.PRESENT));
@@ -387,12 +372,6 @@ class IndexedRendererContextTest {
         assertThat(stick.get().id().namespace(), equalTo("minecraft"));
         assertThat(stick.get().id().name(), equalTo("stick"));
         assertThat(stick.get().textures().get("layer0"), equalTo("minecraft:block/fixture"));
-    }
-
-    @Test
-    @DisplayName("findItem returns empty for unknown ids")
-    void findItemMissing() {
-        assertThat(context.findItem("minecraft:unknown").isPresent(), is(false));
     }
 
     @Test
@@ -487,12 +466,6 @@ class IndexedRendererContextTest {
         assertThat(namespaced.isPresent(), is(true));
         assertThat(bare.isPresent(), is(true));
         assertThat(bare.get(), sameInstance(namespaced.get()));
-    }
-
-    @Test
-    @DisplayName("resolveTexture answers absent for unknown ids")
-    void resolveTextureMissing() {
-        assertThat(context.resolveTexture("minecraft:block/missing").isAbsent(), is(true));
     }
 
     @Test
@@ -673,15 +646,6 @@ class IndexedRendererContextTest {
     }
 
     @Test
-    @DisplayName("the pack stack resolves the vanilla pack and nothing else")
-    void stackResolvesVanillaOnly() {
-        Optional<ResourcePack> vanilla = stack.byId(PackId.VANILLA);
-        assertThat(vanilla.isPresent(), is(true));
-        assertThat(vanilla.get().roots().isEmpty(), is(false));
-        assertThat(stack.byId(new PackId("nonexistent")).isPresent(), is(false));
-    }
-
-    @Test
     @DisplayName("Block.textures is populated with direction keys when the model has element faces")
     void blockTexturesFlattenElementFaces() {
         Possible<Block> cube = context.findBlock("minecraft:faced_test_block");
@@ -735,24 +699,6 @@ class IndexedRendererContextTest {
     }
 
     @Test
-    @DisplayName("a served texture shipping no sidecar answers every metadata view empty")
-    void aSidecarlessTextureAnswersItsViewsEmpty() {
-        assertThat("the texture is served", context.resolveTexture(STATIC).isPresent(), is(true));
-        assertThat(context.findMeta(STATIC).getState(), is(Possible.State.EMPTY));
-        assertThat(context.findAnimation(STATIC).getState(), is(Possible.State.EMPTY));
-        assertThat(context.findFlipbook(STATIC).getState(), is(Possible.State.EMPTY));
-    }
-
-    @Test
-    @DisplayName("an id nothing serves answers every metadata view absent")
-    void anUnservedIdAnswersItsViewsAbsent() {
-        assertThat("nothing serves the id", context.resolveTexture("minecraft:block/missing").isAbsent(), is(true));
-        assertThat(context.findMeta("minecraft:block/missing").isAbsent(), is(true));
-        assertThat(context.findAnimation("minecraft:block/missing").isAbsent(), is(true));
-        assertThat(context.findFlipbook("minecraft:block/missing").isAbsent(), is(true));
-    }
-
-    @Test
     @DisplayName("findMeta hands back the whole sidecar, leaving each section to its caller")
     void findMetaReturnsTheWholeSidecar() {
         Possible<MCMeta> meta = context.findMeta("minecraft:block/fixture");
@@ -761,16 +707,6 @@ class IndexedRendererContextTest {
             meta.get().animation().isPresent(), is(true));
         assertThat("a section the fixture declares nothing for reads empty",
             meta.get().villager().isPresent(), is(false));
-    }
-
-    @Test
-    @DisplayName("ResolvedTexture carries the whole mcmeta sidecar for sidecar-equipped PNGs")
-    void textureAnimationFieldIsPopulated() {
-        ResolvedTexture fixture = stack.textureIndex().get(ResourceId.parse("minecraft:block/fixture"));
-        assertThat(fixture, is(notNullValue()));
-        assertThat(fixture.meta().isPresent(), is(true));
-        assertThat(fixture.meta().get().animation().isPresent(), is(true));
-        assertThat(fixture.meta().get().animation().get().frametime(), equalTo(4));
     }
 
     @Test

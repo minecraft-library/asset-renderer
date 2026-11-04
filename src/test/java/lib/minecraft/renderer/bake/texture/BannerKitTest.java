@@ -112,19 +112,6 @@ class BannerKitTest {
     }
 
     @Test
-    @DisplayName("Variant.textureFor builds the expected namespaced path")
-    void variantTexturePath() {
-        assertThat(
-            BannerKit.Variant.BANNER_ITEM.textureFor("minecraft:creeper"),
-            is(equalTo("minecraft:entity/banner/creeper"))
-        );
-        assertThat(
-            BannerKit.Variant.SHIELD_ITEM.textureFor("minecraft:flow"),
-            is(equalTo("minecraft:entity/shield/flow"))
-        );
-    }
-
-    @Test
     @DisplayName("textureFor delegates to the shared BannerPattern builder for namespaced and bare asset ids")
     void variantTexturePathMatchesSharedBuilder() {
         // The banner-kit variant path and the BannerPattern mask path splice the atlas sub-path with

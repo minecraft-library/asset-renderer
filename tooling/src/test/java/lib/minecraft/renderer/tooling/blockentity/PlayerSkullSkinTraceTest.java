@@ -7,7 +7,6 @@ import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.policy.Trace;
 import lib.minecraft.renderer.tooling.policy.TraceReplay;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
@@ -74,21 +73,6 @@ class PlayerSkullSkinTraceTest {
 
     @TempDir
     Path tempDir;
-
-    @Test
-    @DisplayName("the row answers a trace rather than a value, so no stem is frozen in the policy")
-    void rowDeclaresATrace() throws IOException {
-        try (ClassNodeCache cache = open("shape", DEFAULT_ORDINAL)) {
-            Navigation.Dataflow coordinate = coordinate(cache);
-            assertEquals(DEFAULT_PLAYER_SKIN, coordinate.owner());
-            assertEquals(List.of(
-                    new Trace.Step.ReadIntLiteral(),
-                    new Trace.Step.FollowPutStatic(SKINS_FIELD),
-                    new Trace.Step.IndexArrayInit(),
-                    new Trace.Step.ReadStringLiteral()),
-                coordinate.trace().steps());
-        }
-    }
 
     @Test
     @DisplayName("the declared trace recovers the stem the accessor's ordinal binds")

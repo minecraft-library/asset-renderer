@@ -161,23 +161,12 @@ class BiomeTintTest {
     }
 
     /**
-     * Pins the biome override above the colormap - the badlands / cherry-grove shape, where a
-     * hardcoded colour replaces the lookup rather than tinting it.
-     */
-    @Test
-    @DisplayName("A biome colour override beats the colormap")
-    void biomeOverrideBeatsTheColormap() {
-        Biome hardcoded = Biome.builder("minecraft:hardcoded").grassColorOverride(0xFF90814D).build();
-        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
-
-        assertThat(Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF90814D)));
-    }
-
-    /**
      * Pins that no {@code color.properties} key reaches a biome tint. The context answers a colour
      * under every spelling a per-biome key could take - the target's prefix with the biome's id bare
      * and namespaced - and each target still answers its colormap, its biome override or its
-     * default.
+     * default. The grass override sits over a registered grass map, so the grass row also pins the
+     * biome override above the colormap - the badlands / cherry-grove shape, where a hardcoded colour
+     * replaces the lookup rather than tinting it.
      */
     @Test
     @DisplayName("A color.properties key never reaches a biome tint")

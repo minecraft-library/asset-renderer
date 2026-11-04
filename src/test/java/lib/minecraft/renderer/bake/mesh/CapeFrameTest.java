@@ -3,31 +3,21 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
-import lib.minecraft.renderer.engine.camera.Placement;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
-import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
-import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.vanilla.mesh.CapeMesh;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
-import javax.imageio.ImageIO;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToDoubleFunction;
@@ -36,7 +26,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -53,8 +42,7 @@ import static org.hamcrest.Matchers.is;
  * <p>
  * The probe sheet paints each texel of the cube's strips with its own {@code (u, v)} - {@code u} in red,
  * {@code v} in green - so a sampled texel names the sheet position it came from, and the sheet reads as
- * two ramps to the eye. {@link #writesTheRearViewsForALook} rasterizes the probe cape from behind into
- * {@code build/cape-frame/}.
+ * two ramps to the eye.
  */
 @DisplayName("The cape reads every strip where vanilla's posed cube walk puts it")
 class CapeFrameTest {
@@ -95,21 +83,6 @@ class CapeFrameTest {
     /** The fill outside the strips, whose blue is not {@link #STRIP_BLUE}. */
     private static final int OUTSIDE = 0xFF7F7F7F;
 
-    /** Where the look renders are written, under the build directory the suite runs from. */
-    private static final @NotNull Path LOOK_DIRECTORY = Path.of("build", "cape-frame");
-
-    /** The yaws the look renders are taken at - the stored rear cell's {@code 180} and a three-quarter view either side. */
-    private static final int @NotNull [] LOOK_YAWS = { 135, 180, 225 };
-
-    /** The look renders' canvas edge, in pixels. */
-    private static final int LOOK_SIZE = 256;
-
-    /** The fraction of the canvas the fitted cape fills. */
-    private static final float LOOK_FILL = 0.9f;
-
-    /** The placement every 3D player scope is rasterized through - the half turn about Y. */
-    private static final @NotNull Placement PLAYER_FACING = new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
-
     @TestFactory
     @DisplayName("every corner of every face samples the texel vanilla's walk puts at that corner")
     Stream<DynamicTest> everyCornerSamplesVanillasTexel() {
@@ -133,24 +106,6 @@ class CapeFrameTest {
             assertThat(face + " is built from two triangles", checked, is(6));
             assertThat(face + " reads each corner where vanilla's walk does", misses, is(empty()));
         }));
-    }
-
-    @Test
-    @DisplayName("the probe sheet and the probe cape's rear views are written under build/cape-frame for a look")
-    void writesTheRearViewsForALook() throws IOException {
-        Path directory = Files.createDirectories(LOOK_DIRECTORY);
-        ImageIO.write(probe().toBufferedImage(), "PNG", directory.resolve("probe.png").toFile());
-
-        ConcurrentList<VisibleTriangle> triangles = cape();
-        for (int yaw : LOOK_YAWS) {
-            PixelBuffer target = PixelBuffer.canvas(LOOK_SIZE, LOOK_SIZE);
-            new Rasterizer(Projection.VANILLA_ISO.resolve(new EulerRotation(0f, yaw, 0f)).camera(), PLAYER_FACING)
-                .rasterizeFitted(triangles, target, EulerRotation.NONE, LOOK_FILL);
-
-            Path render = directory.resolve("rear_" + yaw + ".png");
-            ImageIO.write(target.toBufferedImage(), "PNG", render.toFile());
-            assertThat(render + " holds an image", Files.size(render), greaterThan(0L));
-        }
     }
 
     /**

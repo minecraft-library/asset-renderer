@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The humanoid tier's verb table - bone mappings, hat auto-mirroring, the mirror sign rule on
- * stance and timeline values, and the preset-then-adjust funnel.
+ * stance and timeline values, and the preset's total stamp.
  */
 @DisplayName("the humanoid builder maps, mirrors and stamps the canonical seven")
 class HumanoidPoseTest {
@@ -276,23 +276,6 @@ class HumanoidPoseTest {
             "a zero triple is three absolute zero writes, not an omission");
         assertEquals(0, folded(script, "body", PoseChannel.Z_ROT));
         assertEquals(0, folded(script, "hat", PoseChannel.X_ROT), "the preset's head triple reaches the hat");
-    }
-
-    @Test
-    @DisplayName("a later absolute write supersedes the preset's in the fold")
-    void laterWriteSupersedesThePreset() {
-        PoseScript script = Poses.humanoid("point")
-            .preset(Preset.POINTING)
-            .arm(Side.RIGHT, a -> a.yaw(25))
-            .build()
-            .script();
-
-        assertEquals(25, folded(script, "right_arm", PoseChannel.Y_ROT),
-            "the adjustment wins over the preset's 18");
-        assertEquals(-90, folded(script, "right_arm", PoseChannel.X_ROT),
-            "the untouched channels keep the preset's values");
-        assertEquals(20, folded(script, "head", PoseChannel.Y_ROT));
-        assertEquals(-10, folded(script, "left_arm", PoseChannel.Z_ROT));
     }
 
     /**

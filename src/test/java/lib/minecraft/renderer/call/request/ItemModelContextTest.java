@@ -841,15 +841,6 @@ class ItemModelContextTest {
         }
 
         @Test
-        @DisplayName("keeps the neutral time input at positive zero through the tick view")
-        void keepsTheNeutralTimeInputPositiveZero() {
-            // Not merely == 0f: a -0.0f passes that comparison and still breaks record equality, which
-            // is what the baked fast path and its baked tints are selected by.
-            float neutral = ItemModelContext.gui().atTick(0).rangeValue("minecraft:time");
-            assertThat(Float.floatToRawIntBits(neutral), is(0));
-        }
-
-        @Test
         @DisplayName("reads the float list at index zero when the node names no index")
         void readsIndexZeroByDefault() {
             ItemModelContext carrying = withComponents(customModelData(7f, 9f));
@@ -983,7 +974,9 @@ class ItemModelContextTest {
         @DisplayName("leaves the neutral context neutral at tick zero")
         void leavesNeutralContextNeutral() {
             // The render fast path short-circuits on the neutral context; perturbing it at tick 0 would
-            // send every static item back through a tree walk and off its byte-parity baseline.
+            // send every static item back through a tree walk and off its byte-parity baseline. Record
+            // equality compares the time input as Float.compare does, so a -0.0f time fails it where
+            // == 0f would not.
             assertThat(ItemModelContext.gui().atTick(0).isNeutral(), is(true));
             assertThat(ItemModelContext.gui().atTick(0), is(ItemModelContext.gui()));
         }

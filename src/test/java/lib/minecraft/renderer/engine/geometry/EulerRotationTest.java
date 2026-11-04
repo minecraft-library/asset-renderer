@@ -3,24 +3,31 @@ package lib.minecraft.renderer.engine.geometry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.stream.IntStream;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
- * {@link EulerRotation}'s data-only contract: the {@link EulerRotation#NONE} identity constant, that
- * {@code pitch}/{@code yaw}/{@code roll} are exposed verbatim in degrees, and that the per-axis radian
- * accessors ({@link EulerRotation#pitchRadians()}, {@link EulerRotation#yawRadians()},
- * {@link EulerRotation#rollRadians()}) apply the degrees-to-radians conversion. The record composes no
- * rotation of its own, so those accessors are the whole of its arithmetic.
+ * {@link EulerRotation}'s arithmetic: the per-axis radian accessors ({@link EulerRotation#pitchRadians()},
+ * {@link EulerRotation#yawRadians()}, {@link EulerRotation#rollRadians()}) apply the degrees-to-radians
+ * conversion, and that conversion parts from vanilla's float multiply on exactly 66 of the 721 integer
+ * degrees in {@code [-360, 360]}. The record composes no rotation of its own, so those accessors are the
+ * whole of its arithmetic.
+ * <p>
+ * The 66 is what lets {@link EulerRotationVanillaAnglesTest}'s scan of the client's authored angles fail
+ * at all; it reads no pack, so it is held here, where no client jar is needed.
  */
 @DisplayName("EulerRotation degrees and radian conversion")
 class EulerRotationTest {
 
-    @Test
-    @DisplayName("NONE is the zero rotation")
-    void none() {
-        assertThat(EulerRotation.NONE, equalTo(new EulerRotation(0f, 0f, 0f)));
-    }
+    /** The factor vanilla multiplies a degree by, in float, to reach its radian. */
+    private static final float VANILLA_DEGREES_TO_RADIANS = 0.017453292f;
+
+    /** The rule this measurement backs, so a failure names the decision to re-measure. */
+    private static final String RULE = "docs/renderer/Geometry.md, \"Do not switch "
+        + "EulerRotation's degrees-to-radians conversion to vanilla's float multiply\"";
 
     @Test
     @DisplayName("per-axis radian accessors convert from degrees")
@@ -32,12 +39,15 @@ class EulerRotationTest {
     }
 
     @Test
-    @DisplayName("components are exposed verbatim in degrees")
-    void components() {
-        EulerRotation r = new EulerRotation(12.5f, -45f, 7f);
-        assertThat(r.pitch(), equalTo(12.5f));
-        assertThat(r.yaw(), equalTo(-45f));
-        assertThat(r.roll(), equalTo(7f));
+    @DisplayName("the two routes part on 66 of the 721 integer degrees in [-360, 360]")
+    void theRoutesPartOnSixtySixIntegerDegrees() {
+        long parted = IntStream.rangeClosed(-360, 360)
+            .filter(degrees -> Float.compare(new EulerRotation(degrees, 0f, 0f).pitchRadians(),
+                degrees * VANILLA_DEGREES_TO_RADIANS) != 0)
+            .count();
+
+        assertThat("integer degrees in [-360, 360] where EulerRotation's radian is not vanilla's - the figure "
+            + RULE + " states, and what lets the authored-angle check fail at all", parted, is(66L));
     }
 
 }

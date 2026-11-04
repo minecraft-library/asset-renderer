@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -138,6 +139,9 @@ class TierOrderTest {
     /** A {@code @Parity} annotation, whose class literals are read by nothing after compilation. */
     private static final Pattern PARITY_ANNOTATION = Pattern.compile("@Parity\\((?:[^()]|\\([^()]*\\))*\\)");
 
+    /** One word, a maximal run of the characters a {@code \b} boundary sits between. */
+    private static final Pattern WORD = Pattern.compile("\\w+");
+
     /** One source file: where it is, its package and its text. */
     private record Source(Path path, String pkg, String text) {}
 
@@ -165,6 +169,7 @@ class TierOrderTest {
             if (from.isEmpty() || HARNESS.contains(from.get()) || from.get().equals(PARITY)) continue;
             String code = PARITY_ANNOTATION.matcher(IMPORT.matcher(NOISE.matcher(source.text()).replaceAll(" "))
                 .replaceAll(" ")).replaceAll(" ");
+            Set<String> used = null;
             Matcher imports = IMPORT.matcher(source.text());
             while (imports.find()) {
                 String imported = imports.group(1);
@@ -173,7 +178,8 @@ class TierOrderTest {
                 if (HARNESS.contains(to.get()) || to.get().equals(PARITY)) continue;
                 if (isTooling(to.get()) && !isTooling(from.get())) continue;
                 String simple = imported.substring(imported.lastIndexOf('.') + 1);
-                if (!Pattern.compile("\\b" + Pattern.quote(simple) + "\\b").matcher(code).find()) continue;
+                if (used == null) used = wordsIn(code);
+                if (!used.contains(simple)) continue;
                 if (breaksTheOrder(from.get(), to.get()))
                     violations.computeIfAbsent(from.get() + " -> " + to.get(), key -> new TreeSet<>())
                         .add(source.path().toString().replace('\\', '/'));
@@ -189,6 +195,23 @@ class TierOrderTest {
         assertThat("imports that run uphill or sideways and are on no ledger. Fix the edge - move the member, or "
             + "file the type where the order puts it - rather than recording it", unrecorded, is(empty()));
         assertThat("ledger entries the tree no longer carries. The debt is paid, so the entry goes", paid, is(empty()));
+    }
+
+    /**
+     * Collects every word one stripped source uses.
+     *
+     * <p>A name bounded by {@code \b} on both sides is exactly one of these words, so asking the set
+     * whether it holds an imported name answers what a search of the text for that name would, with
+     * one pass over the text however many imports ask.
+     *
+     * @param code the source with its comments, literals, imports and {@code @Parity} annotations blanked
+     * @return the words, each once
+     */
+    private static Set<String> wordsIn(String code) {
+        Set<String> words = new HashSet<>();
+        Matcher word = WORD.matcher(code);
+        while (word.find()) words.add(word.group());
+        return words;
     }
 
     /**

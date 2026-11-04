@@ -52,7 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * refuses subjects - listing ids its lookups answer absent, in the middle and at the head of either pass,
  * or failing a texture read - is held to the sheet a context without those subjects lays down, pixel for
  * pixel and row for row, on every background, a checkerboard whose period no tile size lines up with
- * among them.
+ * among them. Each listed id a lookup answers absent is a skipped row naming the pass that listed it and
+ * that disagreement as its reason.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class where nothing
  * has extracted the client yet.
@@ -109,6 +110,12 @@ class AtlasRendererLayoutTest {
                 String label = "%d columns of %d px over %s".formatted(shape[0], shape[1], background);
 
                 assertThat(label + " refuses both absent ids", skippedIds(refusing), is(List.of(ABSENT_BLOCK, ABSENT_ITEM)));
+                assertThat(label + " refuses each in the pass that listed it",
+                    refusing.sidecar().skipped().stream().map(AtlasResult.Skipped::kind).toList(),
+                    is(List.of(AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Kind.ITEM)));
+                for (AtlasResult.Skipped row : refusing.sidecar().skipped())
+                    assertThat(label + " gives " + row.id() + " the lookup's disagreement with the list as its reason", row.reason(),
+                        containsString("'" + row.id() + "' is among the context's known ids"));
                 assertSameSheet(label, refusing, new AtlasRenderer(vanilla).render(options));
                 assertDense(label, refusing, options);
             }

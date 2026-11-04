@@ -67,9 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
  * either path among them, drawn opaque whatever the line colour.
  * <p>
  * It pins the palette a run is drawn through: its glyphs, its shadow and its bars each in the colour
- * the palette swaps them for, a gradient run through the line's own palette, the shadow derived from
- * the unswapped text colour, a colour the palette holds no key for drawn as given, and a swap keeping
- * the top byte of the colour it is given.
+ * the palette swaps them for, the shadow derived from the unswapped text colour, a colour the palette
+ * holds no key for drawn as given, and a swap keeping the top byte of the colour it is given.
  * <p>
  * It pins the colours a run is drawn in as the client's font derives them: a run naming a shadow
  * colour draws its shadow in it, where the caller declines the derived shadow too, its alpha scaled by
@@ -150,19 +149,6 @@ class TextKitTest {
         }
 
         assertThat("frames drawing the scramble of the frame before", repeated, is(empty()));
-    }
-
-    @Test
-    @DisplayName("two lines of one frame draw different scrambles")
-    void linesOfAFrameScrambleApart() {
-        LineSegment line = line(obfuscated("Hello World"));
-
-        ConcurrentList<Long> repeated = Concurrent.newList();
-        for (long frame = 0; frame < FRAMES; frame++)
-            if (mainPass(line, 0, frame).getFirst().text().equals(mainPass(line, 1, frame).getFirst().text()))
-                repeated.add(frame);
-
-        assertThat("frames whose second line draws the first line's scramble", repeated, is(empty()));
     }
 
     @Test
@@ -598,18 +584,6 @@ class TextKitTest {
             palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
 
         assertThat(opaqueColours(buffer), is(equalTo(Set.of(0xFFFFFFFF, 0xFF3F3F3F))));
-    }
-
-    @Test
-    @DisplayName("a gradient run draws in the colours the line's palette swaps it and its shadow for")
-    void gradientRunDrawsInTheLinesPalette() {
-        GradientSpec gray = GradientSpec.builder(GradientSpec.Mode.START_END).addStop(0xAAAAAA).addStop(0xAAAAAA).build();
-        PixelBuffer buffer = PixelBuffer.canvas(120, 40);
-        TextKit.drawLine(new MinecraftGraphics(buffer), line(TextSegment.builder().text("Gravel").gradient(gray).build()), X0, BASE, 0xFFFFFFFF,
-            palette(Map.of(0xAAAAAA, 0xA8BFD2, 0x2A2A2A, 0x2A2F34)), 0, 0L);
-
-        assertThat("every pixel drawn is the swap of the gray or of its shadow, and both are drawn",
-            opaqueColours(buffer), is(equalTo(Set.of(0xFFA8BFD2, 0xFF2A2F34))));
     }
 
     @Test

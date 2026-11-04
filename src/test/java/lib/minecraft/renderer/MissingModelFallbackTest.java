@@ -47,20 +47,24 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Coverage of the five render entry points an id neither index carries falls back at, and of the
- * presentation each one answers with - and of the same pictures where an item definition's walk draws
- * them for an id both indexes carry.
+ * Coverage of the missing-model fallback over the real indexes: how an id neither index carries is
+ * posed under the caller's rotation, and the missing pictures an item definition's walk draws for an
+ * id both indexes carry.
  * <p>
- * The sharpest pin here is a colour count. A flat square carries the checkerboard's own two colours; a
- * cube seen at the isometric pose shows three faces at three shades and carries four. That is what
- * separates a slot's picture from a posed one, and a {@code GUI_ICON} answering four has been routed
- * through the isometric projection.
+ * An id neither index carries is posed where a resolving subject would have been. The isometric cube
+ * turns with the caller's rotation; the held cube and the single face do not, since the held camera
+ * hard-codes the identity rotation and a face reads none. Each names the id as the subject it stands
+ * in for. What each entry point draws for such an id is pinned to the colour in
+ * {@link MissingSubjectTest}.
+ * <p>
+ * Each walk picture is pinned by its colours: a slot's flat square carries the checkerboard's black
+ * and its magenta lit as a slot lights it, and the held cube, seen square-on, carries the black and
+ * its side face's shaded magenta.
  * <p>
  * The walk's own stand-ins are what vanilla draws. A leaf naming a model no pack ships draws the
  * missing model - the square in a slot, the cube held - printed once per model id and named in every
@@ -106,73 +110,6 @@ class MissingModelFallbackTest {
 
         assertThat("the probe id must be absent from both indexes",
             context.findItem(UNKNOWN).isPresent() || context.findBlock(UNKNOWN).isPresent(), is(false));
-    }
-
-    @Test
-    @DisplayName("an unknown block renders the posed cube, four opaque colours")
-    void isometricRendersThePosedCube() {
-        RenderResult cube = blockRenderer.render(block(UNKNOWN, EulerRotation.NONE));
-        Set<Integer> colours = distinctOpaque(cube);
-
-        assertThat("three shaded faces plus the unshadeable black", colours.size(), is(4));
-        assertThat(colours, hasItems(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
-        assertThat("the cube stands in for the id", cube.substitutions(), contains(Substitution.subject(UNKNOWN)));
-    }
-
-    @Test
-    @DisplayName("an unknown block's single face renders the flat square")
-    void blockFaceRendersTheFlatSquare() {
-        BlockOptions options = BlockOptions.builder()
-            .blockId(UNKNOWN)
-            .type(BlockOptions.Type.BLOCK_FACE_2D)
-            .output(OutputOptions.builder().canvasSize(SIZE).build())
-            .build();
-        RenderResult square = blockRenderer.render(options);
-
-        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-        assertThat("the square stands in for the id", square.substitutions(), contains(Substitution.subject(UNKNOWN)));
-    }
-
-    @Test
-    @DisplayName("an unknown item's flat icon renders the flat square")
-    void gui2DRendersTheFlatSquare() {
-        RenderResult square = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_2D, EulerRotation.NONE));
-
-        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
-        assertThat("the square stands in for the id", square.substitutions(), contains(Substitution.subject(UNKNOWN)));
-    }
-
-    @Test
-    @DisplayName("an unknown item held renders the cube square-on, carrying the sprite's two colours")
-    void held3DRendersTheCube() {
-        // The held camera is an identity pose - the held view's rotation lives in the model's display
-        // transform, and a missing model has no display slot, so the transform is the identity one an
-        // absent slot already resolves to. Exactly one face of the cube is therefore seen square-on,
-        // and it is a side face carrying the cube's own side shade. Magenta's green is zero and the
-        // shade scales red and blue alike, so the expected value is derived rather than observed.
-        // Four colours here would mean the guard built a pose the resolving path does not build.
-        int shaded = Math.round(SIDE_SHADE * (MissingSprite.MAGENTA_ARGB >>> 16 & 0xFF));
-        int shadedMagenta = 0xFF000000 | shaded << 16 | shaded;
-
-        RenderResult cube = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, EulerRotation.NONE));
-
-        assertThat(distinctOpaque(cube), is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta)));
-        assertThat("the cube stands in for the id", cube.substitutions(), contains(Substitution.subject(UNKNOWN)));
-    }
-
-    @Test
-    @DisplayName("an unknown item's inventory icon renders the flat square, not the hexagon")
-    void guiIconRendersTheFlatSquare() {
-        RenderResult slot = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_ICON, EulerRotation.NONE));
-        RenderResult posed = blockRenderer.render(block(UNKNOWN, EulerRotation.NONE));
-        Set<Integer> icon = distinctOpaque(slot);
-        Set<Integer> isometric = distinctOpaque(posed);
-
-        assertThat("the slot shows one face square-on", icon.size(), is(2));
-        assertThat("the posed cube shows three", isometric.size(), is(4));
-        assertThat(icon, is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
-        assertThat("the square stands in for the id", slot.substitutions(), contains(Substitution.subject(UNKNOWN)));
-        assertThat("and so does the cube", posed.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test

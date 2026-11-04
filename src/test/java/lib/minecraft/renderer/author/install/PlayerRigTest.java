@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The synthesized player row - its copied mesh, its bind-only rest, its declared Steve ref, and
@@ -56,7 +55,6 @@ class PlayerRigTest {
     @BeforeAll
     static void load() {
         shipped = EntityModelLoader.load();
-        assumeTrue(!shipped.isEmpty(), "entity_models.json not present - run entityModels first");
     }
 
     @Test

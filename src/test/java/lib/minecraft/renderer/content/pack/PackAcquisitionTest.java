@@ -21,10 +21,12 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
@@ -79,6 +81,10 @@ class PackAcquisitionTest {
         assertThat("only the format-matching, on-disk overlay activates",
             mypack.roots(), contains(PackRoot.BASE, PackRoot.overlay("ov_hi")));
         assertThat(mypack.namespaces(), containsInAnyOrder("minecraft", "testns"));
+        // namespaces() returns a sorted set (not a salted Set.copyOf), so primaryNamespace()'s findFirst
+        // and the paletted-permutation iteration resolve the same winner on every JVM run.
+        assertThat(mypack.namespaces(), is(instanceOf(SortedSet.class)));
+        assertThat(new ArrayList<>(mypack.namespaces()), is(mypack.namespaces().stream().sorted().toList()));
         assertThat(mypack.capabilities(), containsInAnyOrder(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
 
         // directory source is served in place (virtual - no extraction, no cache copy)

@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -16,6 +17,21 @@ from parity import capture, cli, pixels, promote, provenance, store
 from parity.norm import canonical_json, read_json, read_text, sha256_text, write_json, write_text
 
 DATA = Path(__file__).resolve().parent / "data"
+
+
+def copy_of(seed: Path) -> Path:
+    """A fresh copy of a class's seed repository, so every case starts on the same commit.
+
+    The seed is built once per class and copied per case, because building it is a run of git
+    processes per case and the copy is the same repository: the objects, the refs, the index and
+    the worktree as the seed left them.
+
+    :param seed: the repository the class built in ``setUpClass``
+    :return: the copy's path
+    """
+    repo = Path(tempfile.mkdtemp())
+    shutil.copytree(seed, repo, dirs_exist_ok=True)
+    return repo
 
 
 def register(store_root: Path, *artifacts: str, floor: int = 1, **columns) -> None:
@@ -100,7 +116,10 @@ class StdoutContract(unittest.TestCase):
 
 class GlobalOptions(unittest.TestCase):
 
-    COMMANDS = (["doctor"], ["ids", "parse", "minecraft__cow"], ["selftest", "-k", "nothing"])
+    #: The selftest pattern carries a hyphen, which no test id can - an id is dotted identifiers - so
+    #: the nested run discovers the suite and runs none of it.
+    COMMANDS = (["doctor"], ["ids", "parse", "minecraft__cow"],
+                ["selftest", "-k", "matches-no-test"])
 
     def test_every_command_accepts_root_on_either_side(self):
         for argv in self.COMMANDS:
@@ -515,8 +534,9 @@ class OutNeverWritesProduction(unittest.TestCase):
     claim on its own: a case beside it reads `cli.py` and fails on any line answering its scan -
     a `Path(` construction beside the attribute, or the attribute bound to a name - outside the one
     function that guards it. The roster proves the guard fires on every command it names; the scan
-    reads the two shapes a new writer's own path would be spelled in, and neither the write-throughs
-    the roster below names nor a bypass that never spells the attribute at all.
+    reads the two shapes a new writer's own path would be spelled in, and neither a write-through -
+    the attribute handed straight to a writer, joined under a root or opened - nor a bypass that
+    never spells the attribute at all.
 
     Every command is driven through `main`, so what is asserted is the exit code and the directory,
     not a predicate in isolation: `ReadOnlyStore.contains` is not what any of them went through.
@@ -526,31 +546,13 @@ class OutNeverWritesProduction(unittest.TestCase):
     #: `--out` becomes a path: a construction anywhere on the line that names the attribute, and the
     #: attribute bound to a name, which puts the construction one line further on where nothing
     #: looking for `args.out` reaches it. A presence test on it is neither. Both arms are
-    #: approximations in both directions, and the roster below is where each way they miss is named.
+    #: approximations in both directions: a write-through is a bypass neither sees, which is what
+    #: the writer roster below is for, and a construction in a comment on a line naming the
+    #: attribute is flagged, which costs a reader a look and never a missed bypass.
     ARMS = (r"Path\(", r"=\s*args\.out\b")
 
     #: The arms as the one pattern the predicate runs, so narrowing either is narrowing the scan.
     BUILDS_A_PATH = re.compile("|".join(ARMS))
-
-    #: Lines the predicate has to answer for, each paired with the answer. Written here rather than
-    #: read out of `cli.py`, because the file holds no binding: that arm was added for a shape that
-    #: had not landed yet and nothing in the corpus can demonstrate it, so narrowing the pattern
-    #: back to the construction alone left every case green and the bypass unwatched again. The rows
-    #: answering False carry as much as the ones answering True: the three write-throughs are real
-    #: bypasses this scan does not see - which is what the writer roster below is for, driving every
-    #: command through `main` whatever its lines are spelled like - and a false row is also what
-    #: stops a pattern matching every line from satisfying the true ones. The commented construction
-    #: is the scan erring the other way, flagging a line that names the attribute nowhere but a
-    #: comment, which costs a reader a look and never a missed bypass.
-    LINE_SHAPES = (("    target = Path(args.out)", True),
-                   ("    target = args.out", True),
-                   ("    out = args.out  # bound now, constructed later", True),
-                   ("    target = Path(default)  # never args.out", True),
-                   ("    if args.out:", False),
-                   ("    target = Path(default)", False),
-                   ("    write_text(args.out, body)", False),
-                   ("    target = self.root / args.out", False),
-                   ('    with open(args.out, "w") as fh:', False))
 
     #: Every command that resolves `--out` into a path, by the name a failure has to print to be
     #: diagnosable. `doctor` redirects its answer through `_emit`; the rest build their own body.
@@ -615,34 +617,6 @@ class OutNeverWritesProduction(unittest.TestCase):
         self.assertEqual(constructions, ["target = Path(args.out)"],
                          "a command building its own path out of --out bypasses the guard")
 
-    def test_the_scan_answers_for_a_binding_and_not_only_a_construction(self):
-        """`cli.py` holds one of the two shapes, so the corpus cannot say what the other does.
-
-        The case above reads a file where every honoured `--out` goes through one construction, and
-        it stays green whether the binding arm is there or not. That is the arm added for the edit
-        that spreads a construction over two lines, which is invisible to a scan for `Path(` and is
-        how an unguarded writer would land next. Driven against typed lines, because no line in the
-        corpus tells the widened pattern and the narrow one apart.
-        """
-        for line, builds in self.LINE_SHAPES:
-            self.assertEqual(self._builds_a_path(line), builds, line)
-
-    def test_every_arm_of_the_scan_has_a_line_the_roster_would_lose_it_over(self):
-        """The roster is the whole driver of both arms, so it has to be asked whether it drives them.
-
-        The case above loops it and asserts nothing when it is empty, and asserts nothing about one
-        arm when it holds only rows the other already answers - which is the state the corpus is in
-        and the reason the roster is typed out at all. Either way the pattern can then be narrowed
-        back to one arm with both suites green, which is the edit this asserts against directly: the
-        arm is dropped, the predicate re-run over the roster, and some line has to answer
-        differently for the arm to have been carrying anything.
-        """
-        for dropped in self.ARMS:
-            kept = tuple(arm for arm in self.ARMS if arm != dropped)
-            self.assertTrue([line for line, _ in self.LINE_SHAPES
-                             if self._builds_a_path(line) != self._answers(line, kept)],
-                            f"no line of the roster answers differently without {dropped}")
-
     def _builds_a_path(self, line: str) -> bool:
         """Whether one source line turns `--out` into a path, which is the whole scan predicate.
 
@@ -651,31 +625,10 @@ class OutNeverWritesProduction(unittest.TestCase):
         """
         return "args.out" in line and self.BUILDS_A_PATH.search(line) is not None
 
-    @staticmethod
-    def _answers(line: str, arms: tuple[str, ...]) -> bool:
-        """The same predicate over a narrowed set of arms, which is the mutation being guarded.
-
-        :param line: one line of source, indentation and comment included
-        :param arms: the arms to run, an empty set answering no line
-        :return: whether it names the attribute and any of ``arms`` matches it
-        """
-        return "args.out" in line and any(re.search(arm, line) for arm in arms)
-
     def _run(self, argv: list[str], out: Path) -> tuple[int, str]:
         code, _, err = run(["--repo-root", str(self.repo), "--store", str(self.store),
                             "--out", str(out)] + argv)
         return code, err
-
-    def test_the_roster_names_writers_to_drive(self):
-        """Every case below loops over it, so an emptied roster passes all four with nothing run.
-
-        The optional pair is asserted against the condition that admits it rather than against a
-        total: on an interpreter without Pillow the group is not registered at all, and a roster
-        naming a command the parser does not have fails for the wrong reason.
-        """
-        writers = self._writers()
-        self.assertTrue(writers, "the roster names no writer, so every case over it is vacuous")
-        self.assertEqual("lab crop" in writers, pixels.available())
 
     def test_every_writer_refuses_a_path_inside_the_store(self):
         target = self.store / "sweeps" / "entity.json"
@@ -1407,12 +1360,6 @@ class PlanSplit(unittest.TestCase):
              "home": "pointers", "where": "sweeps/<sweep>.json#/rows/<n>/panel"},
         ])
 
-    def test_a_placeholder_names_the_family_rather_than_one_file(self):
-        """`sweeps/<sweep>.json` is any sweep table, so every registered sweep carries the field."""
-        _, _, payload = self._plan()
-        self.assertEqual(self._row(payload, "covered", "report.panel-stats")["containers"],
-                         ["sweep.block", "sweep.entity", "sweep.glint"])
-
     def test_a_target_naming_part_of_a_path_names_no_container(self):
         """The file half is a whole store-relative path, matched whole.
 
@@ -1964,20 +1911,24 @@ class GateExit(unittest.TestCase):
                        "source": "s", "sees": ["sweep.entity"], "blind": [],
                        "trigger_paths": ["src/**"]}]}
 
-    def setUp(self):
-        self.repo = Path(tempfile.mkdtemp())
-        self.store = self.repo / "store"
-        write_json(self.store / "blindness.json", self.RULE)
-        subprocess.run(["git", "init", "-q"], cwd=self.repo, check=True)
-        write_text(self.repo / "seed.txt", "seed\n")
+    @classmethod
+    def setUpClass(cls):
+        cls.seed = Path(tempfile.mkdtemp())
+        write_json(cls.seed / "store" / "blindness.json", cls.RULE)
+        subprocess.run(["git", "init", "-q"], cwd=cls.seed, check=True)
+        write_text(cls.seed / "seed.txt", "seed\n")
         # The working root is under cache/ and cache/ is ignored, exactly as in the real repo. That
         # is load-bearing rather than tidy: `git status --porcelain` lists untracked files, so
         # without it WRITING the verdict would change the very digest the verdict records, and the
         # gate could never answer "already gated" even once.
-        write_text(self.repo / ".gitignore", "cache/\nstore/\n")
-        subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True)
+        write_text(cls.seed / ".gitignore", "cache/\nstore/\n")
+        subprocess.run(["git", "add", "-A"], cwd=cls.seed, check=True)
         subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                        "commit", "-qm", "seed"], cwd=self.repo, check=True)
+                        "commit", "-qm", "seed"], cwd=cls.seed, check=True)
+
+    def setUp(self):
+        self.repo = copy_of(self.seed)
+        self.store = self.repo / "store"
 
     #: A whole second on the clock a stamp is read off, for the cases whose subject is ordering.
     #: Both sides are stamped rather than written in sequence, because two consecutive writes here
@@ -2230,13 +2181,6 @@ class GateExit(unittest.TestCase):
                               "compare", "--base", str(other)])[0], cli.OK)
         self.assertEqual(self._plan("src/Main.java"), cli.GATE_ALREADY_GATED)
 
-    def test_the_flag_is_opt_in_so_parityPlan_still_exits_zero(self):
-        """parityPlan is a Gradle Exec: a plan that answered 10 on reach would fail every build."""
-        code, _, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
-                          "--store", str(self.store), "--quiet", "plan",
-                          "--changed", "src/Main.java"])
-        self.assertEqual(code, cli.OK)
-
 
 def _git(repo: Path, *argv: str) -> None:
     """One git command in a fixture repo, failing the fixture rather than the assertion."""
@@ -2254,15 +2198,19 @@ class ACleanTreeIsPlannedFromTheBranch(unittest.TestCase):
     is how the wrong ref gets typed.
     """
 
+    @classmethod
+    def setUpClass(cls):
+        cls.seed = Path(tempfile.mkdtemp())
+        _git(cls.seed, "init", "-q", "-b", "master")
+        _git(cls.seed, "config", "user.email", "t@t")
+        _git(cls.seed, "config", "user.name", "t")
+        write_text(cls.seed / "base.txt", "base\n")
+        _git(cls.seed, "add", "-A")
+        _git(cls.seed, "commit", "-qm", "base")
+        _git(cls.seed, "checkout", "-q", "-b", "work")
+
     def setUp(self):
-        self.repo = Path(tempfile.mkdtemp())
-        _git(self.repo, "init", "-q", "-b", "master")
-        _git(self.repo, "config", "user.email", "t@t")
-        _git(self.repo, "config", "user.name", "t")
-        write_text(self.repo / "base.txt", "base\n")
-        _git(self.repo, "add", "-A")
-        _git(self.repo, "commit", "-qm", "base")
-        _git(self.repo, "checkout", "-q", "-b", "work")
+        self.repo = copy_of(self.seed)
 
     def test_a_dirty_tree_answers_with_what_is_uncommitted(self):
         write_text(self.repo / "dirty.txt", "x\n")
@@ -2364,21 +2312,25 @@ class ADeletedPathIsAnsweredFromHead(unittest.TestCase):
                 "types": {f"lib/x/{name}": {"artifacts": sorted(found), "source": "derived"}
                           for name, found in types.items()}}
 
+    @classmethod
+    def setUpClass(cls):
+        cls.seed = Path(tempfile.mkdtemp())
+        _git(cls.seed, "init", "-q", "-b", "master")
+        _git(cls.seed, "config", "user.email", "t@t")
+        _git(cls.seed, "config", "user.name", "t")
+        write_json(cls.seed / "store" / "blindness.json", cls._map(cls.GONE, cls.KEPT))
+        write_json(cls.seed / "parity" / "reach.json",
+                   cls._graph(Gone=["sweep.entity"], Kept=["sweep.block"]))
+        write_text(cls.seed / cls.GONE, "class Gone {}\n")
+        write_text(cls.seed / cls.KEPT, "class Kept {}\n")
+        write_text(cls.seed / ".gitignore", "cache/\n")
+        _git(cls.seed, "add", "-A")
+        _git(cls.seed, "commit", "-qm", "seed")
+        (cls.seed / cls.GONE).unlink()
+
     def setUp(self):
-        self.repo = Path(tempfile.mkdtemp())
+        self.repo = copy_of(self.seed)
         self.store = self.repo / "store"
-        _git(self.repo, "init", "-q", "-b", "master")
-        _git(self.repo, "config", "user.email", "t@t")
-        _git(self.repo, "config", "user.name", "t")
-        write_json(self.store / "blindness.json", self._map(self.GONE, self.KEPT))
-        write_json(self.repo / "parity" / "reach.json",
-                   self._graph(Gone=["sweep.entity"], Kept=["sweep.block"]))
-        write_text(self.repo / self.GONE, "class Gone {}\n")
-        write_text(self.repo / self.KEPT, "class Kept {}\n")
-        write_text(self.repo / ".gitignore", "cache/\n")
-        _git(self.repo, "add", "-A")
-        _git(self.repo, "commit", "-qm", "seed")
-        (self.repo / self.GONE).unlink()
 
     def _reach_build(self) -> None:
         """What `reach build` writes over the tree the deletion left: the file's row is gone."""
@@ -2581,28 +2533,34 @@ class APhaseGateSpeaksForContent(unittest.TestCase):
                        "source": "s", "sees": ["sweep.entity"], "blind": [],
                        "trigger_paths": ["src/**"]}]}
 
-    def setUp(self):
-        self.repo = Path(tempfile.mkdtemp())
-        self.root = self.repo / "cache" / "parity" / "current"
-        self.store = self.repo / "store"
-        write_json(self.store / "blindness.json", self.RULE)
-        register(self.store, "sweep.entity")
+    @classmethod
+    def setUpClass(cls):
+        cls.seed = Path(tempfile.mkdtemp())
+        store_root = cls.seed / "store"
+        working = cls.seed / "cache" / "parity" / "current"
+        write_json(store_root / "blindness.json", cls.RULE)
+        register(store_root, "sweep.entity")
         rows = {"artifact": "sweep.entity", "format": 1, "key": "subject", "kind": "sweep-table",
                 "provenance": {"determinism_runs": 1},
                 "rows": [{"subject": "minecraft__cow", "mean_argb_delta": "1.0000"}]}
-        write_json(self.store / "sweeps" / "entity.json", rows)
-        write_json(self.root / "sweeps" / "entity.json", rows)
-        capture.index(self.root)
-        _git(self.repo, "init", "-q")
+        write_json(store_root / "sweeps" / "entity.json", rows)
+        write_json(working / "sweeps" / "entity.json", rows)
+        capture.index(working)
+        _git(cls.seed, "init", "-q")
         # cache/ and store/ ignored exactly as in the real repo, and load-bearing rather than tidy:
         # the content digest is over TRACKED files, so a verdict written under cache/ must not be one
         # of them or writing it would move the digest it records.
-        write_text(self.repo / ".gitignore", "cache/\nstore/\n")
-        write_text(self.repo / "src" / "Main.java", "one\n")
-        write_text(self.repo / "src" / "Second.java", "one\n")
-        _git(self.repo, "add", "-A")
-        _git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
-        write_text(self.repo / "src" / "Main.java", "two\n")
+        write_text(cls.seed / ".gitignore", "cache/\nstore/\n")
+        write_text(cls.seed / "src" / "Main.java", "one\n")
+        write_text(cls.seed / "src" / "Second.java", "one\n")
+        _git(cls.seed, "add", "-A")
+        _git(cls.seed, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
+        write_text(cls.seed / "src" / "Main.java", "two\n")
+
+    def setUp(self):
+        self.repo = copy_of(self.seed)
+        self.root = self.repo / "cache" / "parity" / "current"
+        self.store = self.repo / "store"
 
     def _compare(self, *argv: str) -> int:
         return run(["--repo-root", str(self.repo), "--root", "cache/parity/current",

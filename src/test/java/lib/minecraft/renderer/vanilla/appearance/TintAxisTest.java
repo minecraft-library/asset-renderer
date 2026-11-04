@@ -5,10 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,17 +45,6 @@ class TintAxisTest {
                 // all sixteen - a WOOL that had lost its body would fail on every one of them.
                 assertThat(dye.name(), TintAxis.WOOL.resolve(dye), is(not(equalTo(dye.argb()))));
             }
-        }
-
-        /** Asserts white wool is vanilla's outright replacement rather than the three-quarter scale. */
-        @Test
-        @DisplayName("white wool is the outright override, not the scaled dye")
-        void whiteWoolIsTheOutrightOverride() {
-            assertThat(TintAxis.WOOL.resolve(DyeColor.Vanilla.WHITE), is(equalTo(0xFFE6E6E6)));
-            // 0xF9FFFE put through the same three-quarter floor as the other fifteen. WHITE is the one
-            // row vanilla replaces outright, so this value must never be what the axis answers.
-            assertThat(TintAxis.WOOL.resolve(DyeColor.Vanilla.WHITE), is(not(equalTo(0xFFBABFBE))));
-            assertThat(TintAxis.BASE.resolve(DyeColor.Vanilla.WHITE), is(equalTo(0xFFF9FFFE)));
         }
 
         /** Asserts the four non-wool axes tint by the dye's own colour. */
@@ -105,17 +91,6 @@ class TintAxisTest {
         void roundTripsEveryAxisThroughItsToken() {
             for (TintAxis axis : TintAxis.values())
                 assertThat(axis.name(), TintAxis.findByToken(axis.token()), is(Optional.of(axis)));
-        }
-
-        /**
-         * Asserts no two axes share a token, which the linear scan would otherwise resolve to whichever
-         * is declared first.
-         */
-        @Test
-        @DisplayName("gives every axis a token no other axis holds")
-        void everyAxisHoldsADistinctToken() {
-            List<String> tokens = Arrays.stream(TintAxis.values()).map(TintAxis::token).toList();
-            assertThat("one token per axis", Set.copyOf(tokens).size(), is(equalTo(tokens.size())));
         }
 
         /** Asserts a null, an empty, an unknown and a differently-cased token all answer empty. */

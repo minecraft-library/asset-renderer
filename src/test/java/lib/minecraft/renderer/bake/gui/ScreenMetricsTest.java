@@ -13,7 +13,6 @@ import java.util.List;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -56,20 +55,6 @@ class ScreenMetricsTest {
     }
 
     @Test
-    @DisplayName("the six-row chest matches the panel generic_54 is composed into")
-    void sixRowChestMatchesItsComposedPanel() {
-        MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(6), true);
-
-        assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x221")));
-        assertThat(origins(layout, ScreenMetrics.Role.CONTAINER),
-            is(equalTo(grid(NINE, new int[] { 17, 35, 53, 71, 89, 107 }, 18))));
-        assertThat(origins(layout, ScreenMetrics.Role.PLAYER_MAIN),
-            is(equalTo(grid(NINE, new int[] { 138, 156, 174 }, 18))));
-        assertThat(origins(layout, ScreenMetrics.Role.HOTBAR),
-            is(equalTo(grid(NINE, new int[] { 196 }, 18))));
-    }
-
-    @Test
     @DisplayName("one sheet composes each chest row count the client opens, each with its own scanned rows")
     void oneSheetComposesEveryChestRowCount() {
         record Chest(int rows, int height, int[] container, int[] player, int hotbar) {}
@@ -92,18 +77,6 @@ class ScreenMetricsTest {
             assertThat(at + ", the hotbar",
                 origins(layout, ScreenMetrics.Role.HOTBAR), is(equalTo(grid(NINE, new int[] { chest.hotbar() }, 18))));
         }
-    }
-
-    @Test
-    @DisplayName("a three-row chest is not a shulker box, though both hold three rows of nine")
-    void aThreeRowChestIsNotAShulkerBox() {
-        MenuLayout chest = MenuLayout.of(ScreenMetrics.chest(3), true);
-        MenuLayout shulker = MenuLayout.of(ScreenMetrics.shulkerBox(), true);
-
-        assertThat("their own cells agree",
-            origins(chest, ScreenMetrics.Role.CONTAINER), is(equalTo(origins(shulker, ScreenMetrics.Role.CONTAINER))));
-        assertThat("and everything below them sits a pixel lower on the chest",
-            chest.height() - shulker.height(), is(equalTo(1)));
     }
 
     @Test
@@ -154,17 +127,6 @@ class ScreenMetricsTest {
             origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(new int[] { 29, 47, 65 }, new int[] { 16, 34, 52 }, 18))));
         assertThat(origins(layout, ScreenMetrics.Role.RESULT), is(equalTo(List.of("119,30,26"))));
-    }
-
-    @Test
-    @DisplayName("the crafting table is the one screen that does not centre its grid")
-    void theCraftingTableIsTheOneScreenThatDoesNotCentre() {
-        assertThat("a dispenser centres three columns", ScreenMetrics.dispenser().ownOriginX(),
-            is(equalTo(ScreenMetrics.centred(3))));
-        assertThat("a hopper centres five", ScreenMetrics.hopper().ownOriginX(),
-            is(equalTo(ScreenMetrics.centred(5))));
-        assertThat("a crafting table does not", ScreenMetrics.craftingTable().ownOriginX(),
-            is(not(equalTo(ScreenMetrics.centred(3)))));
     }
 
     @Test

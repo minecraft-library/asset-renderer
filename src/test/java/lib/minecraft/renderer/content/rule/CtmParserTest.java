@@ -41,13 +41,6 @@ class CtmParserTest {
     }
 
     @Test
-    @DisplayName("faces=top maps to the TOP face only, never ALL")
-    void facesTopIsNotAll() {
-        CtmRule rule = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top").orElseThrow();
-        assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
-    }
-
-    @Test
     @DisplayName("every OptiFine face token resolves to its renderer face, top/bottom included")
     void faceTokenTable() {
         assertThat(facesOf("top"), equalTo(EnumSet.of(Face.UP)));

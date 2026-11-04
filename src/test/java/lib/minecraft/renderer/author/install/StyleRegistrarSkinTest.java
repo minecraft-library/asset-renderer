@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The caller-skin wiring end to end - the reserved coordinate on the rig's state axis, the
@@ -45,7 +44,7 @@ class StyleRegistrarSkinTest {
     @BeforeAll
     static void load() {
         shipped = EntityModelLoader.load();
-        assumeTrue(!shipped.isEmpty(), "entity_models.json not present - run entityModels first");
+        assertFalse(shipped.isEmpty(), "entity_models.json not present - run entityModels first");
     }
 
     @Test

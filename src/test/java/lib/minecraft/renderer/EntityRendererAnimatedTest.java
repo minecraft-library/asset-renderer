@@ -1,17 +1,14 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.bake.pose.StyleResolution;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
-import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
@@ -31,7 +28,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Asking for a moving entity and getting one.
@@ -120,8 +116,6 @@ class EntityRendererAnimatedTest {
 
     @BeforeAll
     static void bootstrap() {
-        ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
-        assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
         context = ClientAssetsExtension.context();
         renderer = new EntityRenderer(context);
     }

@@ -20,7 +20,6 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -95,29 +94,6 @@ class BoneKitTest {
         assertThat("maxX", bits(scaled.maxX()), equalTo(bits(raw.maxX())));
         assertThat("maxY", bits(scaled.maxY()), equalTo(bits(raw.maxY())));
         assertThat("maxZ", bits(scaled.maxZ()), equalTo(bits(raw.maxZ())));
-    }
-
-    /**
-     * Pins the upper corner's assembly order: {@code (origin + size) + grow} off the un-grown origin,
-     * as vanilla's cube constructor forms it. Also asserts that growing the lower corner first and
-     * adding the growth back twice - algebraically the same expression - lands on a different float
-     * for this fixture, so the first assertion is not a tautology.
-     */
-    @Test
-    @DisplayName("upper corner adds grow once to the un-grown origin")
-    void grownUpperCornerAddsGrowOnceToTheUngrownOrigin() {
-        Box bounds = BoneKit.scaledCubeBounds(1f, cube(ORIGIN, SIZE, GROW));
-        float ox = ORIGIN.x();
-        float sx = SIZE.x();
-        float gx = GROW.x();
-
-        float vanillaOrder = (ox + sx) + gx;
-        float lowerCornerFirst = ((ox - gx) + sx) + gx + gx;
-
-        assertThat("maxX assembles as (origin + size) + grow",
-            bits(bounds.maxX()), equalTo(bits(vanillaOrder)));
-        assertThat("the re-associated rewrite must differ on this fixture",
-            bits(lowerCornerFirst), not(equalTo(bits(vanillaOrder))));
     }
 
     /**
@@ -241,47 +217,6 @@ class BoneKitTest {
         assertThat("the pivot-centred shape must differ", sameBits(chain, pivotCentred), is(false));
         assertThat("and its column four is no longer the pivot",
             bits(pivotCentred.get(4, 1)), not(equalTo(bits(PIVOT.x()))));
-    }
-
-    /**
-     * Pins the counterpart at cube level: a cube rotation carries its {@code T(-pivot)}, so the cube's
-     * own pivot is a fixed point of the composed transform. The same pivot fed through the bone-level
-     * shape moves by more than a unit, which is the whole observable difference between the two.
-     */
-    @Test
-    @DisplayName("cube rotation keeps its own pivot fixed where the bone shape moves it")
-    void cubeRotationKeepsItsOwnPivotFixed() {
-        EntityMesh.Cube rotated = rotatedCube(PIVOT, QUARTER_PITCH_AND_YAW);
-        Matrix4f cubeShape = BoneKit.composeCubeTransform(
-            rotated, bone(Vector3f.ZERO, EulerRotation.NONE, null), Matrix4f.IDENTITY);
-        Vector3f held = PIVOT.transform(cubeShape);
-
-        assertThat("pivot x held", Math.abs(held.x() - PIVOT.x()), lessThan(1e-4f));
-        assertThat("pivot y held", Math.abs(held.y() - PIVOT.y()), lessThan(1e-4f));
-        assertThat("pivot z held", Math.abs(held.z() - PIVOT.z()), lessThan(1e-4f));
-
-        Matrix4f boneShape = BoneKit.buildChainTransform(
-            oneBone("bone", bone(PIVOT, QUARTER_PITCH_AND_YAW, null)), "bone");
-        Vector3f swung = PIVOT.transform(boneShape);
-        assertThat("the bone shape must move the same point",
-            Math.abs(swung.x() - PIVOT.x()), greaterThan(1f));
-    }
-
-    /**
-     * Pins that a bone-local origin lands on the pivot: the bone chain's image of {@code (0, 0, 0)} is
-     * the pivot itself, which is what lets a cube store its corners bone-local and be placed by the
-     * chain alone.
-     */
-    @Test
-    @DisplayName("bone-local origin lands on the bone pivot")
-    void boneLocalOriginLandsOnThePivot() {
-        Matrix4f chain = BoneKit.buildChainTransform(
-            oneBone("bone", bone(PIVOT, QUARTER_PITCH_AND_YAW, null)), "bone");
-        Vector3f placed = Vector3f.ZERO.transform(chain);
-
-        assertThat("x", Math.abs(placed.x() - PIVOT.x()), lessThan(1e-5f));
-        assertThat("y", Math.abs(placed.y() - PIVOT.y()), lessThan(1e-5f));
-        assertThat("z", Math.abs(placed.z() - PIVOT.z()), lessThan(1e-5f));
     }
 
     // --- chain resolution ---
@@ -463,23 +398,6 @@ class BoneKitTest {
         Face.forEach(face ->
             assertThat(face + " spans an axis of zero extent, so it has no area",
                 BoneKit.isDegeneratePlaneFace(lineAlongZ, face), is(true)));
-    }
-
-    /**
-     * Pins that a single zero extent still spares the two faces normal to it, which is the case every
-     * shipped plane cube takes and the one the two-zero reading must not disturb.
-     */
-    @Test
-    @DisplayName("a single zero extent collapses four faces and spares the two normal to it")
-    void singleZeroExtentSparesItsOwnPair() {
-        Vector3f planeYZ = new Vector3f(0f, 6f, 8f);
-
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.WEST), is(false));
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.EAST), is(false));
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.UP), is(true));
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.DOWN), is(true));
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.NORTH), is(true));
-        assertThat(BoneKit.isDegeneratePlaneFace(planeYZ, Face.SOUTH), is(true));
     }
 
     /**

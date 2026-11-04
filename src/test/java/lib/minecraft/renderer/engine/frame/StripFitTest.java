@@ -5,13 +5,18 @@ import lib.minecraft.renderer.engine.frame.StripTrack.Role;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.opentest4j.MultipleFailuresError;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.IntToDoubleFunction;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -432,14 +437,17 @@ class StripFitTest {
         // Under two cycles in the window, where a peak's lobe overlaps its own mirror image; two degrees of
         // swing closes at the first length the floor allows, so the strip is the floor itself. The band
         // runs to the coarse cap at either phase.
-        for (int period = 129; period <= StripFit.MAX_FRAMES * 3; period++)
-            for (boolean sine : new boolean[] { true, false }) {
-                StripFit fit = slowSwing(sine, period);
-                int floor = roundUp((int) Math.floor(0.95 * period), 3);
-                assertEquals(3, fit.ticksPerFrame());
-                assertTrue(Math.abs(fit.loopTicks() - floor) <= 3,
-                    (sine ? "sine " : "cosine ") + period + ": " + fit.loopTicks() + " against " + floor);
-            }
+        List<Executable> cases = new ArrayList<>();
+        for (int period : IntStream.rangeClosed(129, StripFit.MAX_FRAMES * 3).toArray())
+            for (boolean sine : new boolean[] { true, false })
+                cases.add(() -> {
+                    StripFit fit = slowSwing(sine, period);
+                    int floor = roundUp((int) Math.floor(0.95 * period), 3);
+                    assertEquals(3, fit.ticksPerFrame(), (sine ? "sine " : "cosine ") + period);
+                    assertTrue(Math.abs(fit.loopTicks() - floor) <= 3,
+                        (sine ? "sine " : "cosine ") + period + ": " + fit.loopTicks() + " against " + floor);
+                });
+        assertEveryCase(cases);
     }
 
     @Test
@@ -465,15 +473,18 @@ class StripFitTest {
         // A loop the fine strip holds closes there at its own period as surely as on the coarse lattice, so it
         // takes a tick a frame; a loop read past sixty-six ticks takes three - and a 66-tick sine reads a hair
         // over, rounding to 67, as the 60-tick pulse below reads 61.
+        List<Executable> cases = new ArrayList<>();
         for (double amplitude : new double[] { 2d, 30d, 90d })
-            for (int period = 12; period <= StripFit.MAX_FRAMES * 3; period += 3)
-                for (int eighth = 0; eighth < 4; eighth++) {
-                    StripFit fit = swing(sine(amplitude, period, eighth * StrictMath.PI / 4));
-                    String label = amplitude + " degrees at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit;
-                    assertEquals(period < StripFit.MAX_FRAMES ? 1 : 3, fit.ticksPerFrame(), label);
-                    assertTrue(fit.closes(), label);
-                    assertTrue(fit.loopTicks() <= period && fit.loopTicks() >= 0.9 * period, label);
-                }
+            for (int period : IntStream.iterate(12, length -> length <= StripFit.MAX_FRAMES * 3, length -> length + 3).toArray())
+                for (int eighth : IntStream.range(0, 4).toArray())
+                    cases.add(() -> {
+                        StripFit fit = swing(sine(amplitude, period, eighth * StrictMath.PI / 4));
+                        String label = amplitude + " degrees at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit;
+                        assertEquals(period < StripFit.MAX_FRAMES ? 1 : 3, fit.ticksPerFrame(), label);
+                        assertTrue(fit.closes(), label);
+                        assertTrue(fit.loopTicks() <= period && fit.loopTicks() >= 0.9 * period, label);
+                    });
+        assertEveryCase(cases);
     }
 
     @Test
@@ -502,23 +513,28 @@ class StripFitTest {
         // and its strip then stops short by the fraction past it - half a tick at the most here.
         StripTrack jump = rotation("head.x_rot", new Role.OneShot(2), tick -> tick < 2 ? 45d * tick : 90d);
         StripTrack still = rotation("body.x_rot", expression(), tick -> 10d);
+        List<Executable> cases = new ArrayList<>();
         for (boolean stopping : new boolean[] { true, false }) {
-            for (int period = 6; period <= StripFit.MAX_FRAMES * 3; period++)
+            for (int period : IntStream.rangeClosed(6, StripFit.MAX_FRAMES * 3).toArray())
                 for (double amplitude : new double[] { 2d, 30d })
-                    for (int eighth = 0; eighth < 2; eighth++) {
-                        StripFit fit = unjudged(stopping, jump, still, sineAt(amplitude, period, eighth * StrictMath.PI / 4));
-                        assertTrue(fit.loopTicks() >= period, (stopping ? "stopping, " : "opacity, ") + amplitude
-                            + " tolerances at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit);
-                    }
+                    for (int eighth : IntStream.range(0, 2).toArray())
+                        cases.add(() -> {
+                            StripFit fit = unjudged(stopping, jump, still, sineAt(amplitude, period, eighth * StrictMath.PI / 4));
+                            assertTrue(fit.loopTicks() >= period, (stopping ? "stopping, " : "opacity, ") + amplitude
+                                + " tolerances at " + period + " ticks, " + eighth + "/8 of a turn on: " + fit);
+                        });
 
-            for (int quarters = 25; quarters < 4 * StripFit.MAX_FRAMES * 3; quarters++) {
+            for (int quarters : IntStream.range(25, 4 * StripFit.MAX_FRAMES * 3).toArray()) {
                 if (quarters % 4 == 0) continue;
                 double period = quarters / 4d;
-                StripFit fit = unjudged(stopping, jump, still, sineAt(16d, period, StrictMath.PI / 8));
-                assertTrue(fit.loopTicks() >= period - 0.5, (stopping ? "stopping, " : "opacity, ") + "16 tolerances at "
-                    + period + " ticks: " + fit);
+                cases.add(() -> {
+                    StripFit fit = unjudged(stopping, jump, still, sineAt(16d, period, StrictMath.PI / 8));
+                    assertTrue(fit.loopTicks() >= period - 0.5, (stopping ? "stopping, " : "opacity, ") + "16 tolerances at "
+                        + period + " ticks: " + fit);
+                });
             }
         }
+        assertEveryCase(cases);
     }
 
     @Test
@@ -564,12 +580,15 @@ class StripFitTest {
         // every length, so the floor alone decides the strip: the period read, rounded up to the step. A read
         // short of the loop can leave the strip short by as much, which on such a shape stays under 5 ticks.
         StripTrack body = rotation("body.x_rot", expression(), tick -> 10d);
+        List<Executable> cases = new ArrayList<>();
         for (int period : new int[] { 152, 160, 170, 180, 190 })
-            for (int sixteenths = 0; sixteenths < 16; sixteenths++) {
-                StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(HALF_WAVE, period, sixteenths))));
-                int bound = period - 4;
-                assertTrue(fit.loopTicks() >= bound, period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
-            }
+            for (int sixteenths : IntStream.range(0, 16).toArray())
+                cases.add(() -> {
+                    StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(HALF_WAVE, period, sixteenths))));
+                    int bound = period - 4;
+                    assertTrue(fit.loopTicks() >= bound, period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
+                });
+        assertEveryCase(cases);
     }
 
     @Test
@@ -594,14 +613,17 @@ class StripFitTest {
         shapes.put("square", turn -> turn < 0.5 ? 0.25 : 0d);
         shapes.put("clamped sine", turn -> 0.25 * (Math.max(-0.5, Math.min(0.5, StrictMath.sin(2 * StrictMath.PI * turn))) + 0.5));
         shapes.put("triangle", turn -> 0.5 * (turn < 0.5 ? turn : 1 - turn));
+        List<Executable> cases = new ArrayList<>();
         for (Map.Entry<String, DoubleUnaryOperator> entry : shapes.entrySet())
             for (int period : new int[] { 152, 170, 190 })
-                for (int sixteenths = 0; sixteenths < 16; sixteenths++) {
-                    StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(entry.getValue(), period, sixteenths))));
-                    int bound = period - 4;
-                    assertTrue(fit.loopTicks() >= bound,
-                        entry.getKey() + " at " + period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
-                }
+                for (int sixteenths : IntStream.range(0, 16).toArray())
+                    cases.add(() -> {
+                        StripFit fit = StripFit.fit(List.of(body, opacity("pass1.opacity", shape(entry.getValue(), period, sixteenths))));
+                        int bound = period - 4;
+                        assertTrue(fit.loopTicks() >= bound,
+                            entry.getKey() + " at " + period + " ticks, " + sixteenths + "/16 of a turn on: " + fit.loopTicks() + " against " + bound);
+                    });
+        assertEveryCase(cases);
     }
 
     @Test
@@ -840,6 +862,41 @@ class StripFitTest {
 
     private static int roundUp(int value, int step) {
         return (value + step - 1) / step * step;
+    }
+
+    /**
+     * Runs a grid's cases across the common pool and fails naming every case that failed, in the order
+     * the grid lists them.
+     *
+     * <p>{@link StripFit#fit} keeps no state between calls and writes nothing it is handed, so each case
+     * answers alone on whichever thread runs it, and a grid's fits run side by side rather than one after
+     * another on the test thread.
+     *
+     * @param cases the grid's cases, each asserting what it owes
+     * @throws MultipleFailuresError if any case fails
+     */
+    private static void assertEveryCase(@NotNull List<Executable> cases) {
+        List<Throwable> failures = cases.parallelStream()
+            .map(StripFitTest::failureOf)
+            .flatMap(Optional::stream)
+            .toList();
+        if (!failures.isEmpty())
+            throw new MultipleFailuresError(failures.size() + " of " + cases.size() + " cases failed", failures);
+    }
+
+    /**
+     * Runs one case of a grid.
+     *
+     * @param check the case
+     * @return what the case threw, empty where it passed
+     */
+    private static @NotNull Optional<Throwable> failureOf(@NotNull Executable check) {
+        try {
+            check.execute();
+            return Optional.empty();
+        } catch (Throwable failure) {
+            return Optional.of(failure);
+        }
     }
 
 }

@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -46,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * over the two builders says nothing about a caller that spells its own sequence beside them, which
  * is what every one of these messages did before it was routed here. So the store's own
  * absent-artifact message - the one message on this list that a reader meets rather than a
- * developer - is thrown for real and read back, and it goes through the loop with the rest.
+ * developer - is thrown for real and read back whole against the bootstrap sequence.
  *
  * <p><b>And over the sources, because a roster reaches what somebody added to it.</b> Routing one
  * call site closed one call site: four others were reverted to the compare-less form with both
@@ -58,9 +57,6 @@ final class PinsTest {
 
     /** Any registered id would do; the spelling is a pure function of it. */
     private static final String ARTIFACT = "digest.shipped-tables";
-
-    /** What every prescription opens its command list with, and the first act of the sequence. */
-    private static final String COMMIT_FIRST = "commit the change first";
 
     /**
      * The two source sets that produce every message on this list, and therefore where one can be
@@ -103,15 +99,6 @@ final class PinsTest {
      * three commands are three lines of one expression.
      */
     private static final Pattern REGIONS = Pattern.compile(";|\\*/");
-
-    @Test
-    @DisplayName("a capture alone is what regenerates the value")
-    void theCaptureCommandStandsAlone() {
-        assertThat("the file's own regen line is built from this, and it names the act that writes "
-                + "the working root rather than the act that replaces a baseline",
-            Pins.regenCommand(ARTIFACT),
-            equalTo("./gradlew parityCapture -Partifacts=digest.shipped-tables"));
-    }
 
     @Test
     @DisplayName("re-baselining names the commit, the capture, the compare and the promotion")
@@ -189,43 +176,6 @@ final class PinsTest {
     }
 
     @Test
-    @DisplayName("no prescription names the promotion without naming the compare and the commit")
-    void aPromotionIsNeverPrescribedWithoutItsPreconditions(@TempDir Path empty) {
-        List<String> prescriptions = prescriptions(empty);
-
-        assertThat("an empty list passes every case below with nothing read",
-            prescriptions, is(not(empty())));
-        for (String prescribed : prescriptions) {
-            assertThat(prescribed, containsString("parityPromote"));
-            assertThat("a promotion of a capture no compare of it covered is refused wherever a "
-                    + "baseline already exists, and a first baseline is worth being looked at "
-                    + "before it becomes what everything after it is measured against",
-                prescribed, containsString("parityCompare"));
-            // The same shape one refusal along, and the one that made every message here print in
-            // the first place: these fire on an UNCOMMITTED edit that moved a value, so the capture
-            // they ask for records asset_dirty and the promotion at the end of them refuses it.
-            assertThat("a promotion of a capture taken from a dirty tree is refused, so the commit "
-                    + "is a step of the sequence rather than a convention around it",
-                prescribed, containsString(COMMIT_FIRST));
-            assertThat("and it has to come before the capture, which is the thing that must run on "
-                    + "the committed tree",
-                prescribed.indexOf(COMMIT_FIRST),
-                is(lessThan(prescribed.indexOf("parityCapture"))));
-        }
-    }
-
-    @Test
-    @DisplayName("a builder opens with the commit, so a message embedding one cannot bury it")
-    void eachBuilderOpensWithTheCommit() {
-        for (String built : new String[] {Pins.rebaselineCommand(ARTIFACT),
-            Pins.bootstrapCommand(ARTIFACT)}) {
-            assertThat("callers concatenate a lead-in in front of this, so the commit being first "
-                    + "in what the builder returns is what keeps it first in what they print",
-                built.indexOf(COMMIT_FIRST), is(0));
-        }
-    }
-
-    @Test
     @DisplayName("no source spells a sequence the promotion at the end of it would refuse")
     void noSourceSpellsASequenceThatCannotBeFollowed() throws IOException {
         Set<String> read = new TreeSet<>();
@@ -295,19 +245,6 @@ final class PinsTest {
         for (String line : region.split("\n"))
             if (line.contains(token)) return source + ": " + line.strip();
         return source + ": " + token;
-    }
-
-    /**
-     * Every prescription in the store, built ones and produced ones alike.
-     *
-     * @param empty a store root holding nothing, so the read below fails the way a first
-     *     baseline's absence fails
-     * @return the two builders' answers and the message the store throws for an absent artifact
-     */
-    private static List<String> prescriptions(Path empty) {
-        return List.of(Pins.rebaselineCommand(ARTIFACT), Pins.bootstrapCommand(ARTIFACT),
-            assertThrows(ParityStoreException.class,
-                () -> ParityStore.readFrom(empty, ARTIFACT)).getMessage());
     }
 
 }

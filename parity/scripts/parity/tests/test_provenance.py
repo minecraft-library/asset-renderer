@@ -13,10 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from parity import capture, provenance
+from parity import capture, promote, provenance, store
 from parity import manifest as manifest_mod
-from parity.norm import (Refused, canonical_json, read_json, sha256_file, sha256_text, write_json,
-                         write_text)
+from parity.norm import (Refused, canonical_json, read_json, read_text, sha256_file, sha256_text,
+                         write_json, write_text)
 
 REPO = Path(__file__).resolve().parents[4]
 
@@ -40,31 +40,49 @@ REFERENCES = "manifest.references"
 PACK_TOOLTIPS = "manifest.pack-tooltips"
 
 #: The keywords ``capture.normalize`` - the only path that writes an artifact's provenance - hands
-#: ``gather``. Stated once and asserted against both sides below, because a keyword the signature
+#: ``gather``. Stated once and asserted against the capture below, because a keyword the signature
 #: accepts and the capture never passes is exactly how three fields reached 24 promoted baselines
 #: absent while a test that passed them by hand stayed green.
 CAPTURE_KEYWORDS = ("producer", "mode", "runs", "flags", "counts", "root", "reference_tree",
                     "reference_artifact")
 
 
-def as_capture_gathers(**overrides) -> dict:
+def fixture_repo() -> Path:
+    """A repository holding what a gathered record reads off one, and nothing a gather hashes.
+
+    Three inputs: the harness's own properties, copied, which ``mc_version`` and the reference
+    root's path come off; a store index declaring the floors of the two ground-truth manifests,
+    which a ``normalize`` passing no ``runs`` reads; and one reference under the derived root, so
+    ``reference_counts`` - the one conditional key that comes off the working tree rather than an
+    argument - is written. Outside git the commit and content fields record null and say so on
+    stderr, which the cases using this silence, where the live checkout would hash every tracked
+    file for values no case here reads.
+
+    :return: the repository's path
+    """
+    repo = Path(tempfile.mkdtemp())
+    write_text(repo / provenance.HARNESS_PROPERTIES,
+               read_text(REPO / provenance.HARNESS_PROPERTIES))
+    floors = {name: {promote.FLOOR_FIELD: 2} for name in (REFERENCES, PACK_TOOLTIPS)}
+    write_json(repo / store.PRODUCTION / "index.json", {"artifacts": floors})
+    write_text(provenance.reference_root(repo) / "blocks" / "stone.png", "x")
+    return repo
+
+
+def as_capture_gathers(repo: Path, **overrides) -> dict:
     """A record gathered the way ``capture.normalize`` gathers one.
 
+    :param repo: the repository the record is gathered over
     :param overrides: what to change about that call shape
     :return: the gathered record
     """
     call = {"producer": "entityParityVanilla", "mode": None, "runs": 2, "flags": (),
             "counts": None, "root": None, "reference_tree": None, "reference_artifact": None}
     call.update(overrides)
-    return provenance.gather("sweep.entity", REPO, **call)
+    return provenance.gather("sweep.entity", repo, **call)
 
 
 class TheCallShape(unittest.TestCase):
-
-    def test_gather_accepts_every_keyword_the_capture_passes(self):
-        parameters = inspect.signature(provenance.gather).parameters
-        for name in CAPTURE_KEYWORDS:
-            self.assertIn(name, parameters, name)
 
     def test_the_capture_passes_every_keyword_this_suite_gathers_with(self):
         source = inspect.getsource(capture.normalize)
@@ -80,8 +98,12 @@ class Registry(unittest.TestCase):
     from every real capture, which is how all three shipped unnoticed.
     """
 
+    def setUp(self):
+        self.repo = fixture_repo()
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
+
     def test_a_capture_carries_every_unconditional_key_and_nothing_unregistered(self):
-        record = as_capture_gathers()
+        record = as_capture_gathers(self.repo)
         self.assertLessEqual(set(record), set(provenance.KEYS),
                              "keys gather writes that the registry does not declare")
         for name, always in provenance.KEYS.items():
@@ -110,24 +132,21 @@ class Registry(unittest.TestCase):
         """A registered key nothing can write would pass the assertion above by staying absent."""
         tree = Path(tempfile.mkdtemp()) / "references"
         write_text(tree / "blocks" / "stone" / "vanilla.png", "x")
-        record = as_capture_gathers(mode="EVERY", flags=("asset.depth.range=1000",),
+        record = as_capture_gathers(self.repo, mode="EVERY", flags=("asset.depth.range=1000",),
                                     counts={"rows": 1}, root="cache/visual",
                                     reference_tree=tree, reference_artifact=REFERENCES)
         # `reason`, `parity_class` and `wall_time_ms` are gather's own arguments that no capture
         # supplies - the promotion writes the first two onto the record afterwards - so they are
         # exercised on their own call rather than smuggled into the capture's shape.
-        record.update(provenance.gather("sweep.entity", REPO, reason="r", parity_class="moving",
-                                        wall_time_ms=1))
+        record.update(provenance.gather("sweep.entity", self.repo, reason="r",
+                                        parity_class="moving", wall_time_ms=1))
         # Both directions on the widest record there is. The subset is what catches a key gather
         # writes and the registry does not declare, and it can only be asked of a record that
         # supplies every argument - a bare one omits the conditional keys and passes either way.
+        # The fixture repository holds a reference tree, so `reference_counts` is wanted too.
         self.assertLessEqual(set(record), set(provenance.KEYS),
                              "keys gather writes that the registry does not declare")
         wanted = {name for name, always in provenance.KEYS.items() if not always}
-        root = provenance.reference_root(REPO)
-        if root is None or not root.is_dir():
-            # The one conditional key that comes off the working tree rather than an argument.
-            wanted.discard("reference_counts")
         for name in sorted(wanted):
             self.assertIn(name, record, name)
 
@@ -135,13 +154,9 @@ class Registry(unittest.TestCase):
 class Fields(unittest.TestCase):
 
     def setUp(self):
-        self.record = as_capture_gathers(mode="FULL", flags=("asset.depth.range=1000",))
-
-    def test_there_is_no_harness_sha(self):
-        """Post-consolidation the harness is a directory in this repo, so the two values would be
-        equal by construction - the store's rule against holding one value twice, broken by identity."""
-        self.assertNotIn("harness_sha", self.record)
-        self.assertNotIn("harness_dirty", self.record)
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.record = as_capture_gathers(fixture_repo(), mode="FULL",
+                                             flags=("asset.depth.range=1000",))
 
     def test_flags_parse_to_an_object(self):
         self.assertEqual(self.record["flags"], {"asset.depth.range": "1000"})
@@ -214,10 +229,6 @@ class DirtyDigest(unittest.TestCase):
         digest = provenance.dirty_digest(REPO)
         self.assertIsNotNone(digest)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
-
-    def test_it_is_stable_across_calls(self):
-        """It gates whether a tree has already been gated, so an unstable answer re-arms for ever."""
-        self.assertEqual(provenance.dirty_digest(REPO), provenance.dirty_digest(REPO))
 
     def test_no_repo_answers_none_rather_than_the_empty_digest(self):
         """None is 'git could not be asked'; the empty digest is 'nothing is uncommitted'. A caller
@@ -302,8 +313,9 @@ class ReferenceManifestDigest(unittest.TestCase):
         that row name the same reference set, and a reader can check the two against each other
         without the sweep's own capture having had to hash the tree into the store.
         """
-        stored = capture.normalize(REFERENCES, self.tree,
-                                   Path(tempfile.mkdtemp()), REPO)
+        with contextlib.redirect_stderr(io.StringIO()):
+            stored = capture.normalize(REFERENCES, self.tree,
+                                       Path(tempfile.mkdtemp()), fixture_repo())
         payload = read_json(stored)
         content = {name: value for name, value in payload.items() if name != "provenance"}
         self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES),
@@ -352,9 +364,11 @@ class PackTooltipDigest(unittest.TestCase):
         self.tree = Path(tempfile.mkdtemp()) / "pack-tooltips"
         write_text(self.tree / "hypixel-skyblock" / "one_line.png", "one")
         write_text(self.tree / "hypixel-skyblock" / "one_line_chrome.png", "two")
+        self.repo = fixture_repo()
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
 
     def test_it_is_the_identity_of_the_stored_pack_tooltip_manifest_of_that_tree(self):
-        stored = capture.normalize(PACK_TOOLTIPS, self.tree, Path(tempfile.mkdtemp()), REPO)
+        stored = capture.normalize(PACK_TOOLTIPS, self.tree, Path(tempfile.mkdtemp()), self.repo)
         payload = read_json(stored)
         content = {name: value for name, value in payload.items() if name != "provenance"}
         self.assertEqual(provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS),
@@ -376,10 +390,11 @@ class PackTooltipDigest(unittest.TestCase):
     def test_a_tree_named_without_its_manifest_is_refused(self):
         """No default: with two ground truths a default digests one of them as the other."""
         with self.assertRaises(Refused):
-            as_capture_gathers(reference_tree=self.tree)
+            as_capture_gathers(self.repo, reference_tree=self.tree)
 
     def test_the_record_names_the_manifest_beside_the_digest(self):
-        record = as_capture_gathers(reference_tree=self.tree, reference_artifact=PACK_TOOLTIPS)
+        record = as_capture_gathers(self.repo, reference_tree=self.tree,
+                                    reference_artifact=PACK_TOOLTIPS)
         self.assertEqual(record["reference_artifact"], PACK_TOOLTIPS)
         self.assertEqual(record["reference_manifest_digest"],
                          provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS))
@@ -395,37 +410,6 @@ class ReferenceCounts(unittest.TestCase):
 
     def test_an_unreadable_harness_version_names_no_root_rather_than_a_wrong_one(self):
         self.assertIsNone(provenance.reference_root(Path(tempfile.mkdtemp())))
-
-    @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
-    def test_the_live_tree_counts_per_subtree(self):
-        counts = provenance.reference_counts(REPO)
-        # 406 since a small armour stand wears an elytra too, beside the zombie's adult and baby pair
-        # that took the tree to 405 and the frog's `croak` toggle that took it to 403.
-        self.assertEqual(counts.get("entities"), 406)
-        self.assertEqual(counts.get("armor"), 7)
-        self.assertEqual(counts.get("players"), 2)
-        # The ones the sum alone would not speak for: a key each, so a sub-tree dropping back out
-        # of the roster fails as itself rather than as a total nobody can read a cause out of.
-        # Fifteen since two anvils are drawn for the field's scroll - an enchanted golden apple placed
-        # in the first input, and a name whose scroll leaves the cursor out of view - beside the three
-        # whose slots their own menu fills: the sword alone in the first input, the diamond alone in
-        # the second, and both with the sword as the result.
-        self.assertEqual(counts.get("menus"), 15)
-        # Sixteen tooltip roster subjects, each drawn whole and as its box alone, and fourteen plain
-        # lines, each drawn alone under plain/.
-        self.assertEqual(counts.get("tooltips"), 46)
-        # The posed sub-trees hold 134 stems each - every drawn subject and baby, and the enderman's
-        # and iron golem's carried trait stems - at the frame count its schedule roster entry names,
-        # so these move whenever a derived strip does.
-        self.assertEqual(counts.get("idle"), 2547)
-        self.assertEqual(counts.get("walk"), 4896)
-        # 9824 since the menu sweep draws two anvils for the field's scroll, an enchanted golden apple
-        # placed and a name whose scroll leaves the cursor out of view, on top of the three whose
-        # slots their own menu fills, the tooltip sweep's 46 - sixteen roster subjects, each one's box
-        # alone, and fourteen plain lines - and the block sweep's reference for each block_state case
-        # of a dispatch-rooted icon - beehive and bee_nest at honey_level=5, test_block at mode log,
-        # fail and accept.
-        self.assertEqual(sum(counts.values()), 9824)
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):

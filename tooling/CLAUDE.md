@@ -91,16 +91,16 @@ root project.
 
 `./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
 hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
-classes; nine walks read the real client jar - `EnumConstantTableTest`,
+classes; eight walks read the real client jar - `EnumConstantTableTest`,
 `KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest`, `GeometryParserTest`,
-`BoneRestRadianTest`, `GeometryBakeOrderTest`, `EntityPaceJarTest` and `ClockRosterJarTest`. The
+`GeometryBakeOrderTest`, `EntityPaceJarTest` and `ClockRosterJarTest`. The
 renderer's `check` schedules it as `toolingTest`, which is the name it had when this was a build of
 its own.
 
 **A walk reads the jar the cache already holds and never downloads one.** Each gates on
 `ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
 has cached one, so the suite reaches no network and costs a stat rather than 25MB.
-`ClientJarGuardTest` is the one test that FAILS on an absent jar, because nine classes assuming
+`ClientJarGuardTest` is the one test that FAILS on an absent jar, because eight classes assuming
 away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
@@ -126,7 +126,7 @@ Two shapes this has already caught, neither of which any test would have:
   an `IdentityHashMap` or a `Collections.newSetFromMap` silently never matches and every membership
   test answers false. Discriminate on what a node CARRIES, never on which object came back.
 
-`PolicyPurityTest`, `GeometryRefClosureTest`, `GeometryParserTest`, `BoneRestRadianTest`,
-`PosePartIndexTest`, `PoseWalkTest`, `PoseFlowEmitTest`, `GeometryFlowPartRestsTest` and
-`EntityPaceJarTest` hold filesystem paths relative to the renderer root. A directory move breaks
+`PolicyPurityTest`, `GeometryRefClosureTest`, `PosePartIndexTest`, `PoseWalkTest`,
+`PoseFlowEmitTest`, `StyleFlowEmitTest`, `GeometryFlowPartRestsTest` and `EntityPaceJarTest` hold
+filesystem paths relative to the renderer root. A directory move breaks
 them at runtime rather than at compile time.

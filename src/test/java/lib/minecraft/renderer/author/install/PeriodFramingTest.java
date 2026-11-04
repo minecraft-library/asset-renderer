@@ -18,7 +18,6 @@ import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.bake.pose.PoseStrips;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
-import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.frame.StripFit;
@@ -41,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The per-style period's whole travel path - the builder verb lowered onto the compiled row, the
@@ -176,8 +174,6 @@ class PeriodFramingTest {
     @Test
     @DisplayName("a rendered strip plays the declared window back to rest at a tick a frame")
     void aRenderedStripCoversTheDeclaredWindow() {
-        assumeTrue(!EntityModelLoader.load().isEmpty(),
-            "entity_models.json not present - run entityModels first");
         EntityRenderer renderer = new EntityRenderer(StyleRegistrar.of(definitions(PlayerRig.entityRow()))
             .add(PlayerRig.ENTITY_ID, breatheStyle())
             .add(PlayerRig.ENTITY_ID, Poses.humanoid("sway")

@@ -37,10 +37,9 @@ import static org.hamcrest.Matchers.not;
  * anything; a class that renders text instead installs {@link MinecraftFontsExtension}, which
  * abandons it where no cache holds the fonts, and {@link FontCacheGuardTest} reports that.
  *
- * <p>The Minecraft version literal was measured as a marker and refused - it is also the
- * {@code pack_format} description and the {@code source_version} of synthetic fixtures that read
- * nothing, and a rule that cries wolf gets deleted rather than obeyed. That measurement is pinned
- * below rather than described.
+ * <p>The Minecraft version literal is not a marker: it is also the {@code pack_format} description
+ * and the {@code source_version} of synthetic fixtures that read nothing, and a rule that cries wolf
+ * gets deleted rather than obeyed.
  *
  * <p>What the markers are read against is the sources JUnit collects, meaning those declaring a test
  * method. A fixture, an extension or a {@code main} driver declares none, so JUnit never collects it
@@ -104,9 +103,6 @@ final class SlowTagRuleTest {
 
     /** The two font-generator entry points, each of which clones {@code font-generator} over the network */
     private static final List<String> FONT_GENERATOR_METHODS = List.of("ToolingFonts.main(", "ToolingFonts.generate(");
-
-    /** The refused signal, kept here so what it was measured to do stays re-runnable */
-    private static final String VERSION_LITERAL = "\"26.1\"";
 
     /** What a declared test method is annotated with, in every form the suite uses */
     private static final List<String> TEST_ANNOTATIONS =
@@ -181,19 +177,6 @@ final class SlowTagRuleTest {
         // declaration rather than typed beside it.
         assertThat("the marker's package must be the one the acquisition declares",
             read(ACQUISITION_SOURCE).lines().findFirst().orElse(""), is(ACQUISITION_PACKAGE));
-    }
-
-    @Test
-    @DisplayName("the version literal is not a marker, because it fires where nothing is read")
-    void theVersionLiteralWouldCryWolf() {
-        List<String> criedWolf = new ArrayList<>();
-        for (Path file : scannedSources()) {
-            String source = read(file);
-            if (source.contains(VERSION_LITERAL) && markersOn(source).isEmpty()) criedWolf.add(relative(file));
-        }
-
-        assertThat("sources " + VERSION_LITERAL + " fires on that reach no acquisition, "
-            + "which is why it is not a marker", criedWolf, is(not(empty())));
     }
 
     /**

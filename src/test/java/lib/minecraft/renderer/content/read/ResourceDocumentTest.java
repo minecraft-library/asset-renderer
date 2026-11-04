@@ -33,16 +33,6 @@ class ResourceDocumentTest {
     }
 
     @Test
-    @DisplayName("accepts format 2 with a // header and a matching source_version")
-    void acceptsFormatTwo() {
-        ResourceDocument.open(
-            bytes("{\"//\":\"provenance\",\"format\":2,\"source_version\":\"" + SOURCE_VERSION + "\",\"effects\":[]}"));
-
-        // TODO: restore pipeline diagnostics
-        // assertEquals(0, diag.count(Diagnostics.Severity.WARN), "a matching source_version must not warn");
-    }
-
-    @Test
     @DisplayName("rejects a resource with no format member")
     void rejectsMissingFormat() {
         assertThrows(ContentException.class,
@@ -96,15 +86,6 @@ class ResourceDocumentTest {
 
         // TODO: restore pipeline diagnostics
         // assertEquals(1, diag.count(Diagnostics.Severity.WARN), "a mismatched source_version must warn once");
-    }
-
-    @Test
-    @DisplayName("parses on an absent source_version")
-    void parsesOnAbsentVersion() {
-        ResourceDocument.open(bytes("{\"format\":2}"));
-
-        // TODO: restore pipeline diagnostics
-        // assertEquals(1, diag.count(Diagnostics.Severity.WARN), "an absent source_version must warn once");
     }
 
     @Test

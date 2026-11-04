@@ -56,53 +56,43 @@ import static org.hamcrest.Matchers.is;
 @ExtendWith(ClientAssetsExtension.class)
 class IndexTemplateFilterTest {
 
-    /** Block-entity model + variant maps the index loaders consume. */
-    private static BlockModelLoader.LoadResult be;
-
-    // The explicit block-index loader inputs (the same set of() computes over the stack).
-    private static PackStack stack;
-    private static BlockTables blockTables;
-    private static BlockStateLoader.BlockStates blockStates;
-    private static ConcurrentMap<String, BlockTag> blockTags;
-
-    // The explicit item-index loader inputs.
-    private static ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints;
-    private static Set<String> glintItems;
-    private static ResolvedModels models;
-    private static ConcurrentMap<String, ItemModelTree> itemTrees;
+    /** The block index the real pipeline builds over the vanilla corpus. */
     private static IndexRows<Block> blockRows;
 
-    /** Runs the real pipeline and computes every index-loader input once for both filter tests. */
+    /** The item index the real pipeline builds over the vanilla corpus. */
+    private static IndexRows<Item> itemRows;
+
+    /** Runs the real pipeline and builds the block and item index rows once for every test. */
     @BeforeAll
     static void setup() {
-        stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
+        PackStack stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
 
-        models = ResolvedModels.load(stack);
-        blockStates = BlockStateLoader.load(stack);
+        ResolvedModels models = ResolvedModels.load(stack);
+        BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
 
         Map<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        itemTrees = ItemModelTreeLoader.load(stack);
+        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
-        itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
-        glintItems = GlintItemsLoader.load();
-        blockTags = BlockTagLoader.load(stack);
+        ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
+        Set<String> glintItems = GlintItemsLoader.load();
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(stack);
 
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates =
             BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending()));
         Map<String, String> blockItemAliases = BlockItemsLoader.load();
 
-        be = BlockModelLoader.load();
+        BlockModelLoader.LoadResult be = BlockModelLoader.load();
 
-        blockTables = new BlockTables(models.blocks(), blockTints, itemDefinitions, blockDefaultStates,
+        BlockTables blockTables = new BlockTables(models.blocks(), blockTints, itemDefinitions, blockDefaultStates,
             blockItemAliases, be.models(), be.variants(), itemTrees, models.items());
         blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
+        itemRows = ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows);
     }
 
     @Test
     @DisplayName("block filter keeps renderable variants, drops only empty templates")
     void blockFilter() {
-        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags, stack, new HashSet<>()).keySet());
-        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack).rows().keySet());
+        Set<String> kept = new HashSet<>(blockRows.rows().keySet());
 
         // Concrete variant renders - real geometry + resolvable texture - must survive.
         for (String id : new String[]{
@@ -121,11 +111,9 @@ class IndexTemplateFilterTest {
     @Test
     @DisplayName("the blocks that draw nothing are the registered invisible and air blocks, not the templates or the stand-ins")
     void blocksDrawingNothing() {
-        IndexRows<Block> rows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
-
         // Air, barrier, structure_void and moving_piston drop as primary rows; cave_air, void_air and
         // light are blockstate-only, naming block/air and a block/light_NN that bind only a particle.
-        assertThat(rows.drawsNothing(), is(Set.of(
+        assertThat(blockRows.drawsNothing(), is(Set.of(
             "minecraft:air", "minecraft:barrier", "minecraft:structure_void", "minecraft:moving_piston",
             "minecraft:cave_air", "minecraft:void_air", "minecraft:light")));
 
@@ -134,30 +122,28 @@ class IndexTemplateFilterTest {
         for (String id : new String[]{
             "minecraft:water", "minecraft:lava", "minecraft:end_portal", "minecraft:end_gateway", "minecraft:bubble_column",
             "minecraft:slab", "minecraft:cross", "minecraft:stone"
-        }) assertThat(id + " is not a block that draws nothing", rows.drawsNothing().contains(id), is(false));
+        }) assertThat(id + " is not a block that draws nothing", blockRows.drawsNothing().contains(id), is(false));
 
-        for (String id : rows.drawsNothing())
-            assertThat(id + " holds no row", rows.rows().containsKey(id), is(false));
+        for (String id : blockRows.drawsNothing())
+            assertThat(id + " holds no row", blockRows.rows().containsKey(id), is(false));
     }
 
     @Test
     @DisplayName("the items that draw nothing are air alone, not the templates or the sprite-carrying blocks")
     void itemsDrawingNothing() {
-        IndexRows<Item> rows = ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows);
-
         // Air's definition registers it and its model binds only a particle. Barrier, structure_void and
         // light carry a layer0 sprite, so they keep rows; no vanilla definition roots at minecraft:empty.
-        assertThat(rows.drawsNothing(), is(Set.of("minecraft:air")));
+        assertThat(itemRows.drawsNothing(), is(Set.of("minecraft:air")));
         for (String id : new String[]{"minecraft:barrier", "minecraft:structure_void", "minecraft:light"})
-            assertThat(id + " keeps its row", rows.rows().containsKey(id), is(true));
+            assertThat(id + " keeps its row", itemRows.rows().containsKey(id), is(true));
         for (String id : new String[]{"minecraft:generated", "minecraft:handheld"})
-            assertThat(id + " is not an item that draws nothing", rows.drawsNothing().contains(id), is(false));
+            assertThat(id + " is not an item that draws nothing", itemRows.drawsNothing().contains(id), is(false));
     }
 
     @Test
     @DisplayName("item filter keeps renderable variants, drops only empty templates")
     void itemFilter() {
-        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows).rows().keySet());
+        Set<String> kept = new HashSet<>(itemRows.rows().keySet());
 
         // Every range / trim / sprite variant renders, so it stays.
         for (String id : new String[]{

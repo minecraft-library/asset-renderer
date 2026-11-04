@@ -2,7 +2,7 @@
 
 Load when touching the order `entity_geometry.json` and `block_geometry.json` hold a mesh's bones in
 - `PartTree`, `GeometryFlow.bakeOrder`, a surgery the replay appends. `GeometryBakeOrderTest` holds
-the replay and the shipped order to vanilla's own factories ([Gates.md](Gates.md)); what the order
+the replay to vanilla's own factories ([Gates.md](Gates.md)); what the order
 decides at render is [renderer/Depth.md](../renderer/Depth.md). Indexed from
 [`tooling/CLAUDE.md`](../../tooling/CLAUDE.md).
 

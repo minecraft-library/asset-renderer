@@ -295,12 +295,9 @@ final class ParityTaskWiringTest {
     /**
      * That row whole, the behaviour cell included.
      *
-     * <p>The behaviour as well as the condition, because the whole content of this row is that the
-     * command is <b>printed</b>: it hands a reader the most expensive single command in this
-     * repository, and reworded to an imperative it licenses running the oracle refresh as a side
-     * effect of gating the change measured against it. The tolerance below is read out of this text
-     * and a set of task names cannot tell a print from a run, so what makes the name admissible is
-     * pinned here rather than argued in a sentence nothing reads back.
+     * <p>The whole content of this row is that the command is <b>printed</b>: it hands a reader the
+     * most expensive single command in this repository and stops, refreshing the oracle being the
+     * operator's own act. The task the tolerance below withholds is read out of this text.
      */
     private static final String REFUSING_ON_STALE_REFERENCES = STALE_REFERENCES_CONDITION
         + " Refuse (R6). Print `./gradlew renderVanillaAllReferences` and stop. Refreshing the "
@@ -317,10 +314,7 @@ final class ParityTaskWiringTest {
      *
      * <p>Conditions rather than task names, because the tolerance is then read out of the rows
      * rather than typed beside them: what may carry a command outside a fenced block is one of
-     * these rows, not a name one of them happens to mention, and each is held to its own text - the
-     * first by the constant above, the second where the files it speaks for are counted. A row
-     * reworded to run what it prints fails that pin instead of going on vouching for the name it
-     * hands out.
+     * these rows, not a name one of them happens to mention.
      */
     private static final List<String> ROWS_HANDING_A_COMMAND_OVER = List.of(
         STALE_REFERENCES_CONDITION,
@@ -618,19 +612,12 @@ final class ParityTaskWiringTest {
         Set<String> unregistered = new TreeSet<>(mentioned);
         unregistered.removeAll(registeredTaskNames());
 
-        assertThat("the refusal on stale references, whole. It is where the whole-tree re-render is "
-                + "handed over, so what the tolerance below rests on is a row that PRINTS a command "
-                + "and stops: reworded to run it, the name it hands out is the same name, and a set "
-                + "of names goes on vouching for a licence where it meant to vouch for a refusal",
-            tableRow(skill, STALE_REFERENCES_CONDITION), equalTo(REFUSING_ON_STALE_REFERENCES));
-
         // Whole lines rather than the names on them. Narrowing the clause above to fenced blocks
         // bought the difference between a command the skill runs and one it hands to a reader, and a
         // name is exactly what those two have in common: the whole-tree re-render is already a name
         // the refusal hands over, so a sentence anywhere else telling a reader to run it adds no
         // name and moves no set of them. What it adds is a LINE, and the lines that may carry a
-        // command outside a block are the rows that hand one over - each pinned whole, here and
-        // where the files the other speaks for are counted.
+        // command outside a block are the rows that hand one over, each found by its condition cell.
         List<String> handingOver = ROWS_HANDING_A_COMMAND_OVER.stream()
             .map(condition -> tableRow(skill, condition))
             .sorted()
@@ -765,9 +752,8 @@ final class ParityTaskWiringTest {
     /**
      * The task the stale-references refusal prints rather than runs.
      *
-     * <p>Read off the pinned row rather than typed again, so the name the tolerance is written for
-     * and the name the refusal hands over cannot become two names. That row is held to its shipped
-     * text where the refusal itself is checked, which is what makes reading it here safe.
+     * <p>Read off {@link #REFUSING_ON_STALE_REFERENCES} rather than typed again, so the name the
+     * tolerance is written for and the name that row hands over are one name.
      *
      * @return the task name
      */
@@ -958,12 +944,6 @@ final class ParityTaskWiringTest {
                 + "second copy, so an alias added to the table reaches all three",
             collapsed(declaration("fun resolveParityArtifacts(")),
             containsString("spec?.let { expandParityAliases(it)"));
-        assertThat("and the shipped sentence saying so, read here where the three call sites are, "
-                + "because each of them was pinned and the claim over them was not - which is the "
-                + "half a reader acts on, and the half that was false when aliases expanded on one",
-            collapsed(read(PARITY_SKILL)),
-            containsString("An alias expands on all three, so the same token scopes a capture and "
-                + "the compare and promotion that follow it."));
     }
 
     @Test

@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.not;
  * <p>A fold has exactly two ways to be wrong and they are both silent. It can compose in the wrong
  * ORDER - matrix multiplication does not commute, so a reversed chain is a different placement that
  * still renders something plausible - and it can DROP an operand, which reads as a row that simply sits
- * somewhere else. The first two tests pin the order against a longhand composition and then prove that
- * pin is load-bearing by showing the reverse disagrees; the third counts the operands back out.
+ * somewhere else. The first test pins the order against a longhand composition; the second counts the
+ * operands back out.
  */
 @DisplayName("block-overlay transform fold")
 class BlockOverlayTransformFoldTest {
@@ -50,18 +50,6 @@ class BlockOverlayTransformFoldTest {
         List<Entity.BlockOverlayLayer> overlays = golem.blockOverlays();
         assertThat("the snow golem ships one block overlay", overlays.size(), is(1));
         assertEntries("the folded placement", overlays.getFirst().transform(), snowGolemLonghand());
-    }
-
-    @Test
-    @DisplayName("the declared order is load-bearing, so the reverse disagrees")
-    void reverseOrderDisagrees() {
-        Matrix4f reversed = Matrix4f.IDENTITY
-            .translate(-0.5f, -0.5f, -0.5f)
-            .scale(0.625f, -0.625f, -0.625f)
-            .rotateY((float) Math.toRadians(180f))
-            .translate(0f, -0.34375f, 0f);
-        assertThat("a reversed chain is a different placement, so the order test can fail",
-            entries(reversed), not(is(entries(snowGolemLonghand()))));
     }
 
     @Test

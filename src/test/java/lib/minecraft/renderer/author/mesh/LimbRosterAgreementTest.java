@@ -88,7 +88,7 @@ class LimbRosterAgreementTest {
     }
 
     @Test
-    @DisplayName("a walker mesh carries a front row and a hind row, and the two ranks name different rows")
+    @DisplayName("a walker mesh carries a front row and a hind row, the front numbered first and the hind last")
     void aWalkerCarriesTheRankedRows() {
         for (String coordinate : walkerCoordinates()) {
             LimbRoster roster = LimbRoster.of(GEOMETRIES.get(coordinate));
@@ -99,9 +99,8 @@ class LimbRosterAgreementTest {
                 coordinate + " answers both ranks");
             assertEquals(0, roster.row(Rank.FRONT).orElseThrow().ordinal(),
                 coordinate + " reads the front rank as the frontmost row");
-            assertTrue(roster.row(Rank.FRONT).orElseThrow().ordinal()
-                    != roster.row(Rank.HIND).orElseThrow().ordinal(),
-                coordinate + " answers two different rows");
+            assertEquals(roster.rows().size() - 1, roster.row(Rank.HIND).orElseThrow().ordinal(),
+                coordinate + " reads the hind rank as the hindmost row");
         }
     }
 
@@ -176,18 +175,6 @@ class LimbRosterAgreementTest {
             assertEquals(Possible.State.EMPTY, roster.row(Rank.THIRD).getState(),
                 coordinate + " carries no row behind its middle one but the hind");
             assertFalse(middle.members().isEmpty(), coordinate + " seats legs in its middle row");
-        }
-    }
-
-    @Test
-    @DisplayName("the front row sits ahead of the hind row on every walker mesh")
-    void theFrontRowSitsAhead() {
-        for (String coordinate : walkerCoordinates()) {
-            LimbRoster roster = LimbRoster.of(GEOMETRIES.get(coordinate));
-            assertEquals(0, roster.row(Rank.FRONT).orElseThrow().ordinal(),
-                coordinate + " numbers the front row first");
-            assertEquals(roster.rows().size() - 1, roster.row(Rank.HIND).orElseThrow().ordinal(),
-                coordinate + " numbers the hind row last");
         }
     }
 

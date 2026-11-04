@@ -221,7 +221,7 @@ class WindowSlicedTest {
     /**
      * Counts the Minecraft pixels of the anvil's name-field rect that hold the sheet's flat red.
      *
-     * @param panel a panel read in Minecraft pixels
+     * @param panel a panel, or the anvil's sheet itself, read in Minecraft pixels
      * @return how many of the rect's 110 x 16 pixels are {@code FFFF0000}
      */
     private static int flatRed(PixelBuffer panel) {
@@ -251,6 +251,11 @@ class WindowSlicedTest {
     @Test
     @DisplayName("named vanilla art at its screen's own size is the client's frame with every input empty, with no cell drawn over it")
     void namedArtAtItsOwnSizeIsTheClientsBlits() {
+        // The anvil's sheet carries flat red over the whole of its name field's rect - the hole the client
+        // covers with the field sprite on every draw - so a painted anvil showing none of it is a real check.
+        assertThat("the anvil's sheet is flat red over every pixel of its name field's rect",
+            flatRed(resolve(ANVIL)), is(equalTo(110 * 16)));
+
         for (Shipped shipped : shipped()) {
             MenuLayout layout = MenuLayout.of(shipped.screen(), true);
             Window.Sliced window = named(shipped, true);

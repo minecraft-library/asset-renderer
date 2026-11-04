@@ -26,19 +26,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * jar's asset tree read into memory once, so every test that renders against vanilla reads the one
  * snapshot. An absent jar is acquired on demand, which pulls ~25MB from Mojang once and then never
  * again.
- * <p>
- * {@link #VERSION} is production's own version read back rather than a second copy of it. It was a
- * literal here while this class owned its own cache root, where two spellings only meant two trees;
- * pointed at production's root, two spellings would mean one directory resolved two ways and nothing
- * would have said so.
  */
 public final class ClientAssetsExtension implements BeforeAllCallback {
 
     /** what the assets are resolved through - production's own defaults, root and version alike */
     private static final @NotNull ClientOptions OPTIONS = ClientOptions.defaults();
-
-    /** the Minecraft version every acquiring test renders against, which is the one production names */
-    public static final @NotNull String VERSION = OPTIONS.getVersion();
 
     /** monitor guarding the double-checked-locking acquisition across test classes */
     private static final @NotNull Object LOCK = new Object();

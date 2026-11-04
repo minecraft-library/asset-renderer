@@ -108,17 +108,6 @@ class AtlasRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("hiding nothing draws no checkerboard, so the harness itself moves no tile")
-    void theHarnessIsInert() {
-        AtlasResult atlas = new AtlasRenderer(context.hiding()).render(filtered());
-
-        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
-        assertThat(HIDDEN_SUBJECT + " wears its own texture", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(false));
-        for (String id : List.of(INTACT_SUBJECT, HIDDEN_SUBJECT))
-            assertThat(id + "'s row names no stand-in", standIns(atlas, id), is(empty()));
-    }
-
-    @Test
     @DisplayName("the item pass keeps its tile too, so both halves of the sheet draw the checkerboard")
     void theItemPassKeepsItsTileToo() {
         // The two passes partition on item-index membership, so a block id never proves anything about

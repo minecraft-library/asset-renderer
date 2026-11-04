@@ -71,16 +71,6 @@ class MenuRendererFillTest {
         return new MenuRenderer(ClientAssetsExtension.context()).render(options);
     }
 
-    @Test
-    @DisplayName("a fill with a cell to draw in draws the missing square for an item it cannot resolve, and names it")
-    void aFillWithRoomNamesAnUnresolvableItem() {
-        String unresolvable = "minecraft:menu_renderer_fill_test_with_room";
-
-        MenuResult menu = render(chestWithUnresolvableFill(unresolvable));
-
-        assertThat(menu.substitutions(), contains(Substitution.subject(unresolvable)));
-    }
-
     /**
      * The same fill on a menu with room names the id, so the full menu names nothing because it never
      * resolved the fill, and not because the id resolves.

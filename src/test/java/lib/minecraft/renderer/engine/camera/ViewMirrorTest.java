@@ -75,20 +75,6 @@ class ViewMirrorTest {
     }
 
     @Test
-    @DisplayName("resolve(r) equals resolve(r, DEFAULT) - the default path is a no-op")
-    void resolveDefaultMatchesPlain() {
-        EulerRotation r = new EulerRotation(10f, 20f, 5f);
-        View plain = Projection.PORTRAIT.resolve(r);
-        View defaulted = Projection.PORTRAIT.resolve(r, ViewMirror.DEFAULT);
-        for (int col = 1; col <= 4; col++)
-            for (int row = 1; row <= 4; row++)
-                assertEquals(plain.camera().pose().get(col, row), defaulted.camera().pose().get(col, row), 0f,
-                    "pose(" + col + "," + row + ")");
-        assertEquals(plain.camera().lens(), defaulted.camera().lens());
-        assertEquals(plain.lighting(), defaulted.lighting());
-    }
-
-    @Test
     @DisplayName("with* derive a new facing without mutating")
     void withersDeriveWithoutMutating() {
         assertEquals(ViewMirror.MIRRORED, ViewMirror.DEFAULT.withMirrored(true));

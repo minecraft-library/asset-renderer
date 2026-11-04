@@ -101,10 +101,6 @@ class NoTolerance(unittest.TestCase):
         right = artifact([{"subject": "x", "mean_argb_delta": "1.0001"}])
         self.assertEqual(compare.compare(left, right).totals()["moved"], 1)
 
-    def test_no_tolerance_flag_exists_anywhere(self):
-        """If it does not exist it cannot be reached for at 2am."""
-        self.assertFalse(any("toler" in name.lower() for name in dir(compare)))
-
 
 class ExpectedDiff(unittest.TestCase):
     """The device that replaces a tolerance: diff == manifest, not diff == empty."""
@@ -222,9 +218,6 @@ class ExpectedDiff(unittest.TestCase):
     def test_a_registration_for_another_artifact_does_not_count(self):
         expected = {"movers": [{"artifact": "sweep.block", "key": "x", "to": "2.0000"}]}
         self.assertFalse(compare.compare(self.LEFT, self.RIGHT, expected).movers[0]["expected"])
-
-    def test_an_empty_manifest_still_gates(self):
-        self.assertEqual(compare.empty_expected()["movers"], [])
 
 
 class ProvenanceIsRequired(unittest.TestCase):

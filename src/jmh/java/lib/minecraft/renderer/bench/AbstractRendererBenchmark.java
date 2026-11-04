@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import org.jetbrains.annotations.NotNull;
@@ -32,12 +31,6 @@ public abstract class AbstractRendererBenchmark {
     protected RendererContext context;
 
     /**
-     * Raw pipeline result kept alongside {@link #context} for benchmarks that need the on-disk
-     * pack root or the loaded-model counts for sanity-checking before a measurement kicks off.
-     */
-    protected ClientAssets pipelineResult;
-
-    /**
      * Runs the pipeline once per trial, resolves the renderer context, then hands off to the
      * subclass hook. {@code final} so the load-once contract cannot be overridden away.
      *
@@ -45,8 +38,7 @@ public abstract class AbstractRendererBenchmark {
      */
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
-        this.pipelineResult = ClientAcquisition.acquire(ClientOptions.defaults());
-        this.context = RendererContext.load(this.pipelineResult);
+        this.context = RendererContext.load(ClientAcquisition.acquire(ClientOptions.defaults()));
         onSetupTrial();
     }
 
@@ -60,18 +52,17 @@ public abstract class AbstractRendererBenchmark {
     }
 
     /**
-     * Invokes the subclass release hook, then clears the trial-scoped references so the pipeline
-     * result and its loaded models become eligible for GC between trials.
+     * Invokes the subclass release hook, then clears the trial-scoped context so it and its loaded
+     * models become eligible for GC between trials.
      */
     @TearDown(Level.Trial)
     public final void tearDownTrial() {
         onTearDownTrial();
         this.context = null;
-        this.pipelineResult = null;
     }
 
     /**
-     * Hook invoked before the trial-level references are cleared. Subclasses override to release
+     * Hook invoked before the trial-level context is cleared. Subclasses override to release
      * renderer-specific state.
      */
     protected void onTearDownTrial() {

@@ -29,7 +29,6 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * A seat lowers as a held displacement on the follower's own field, which every style but the
@@ -67,7 +66,7 @@ class SeatInstallParityTest {
     @DisplayName("the beg and the rear leave every shipped style of the wolf and the horse at its bits")
     void cookbookInstallsLeaveTheShippedStylesAtTheirBits() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
-        assumeTrue(pristine.containsKey("minecraft:wolf") && pristine.containsKey("minecraft:horse"),
+        assertTrue(pristine.containsKey("minecraft:wolf") && pristine.containsKey("minecraft:horse"),
             "bundled entity tables answer");
         StyleRegistrar registrar = StyleRegistrar.ofShipped()
             .add("minecraft:wolf", BEG)
@@ -87,7 +86,7 @@ class SeatInstallParityTest {
     @DisplayName("a body scale leaves every shipped style of the wolf at its bits, its pose scale included")
     void aScaleInstallLeavesTheShippedStylesAtTheirBits() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
-        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        assertTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
         StyleRegistrar registrar = StyleRegistrar.ofShipped()
             .add("minecraft:wolf", Poses.legged("bulk").body(body -> body.scale(1.5)).build());
 
@@ -98,7 +97,6 @@ class SeatInstallParityTest {
     @DisplayName("every shipped row deriving a seat rests at its bits under a probe turning and shifting each leader")
     void everyCarryingRowRestsAtItsBitsUnderAProbe() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
-        assumeTrue(!pristine.isEmpty(), "bundled entity tables answer");
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
         List<String> probed = new ArrayList<>();
         pristine.forEach((id, row) -> {
@@ -124,7 +122,7 @@ class SeatInstallParityTest {
     @DisplayName("a raw statue spliced whole leaves the shipped styles at their bits - the hatch weaves behind the style's own gate like every verb")
     void aRawStatueLeavesTheShippedStylesAtTheirBits() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
-        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        assertTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
         Entity wolf = pristine.get("minecraft:wolf");
         StyleRegistrar registrar = StyleRegistrar.ofShipped()
             .add("minecraft:wolf", RegistrarFixtures.silhouette(wolf, "isSitting=true", "sitting"));
@@ -136,7 +134,7 @@ class SeatInstallParityTest {
     @DisplayName("a raw statue installed beside a chain leaves the chain's own style at its bits - a gate answers one style, not the row")
     void aRawStatueLeavesAnInstalledChainAtItsBits() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
-        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        assertTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
         Entity wolf = pristine.get("minecraft:wolf");
         Entity alone = StyleRegistrar.ofShipped()
             .add("minecraft:wolf", BEG)

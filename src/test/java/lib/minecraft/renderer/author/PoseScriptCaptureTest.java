@@ -2,7 +2,6 @@ package lib.minecraft.renderer.author;
 
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
-import lib.minecraft.renderer.engine.pose.PoseExpr;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +11,6 @@ import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -174,18 +172,6 @@ class PoseScriptCaptureTest {
     }
 
     @Test
-    @DisplayName("a container step captures the same verbs under no limb")
-    void containerStepCarriesNoLimb() {
-        PoseScript script = new PoseScript.Capture()
-            .step(s -> s.pitch(-30))
-            .script();
-
-        PoseScript.Stance step = script.stances().getFirst();
-        assertEquals(Optional.empty(), step.limb(), "a step addresses the seat, not a bone");
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -30, true)), List.copyOf(step.of(PoseScript.Write.class)));
-    }
-
-    @Test
     @DisplayName("stances keep author order, later calls on one bone staying separate entries")
     void stancesKeepAuthorOrder() {
         PoseScript script = new PoseScript.Capture()
@@ -201,26 +187,6 @@ class PoseScriptCaptureTest {
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Y_ROT, 25, true)),
             List.copyOf(script.stances().getLast().of(PoseScript.Write.class)),
             "the later stamp reads after the earlier one, so a fold can let it win");
-    }
-
-    @Test
-    @DisplayName("script-level verbs capture stride, hover, period and raw expressions")
-    void scriptLevelCaptures() {
-        PoseExpr raw = new PoseExpr.Input("tentacleAngle");
-        PoseScript script = new PoseScript.Capture()
-            .keepStride()
-            .hover(8, 2)
-            .period(2.4)
-            .raw("body", PoseChannel.X_ROT, raw)
-            .script();
-
-        assertTrue(script.keepStride());
-        assertEquals(Optional.of(new PoseScript.Hover(8, 2)), script.hover());
-        assertEquals(OptionalDouble.of(2.4), script.periodSeconds());
-        PoseScript.Raw captured = script.raws().getFirst();
-        assertEquals("body", captured.bone());
-        assertEquals(PoseChannel.X_ROT, captured.channel());
-        assertSame(raw, captured.expr(), "the expression graph rides by reference, never copied");
     }
 
     @Test

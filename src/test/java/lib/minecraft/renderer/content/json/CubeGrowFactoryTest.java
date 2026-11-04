@@ -38,13 +38,6 @@ class CubeGrowFactoryTest {
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
-    @DisplayName("a scalar grow broadcasts to all three axes")
-    void scalarBroadcasts() {
-        EntityMesh.Cube cube = GSON.fromJson("{\"grow\": 0.25}", EntityMesh.Cube.class);
-        assertThat(cube.getGrow(), equalTo(new Vector3f(0.25f, 0.25f, 0.25f)));
-    }
-
-    @Test
     @DisplayName("an array grow is read per axis")
     void arrayReadsPerAxis() {
         EntityMesh.Cube cube = GSON.fromJson("{\"grow\": [0.1, 0.2, 0.3]}", EntityMesh.Cube.class);

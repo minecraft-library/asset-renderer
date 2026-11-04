@@ -71,22 +71,6 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("partial faces produce only the triangles for present directions")
-    void partialFaces_skipsMissingDirections() {
-        ModelElement element = new ModelElement();
-        element.getFaces().put("up", face("#all"));
-        element.getFaces().put("down", face("#all"));
-
-        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-        faceTextures.put("#all", texture1x1());
-
-        ConcurrentList<VisibleTriangle> triangles =
-            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
-
-        assertThat(triangles.size(), equalTo(4));
-    }
-
-    @Test
     @DisplayName("explicit face UV rectangle is normalized from 0-16 to 0-1")
     void customFaceUv_normalizesCorrectly() {
         ModelElement element = new ModelElement();
@@ -241,11 +225,13 @@ class BlockGeometryKitTest {
     }
 
     @Test
-    @DisplayName("light_emission 0 leaves the inventory cardinal shade untouched")
+    @DisplayName("light_emission 0 leaves the inventory cardinal shade untouched, and a shade:true face directionally lit")
     void lightEmissionZero_isBaseline() throws ReflectiveOperationException {
         ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 0);
-        for (VisibleTriangle t : triangles)
+        for (VisibleTriangle t : triangles) {
             assertThat(t.shading(), equalTo(Lighting.inventory(t.normal())));
+            assertThat("directionally lit", t.traits().directionalLight(), equalTo(true));
+        }
     }
 
     @Test
@@ -258,14 +244,6 @@ class BlockGeometryKitTest {
             assertThat(t.traits().directionalLight(), equalTo(false));
             assertThat(t.shading(), equalTo(1f));
         }
-    }
-
-    @Test
-    @DisplayName("a shade:true element takes directional light on every face")
-    void shadeTrue_takesDirectionalLight() throws ReflectiveOperationException {
-        ConcurrentList<VisibleTriangle> triangles = cubeWithEmission(true, 0);
-        for (VisibleTriangle t : triangles)
-            assertThat(t.traits().directionalLight(), equalTo(true));
     }
 
     /** Builds a full unit cube with a given {@code shade} flag and {@code light_emission} level. */

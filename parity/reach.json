@@ -152,10 +152,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/BlockRendererMissingTextureTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/BlockRendererRasterPinTest": {
       "artifacts": [
         "pin.block-crc"
@@ -365,10 +361,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/PlayerRendererDefaultSkinTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/PlayerRendererFittedGoldenTest": {
       "artifacts": [
         "pin.player-crc"
@@ -447,7 +439,6 @@
     },
     "lib/minecraft/renderer/asset/Block": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -539,10 +530,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/equipment/EquipmentModelTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/equipment/Shell": {
       "artifacts": [
         "manifest.dump.packs",
@@ -599,7 +586,6 @@
     },
     "lib/minecraft/renderer/asset/mesh/EntityMesh": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -629,7 +615,6 @@
     },
     "lib/minecraft/renderer/asset/mesh/TextureSize": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -655,7 +640,6 @@
     },
     "lib/minecraft/renderer/asset/model/ModelData": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -675,7 +659,6 @@
     },
     "lib/minecraft/renderer/asset/model/ModelElement": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -695,7 +678,6 @@
     },
     "lib/minecraft/renderer/asset/model/ModelFace": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -715,7 +697,6 @@
     },
     "lib/minecraft/renderer/asset/model/ModelTexture": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -735,7 +716,6 @@
     },
     "lib/minecraft/renderer/asset/model/ModelTransform": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -2574,10 +2554,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/call/request/TextOptionsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/call/request/TextureOptions": {
       "artifacts": [
         "manifest.player-raw",
@@ -3233,10 +3209,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/index/IndexedRendererContextUnreadableTextureTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/index/ItemIndexBuilder": {
       "artifacts": [],
       "source": "derived"
@@ -3597,10 +3569,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/pack/PackAcquisitionIntegrationTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/pack/PackAcquisitionTest": {
       "artifacts": [],
       "source": "derived"
@@ -3650,7 +3618,6 @@
     },
     "lib/minecraft/renderer/content/pack/ResolvedModels": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
@@ -3767,7 +3734,6 @@
     },
     "lib/minecraft/renderer/content/read/BundledResource": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -3800,7 +3766,6 @@
     },
     "lib/minecraft/renderer/content/read/ResourceDocument": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -3920,7 +3885,6 @@
     },
     "lib/minecraft/renderer/content/table/BlockTintsLoader": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "pin.corpus-count"
@@ -4009,10 +3973,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/PotionColorLoaderTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/ShippedTableCapacityTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4846,7 +4806,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/EulerRotation": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -4942,7 +4901,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/ModelUnits": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5340,7 +5298,6 @@
     },
     "lib/minecraft/renderer/engine/math/Vector2f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.fluid",
@@ -5408,7 +5365,6 @@
     },
     "lib/minecraft/renderer/engine/math/Vector4f": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
@@ -7767,7 +7723,6 @@
     },
     "lib/minecraft/renderer/vanilla/id/BlockStateKey": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",

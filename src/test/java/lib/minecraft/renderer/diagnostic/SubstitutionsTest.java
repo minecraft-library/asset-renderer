@@ -13,39 +13,17 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage of {@link Substitutions}: a subject id, a leaf model id and a texture id are each reported
- * once, in its own wording, however often it is drawn, and the kinds keep separate sets. A leaf
- * model's set is keyed by the model, so a second item naming it stays quiet.
+ * Coverage of {@link Substitutions}: a leaf model id is reported once, in its own wording, however
+ * many items name it - its set is keyed by the model, so a second item naming it stays quiet - and the
+ * subject, texture and leaf kinds keep separate sets. The subject and texture wordings, and their
+ * once-only reports, are held where a render reaches them, by {@code MissingSubjectTest} and
+ * {@code RendererContextWithMissingTextureTest}.
  * <p>
  * The reporting sets are static and live as long as the process, so every id below is unique to the
  * test that names it.
  */
 @DisplayName("Substitutions reports each stand-in once")
 class SubstitutionsTest {
-
-    @Test
-    @DisplayName("a subject is reported once however often it is drawn")
-    void reportsASubjectOnce() {
-        String id = "minecraft:missing_model_kit_test_reported_once";
-
-        String first = errDuring(() -> Substitutions.model(id));
-        String second = errDuring(() -> Substitutions.model(id));
-
-        assertThat(first, containsString("No block or item '" + id + "' - drawing the missing model"));
-        assertThat(second, is(emptyString()));
-    }
-
-    @Test
-    @DisplayName("a texture is reported once however many faces name it")
-    void reportsATextureOnce() {
-        String id = "minecraft:block/substitutions_test_texture_reported_once";
-
-        String first = errDuring(() -> Substitutions.texture(id));
-        String second = errDuring(() -> Substitutions.texture(id));
-
-        assertThat(first, containsString("Missing texture '" + id + "' - drawing the checkerboard"));
-        assertThat(second, is(emptyString()));
-    }
 
     @Test
     @DisplayName("a subject report does not silence a texture report of the same id")

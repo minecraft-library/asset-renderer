@@ -38,7 +38,7 @@ check it against source before honouring one.
 | A block item's icon, how a slot draws an item, `SpecialTransform`, the block index's first-variant pick | [Blocks](docs/renderer/Blocks.md) |
 | `ScreenMetrics`, `MenuLayout`, `MenuRenderer`, `Window`, marks, `bake.gui` | [Menus](docs/renderer/Menus.md) |
 | A parity row disagreeing with its reference | [Debugging](docs/renderer/Debugging.md); probe traps and worked examples: `.claude/skills/parity-gate/references/diagnostics.md` |
-| A `@Parity` declaration; a `blindness.json` rule; `ParityArtifacts` and `index.json`; renaming a class, heading or file the store cites | [DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md), [RosterAndIndex](docs/parity/RosterAndIndex.md), [StoreState](docs/parity/StoreState.md) |
+| A `@Parity` declaration; a `blindness.json` rule; `ParityArtifacts` and `index.json`; renaming a class or file the store cites | [DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md), [RosterAndIndex](docs/parity/RosterAndIndex.md), [StoreState](docs/parity/StoreState.md) |
 | `build.gradle.kts` and `gradle/*.gradle.kts`, the source sets, the Vector flag, ASM | [BuildScripts](docs/project/BuildScripts.md) |
 | Which suite a test belongs in - the cache extensions, the slow tag | [TestSuites](docs/project/TestSuites.md) |
 | `content/client`; the exception hierarchy - `ClientException`, `ToolingException` | [ClientAcquisition](docs/project/ClientAcquisition.md) |
@@ -96,7 +96,7 @@ ABANDONS the class where no jar is cached - so a fast run cannot download. A cla
 installs `MinecraftFontsExtension` the same way, since the text library's own fallback reaches the
 network. `ClientJarGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an absent client
 jar or font cache, so a suite thinned by assumption says so once rather than reporting green over
-coverage it skipped; nothing fails on an absent pack. The five classes that keep the tag, and the
+coverage it skipped; nothing fails on an absent pack. The four classes that keep the tag, and the
 packs a fast test may read, are [TestSuites](docs/project/TestSuites.md).
 
 A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
@@ -129,12 +129,10 @@ declaration mechanics behind it - how reach is resolved, what coining an artifac
 - `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
   rename compiles clean and fails at runtime.
 
-**Two renames are a promote rather than a rename**, and both bite before you are anywhere near the
-gate: a test or visual-set class the store homes a row at, and a heading a reach rule cites - of
-this file or of a topic file under `docs/` - or the path of the file that holds it.
-[StoreState](docs/parity/StoreState.md) lists which files those are, the five that pin a line number
-as well, and what an edit to one owes; grep the store for the class or the heading before touching
-it.
+**One rename is a promote rather than a rename**, and it bites before you are anywhere near the
+gate: a test or visual-set class the store homes a row at. [StoreState](docs/parity/StoreState.md)
+lists which files those are, the five that pin a line number as well, and what an edit to one owes;
+grep the store for the class before touching it.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a

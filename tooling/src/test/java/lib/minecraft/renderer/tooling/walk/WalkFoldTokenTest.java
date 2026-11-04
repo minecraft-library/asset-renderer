@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.walk;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
 import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -153,6 +154,7 @@ class WalkFoldTokenTest {
             .latch(AsmWalker::stringLiteral).strict().commitAt(COMMIT).first();
         assertNotNull(strict);
         assertNull(strict.value(), "the unconsumed node clears a strict latch before the commit");
+        assertEquals(List.of(), strict.values(), "a cleared latch answers an empty unit list");
         CommitWalk.Commit<FieldInsnNode, String> firstWins = AsmWalker.over(m)
             .latch(AsmWalker::stringLiteral).firstWins().commitAt(COMMIT).first();
         assertNotNull(firstWins);
@@ -251,17 +253,25 @@ class WalkFoldTokenTest {
     }
 
     @Test
-    @DisplayName("retain() and strict() combine - the buffer survives a commit yet clears on a fall-through")
+    @DisplayName("retain() and strict() combine in either order - the buffer survives a commit yet clears on a fall-through")
     void retainWithStrict() {
         MethodNode m = method(
             new LdcInsnNode(1), commit(),
             new LdcInsnNode(2), commit(),
             nop(),
             new LdcInsnNode(3), commit());
+        List<List<Integer>> expected = List.of(List.of(1), List.of(1, 2), List.of(3));
         List<List<Integer>> seen = events(AsmWalker.over(m)
             .gather(AsmWalker::intLiteral).retain().strict()
             .commitAt(COMMIT));
-        assertEquals(List.of(List.of(1), List.of(1, 2), List.of(3)), seen);
+        assertEquals(expected, seen, "strict() carries the retain() it follows");
+        List<List<Integer>> reversed = new ArrayList<>();
+        Exit exit = AsmWalker.over(m)
+            .gather(AsmWalker::intLiteral).strict().retain()
+            .commitAt(COMMIT)
+            .forEach(event -> reversed.add(event.values()));
+        assertEquals(Exit.END, exit);
+        assertEquals(expected, reversed, "retain() carries the strict() it follows");
     }
 
     @Test

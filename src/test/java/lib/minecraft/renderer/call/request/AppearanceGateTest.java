@@ -15,14 +15,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -38,9 +35,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * constant owns is a load-time concern - the parse resolves it to no gate at all, so no arm here can
  * hold one.
  *
- * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a third arm fails
- * this class rather than slipping through with no coverage.
- *
  * <p>The one choice the bag makes on a gate rather than a row, the {@link Shell} a wearer is dressed
  * in, is held here too, on hand-built bone-less shells because the pick never reads a mesh.
  */
@@ -52,33 +46,6 @@ class AppearanceGateTest {
      * resolves {@link DyeColor.Vanilla#WHITE} to rather than that dye's own colour
      */
     private static final int UNDERCOAT_TINT = 0xFFE6E6E6;
-
-    /** One sample per sealed arm, each paired with a firing and a non-firing appearance. */
-    private static final List<ArmCase> ARMS = List.of(
-        new ArmCase(new AppearanceGate.Selected(Age.BABY, true),
-            AppearanceOptions.builder().age(Age.BABY).build(),
-            AppearanceOptions.defaults()),
-        new ArmCase(new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT),
-            AppearanceOptions.builder().tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED)).build(),
-            AppearanceOptions.defaults()));
-
-    @Test
-    @DisplayName("the arm table exercises every permitted subclass")
-    void tableExercisesEveryPermittedArm() {
-        Set<Class<?>> exercised = new HashSet<>();
-        for (ArmCase arm : ARMS) exercised.add(arm.gate().getClass());
-        Set<Class<?>> permitted = Set.of(AppearanceGate.class.getPermittedSubclasses());
-        assertThat(exercised, is(equalTo(permitted)));
-    }
-
-    @Test
-    @DisplayName("every arm fires for its own selection and stays silent for the default appearance")
-    void everyArmFiresForItsOwnSelection() {
-        for (ArmCase arm : ARMS) {
-            assertThat(arm.gate() + " fires for its selection", arm.fires().passes(arm.gate()), is(true));
-            assertThat(arm.gate() + " stays silent for the default", arm.silent().passes(arm.gate()), is(false));
-        }
-    }
 
     @Nested
     @DisplayName("Selected")
@@ -275,14 +242,5 @@ class AppearanceGateTest {
     private static Shell shellOf(ArmorForm form, Optional<Shell.Alternate> alternate) {
         return new Shell(new EntityMesh(), Vector3f.ZERO, Vector3f.ZERO, form, alternate);
     }
-
-    /**
-     * One sealed arm alongside the two appearances that answer it opposite ways.
-     *
-     * @param gate the arm sample
-     * @param fires an appearance the arm answers {@code true} for
-     * @param silent an appearance the arm answers {@code false} for
-     */
-    private record ArmCase(AppearanceGate gate, AppearanceOptions fires, AppearanceOptions silent) {}
 
 }

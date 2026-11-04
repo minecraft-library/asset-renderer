@@ -11,7 +11,6 @@ import java.util.Arrays;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Both corner phases - what a merge of the two face vocabularies would most easily destroy, and what
@@ -33,7 +32,7 @@ import static org.hamcrest.Matchers.not;
  *     so both phases wind counter-clockwise seen from the outward normal. A cyclic rotation traverses
  *     the same cycle and cannot reverse this; a reversal would.</li>
  * <li><b>The fan diagonal</b>, as the {@code (index 0, index 2)} box-corner pair - a genuine diagonal
- *     on each phase, and a different one on each.</li>
+ *     on each phase, moving on both of the face's own axes.</li>
  * <li><b>The position-to-UV pairing</b> - walking the real composition (corner order, then the
  *     unwrap, then {@link Vector4f#toUvCorners}, then the phase's own permutation), {@code u} must
  *     depend only on the face's width-axis coordinate and {@code v} only on its height-axis
@@ -137,24 +136,6 @@ class CornerPhaseTest {
     }
 
     @Test
-    @DisplayName("the fan diagonal is the corner-0 to corner-2 pair, and the two phases split opposite ways")
-    void fanDiagonal() {
-        int[][] bakery = { { 4, 1 }, { 3, 6 }, { 2, 0 }, { 7, 5 }, { 3, 4 }, { 6, 1 } };
-        int[][] polygon = { { 5, 0 }, { 2, 7 }, { 1, 3 }, { 4, 6 }, { 0, 7 }, { 5, 2 } };
-
-        for (int i = 0; i < Face.size(); i++) {
-            Face face = Face.ofOrdinal(i);
-            assertThat("bakery diagonal of " + face,
-                diagonalOf(CornerPhase.BAKERY.vertexIndices(face)), equalTo(bakery[i]));
-            assertThat("polygon diagonal of " + face,
-                diagonalOf(CornerPhase.POLYGON.vertexIndices(face)), equalTo(polygon[i]));
-            // A quad has two diagonals; each phase must take one, and they must take different ones.
-            assertThat("the two phases split " + face + " on opposite diagonals",
-                sorted(polygon[i]), is(not(equalTo(sorted(bakery[i])))));
-        }
-    }
-
-    @Test
     @DisplayName("the fan diagonal really is a diagonal - it moves on both of the face's own axes")
     void diagonalCrossesBothAxes() {
         Face.forEach(face -> {
@@ -216,17 +197,6 @@ class CornerPhaseTest {
     /** Adding {@code +0.0f} settles a negative zero onto the positive one and moves nothing else. */
     private static Vector3f withoutNegativeZero(Vector3f vector) {
         return new Vector3f(vector.x() + 0f, vector.y() + 0f, vector.z() + 0f);
-    }
-
-    /** The box-corner pair the {@code (0,1,2)+(0,2,3)} fan shares between its two triangles. */
-    private static int[] diagonalOf(int[] vertexIndices) {
-        return new int[]{ vertexIndices[0], vertexIndices[2] };
-    }
-
-    private static int[] sorted(int[] pair) {
-        int[] copy = pair.clone();
-        Arrays.sort(copy);
-        return copy;
     }
 
     /** The sign of a float as an int, so a zero difference cannot arrive carrying a sign bit. */

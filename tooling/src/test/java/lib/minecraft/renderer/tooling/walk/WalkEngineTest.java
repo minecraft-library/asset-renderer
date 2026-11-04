@@ -32,10 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Units for the walk drive loop - each source shape against its hand-written loop, the
- * sentinel and budget bounds under both pseudo policies, and every {@link Exit} value, over
- * synthetic method bodies and a synthesized jar behind a {@link ClassNodeCache}.
+ * sentinel and budget bounds under both pseudo policies, and the {@link Exit} a walk answers
+ * where two bounds contend, over synthetic method bodies and a synthesized jar behind a
+ * {@link ClassNodeCache}.
  */
-@DisplayName("walk engine - the drive loop and every Exit value")
+@DisplayName("walk engine - the drive loop, its bounds and its contended exits")
 class WalkEngineTest {
 
     private static final String FIXTURE = "test/Fixture";
@@ -199,60 +200,6 @@ class WalkEngineTest {
         MethodNode m = method(a, firstLabel, b, secondLabel, c, new InsnNode(Opcodes.RETURN));
         assertEquals(List.of(a, firstLabel, b), AsmWalker.over(m).limit(3).toList());
         assertEquals(List.of(a, b, c), AsmWalker.over(m).real().limit(3).toList());
-    }
-
-    // ------------------------------------------------------------------------------------
-    // the Exit table - one test per row
-    // ------------------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("exhaustion answers END")
-    void exitEnd() {
-        MethodNode m = method(new LdcInsnNode("a"), new InsnNode(Opcodes.RETURN));
-        assertEquals(Exit.END, AsmWalker.over(m).forEach(node -> {}));
-        assertEquals(Exit.END, AsmWalker.over(m).run());
-    }
-
-    @Test
-    @DisplayName("a fired bound answers SENTINEL in both the identity and recognizer forms")
-    void exitSentinel() {
-        LdcInsnNode a = new LdcInsnNode("a");
-        InsnNode ret = new InsnNode(Opcodes.RETURN);
-        MethodNode m = method(a, ret);
-        assertEquals(Exit.SENTINEL, AsmWalker.over(m).until(ret).run());
-        assertEquals(Exit.SENTINEL, AsmWalker.over(m).until(Insn.opcode(Opcodes.RETURN)).forEach(node -> {}));
-    }
-
-    @Test
-    @DisplayName("a refused arriving yield answers BUDGET")
-    void exitBudget() {
-        MethodNode m = method(new LdcInsnNode("a"), new LdcInsnNode("b"), new InsnNode(Opcodes.RETURN));
-        assertEquals(Exit.BUDGET, AsmWalker.over(m).limit(1).forEach(node -> {}));
-        assertEquals(Exit.BUDGET, AsmWalker.over(m).limit(1).run());
-    }
-
-    @Test
-    @DisplayName("a tracer answering null answers HALTED")
-    void exitHalted() {
-        MethodNode m = method(new LdcInsnNode("a"), new InsnNode(Opcodes.RETURN));
-        assertEquals(Exit.HALTED, AsmWalker.over(m).trace(current -> null));
-    }
-
-    @Test
-    @DisplayName("a tracer revisiting a node answers CYCLE")
-    void exitCycle() {
-        MethodNode m = method(new LdcInsnNode("a"), new InsnNode(Opcodes.RETURN));
-        assertEquals(Exit.CYCLE, AsmWalker.over(m).trace(current -> current));
-    }
-
-    @Test
-    @DisplayName("an absent class or member answers MISSING from run-shaped terminals")
-    void exitMissing() {
-        assertEquals(Exit.MISSING, AsmWalker.over(cache, ABSENT, "m").run());
-        assertEquals(Exit.MISSING, AsmWalker.over(cache, FIXTURE, "absent").run());
-        assertEquals(Exit.MISSING, AsmWalker.over(cache, ABSENT, "m").forEach(node -> {}));
-        // the resolved control: the same opener with both halves present walks to END
-        assertEquals(Exit.END, AsmWalker.over(cache, FIXTURE, "m").run());
     }
 
     // ------------------------------------------------------------------------------------

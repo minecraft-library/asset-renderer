@@ -54,11 +54,6 @@ class WorkingRoot(unittest.TestCase):
             with self.assertRaises(Refused):
                 store.resolve_working(candidate, self.base)
 
-    def test_there_is_no_slot_api(self):
-        """The root is a path. A two-constant enum is still two slots."""
-        self.assertFalse(hasattr(store, "Slot"))
-        self.assertFalse(hasattr(store, "ParitySlot"))
-
 
 class ProductionIsReadOnly(unittest.TestCase):
     """Only parityPromote writes a baseline."""

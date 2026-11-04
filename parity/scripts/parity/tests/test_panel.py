@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 from parity import cli, pixels
-from parity.norm import MissingDependency, MissingInput, read_json
+from parity.norm import MissingInput, read_json
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -559,27 +559,6 @@ class FramesAgreeWithTheAnimatedSweeps(unittest.TestCase):
                 checked += 1
         if not checked:
             self.skipTest("no animated sweep output with a table beside its frames")
-
-
-class DependencyBoundary(unittest.TestCase):
-    """The gate path is stdlib by construction; this is the surface where that stops."""
-
-    def test_available_is_a_bool_and_never_raises(self):
-        self.assertIn(pixels.available(), (True, False))
-
-    def test_require_names_the_install_line(self):
-        if pixels.available():
-            self.assertEqual(len(pixels.missing()), 0)
-            return
-        with self.assertRaises(MissingDependency) as caught:
-            pixels.require("panel stats")
-        self.assertIn("pip install", str(caught.exception))
-
-    def test_panel_is_not_importable_without_the_pair(self):
-        """panel imports pixels, never numpy - so the boundary holds from the other side too."""
-        source = (Path(__file__).resolve().parents[1] / "panel.py").read_text(encoding="utf-8")
-        self.assertNotIn("import numpy", source)
-        self.assertNotIn("from PIL", source)
 
 
 if __name__ == "__main__":

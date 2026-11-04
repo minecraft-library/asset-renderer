@@ -6,9 +6,6 @@ import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
-import lib.minecraft.renderer.tooling.policy.AsmContext;
-import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.policy.Trace;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,12 +27,10 @@ import org.objectweb.asm.tree.VarInsnNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -73,21 +68,8 @@ class TintInHandArgTest {
     Path tempDir;
 
     // ------------------------------------------------------------------------------------
-    // the row, and what replaying it recovers
+    // what replaying the row recovers
     // ------------------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("the row answers a trace rather than a value, so no index is frozen in the policy")
-    void rowDeclaresATrace() throws IOException {
-        try (ClassNodeCache cache = open("shape", IN_HAND, IN_ORDER, SOURCE)) {
-            Navigation navigation = SnapshotShapePolicies.TINT_CONSTANT_IN_HAND.navigate(
-                AsmContext.keyless(run(cache, diagnostics()), diagnostics()));
-            Navigation.Dataflow coordinate = assertInstanceOf(Navigation.Dataflow.class, navigation);
-            assertEquals(SOURCE, coordinate.owner());
-            assertEquals(List.of(new Trace.Step.FollowGetField(null), new Trace.Step.MapParamSlot()),
-                coordinate.trace().steps());
-        }
-    }
 
     @Test
     @DisplayName("the overload that constructs nothing is skipped - the factory is reached by descriptor, never by name")

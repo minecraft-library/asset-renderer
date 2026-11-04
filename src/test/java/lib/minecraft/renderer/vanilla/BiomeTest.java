@@ -8,75 +8,17 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Sanity checks on {@link Biome}. Sweeps the transcribed {@link Biome.Vanilla} table for plausible
- * metadata (every entry has a {@code minecraft:}-namespaced id, temperature in {@code [-1, 2]},
- * downfall in {@code [0, 1]}) and spot-checks a few known entries: PLAINS' temperate values,
- * BADLANDS' hardcoded grass/foliage overrides, and the SWAMP / DARK_FOREST
- * {@link Biome.GrassColorModifier}s, plus the {@link Biome.Vanilla#findById(String)} id round-trip
- * and its empty miss. Beside them, the two caller factories - the
- * {@link Biome#of(String, float, float)} shorthand and the {@link Biome#builder(String)} builder.
+ * Sanity checks on {@link Biome}: the {@link Biome.Vanilla#findById(String)} id round-trip and its
+ * empty miss, and the two caller factories - the {@link Biome#of(String, float, float)} shorthand and
+ * the {@link Biome#builder(String)} builder. The transcribed {@link Biome.Vanilla} rows themselves are
+ * held to the client's own biome definitions by {@link BiomeVanillaTest}.
  */
 @DisplayName("Biome - the vanilla roster and the caller factories")
 class BiomeTest {
-
-    @Test
-    @DisplayName("every vanilla biome has a minecraft-namespaced id")
-    void everyVanillaBiomeHasNamespacedId() {
-        for (Biome.Vanilla biome : Biome.Vanilla.values()) {
-            assertThat("biome id", biome.id(), startsWith("minecraft:"));
-            assertThat("biome id has body", biome.id().length(), greaterThanOrEqualTo("minecraft:".length() + 1));
-        }
-    }
-
-    @Test
-    @DisplayName("every vanilla biome has temperature in [-1, 2] and downfall in [0, 1]")
-    void everyVanillaBiomeHasPlausibleMetrics() {
-        for (Biome.Vanilla biome : Biome.Vanilla.values()) {
-            assertThat(biome.id() + " temperature", (double) biome.temperature(), greaterThanOrEqualTo(-1.0));
-            assertThat(biome.id() + " temperature", (double) biome.temperature(), lessThanOrEqualTo(2.0));
-            assertThat(biome.id() + " downfall", (double) biome.downfall(), greaterThanOrEqualTo(0.0));
-            assertThat(biome.id() + " downfall", (double) biome.downfall(), lessThanOrEqualTo(1.0));
-        }
-    }
-
-    @Test
-    @DisplayName("plains uses the standard temperate values")
-    void plainsHasStandardValues() {
-        Biome plains = Biome.Vanilla.PLAINS;
-        assertThat(plains.id(), equalTo("minecraft:plains"));
-        assertThat(plains.temperature(), equalTo(0.8f));
-        assertThat(plains.downfall(), equalTo(0.4f));
-        assertThat(plains.grassColorOverride(), equalTo(Optional.empty()));
-        assertThat(plains.grassColorModifier(), is(Biome.GrassColorModifier.NONE));
-    }
-
-    @Test
-    @DisplayName("badlands has hardcoded grass and foliage overrides")
-    void badlandsHasColourOverrides() {
-        Biome badlands = Biome.Vanilla.BADLANDS;
-        assertThat(badlands.grassColorOverride().isPresent(), is(true));
-        assertThat(badlands.foliageColorOverride().isPresent(), is(true));
-    }
-
-    @Test
-    @DisplayName("swamp has the SWAMP grass color modifier")
-    void swampHasModifier() {
-        assertThat(Biome.Vanilla.SWAMP.grassColorModifier(), is(Biome.GrassColorModifier.SWAMP));
-    }
-
-    @Test
-    @DisplayName("dark forest has the DARK_FOREST grass color modifier")
-    void darkForestHasModifier() {
-        assertThat(Biome.Vanilla.DARK_FOREST.grassColorModifier(),
-            is(Biome.GrassColorModifier.DARK_FOREST));
-    }
 
     @Test
     @DisplayName("findById() round-trips a known id")

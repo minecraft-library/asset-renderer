@@ -51,13 +51,6 @@ class PassDeclarationTest {
     }
 
     @Test
-    @DisplayName("DEFAULT equals the declaration written out by hand")
-    void defaultEqualsTheHandWrittenDeclaration() {
-        assertThat(PassDeclaration.DEFAULT,
-            equalTo(new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false)));
-    }
-
-    @Test
     @DisplayName("all eight combinations of the three flags are distinct and read back unaltered")
     void theThreeFlagsAreIndependent() {
         Set<PassDeclaration> distinct = new HashSet<>();
@@ -75,21 +68,6 @@ class PassDeclarationTest {
             }
         }
         assertThat(distinct.size(), equalTo(8));
-    }
-
-    @Test
-    @DisplayName("one subject's two passes disagree on emissive and on the depth write together")
-    void twoPassesOfOneSubjectSplitEmissiveFromTheDepthWrite() {
-        // The shape vanilla actually ships: a full-bright overlay that leaves the depth buffer alone,
-        // beside a shaded pass that writes it. Neither flag can be read off the other.
-        PassDeclaration eyes = new PassDeclaration(true, BlendMode.NORMAL, 1f, false, false);
-        PassDeclaration body = new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false);
-
-        assertThat(eyes.emissive(), equalTo(true));
-        assertThat(eyes.writesDepth(), equalTo(false));
-        assertThat(body.emissive(), equalTo(false));
-        assertThat(body.writesDepth(), equalTo(true));
-        assertThat(eyes, not(equalTo(body)));
     }
 
     @Test

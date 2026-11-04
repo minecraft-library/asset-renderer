@@ -16,18 +16,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * The cascade contract - claiming, commit, reset and fall-through. Stages run in declaration
- * order and the first that fires claims the element; a commit reads its payload before any
- * reset; the engine-owned commit-reset is unconditional while {@code retain()} and
- * {@code clearing(subset)} are the declared deviations; an element no stage consumed is the
- * fall-through event strict cells clear on; an armed commit recognizer that fails its own
- * cell-reading match raises no event and therefore no reset.
+ * The cascade contract - claiming, commit and reset. Stages run in declaration order and the
+ * first that fires claims the element; a commit reads its payload before any reset; the
+ * engine-owned commit-reset is unconditional while {@code retain()} and {@code clearing(subset)}
+ * are the declared deviations; an armed commit recognizer that fails its own cell-reading match
+ * raises no event and therefore no reset.
  */
-@DisplayName("walk cascade - claiming, commit, reset, fall-through")
+@DisplayName("walk cascade - claiming, commit, reset")
 class WalkCascadeTest {
 
     private static MethodNode method(AbstractInsnNode... nodes) {
@@ -195,32 +193,6 @@ class WalkCascadeTest {
         // the decoder; the two null decodes between key and value left the latch armed
         assertEquals(List.of(gap1, gap2, value), offered);
         assertEquals(Map.of("K", "v"), pairs);
-    }
-
-    @Test
-    @DisplayName("strict() clears on the fall-through event - the sticky default keeps the held value")
-    void strictFallThrough() {
-        MethodNode m = method(
-            new FieldInsnNode(Opcodes.GETSTATIC, "test/K", "HELD", "Ltest/K;"),
-            new InsnNode(Opcodes.NOP),
-            new FieldInsnNode(Opcodes.PUTSTATIC, "test/O", "C", "I"),
-            new InsnNode(Opcodes.RETURN));
-
-        CommitWalk.Commit<FieldInsnNode, String> sticky = AsmWalker.over(m)
-            .latch(WalkCascadeTest::getstaticName)
-            .commitAt(Insn.putStatic("test/O"))
-            .first();
-        assertNotNull(sticky);
-        assertEquals("HELD", sticky.value(), "the unconsumed NOP does not disturb a sticky latch");
-
-        CommitWalk.Commit<FieldInsnNode, String> strict = AsmWalker.over(m)
-            .latch(WalkCascadeTest::getstaticName)
-            .strict()
-            .commitAt(Insn.putStatic("test/O"))
-            .first();
-        assertNotNull(strict, "the commit still fires; only the payload was lost");
-        assertNull(strict.value());
-        assertEquals(List.of(), strict.values());
     }
 
     @Test

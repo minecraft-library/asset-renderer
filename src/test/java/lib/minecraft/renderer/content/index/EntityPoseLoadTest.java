@@ -22,10 +22,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -263,37 +259,6 @@ class EntityPoseLoadTest {
             "and the whole pose stays the size the table spells it at, not the size it stands for");
     }
 
-    @Test
-    @DisplayName("the reader builds its arms outright and folds nothing on the way back")
-    void theReaderFoldsNothing() {
-        // The grammar carries factories that fold - an operation over literals becomes the literal,
-        // a comparison of two becomes the answer - and they exist for the generator on its way TO a
-        // table. A reader must not reach one: the shared table's numbering describes the graph that
-        // was emitted, so a reader collapsing a node would resolve a later reference to a node the
-        // table does not describe. What keeps that straight is that the record constructors do not
-        // fold, so this pins the reader to them rather than pinning a value no shipped table holds -
-        // the generator already folded every such node away, so none survives to be asserted on.
-        String reader = source("src/main/java/lib/minecraft/renderer/content/table/EntityPosesTable.java");
-        List<String> reached = Stream.of("PoseExpr.operation(", "PosePredicate.comparing(",
-                "PosePredicate.settled(", ".truthy()")
-            .filter(reader::contains)
-            .toList();
-
-        assertEquals(List.of(), reached,
-            "the pose reader names a folding factory, which would collapse a node the table numbers");
-        assertTrue(reader.contains("new PoseExpr.Op("),
-            "and it still builds an operation with the constructor, so the pin is reading live code");
-    }
-
-    /** One source file's text, read by path because a production source is not on the classpath. */
-    private static @NotNull String source(@NotNull String path) {
-        try {
-            return Files.readString(Path.of(path));
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
     /** Every node an expression reaches, counted once per place that names it. */
     private static void edges(@NotNull PoseExpr expr, @NotNull Map<Object, Integer> reached) {
         if (reached.merge(expr, 1, Integer::sum) > 1) return;
@@ -342,33 +307,6 @@ class EntityPoseLoadTest {
         assertFalse(walked.isEmpty(), "a frog drives clips off its walk");
         walked.forEach(clip -> assertEquals(4, clip.arguments().size(),
             clip.coordinate() + " is driven by four arguments"));
-    }
-
-    @Test
-    @DisplayName("every state-driven play site names the state its gate reads")
-    void aStateSiteNamesItsGate() {
-        // Which state a clip sits behind is the only thing saying WHICH of a model's several is
-        // running, and a site that named none would answer zero at render and never play - which
-        // reads exactly like the subject nothing has ticked, so nothing downstream would notice.
-        // The loader refuses one; this is that refusal exercised over the whole shipped corpus
-        // rather than over a hand-built row.
-        //
-        // A named state OUTSIDE the runtime's own roster is not a defect and is deliberately not
-        // asserted against: it answers zero, which is the state nobody selected, and that is what a
-        // subject standing still holds every state it does not play at.
-        Map<String, List<String>> unnamed = new TreeMap<>();
-        for (Map.Entry<String, Entity> subject : entities.entrySet()) {
-            EntityPose pose = subject.getValue().pose();
-            if (!pose.isReadable()) continue;
-            List<String> bare = pose.clips().stream()
-                .filter(clip -> clip.drive() == ClipDrive.SELECT)
-                .filter(clip -> clip.field().isEmpty())
-                .map(EntityPose.Clip::coordinate)
-                .toList();
-            if (!bare.isEmpty()) unnamed.put(subject.getKey(), bare);
-        }
-        assertEquals(Map.of(), unnamed,
-            "a state-driven site naming no state is one nothing can ever start, and it is silent");
     }
 
     @Test

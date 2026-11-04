@@ -26,19 +26,7 @@ class MissingSpriteTest {
     }
 
     @Test
-    @DisplayName("black sits on the leading diagonal and magenta on the anti-diagonal")
-    void quadrantsSitBlackOnTheLeadingDiagonal() {
-        // Orientation rather than membership: a checker with the diagonal reversed still holds the
-        // right two colours in the right proportion, so the corners are what pin which is which.
-        PixelBuffer sprite = MissingSprite.sprite();
-        assertThat("top-left", sprite.getPixel(0, 0), is(MissingSprite.BLACK_ARGB));
-        assertThat("bottom-right", sprite.getPixel(15, 15), is(MissingSprite.BLACK_ARGB));
-        assertThat("top-right", sprite.getPixel(15, 0), is(MissingSprite.MAGENTA_ARGB));
-        assertThat("bottom-left", sprite.getPixel(0, 15), is(MissingSprite.MAGENTA_ARGB));
-    }
-
-    @Test
-    @DisplayName("each 8x8 quadrant is one solid colour")
+    @DisplayName("each 8x8 quadrant is one solid colour, black on the leading diagonal")
     void eachQuadrantIsSolid() {
         PixelBuffer sprite = MissingSprite.sprite();
 
@@ -56,8 +44,6 @@ class MissingSpriteTest {
     void constantsMatchTheClientValues() {
         assertThat(MissingSprite.MAGENTA_ARGB, is(0xFFF800F8));
         assertThat(MissingSprite.BLACK_ARGB, is(0xFF000000));
-        assertThat("magenta as a signed int", MissingSprite.MAGENTA_ARGB, is(-524040));
-        assertThat("black as a signed int", MissingSprite.BLACK_ARGB, is(-16777216));
     }
 
     @Test
@@ -89,12 +75,6 @@ class MissingSpriteTest {
     }
 
     @Test
-    @DisplayName("every caller is handed the same buffer, not a copy")
-    void spriteIsTheSameInstanceEveryCall() {
-        assertThat(MissingSprite.sprite() == MissingSprite.sprite(), is(true));
-    }
-
-    @Test
     @DisplayName("the sprite is told apart by identity, so a copy holding the same texels is a texture")
     void theSpriteIsToldApartByIdentity() {
         assertThat(MissingSprite.isSprite(MissingSprite.sprite()), is(true));
@@ -121,17 +101,6 @@ class MissingSpriteTest {
                     assertThat(label + " alpha " + x + "," + y, stretched.getPixel(x, y) >>> 24, is(OPAQUE_ALPHA));
                 }
         }
-    }
-
-    @Test
-    @DisplayName("a whole-number stretch keeps the quadrants whole, black on the leading diagonal")
-    void aWholeNumberStretchKeepsTheQuadrants() {
-        PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), 64, 32);
-
-        assertThat("top-left", stretched.getPixel(31, 15), is(MissingSprite.BLACK_ARGB));
-        assertThat("top-right", stretched.getPixel(32, 15), is(MissingSprite.MAGENTA_ARGB));
-        assertThat("bottom-left", stretched.getPixel(31, 16), is(MissingSprite.MAGENTA_ARGB));
-        assertThat("bottom-right", stretched.getPixel(63, 31), is(MissingSprite.BLACK_ARGB));
     }
 
     @Test

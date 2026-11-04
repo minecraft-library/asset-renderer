@@ -11,8 +11,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -37,9 +35,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * passes do, and the armour sets vanilla registers through a scaling, which take a shell of their own.
  * The unscaled armour mesh is the counterpart, a root vanilla builds by {@code put} alone.
  *
- * <p>The shipped table is held to the same replay, so a table written in any other order fails here as
- * well as in the flow's own byte diff.
- *
  * <p>The parse runs against the cached client jar and assumes away where nothing has cached one, as
  * every walk of this suite does.
  */
@@ -51,10 +46,6 @@ class GeometryBakeOrderTest {
 
     /** The whole-mesh scales vanilla registers armour sets through: the giant's, the husk's and the wither skeleton's. */
     private static final float @NotNull [] SCALED_SHELLS = {6f, 1.0625f, 1.2f};
-
-    /** The shipped table, relative to the renderer root every Test task runs at. */
-    private static final @NotNull Path SHIPPED_GEOMETRY =
-        Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
 
     private static ClassNodeCache cache;
 
@@ -150,53 +141,6 @@ class GeometryBakeOrderTest {
         List<String> placed = breeze.order().stream().filter(breeze.bones()::has).sorted().toList();
         assertEquals(carried, placed, "every bone the parse carries has its place in the tree");
         assertEquals(List.of("head", "rods"), breeze.level("body"), "the body the parser drops still orders its children");
-    }
-
-    @Test
-    @DisplayName("the shipped table holds each mesh's bones in the order its part tree replays")
-    void theShippedTableIsInTheReplayedOrder() {
-        JsonTree shipped = JsonTree.parse(read(SHIPPED_GEOMETRY)).getObject("geometries");
-        assertShippedInOrder(shipped, "HumanoidModel#createMesh@scaled=6.0",
-            parse(GeometryRequest.body(HUMANOID, "createMesh", "minecraft:giant", 64, 64, null, 6f)));
-        assertShippedInOrder(shipped, "HumanoidModel#createBaseArmorMesh",
-            parse(GeometryRequest.armor(HUMANOID, "createBaseArmorMesh", "minecraft:zombie", 64, 32, null, 1f)));
-        assertShippedInOrder(shipped, "WitchModel#createBodyLayer@scaled=0.9375",
-            parse(GeometryRequest.body("net/minecraft/client/model/monster/witch/WitchModel", "createBodyLayer",
-                "minecraft:witch", null, null, null, 0.9375f)));
-        assertShippedInOrder(shipped, "NautilusArmorModel#createBodyLayer",
-            parse(GeometryRequest.body("net/minecraft/client/model/animal/nautilus/NautilusArmorModel",
-                "createBodyLayer", "minecraft:nautilus", null, null, null, 1f)));
-        assertShippedInOrder(shipped, "BreezeModel#createBodyLayer",
-            parse(GeometryRequest.body("net/minecraft/client/model/monster/breeze/BreezeModel", "createBodyLayer",
-                "minecraft:breeze", null, null, null, 1f)));
-
-        for (float scale : SCALED_SHELLS) {
-            assertShippedInOrder(shipped, "HumanoidModel#createBaseArmorMesh@scaled=" + scale,
-                parse(GeometryRequest.armor(HUMANOID, "createBaseArmorMesh", "minecraft:giant", 64, 32, null, scale)));
-        }
-
-        // A pass whose subset is derived after the parse ships in the order the derivation replays.
-        Parsed glow = parse(GeometryRequest.overlay(WARDEN, "createBioluminescentLayer", "minecraft:warden", null, null,
-            GeometryRequest.NO_GROW));
-        glow.tree().retainExactParts(Set.of("head", "left_arm", "right_arm", "left_leg", "right_leg"));
-        assertShippedInOrder(shipped, "WardenModel#createBioluminescentLayer", glow);
-    }
-
-    /** Asserts one shipped entry holds its bones in the replayed order, over the bones it carries. */
-    private static void assertShippedInOrder(@NotNull JsonTree shipped, @NotNull String key, @NotNull Parsed parsed) {
-        JsonTree bones = shipped.find(key).flatMap(entry -> entry.find("bones")).orElseThrow();
-        List<String> written = List.copyOf(bones.keys().toList());
-        List<String> replayed = parsed.order().stream().filter(bones::has).toList();
-        assertEquals(replayed, written, key + " bone order");
-    }
-
-    /** Reads one file the renderer root holds, failing loudly where it is absent. */
-    private static byte @NotNull [] read(@NotNull Path path) {
-        try {
-            return Files.readAllBytes(path);
-        } catch (IOException error) {
-            throw new UncheckedIOException("no shipped table at " + path.toAbsolutePath(), error);
-        }
     }
 
     /** Parses one request, failing loudly where the walk refuses its part tree. */

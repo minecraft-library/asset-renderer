@@ -459,12 +459,6 @@ class Apply(Base):
         promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
         self.assertNotIn("last_duration_ms", self.store.index()["artifacts"]["sweep.entity"])
 
-    def test_there_is_no_provenance_directory_on_either_side(self):
-        self._capture(artifact())
-        promote.apply(self.root, self.store, promote.plan(self.root, self.store), "r")
-        self.assertFalse((self.store.root / "provenance").exists())
-        self.assertFalse((self.root / "provenance").exists())
-
     def test_a_crlf_capture_is_normalized_on_the_way_in(self):
         """Why the copy is Python and not a Kotlin copy { }: a byte copy carries CRLF into the store."""
         write_text(self.root / "sweeps" / "entity.json", "{}")

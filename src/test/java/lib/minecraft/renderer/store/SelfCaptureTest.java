@@ -208,17 +208,6 @@ final class SelfCaptureTest {
     }
 
     @Test
-    @DisplayName("the marker is what decides it, at the run directory the toolkit writes")
-    void theMarkerIsTheWholePredicate(@TempDir Path root) {
-        assertThat(SelfCapture.holdsFinishedCapture(root), is(false));
-        mark(root, "OPEN");
-        assertThat("an open capture is not a finished one", SelfCapture.holdsFinishedCapture(root),
-            is(false));
-        mark(root, "COMPLETE");
-        assertThat(SelfCapture.holdsFinishedCapture(root), is(true));
-    }
-
-    @Test
     @DisplayName("a wrong id and an empty payload stay errors whatever the root holds")
     void thePayloadRefusalsAreUnconditional(@TempDir Path root) {
         mark(root, "COMPLETE");

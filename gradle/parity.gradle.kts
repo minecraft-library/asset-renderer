@@ -268,9 +268,11 @@ val paritySkillReferences: String = ".claude/skills/parity-gate/references"
 // leaves the suite UP-TO-DATE and the guard never runs on the edit it exists for.
 val paritySkillFile: String = ".claude/skills/parity-gate/SKILL.md"
 
-// The topic files under docs/, the markdown alone: the blindness map's `source` fields cite their
-// headings by name, and BlindnessMapTest holds both those citations and their prose to the map. The
-// README's showcase images sit beside them and are read by no guard here, so they stay out.
+// The topic files under docs/, the markdown alone: VectorModuleWiringTest holds the build bullet in
+// docs/project/BuildScripts.md to the task types the build hands the Vector flag, and
+// ParityTaskWiringTest holds the output-directory bullet in docs/harness/Running.md to the reference
+// sub-trees the build lists. The README's showcase images sit beside them and are read by no guard
+// here, so they stay out.
 val parityDocs: FileCollection = fileTree("docs") { include("**/*.md") }
 
 // This checkout's git index, wherever git keeps it. `.git` at the project root is the git directory
@@ -1074,14 +1076,10 @@ tasks.withType<Test>().configureEach {
     // which is where that checkout's index lives. Declaring the literal path makes `test` refuse to
     // configure on every worktree, the input being a file that does not exist there.
     inputs.file(gitIndex).withPropertyName("parityGitIndex").optional()
-    // CLAUDE.md, because the blindness map's `source` fields cite its headings by name and
-    // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
-    // with nothing in this file having moved.
-    inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
-    // The topic files under docs/ for the same reason, those holding the sections the renderer's own
-    // claims and the texel fetch's cite. The check reading them reads the orientation too, so leaving
-    // them undeclared would let a heading move there against an UP-TO-DATE suite while the
-    // orientation beside them is watched.
+    // The topic files under docs/, because two guards read a bullet of one back against what this
+    // build wires: VectorModuleWiringTest the Vector flag's consumers, and ParityTaskWiringTest the
+    // reference sub-trees a harness run writes. Undeclared, rewording either bullet leaves `test`
+    // UP-TO-DATE and the guard that holds the sentence to the build never runs on the edit.
     inputs.files(parityDocs).withPropertyName("parityDocs")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of

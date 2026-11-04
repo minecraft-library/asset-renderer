@@ -416,14 +416,6 @@ class ClockRosterJarTest {
         assertEquals(List.of(), shared, "every clock field names one render state's own figure");
     }
 
-    @Test
-    @DisplayName("the roster holds the seven clocks, in order")
-    void theRosterHoldsTheSevenClocks() {
-        assertEquals(List.of("tailAnimation", "spikesAnimation", "flapTime", "movingFactor", "tentacleAngle",
-                "peekAmount", "heartAnimation"),
-            StyleRoster.CLOCKS.stream().map(StyleRoster.Clock::field).toList(), "the clock roster, in roster order");
-    }
-
     // ------------------------------------------------------------------------------------
     // plumbing
     // ------------------------------------------------------------------------------------

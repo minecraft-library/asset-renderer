@@ -47,10 +47,10 @@ import static lib.minecraft.renderer.fixture.RegistrarFixtures.styleRow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The audit held to the install it predicts, over the same definitions - an audit throws exactly
@@ -198,13 +198,18 @@ class StyleRegistrarAuditTest {
         BuiltStyle glare = Poses.custom("fin_glare")
             .expr("body", PoseChannel.X_ROT, new PoseExpr.BoneRead("left_blue_fin", PoseChannel.X_ROT))
             .build();
+        StyleRegistrar registrar = StyleRegistrar.of(shipped);
 
         StyleException installed = assertThrows(StyleException.class,
-            () -> StyleRegistrar.of(shipped).add(PUFFERFISH, glare));
+            () -> registrar.add(PUFFERFISH, glare));
         StyleException audited = assertThrows(StyleException.class,
             () -> PoseAuditor.validate(glare, row(shipped, PUFFERFISH)));
         assertTrue(installed.getMessage().contains("'left_blue_fin'"), installed.getMessage());
         assertTrue(audited.getMessage().contains("'left_blue_fin'"), audited.getMessage());
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.ERROR
+                    && entry.path().equals("styles/" + PUFFERFISH + "/fin_glare/form/size:small/compile")),
+            "the install records the refusal under the size form whose mesh lacks the fin");
         assertAgrees(shipped, PUFFERFISH, glare);
     }
 
@@ -601,20 +606,18 @@ class StyleRegistrarAuditTest {
     }
 
     /**
-     * The shipped definitions, skipping the case where the bundled tables are absent.
+     * The shipped definitions.
      */
     private static @NotNull ConcurrentMap<String, Entity> shipped() {
-        ConcurrentMap<String, Entity> shipped = EntityModelLoader.load();
-        assumeTrue(!shipped.isEmpty(), "bundled entity tables are present");
-        return shipped;
+        return EntityModelLoader.load();
     }
 
     /**
-     * One shipped row, skipping the case where the bundled tables do not answer it.
+     * One shipped row, failing where the bundled tables do not answer it.
      */
     private static @NotNull Entity row(@NotNull ConcurrentMap<String, Entity> shipped, @NotNull String entityId) {
         Entity row = shipped.get(entityId);
-        assumeTrue(row != null, "bundled entity tables answer " + entityId);
+        assertNotNull(row, "bundled entity tables answer " + entityId);
         return row;
     }
 

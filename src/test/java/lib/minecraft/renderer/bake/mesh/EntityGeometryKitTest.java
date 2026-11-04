@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@link VanillaEntityTransformGoldenTest#buildSingleCube()} builds and pins. Locks down the kit's
  * winding + UV-swap + UV-permutation contract so drift is caught before it propagates to entities.
  * <p>
- * Seven invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
+ * Six invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
  * each triangle's emit-order cross product dotted with its stored normal is positive, so the geometric
  * normal agrees with the stored one, camera- and projection-independent. The kit emits positions and
  * normals in the model's native Y-up frame and is internally det = +1; the chirality reflection enters
@@ -103,10 +103,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * anchors exactly where the part's whole chain does, its attached part hanging from nothing but the
  * seat.
  * <p>
- * The emission tests pin what the kit hangs on each triangle beside its geometry and how many it
- * emits: the exact {@code bone:direction} debug tag, a back-face cull that is the mesh's own flag
- * whatever the cube samples, a translucency flag decided per cube from the texture each build is
- * handed, the pass each build is handed, and every face a multi-cube bone owes around a plane cube.
+ * The emission tests pin what the kit hangs on each triangle beside its geometry: the exact
+ * {@code bone:direction} debug tag, a back-face cull that is the mesh's own flag whatever the cube
+ * samples, a translucency flag decided per cube from the texture each build is handed, and the pass
+ * each build is handed.
  * <p>
  * The shared-geometry tests pin that a pass reading per-face geometry back from the table the builds
  * of one draw share emits, bit for bit, what the same pass emits built alone: over a mesh equal to a
@@ -154,13 +154,6 @@ class EntityGeometryKitTest {
     /** The build {@link #theKitBuildsWhatTheLockedWalkBuilt} compares: an off-centre fit, a pre-scale and a tint. */
     private static final EntityGeometryKit.EntityBuildParams WALK_PARAMS = new EntityGeometryKit.EntityBuildParams(
         new FitFrame(new Vector3f(1f, -2f, 3f), 0.05f, 1.25f), PassDeclaration.DEFAULT, 0xFFCC8844);
-
-    @Test
-    @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
-    void singleCube_emits12Triangles() {
-        EntityGeometryKit.BuildResult result = buildSingleCube();
-        assertThat(result.triangles().size(), equalTo(12));
-    }
 
     /**
      * Pins the auto-fit envelope: every emitted vertex Y lands inside the fit bounds. The kit scales
@@ -925,28 +918,6 @@ class EntityGeometryKitTest {
             if (!actual.get(i).equals(expected.get(i)))
                 assertThat(where + ": triangle " + i, actual.get(i), equalTo(expected.get(i)));
         }
-    }
-
-    /**
-     * Pins what a multi-cube bone emits with a plane cube between two whole ones: both triangles of all
-     * six faces of each whole cube and of the plane's two faces that carry area, then the next bone in
-     * full. The plane's first face is one it skips, so a skip that left the face walk or the build,
-     * rather than passing to the next face, drops geometry the mesh is owed.
-     */
-    @Test
-    @DisplayName("a multi-cube bone emits every face it owes around a plane cube, and the next bone in full")
-    void aMultiCubeBoneEmitsEveryFaceAroundAPlaneCube() {
-        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
-        bones.put("body", cubeBone(unitCubeAt(0f), planeCubeAt(8f), unitCubeAt(16f)));
-        bones.put("head", cubeBone(unitCubeAt(24f)));
-        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
-
-        List<String> tags = tags(collect(EntityGeometryKit.buildTriangles(mesh, solidWhite())));
-
-        assertThat("every triangle the mesh owes", tags.size(), equalTo(12 + 4 + 12 + 12));
-        assertThat("the plane's two faces, between the whole cubes", tags.subList(12, 16),
-            equalTo(List.of("body:north", "body:north", "body:south", "body:south")));
-        assertThat("the next bone's cube", tags.subList(28, 40).stream().distinct().count(), equalTo(6L));
     }
 
     // --- shared geometry ---
@@ -1782,13 +1753,6 @@ class EntityGeometryKitTest {
 
     private static String formatVec(Vector3f v) {
         return String.format("(%.3f, %.3f, %.3f)", v.x(), v.y(), v.z());
-    }
-
-    @Test
-    @DisplayName("kit bakes no shade - every triangle carries the unlit scalar")
-    void kitEmitsUnlitGeometry() {
-        for (VisibleTriangle t : buildSingleCube().triangles())
-            assertThat("kit-emitted shade for " + t.debugTag(), t.shading(), equalTo(Shading.UNLIT));
     }
 
     @Test

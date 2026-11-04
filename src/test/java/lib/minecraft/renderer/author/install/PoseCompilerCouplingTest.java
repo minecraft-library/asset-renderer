@@ -37,10 +37,10 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.row;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The two couplings the compiler carries without the author spelling them: a seat, read off the
@@ -232,7 +232,7 @@ class PoseCompilerCouplingTest {
         @DisplayName("never cascades - the dab and the clap lower identically with the zombie's silhouettes stripped")
         void dabAndClapCascadeNothing() {
             Entity zombie = EntityModelLoader.load().get("minecraft:zombie");
-            assumeTrue(zombie != null, "bundled entity tables answer the zombie");
+            assertNotNull(zombie, "bundled entity tables answer the zombie");
             assertFalse(zombie.pose().states().isEmpty(), "the zombie carries silhouettes, so the comparison is not vacuous");
             EntityPose stripped = new EntityPose(zombie.pose().container(), zombie.pose().bones(),
                 zombie.pose().clips(), zombie.pose().refusal());
@@ -333,7 +333,7 @@ class PoseCompilerCouplingTest {
         @Test
         @DisplayName("reads the pose as it shipped, so the landing is the same whatever was installed before")
         void landingReadsTheShippedEvidenceWhateverWasInstalledBefore() {
-            assumeTrue(EntityModelLoader.load().containsKey("minecraft:horse"), "bundled entity tables answer the horse");
+            assertTrue(EntityModelLoader.load().containsKey("minecraft:horse"), "bundled entity tables answer the horse");
             BuiltStyle curl = Poses.legged("curl").head(head -> head.pitch(25)).build();
             BuiltStyle cube = Poses.custom("cube").bone("head", head -> head.pitch(10)).build();
             BuiltStyle hatch = Poses.custom("hatch")

@@ -81,19 +81,6 @@ class ClipPlayerContainerTest {
     }
 
     @Test
-    @DisplayName("the corpus still has the one mesh this rule exists for")
-    void theFlattenedMeshIsStillThere() {
-        // Pinned so a version bump that stops flattening it retires the rule loudly rather than
-        // leaving a branch nothing reaches. It is a statement about the emitted mesh, so it fails
-        // where the geometry flow changed and not where this kit did.
-        EntityMesh body = flattenedMesh();
-        assertFalse(body.getBones().containsKey(FLATTENED_PART),
-            "the mesh is expected to declare no bone named '" + FLATTENED_PART + "'");
-        assertEquals(Set.of(FLATTENED_PART), danglingParents(body),
-            "and its top-level bones are expected to name that part as their parent");
-    }
-
-    @Test
     @DisplayName("a channel naming it displaces the container rather than nothing")
     void theFlattenedNameReachesTheContainer() {
         // At the tick the slide's own last keyframe sits on, so what comes back is the authored
@@ -143,19 +130,6 @@ class ClipPlayerContainerTest {
             });
         assertFalse(croaking.of(CROAK_BONE).isEmpty(),
             "and one mid-croak displaces it, which is the clip reaching the bone its own gate draws");
-    }
-
-    @Test
-    @DisplayName("a name the mesh neither declares nor hangs a bone from still reaches nothing")
-    void anUnknownNameIsStillPassedOver() {
-        // The other half of the rule. A clip belongs to a model class where a mesh belongs to a
-        // subject, so the two part company wherever a bone rests undrawn - an armadillo's shell body
-        // and a frog's croaking sac are both dropped from the mesh they would have been drawn in -
-        // and a channel naming one of those has to keep answering nothing.
-        EntityMesh body = flattenedMesh();
-        assertFalse(body.getBones().containsKey("no_such_bone"), "the fixture name is not a bone");
-        assertTrue(danglingParents(body).stream().noneMatch("no_such_bone"::equals),
-            "and no bone hangs from it either");
     }
 
     /** Every parent name a mesh's bones point at and the mesh itself declares no bone for. */

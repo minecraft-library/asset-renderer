@@ -17,7 +17,7 @@ without looking like it.
 | A `@Parity` declaration, a rule's trigger paths, `Scope.PACKAGE`, an `ignored` seam | [DeclaringReach](../docs/parity/DeclaringReach.md) |
 | `parity/reach.json` - what makes an edge, a sealed type's `permits`, the four compiled trees, held demotes | [ReferenceGraph](../docs/parity/ReferenceGraph.md) |
 | Coining an artifact - `ParityArtifacts.ALL`, `index.json`, `ROOTS` and `UNROOTED` - a failed producer, a provenance reason | [RosterAndIndex](../docs/parity/RosterAndIndex.md) |
-| Renaming a class, a cited heading or the file that holds one; editing above a line the store pins | [StoreState](../docs/parity/StoreState.md) |
+| Renaming or moving a test or visual-set class the store cites; editing above a line the store pins | [StoreState](../docs/parity/StoreState.md) |
 
 ## The build
 

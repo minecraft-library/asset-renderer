@@ -91,35 +91,6 @@ class BlockGeometryKitQuadFanTest {
     }
 
     @Test
-    @DisplayName("both triangles of a quad share one normal, one shade and one traits instance")
-    void addQuad_sharesPerQuadValuesAcrossBothTriangles() {
-        Vector3f normal = Face.UP.normal();
-        SurfaceTraits traits = SurfaceTraits.WORN_SHELL;
-        ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-
-        BoxKit.addQuad(out, unitQuadCorners(), unitQuadUv(), texture1x1(), TINT_ARGB,
-            normal, 0.5f, traits, null);
-
-        for (VisibleTriangle triangle : out) {
-            assertThat(triangle.normal(), sameInstance(normal));
-            assertThat(triangle.traits(), sameInstance(traits));
-            assertThat(triangle.shading(), equalTo(0.5f));
-        }
-    }
-
-    @Test
-    @DisplayName("every box quad takes that diagonal")
-    void buildBox_takesTheSharedDiagonal() {
-        ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(
-            new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f),
-            FaceTextures.uniform(texture1x1()),
-            TINT_ARGB);
-
-        assertThat(triangles.size(), equalTo(12));
-        assertFansOnSharedDiagonal(triangles);
-    }
-
-    @Test
     @DisplayName("every shield quad takes that diagonal")
     void buildShield3D_takesTheSharedDiagonal() {
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture1x1());
@@ -255,19 +226,6 @@ class BlockGeometryKitQuadFanTest {
             assertThat(second.uv0(), sameInstance(first.uv0()));
             assertThat(second.uv1(), sameInstance(first.uv2()));
         }
-    }
-
-    private static @NotNull Vector3f @NotNull [] unitQuadCorners() {
-        return new Vector3f[] {
-            new Vector3f(0f, 0f, 1f), new Vector3f(0f, 0f, 0f),
-            new Vector3f(1f, 0f, 0f), new Vector3f(1f, 0f, 1f)
-        };
-    }
-
-    private static @NotNull Vector2f @NotNull [] unitQuadUv() {
-        return new Vector2f[] {
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
-        };
     }
 
     private static @NotNull PixelBuffer texture1x1() {

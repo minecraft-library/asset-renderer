@@ -11,12 +11,12 @@ broke.
 The spec is session input and belongs in a scratch directory, not in the repository:
 
     {"mutants": [
-      {"id": "home-walk-matches-nothing",
-       "why": "the hand-authored file walk matches nothing, so the guard holds vacuously",
+      {"id": "seeing-matches-nothing",
+       "why": "the tracked files with reach are empty, so the coverage clause holds vacuously",
        "task": ":test",
        "tests": ["*BlindnessMapTest"],
        "edits": [{"path": "src/test/java/lib/minecraft/renderer/guard/BlindnessMapTest.java",
-                  "find": ".filter(path -> path.startsWith(home))",
+                  "find": ".filter(path -> !seesFor(path).isEmpty())",
                   "replace": ".filter(path -> false)"}],
        "expect": "RED"}]}
 
