@@ -8,7 +8,7 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 8691,
+      "last_duration_ms": 7236,
       "promoted_at": "72dc3d6238acfe81ac9d3134c246914bcfba8082",
       "sha256": "55816d59a6f70790ebda0077030ae6e7f7a212f821f79a1a936555b332fa9a5d"
     },
@@ -18,7 +18,7 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 8691,
+      "last_duration_ms": 7236,
       "promoted_at": "72dc3d6238acfe81ac9d3134c246914bcfba8082",
       "sha256": "16050fd26dd17b81a46438ab6731616f55f548d38a46eddfa3ccd795aa5fb0c2"
     },
@@ -28,7 +28,7 @@
       "entries": 9,
       "file": "manifests/fluid.json",
       "kind": "manifest",
-      "last_duration_ms": 2748,
+      "last_duration_ms": 3014,
       "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
       "sha256": "05041dc326f70f5ca39a6b7c40465717ce028470fb47fff85efa9052a5be22cc"
     },
@@ -48,7 +48,7 @@
       "entries": 9,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "last_duration_ms": 5905,
+      "last_duration_ms": 3103,
       "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
       "sha256": "cd0ec05af4e427f1db7e51c48cac59fa53c9721842ef61b365b42ad9bfa0acbb"
     },
@@ -58,7 +58,7 @@
       "entries": 97,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 6416,
+      "last_duration_ms": 6260,
       "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
       "sha256": "9a79191fe5bdaf64142f82454f58c2513a1a57c8f73c32d30523d37eac4f2bb7"
     },
@@ -68,7 +68,7 @@
       "entries": 6,
       "file": "manifests/portal.json",
       "kind": "manifest",
-      "last_duration_ms": 30404,
+      "last_duration_ms": 20261,
       "promoted_at": "d99fbb39861a7ecb8af36502129de262820a7977",
       "sha256": "b7a60e4592bb03ac37f3a6c8a940fcb9e1d8b66cf5b0d5ac36654b77ab3521d3"
     },
@@ -88,7 +88,7 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 17263,
+      "last_duration_ms": 11857,
       "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
       "sha256": "146904fec1e2c014767c75e1800668eddf0baf69cfa1f8e8d9477be62f9f5cd7"
     },
@@ -98,7 +98,7 @@
       "entries": 169,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 14738,
+      "last_duration_ms": 9788,
       "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
       "sha256": "5e84ed4b63068b2dec31cf9075b73ee4347a3d5e85a16e505e9315bd6bcb8739"
     },
@@ -108,7 +108,7 @@
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 2666,
+      "last_duration_ms": 3041,
       "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
       "sha256": "09ca31c0306705f24324bd7e0efd3f1f42c312bb9b9b181ea7e9c9cc6c58ea02"
     },
@@ -118,7 +118,7 @@
       "entries": 13,
       "file": "pins/fluid-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 2666,
+      "last_duration_ms": 3041,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
     },
@@ -128,7 +128,7 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 2666,
+      "last_duration_ms": 3041,
       "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
       "sha256": "44b087f432f0df2ab61686f7ecf058ff1d1a87b8fa5024e7f7fb7efb6da52200"
     },
@@ -138,7 +138,7 @@
       "entries": 2,
       "file": "pins/portal-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 2666,
+      "last_duration_ms": 3041,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "61e8265b1178cae2848f2d1ef9b4994292ce34653a7170bf8297abe5cce2d4e8"
     },
@@ -148,7 +148,7 @@
       "entries": 1,
       "file": "pins/vanilla-iso-pose.json",
       "kind": "pin-set",
-      "last_duration_ms": 2666,
+      "last_duration_ms": 3041,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "7618413736607fc41bd45ad925f4c0fe3df305d385d22605a796a91aba72acdc"
     },
@@ -170,7 +170,7 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4800,
+      "last_duration_ms": 2220,
       "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
       "sha256": "f4bfd6e7b0b0770795f9587ff0f7b9ad3c05379edb24eb449e593f6e02980ba4",
       "sum": "17.7355"
@@ -181,7 +181,7 @@
       "entries": 1063,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
-      "last_duration_ms": 38400,
+      "last_duration_ms": 10727,
       "promoted_at": "addedec7a23b08d02a4f18bc83d435010e342988",
       "sha256": "88517bf18bb10e64fef40063bf287ff82fa26e898b6cb3e4b96b0a5cb0ee3a74",
       "sum": "7.6024"
@@ -192,7 +192,7 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 12666,
+      "last_duration_ms": 9681,
       "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
       "sha256": "55dcc0d963cf25d268048ef3a70ae63c4b6b94dbedcf74ad408ac20cdc0a050e",
       "sum": "10.9966"
@@ -203,7 +203,7 @@
       "entries": 134,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 25702,
+      "last_duration_ms": 17127,
       "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
       "sha256": "b2cc2e85a49b69113946ec1f7c095b2adb47dbf32a2585c377823105f864ae13",
       "sum": "1.8479"
@@ -214,7 +214,7 @@
       "entries": 134,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 44406,
+      "last_duration_ms": 26531,
       "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
       "sha256": "977d05d68cad9379e93797c9fe092bc8dedfc7353c4afce83cc1a3c9b7d29449",
       "sum": "1.8886"
@@ -225,7 +225,7 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 19196,
+      "last_duration_ms": 1943,
       "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
       "sha256": "49dc594c583779cf67bd1f7312ab19b9e693118a4920dc47ae41cd5d47a4a062",
       "sum": "527.7353"
@@ -236,7 +236,7 @@
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
-      "last_duration_ms": 125632,
+      "last_duration_ms": 2605,
       "promoted_at": "181f4ab9b8180f98fafc72869bb9232a390fb1cc",
       "sha256": "ff3baac270dde07f83fef07cc5c64268a364caa8ef88e9f376afb3a76b613d94",
       "sum": "85.0398"
@@ -247,7 +247,7 @@
       "entries": 15,
       "file": "sweeps/menu.json",
       "kind": "sweep-table",
-      "last_duration_ms": 4639,
+      "last_duration_ms": 835,
       "promoted_at": "560a68449662f6fefb9713bcd6cd6d712a38c8d3",
       "sha256": "6e09dac2fe38dcd7125ece67edd6f07ca61dc9ab6c339207a6e64ed2f625f03a",
       "sum": "0.1182"
@@ -258,7 +258,7 @@
       "entries": 2,
       "file": "sweeps/player.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13285,
+      "last_duration_ms": 883,
       "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
       "sha256": "61db25532c9673656e695b9d6c76e98e3f9d1c5b88857e601936fb0edea1625c",
       "sum": "8.3792"
@@ -269,7 +269,7 @@
       "entries": 76,
       "file": "sweeps/tooltip.json",
       "kind": "sweep-table",
-      "last_duration_ms": 5612,
+      "last_duration_ms": 2095,
       "promoted_at": "4264daab8a17cbdd2dce01193c5d0838d58d75a8",
       "sha256": "3624a273ca75d4c69f18e60cd9fe41e31bf2e1ffb497ec5bd2a13e0b537ece93",
       "sum": "0.3274"
@@ -280,7 +280,7 @@
       "entries": 44,
       "file": "sweeps/tooltip-hypixel-skyblock.json",
       "kind": "sweep-table",
-      "last_duration_ms": 5849,
+      "last_duration_ms": 3940,
       "promoted_at": "33935094db15adf57139f1790ec28fa311dfa634",
       "sha256": "7cae7670c1c743966e5daa25d2bbf57ca1f646c550df54d1d33703156c2c823e",
       "sum": "0.0000"
