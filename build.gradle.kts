@@ -126,7 +126,7 @@ tasks.named<Javadoc>("javadoc") {
 }
 // The two parity roots go AFTER forwardAssetProperties() so the resolved value wins whether or not
 // one was also forwarded from the command line. The working root on the Test hook is what lets the
-// self-capturing pin and digest rows write their observed value into it from inside the test JVM; the
+// self-capturing pin rows write their observed value into it from inside the test JVM; the
 // references path is the single owner of the reference tree, which the Java side reads instead of
 // holding one VANILLA_DIR literal per sweep main.
 tasks.withType<Test>().configureEach {

@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 final class ParityStoreEnvelopeTest {
 
     /** The id every fixture below is written and read as. */
-    private static final String ARTIFACT = "pin.kit-corners";
+    private static final String ARTIFACT = "pin.vanilla-iso-pose";
 
     @Test
     @DisplayName("an id naming no kind the store holds has no path")

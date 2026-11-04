@@ -54,8 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.buildSingleCube;
-import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.collect;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +68,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Foundation invariants for {@link EntityGeometryKit} verified against a clean single-bone,
  * single-cube fixture - no bone hierarchy, no rotations, no overrides - the one
- * {@link VanillaEntityTransformGoldenTest#buildSingleCube()} builds and pins. Locks down the kit's
+ * {@link #buildSingleCube()} builds. Locks down the kit's
  * winding + UV-swap + UV-permutation contract so drift is caught before it propagates to entities.
  * <p>
  * Six invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
@@ -1454,6 +1452,33 @@ class EntityGeometryKitTest {
         bones.put("head", new EntityMesh.Bone(new Vector3f(0f, -6f, 0f), ANY_TURN, EulerRotation.NONE, 1f,
             cubes(cube(new Vector3f(-4f, -8f, -4f), new Vector3f(8f, 8f, 8f), Vector2f.ZERO)), "body"));
         return new EntityMesh(TextureSize.DEFAULT, bones, cull);
+    }
+
+    /**
+     * Builds the single-cube kit fixture: one {@code body} bone (no rotation, unit scale, no parent)
+     * holding one axis-aligned cube spanning {@code [-1, +1]} per axis, at atlas origin {@code (0, 0)}
+     * on {@link #solidWhite()}. No hierarchy, no overrides - the simplest input that still exercises
+     * all six cardinal faces, so a defect surfaces as a focused assertion rather than a downstream
+     * entity regression.
+     *
+     * @return the kit's build of the fixture
+     */
+    private static EntityGeometryKit.BuildResult buildSingleCube() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(cube(new Vector3f(-1f, -1f, -1f), new Vector3f(2f, 2f, 2f), Vector2f.ZERO)));
+        return EntityGeometryKit.buildTriangles(new EntityMesh(TextureSize.DEFAULT, bones, false), solidWhite());
+    }
+
+    /**
+     * Drains the build result's triangle stream into a random-access list for repeated iteration.
+     *
+     * @param result the kit's build result
+     * @return its triangles, in emission order
+     */
+    private static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
+        List<VisibleTriangle> out = new ArrayList<>();
+        for (VisibleTriangle tri : result.triangles()) out.add(tri);
+        return out;
     }
 
     /** An unturned, ungrown, unmirrored cube at an atlas origin, with no per-face overrides. */

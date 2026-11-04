@@ -2,26 +2,6 @@
   "//": "parity.report.oracle-index · regen: ./gradlew parityPromote (rewritten on every promotion)",
   "artifact": "report.oracle-index",
   "artifacts": {
-    "digest.colormap-lut": {
-      "baselined": true,
-      "determinism_floor": 1,
-      "entries": 3,
-      "file": "digests/colormap-lut.json",
-      "kind": "digest-set",
-      "last_duration_ms": 22053,
-      "promoted_at": "b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e",
-      "sha256": "01bec04337418a4cbd2bce8acf68b36b5d23411d33cb950d41ebb8461f0d27b8"
-    },
-    "digest.shipped-tables": {
-      "baselined": true,
-      "determinism_floor": 1,
-      "entries": 11,
-      "file": "digests/shipped-tables.json",
-      "kind": "digest-set",
-      "last_duration_ms": 9418,
-      "promoted_at": "40befed4310d346ac870f99f049f1576ac401274",
-      "sha256": "cede19df8c6818f317df42d54c620ddf87e9829e519579b5e3c8e0d3bf9be34e"
-    },
     "manifest.dump.packs": {
       "baselined": true,
       "determinism_floor": 2,
@@ -132,16 +112,6 @@
       "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
       "sha256": "09ca31c0306705f24324bd7e0efd3f1f42c312bb9b9b181ea7e9c9cc6c58ea02"
     },
-    "pin.corpus-count": {
-      "baselined": true,
-      "determinism_floor": 1,
-      "entries": 4,
-      "file": "pins/corpus-count.json",
-      "kind": "pin-set",
-      "last_duration_ms": 6718,
-      "promoted_at": "6db0412c6e1274b594cf85015af4175fbd5b474c",
-      "sha256": "04b203bbe4a9aefa8e8cd6e44c63cdf2b6076726589a995dafb54fa2ebd3469d"
-    },
     "pin.fluid-crc": {
       "baselined": true,
       "determinism_floor": 1,
@@ -151,16 +121,6 @@
       "last_duration_ms": 22053,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
-    },
-    "pin.kit-corners": {
-      "baselined": true,
-      "determinism_floor": 1,
-      "entries": 1,
-      "file": "pins/kit-corners.json",
-      "kind": "pin-set",
-      "last_duration_ms": 9502,
-      "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
-      "sha256": "44cf7df5720bd1da3014103aabb3365c94e83c9ec5a9f12e0b8be1393ea98959"
     },
     "pin.player-crc": {
       "baselined": true,
@@ -327,16 +287,6 @@
     }
   },
   "external": {
-    "digest.dump-sections": {
-      "home": "cache/parity-dump/<label>/{vanilla,packs}/",
-      "reason": "the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number",
-      "stored": false
-    },
-    "pin.tick-lattice": {
-      "home": "lib.minecraft.renderer.engine.frame.TimelineTest",
-      "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
-      "stored": false
-    },
     "probe.depth-quantum": {
       "home": "cache/asset-renderer/vanilla/<version>/depth-quantum-probe/",
       "reason": "written deliberately outside the reference tree by renderVanillaDepthQuantumProbe",
@@ -355,11 +305,6 @@
     "probe.pixel": {
       "home": "untracked working notes",
       "reason": "instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this",
-      "stored": false
-    },
-    "report.capture-note": {
-      "home": "commit messages",
-      "reason": "its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose",
       "stored": false
     },
     "report.expected-diff": {
@@ -390,9 +335,6 @@
     "report.buckets": {
       "pointer": "sweeps/<sweep>.json#/summary/buckets"
     },
-    "report.coverage-gaps": {
-      "pointer": "sweeps/<sweep>.json#/summary/gaps"
-    },
     "report.diagnostics-log": {
       "pointer": "manifests/tooling-tables.json#/logs"
     },
@@ -410,9 +352,6 @@
     },
     "report.wall-time": {
       "pointer": "<artifact>#/provenance/wall_time_ms"
-    },
-    "report.worst-list": {
-      "pointer": "sweeps/<sweep>.json#/summary/worst"
     }
   },
   "sources": {
@@ -420,87 +359,6 @@
       "cross_repo": false,
       "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
       "test_class": "lib.minecraft.renderer.bake.armor.ArmorKitTest"
-    },
-    "roster.appearance-axes": {
-      "cross_repo": true,
-      "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
-      "test_class": "lib.minecraft.renderer.sweep.AppearanceKey"
-    },
-    "roster.armor-subjects": {
-      "anchor": [
-        "SUBJECTS = List.of("
-      ],
-      "cross_repo": true,
-      "lines": "130-137",
-      "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
-      "test_class": "lib.minecraft.renderer.sweep.ArmorParitySweep"
-    },
-    "roster.dump-sections": {
-      "cross_repo": false,
-      "re_derive": "PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated",
-      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
-    },
-    "roster.face-phase": {
-      "cross_repo": false,
-      "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
-      "test_class": "lib.minecraft.renderer.engine.geometry.CornerPhaseTest"
-    },
-    "roster.frame-turn": {
-      "cross_repo": false,
-      "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.engine.geometry.AxisSignsTest"
-    },
-    "roster.glint-subjects": {
-      "anchor": [
-        "GUI_GLINT_ITEMS = List.of(",
-        "LEATHER_ARMOR_ITEMS = List.of("
-      ],
-      "cross_repo": true,
-      "lines": "111-119, 129-134",
-      "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
-      "test_class": "lib.minecraft.renderer.sweep.GlintParitySweep"
-    },
-    "roster.humanoid-armor": {
-      "anchor": [
-        "EXPECTED = Set.of("
-      ],
-      "cross_repo": false,
-      "lines": "29-33",
-      "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
-      "test_class": "lib.minecraft.renderer.content.index.EntityModelLoaderArmorRosterTest"
-    },
-    "roster.humanoid-part-crop": {
-      "anchor": [
-        "ORIGINS = {"
-      ],
-      "cross_repo": false,
-      "lines": "36-49",
-      "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X",
-      "test_class": "lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest"
-    },
-    "roster.overlay-pipeline": {
-      "cross_repo": false,
-      "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
-      "test_class": "lib.minecraft.renderer.content.index.EntityModelLoaderOverlayPassTest"
-    },
-    "roster.pack-fixtures": {
-      "cross_repo": false,
-      "re_derive": "PipelineParityDump's PACK_FIXTURES. A member missing from cache/asset-renderer/packs/ does not throw: the dump skips the packs configuration and writes vanilla/ alone, and a capture of manifest.dump.packs then refuses with no tree to hash. The store keeps no copy of the set; renderVanillaPackSources defaults to the same three names",
-      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
-    },
-    "roster.player-scopes": {
-      "anchor": [
-        "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
-      ],
-      "cross_repo": false,
-      "lines": "103",
-      "re_derive": "the scopes the harness PlayerSweep renders",
-      "test_class": "lib.minecraft.renderer.sweep.PlayerParitySweep"
-    },
-    "roster.sheet-groups": {
-      "cross_repo": false,
-      "re_derive": "the -Psheets groups PlayerRenderDriver accepts; ten offline plus the network-only account group",
-      "test_class": "lib.minecraft.renderer.driver.PlayerRenderDriver"
     }
   }
 }

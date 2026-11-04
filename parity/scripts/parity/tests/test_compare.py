@@ -317,15 +317,8 @@ class ManifestLogDigests(unittest.TestCase):
 
 
 class ObjectKeyedPayloads(unittest.TestCase):
-    """A digest-set and a pin-set key their payload by name; reading only the array shape is a
-    FALSE GREEN, not a narrowing - every value can move and the join reports clean."""
-
-    @staticmethod
-    def _digests(sha: str) -> dict:
-        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
-                "kind": "digest-set", "provenance": PROVENANCE,
-                "digests": {"block_models": {"form": "table-canonical", "regen": "blockModels",
-                                             "sha256": sha}}}
+    """A pin-set keys its payload by name; reading only the array shape is a FALSE GREEN, not a
+    narrowing - every value can move and the join reports clean."""
 
     @staticmethod
     def _pins(crc: str) -> dict:
@@ -334,85 +327,31 @@ class ObjectKeyedPayloads(unittest.TestCase):
                 "values": {"full_vanilla_iso": {"crc32": crc, "subject": "Type.FULL",
                                                 "type": "crc32"}}}
 
-    def test_a_moved_digest_is_a_mover(self):
-        result = compare.compare(self._digests("aaaa"), self._digests("bbbb"))
-        self.assertEqual([mover["key"] for mover in result.movers], ["block_models"])
-        self.assertEqual(result.movers[0]["fields"], {"sha256": ["aaaa", "bbbb"]})
+    def test_a_moved_pin_is_a_mover(self):
+        result = compare.compare(self._pins("0x11111111"), self._pins("0x22222222"))
+        self.assertEqual([mover["key"] for mover in result.movers], ["full_vanilla_iso"])
+        self.assertEqual(result.movers[0]["fields"], {"crc32": ["0x11111111", "0x22222222"]})
         self.assertFalse(result.clean())
 
-    def test_an_unchanged_digest_set_is_clean(self):
-        self.assertTrue(compare.compare(self._digests("aaaa"), self._digests("aaaa")).clean())
+    def test_an_unchanged_pin_set_is_clean(self):
+        self.assertTrue(compare.compare(self._pins("0x11111111"),
+                                        self._pins("0x11111111")).clean())
 
-    def test_a_dropped_digest_is_a_drop_rather_than_an_empty_join(self):
-        right = self._digests("aaaa")
-        right["digests"] = {}
-        result = compare.compare(self._digests("aaaa"), right)
-        self.assertEqual(result.dropped, ["block_models"])
+    def test_a_dropped_pin_is_a_drop_rather_than_an_empty_join(self):
+        right = self._pins("0x11111111")
+        right["values"] = {}
+        result = compare.compare(self._pins("0x11111111"), right)
+        self.assertEqual(result.dropped, ["full_vanilla_iso"])
         self.assertFalse(result.clean())
 
     def test_the_map_key_becomes_the_row_key_rather_than_being_read_out_of_the_entry(self):
         """An object-keyed payload states the key once, in the map, so the join injects it."""
-        side = compare.side_of(self._digests("aaaa"), "base")
-        self.assertEqual(side.rows["block_models"]["name"], "block_models")
-
-    def test_a_pin_set_joins_on_its_values_member(self):
-        result = compare.compare(self._pins("0x11111111"), self._pins("0x22222222"))
-        self.assertEqual([mover["key"] for mover in result.movers], ["full_vanilla_iso"])
+        side = compare.side_of(self._pins("0x11111111"), "base")
+        self.assertEqual(side.rows["full_vanilla_iso"]["pin_key"], "full_vanilla_iso")
 
     def test_the_pin_set_member_is_the_one_the_java_reader_asks_for(self):
         """`Pins.payload` reads `values`; a member named anything else stores what nothing reads."""
         self.assertEqual(store.rows_member("pin-set"), "values")
-
-
-class ShippedTablesAgreement(unittest.TestCase):
-    """The one cross-artifact check: the covered SET is comparable where the digests are not."""
-
-    @staticmethod
-    def _digests(*names: str) -> dict:
-        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
-                "kind": "digest-set",
-                "digests": {name: {"form": "table-canonical", "sha256": "a"} for name in names}}
-
-    @staticmethod
-    def _tables(*paths: str) -> dict:
-        return {"artifact": "manifest.tooling-tables", "format": 1, "key": "path",
-                "kind": "manifest",
-                "files": [{"path": path, "sha256": "b"} for path in paths]}
-
-    def test_the_ten_agree(self):
-        names = ("block_defaults", "block_geometry", "block_items", "block_models", "block_tints",
-                 "color_maps", "entity_geometry", "entity_models", "glint_items", "potion_colors")
-        self.assertEqual(compare.shipped_tables_agreement(
-            self._digests(*names), self._tables(*(f"{name}.json" for name in names))), [])
-
-    def test_it_fires_on_a_name_in_the_manifest_and_not_the_digest_set(self):
-        """A flow that started emitting an eleventh table only one walk picked up."""
-        self.assertEqual(compare.shipped_tables_agreement(
-            self._digests("block_models"), self._tables("block_models.json", "new_table.json")),
-            ["new_table"])
-
-    def test_it_fires_on_a_name_in_the_digest_set_and_not_the_manifest(self):
-        self.assertEqual(compare.shipped_tables_agreement(
-            self._digests("block_models", "dropped"), self._tables("block_models.json")),
-            ["dropped"])
-
-    def test_it_does_NOT_fire_on_two_different_digests_for_one_name(self):
-        """The two are taken over different canonical forms, so a value rule would fail for ever."""
-        digests = self._digests("block_models")
-        digests["digests"]["block_models"]["sha256"] = "ffff"
-        self.assertEqual(compare.shipped_tables_agreement(digests, self._tables("block_models.json")),
-                         [])
-
-    def test_a_nested_table_is_a_disagreement_rather_than_a_match(self):
-        """The manifest rglobs and the test lists one level, which is what gives this something to
-        find; the directory component therefore stays on."""
-        self.assertEqual(compare.shipped_tables_agreement(
-            self._digests("block_models"), self._tables("sub/block_models.json")),
-            ["block_models", "sub/block_models"])
-
-    def test_only_a_trailing_json_comes_off(self):
-        self.assertEqual(compare.shipped_tables_agreement(
-            self._digests("a.json.keep"), self._tables("a.json.keep.json")), [])
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@ check it against source before honouring one.
 | A block item's icon, how a slot draws an item, `SpecialTransform`, the block index's first-variant pick | [Blocks](docs/renderer/Blocks.md) |
 | `ScreenMetrics`, `MenuLayout`, `MenuRenderer`, `Window`, marks, `bake.gui` | [Menus](docs/renderer/Menus.md) |
 | A parity row disagreeing with its reference | [Debugging](docs/renderer/Debugging.md); probe traps and worked examples: `.claude/skills/parity-gate/references/diagnostics.md` |
-| A `@Parity` declaration; a `blindness.json` rule; `ParityArtifacts` and `index.json`; renaming a class or file the store cites | [DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md), [RosterAndIndex](docs/parity/RosterAndIndex.md), [StoreState](docs/parity/StoreState.md) |
+| A `@Parity` declaration; a `blindness.json` rule; `ParityArtifacts` and `index.json`; renaming a class, heading or file the store cites | [DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md), [RosterAndIndex](docs/parity/RosterAndIndex.md), [StoreState](docs/parity/StoreState.md) |
 | `build.gradle.kts` and `gradle/*.gradle.kts`, the source sets, the Vector flag, ASM | [BuildScripts](docs/project/BuildScripts.md) |
 | Which suite a test belongs in - the cache extensions, the slow tag | [TestSuites](docs/project/TestSuites.md) |
 | `content/client`; the exception hierarchy - `ClientException`, `ToolingException` | [ClientAcquisition](docs/project/ClientAcquisition.md) |
@@ -86,8 +86,9 @@ root are [ClientAcquisition](docs/project/ClientAcquisition.md).
 
 ## Gates
 
-`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag
-and is never up-to-date-cached.
+`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag,
+is never up-to-date-cached, and runs only when asked for: no `check`, no `test` and no parity
+capture schedules it.
 
 **What the tag separates is the NETWORK, not the cache.** The fast suite reads the client assets as
 a matter of course: a test that needs them installs `ClientAssetsExtension`, which reads the vanilla
@@ -104,7 +105,7 @@ classes fails on `:tooling:test` with `No tests found for given includes`. Write
 filtering.
 
 `./gradlew check` is `test` plus four gates `test` does not reach: `paritySelfTest`, the parity
-toolkit's own suite, which otherwise runs only when a parity task pulls it in; `harnessClasses`,
+toolkit's own suite, which otherwise runs only inside a capture; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
 name; `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
 build of their own; and `parityReachCheck`, which holds the committed reach graph,
@@ -114,10 +115,13 @@ gates together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
-writes a capture, `parityCompare` reports movers, `parityPromote` makes a capture the baseline. The
-declaration mechanics behind it - how reach is resolved, what coining an artifact owes - are in
-[DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md) and
-[RosterAndIndex](docs/parity/RosterAndIndex.md).
+writes a capture, `parityCompare` reports movers, `parityPromote` makes a capture the baseline. A
+capture runs the pin writers and not the fast suite, so `test` or `check` is a step of its own
+between the verdict and the commit, and the one red it commits over is a re-based pin's writer,
+which reads the stored value until the promotion moves it. The declaration mechanics behind it -
+how reach is resolved, what coining an artifact owes - are in
+[DeclaringReach](docs/parity/DeclaringReach.md), [ReferenceGraph](docs/parity/ReferenceGraph.md)
+and [RosterAndIndex](docs/parity/RosterAndIndex.md).
 
 - Determinism is the precondition for a hash. Prove a producer reproduces across fresh JVMs before
   comparing digests: `Set.of`, `Map.of` and their `copyOf` forms iterate in an order salted per JVM,
@@ -129,10 +133,11 @@ declaration mechanics behind it - how reach is resolved, what coining an artifac
 - `BlockGeometryKitTest` builds fixtures by reflection into private parser-populated fields, so a
   rename compiles clean and fails at runtime.
 
-**One rename is a promote rather than a rename**, and it bites before you are anywhere near the
-gate: a test or visual-set class the store homes a row at. [StoreState](docs/parity/StoreState.md)
-lists which files those are, the five that pin a line number as well, and what an edit to one owes;
-grep the store for the class before touching it.
+**Two renames owe the store an edit**, and both bite before you are anywhere near the gate: a test
+or visual-set class the store homes a row at, which is a promote rather than a rename, and a heading
+a reach rule cites - of this file or of a topic file under `docs/` - or the path of the file that
+holds it. [StoreState](docs/parity/StoreState.md) lists which files those are and what an edit to one
+owes; grep the store for the class or the heading before touching it.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a

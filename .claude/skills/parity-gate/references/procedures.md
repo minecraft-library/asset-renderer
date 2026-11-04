@@ -15,7 +15,7 @@ Gradle build on any non-zero code, so this is what a red build means.
 | 2 | USAGE | argparse rejected the argv. A malformed invocation, never a verdict about the code. |
 | 3 | MISSING_INPUT | Something the command had to read was absent or unreadable - a producer directory, a declared manifest member, a baseline under `--bootstrap`. |
 | 4 | MISSING_DEPENDENCY | An optional Python package a `lab/` probe needs. Never reachable from the Gradle tasks. |
-| 5 | REFUSED | The command declined to answer: an uncovered path (refusal R1), a side of a comparison carrying no provenance, an expected-diff registration naming no row or no value, a clear and a registration in one `expect`, a promotion with no reason, a promotion below a determinism floor, a working root outside `cache/`. |
+| 5 | REFUSED | The command declined to answer: an uncovered path (refusal R1), a side of a comparison carrying no provenance, an expected-diff registration naming no row or no value, a clear and a registration in one `expect`, a promotion with no reason, a promotion below a determinism floor, a compare or a promotion of a capture another toolkit closed, a working root outside `cache/`. |
 
 The separation of 1 from 3 and 5 is the point, and the corpus conflated them twice. **Do not read a
 3 or a 5 as "the gate failed"** - it means the gate could not run, which needs a different fix.
@@ -54,6 +54,41 @@ repeats itself and nothing about whether this change moved anything. Run on the 
 and covering the whole plan, it reads as a gating here. Nothing a compare records separates the two
 - a capture's provenance names the commit and whether the tree was dirty, never which edit was in it
 - so **do not treat the pre-flight as the gate**: it is a precondition, taken before the work.
+
+## The fast suite, before the commit
+
+A capture runs the test classes that write the self-captured rows and no other test: those rows
+name `parityPinTest`, the fast suite filtered to their writers, so the rest of `src/test` is in no
+bundle and a green verdict says nothing about it. The suite is a step of its own, taken once the
+verdict is in and before `git commit`:
+
+```bash
+./gradlew test      # the fast suite
+./gradlew check     # the same, plus paritySelfTest, harnessClasses, toolingTest and parityReachCheck
+```
+
+Either one is the step; `check` is the one that also compiles the harness and holds the reach graph
+to the compiled tree. A red run is a commit not taken whatever the verdict said: the verdict speaks
+for the stored artifacts, and a class outside the pin writers can go red over a change every
+artifact is blind to.
+
+**A re-based pin is the one red a commit is taken over.** A pin writer asserts against the stored
+value and reads no expected-diff, so once a verdict has found a pin move GREEN as a registered mover,
+its writer stays red until the promotion writes the new value - and the promotion refuses until the
+content the capture measured is committed. When every failure is a pin writer's assertion on a row
+the expected-diff registers and the verdict found GREEN, the commit is taken over that red:
+
+```bash
+git commit                                    # over that red and no other
+./gradlew parityPromote -Partifacts=<the moved pins> -Preason="<the registration's reason>"
+# then both view sets, as the promotion shape below regenerates them
+./gradlew test                                # green: the writer reads the promoted value
+git commit --amend                            # with the store and the two views staged
+```
+
+The amend is what keeps it one commit, the promotion landing beside the change it measured. A red
+anywhere else - another class, or a pin writer on a row the verdict did not find GREEN - is still a
+commit not taken.
 
 ## The stash A/B
 

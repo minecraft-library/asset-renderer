@@ -35,10 +35,6 @@ _ENVELOPE = {"//", "artifact", "format", "key", "kind", "provenance"}
 #: entries enter the SAME keyspace under a prefix rather than sitting beside the comparison.
 JOINED_ALSO = "logs"
 
-#: The two artifacts `shipped-tables-agreement` relates, and the check's own id.
-AGREEMENT_CHECK = "shipped-tables-agreement"
-AGREEMENT_ARTIFACTS = ("digest.shipped-tables", "manifest.tooling-tables")
-
 #: The compare's report, inside the working root's run directory. Named here rather than at either
 #: end, because the command that writes it and the promotion that requires it are two modules and a
 #: promotion that looked for a different filename would silently find nothing and refuse everything.
@@ -154,13 +150,13 @@ def _rows(payload_member: Any, key: str) -> dict[str, dict]:
     """Key a payload member, whichever of the two shapes a kind spells it in.
 
     A sweep, a manifest and the blindness roster carry an ARRAY of rows, each stating its own key.
-    A digest-set and a pin-set carry an OBJECT keyed by the entry's own name, because both are read
-    by a JUnit test that asks for one entry by key and an array would make every reader scan. The
-    key is injected into the entry so the two shapes join identically and `classify` never sees the
-    key itself as a moved field.
+    A pin-set carries an OBJECT keyed by the entry's own name, because it is read by a JUnit test
+    that asks for one entry by key and an array would make every reader scan. The key is injected
+    into the entry so the two shapes join identically and `classify` never sees the key itself as a
+    moved field.
 
     Reading only the array shape is not a narrowing, it is a **false green**: every value of a
-    digest-set could move and the join would report zero rows on both sides, zero movers and clean.
+    pin-set could move and the join would report zero rows on both sides, zero movers and clean.
     Measured, on the object-keyed payloads the store actually holds.
     """
     if isinstance(payload_member, dict):
@@ -230,34 +226,6 @@ def require_provenance(payload: dict, label: str) -> None:
             f"the {label} copy of '{payload.get('artifact') or '?'}' carries no provenance object, "
             "so nothing can say what produced it, on what tree, or over how many runs; a comparison "
             "against one reports agreement about an unidentified value")
-
-
-def shipped_tables_agreement(digests: dict, tables: dict) -> list[str]:
-    """The names `digest.shipped-tables` and `manifest.tooling-tables#/files` disagree about.
-
-    The two digests are taken over different canonical forms - Gson's reparse-and-compact against
-    the file's raw bytes - so they can never be compared value for value, and a rule that tried
-    would fail on every table for ever. What **is** comparable is the covered set: a table a flow
-    adds or drops shows up as a name in one artifact and not the other.
-
-    The two populations are discovered independently and by different walks, which is what gives the
-    check something to find. `BundledResourceShaTest` lists the directory's top level; `manifest.build`
-    rglobs it. They agree today because nothing lives in a sub-directory, and the day something does
-    the manifest gains `sub/foo.json` and the digest set does not.
-
-    :param digests: the `digest.shipped-tables` payload
-    :param tables: the `manifest.tooling-tables` payload
-    :return: the symmetric difference, sorted; empty when they agree
-    """
-    left = set((digests.get("digests") or {}).keys())
-    # `files` is keyed by a path relative to the manifest's root, so the extension comes off and any
-    # directory component deliberately stays on - a nested table IS a disagreement.
-    right = {_strip_json(row["path"]) for row in (tables.get("files") or []) if "path" in row}
-    return sorted(left ^ right)
-
-
-def _strip_json(path: str) -> str:
-    return path[:-len(".json")] if path.endswith(".json") else path
 
 
 def registered_unproduced(expected: dict | None) -> dict[str, str]:

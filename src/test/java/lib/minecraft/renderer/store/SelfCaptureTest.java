@@ -109,10 +109,10 @@ final class SelfCaptureTest {
     @Test
     @DisplayName("a root with no capture at all is written")
     void anEmptyRootIsWritten(@TempDir Path root) {
-        Optional<Path> written = SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of());
+        Optional<Path> written = SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of());
         assertThat("an ordinary run before any capture writes its value as it always has",
-            written, equalTo(Optional.of(root.resolve("pins/kit-corners.json"))));
-        assertThat(Files.isRegularFile(root.resolve("pins/kit-corners.json")), is(true));
+            written, equalTo(Optional.of(root.resolve("pins/vanilla-iso-pose.json"))));
+        assertThat(Files.isRegularFile(root.resolve("pins/vanilla-iso-pose.json")), is(true));
     }
 
     @Test
@@ -122,18 +122,18 @@ final class SelfCaptureTest {
         assertThat("capture-begin opens the capture before every producer, so this is the state a "
                 + "capture step's own suite run is in; declining here would fail the capture on an "
                 + "absent file",
-            SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of()).isPresent(), is(true));
+            SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of()).isPresent(), is(true));
     }
 
     @Test
     @DisplayName("a root carrying the completion marker is declined and left alone")
     void aFinishedCaptureIsDeclined(@TempDir Path root) {
-        Path target = root.resolve("pins/kit-corners.json");
-        SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of());
+        Path target = root.resolve("pins/vanilla-iso-pose.json");
+        SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of());
         String before = read(target);
         mark(root, "COMPLETE");
 
-        Optional<Path> written = SelfCapture.writeInto(root, "pin.kit-corners", Map.of("k", other()),
+        Optional<Path> written = SelfCapture.writeInto(root, "pin.vanilla-iso-pose", Map.of("k", other()),
             List.of());
 
         assertThat("a declined write says so in its answer; a path back would read as written",
@@ -148,13 +148,13 @@ final class SelfCaptureTest {
     void aDeclinedWriteIsReported(@TempDir Path root) {
         mark(root, "COMPLETE");
 
-        SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of());
+        SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of());
 
         assertThat("a skip nothing says out loud is the failure this store is built against, and "
                 + "the empty answer reaches only a caller that reads it. Asserted whole rather than "
                 + "by prefix: a line that still starts this way and then says something else is "
                 + "exactly what a half-edited message looks like",
-            printed(), equalTo("parity: not capturing pin.kit-corners into " + root
+            printed(), equalTo("parity: not capturing pin.vanilla-iso-pose into " + root
                 + " - it holds a finished capture. Run ./gradlew parityCapture to take a new one."
                 + System.lineSeparator()));
     }
@@ -183,7 +183,7 @@ final class SelfCaptureTest {
             declared.find(), is(true));
 
         mark(root, "COMPLETE");
-        SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of());
+        SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of());
 
         String message = printed();
         int afterLeader = message.indexOf(' ') + 1;
@@ -201,7 +201,7 @@ final class SelfCaptureTest {
     @Test
     @DisplayName("a write that happens says nothing")
     void anAcceptedWriteIsQuiet(@TempDir Path root) {
-        SelfCapture.writeInto(root, "pin.kit-corners", ENTRIES, List.of());
+        SelfCapture.writeInto(root, "pin.vanilla-iso-pose", ENTRIES, List.of());
         assertThat("the forwarded line means one thing, so a run that captured normally must not "
                 + "emit one",
             printed(), equalTo(""));
@@ -215,7 +215,7 @@ final class SelfCaptureTest {
             () -> SelfCapture.writeInto(root, "sweep.entity", ENTRIES, List.of()),
             "a sweep does not self-capture, and a closed root does not make that acceptable");
         assertThrows(ParityStoreException.class,
-            () -> SelfCapture.writeInto(root, "pin.kit-corners", Map.of(), List.of()),
+            () -> SelfCapture.writeInto(root, "pin.vanilla-iso-pose", Map.of(), List.of()),
             "an empty artifact compares clean against anything, closed root or not");
     }
 

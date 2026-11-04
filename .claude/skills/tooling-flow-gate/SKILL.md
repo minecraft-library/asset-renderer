@@ -13,7 +13,7 @@ bytes and the diagnostics log against what is committed, and reports what moved.
 ## Why this exists separately from parity-gate
 
 `parityPlan` over a `tooling/**` change resolves SEES to `manifest.tooling-tables` and
-`report.diagnostics-log` and calls every sweep, pin and digest **BLIND** under rule `B13`, whose own
+`report.diagnostics-log` and calls every sweep, pin and dump **BLIND** under rule `B13`, whose own
 text says it: they all read the SHIPPED JSON, which a generator refactor does not regenerate, so a
 green sweep is no evidence about a change here. `manifest.tooling-tables` closes half the loop - it
 digests the tables and each flow's log - but it reads them where they sit. Regenerating them is what
@@ -131,8 +131,10 @@ that flaps run to run is not a gate input.
   is what catches an edit which reaches further than its author thinks - dropping a bone member the
   emitter's own later passes read back, say.
 - **`BundledResourceShaTest` red under either arm above** -> expected, and only until
-  `digest.shipped-tables` is re-promoted. It is a producer, so `parityCapture` needs `--continue` to
-  run the rest of the bundle past it.
+  `manifest.tooling-tables` is re-promoted: the test holds each table to that manifest's digest of
+  it. Registering each moved table with `parityExpect -Partifact=manifest.tooling-tables` turns it
+  green before then, since a registered table is checked against the digest it is registered to
+  move to.
 - **Golden empty but log moved** -> a real change with no table effect. Say so; it still moves the
   store's log digest, so `parity-gate` will report it.
 - **Flow exits non-zero** -> read the exception before anything else. A loud re-entry firing is the

@@ -11,6 +11,9 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
+import multiprocessing
 import os
 import re
 import shutil
@@ -19,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -316,19 +320,165 @@ def _cmd_reach(args: argparse.Namespace) -> int:
 
 
 def _cmd_selftest(args: argparse.Namespace) -> int:
-    tests_dir = Path(__file__).resolve().parent / "tests"
+    """Runs the toolkit's suite one test module per process, and reports it in module order.
+
+    Every module runs in a fresh process of its own under a scratch root of its own, so no two share
+    a temporary directory, a ``tempfile`` setting or a module-level cache, and a pool runs as many at
+    once as the machine has cores - the run takes as long as its slowest module rather than as long as
+    all of them. What a module printed is held until every module sorting before it has printed, so
+    the output reads in one order on every run whichever module finished first, and the tally is the
+    sum of every module's. A failure, an error or a module whose process died fails the run.
+
+    A ``-k`` pattern is matched in this process first, and only a module holding a matching test is
+    started, so a pattern naming nothing starts no process at all.
+    """
+    return _selftest(Path(__file__).resolve().parent / "tests", args.pattern, args.quiet)
+
+
+def _selftest(tests_dir: Path, pattern: str | None, quiet: bool) -> int:
+    """Runs the test modules of one tests package and prints the summed tally.
+
+    :param tests_dir: the tests package's directory, two levels below the import root
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param quiet: whether the runners print one character per test rather than one line
+    :return: ``OK`` when every module passed, ``DIFFERENCES`` otherwise
+    :raises MissingInput: if there is no tests package
+    :raises Refused: if a package sits below it
+    """
     if not tests_dir.is_dir():
         raise MissingInput(f"no tests package at {tests_dir}")
-    loader = unittest.defaultTestLoader
-    suite = loader.discover(str(tests_dir), top_level_dir=str(tests_dir.parents[1]))
-    if args.pattern:
-        suite = _filter(suite, args.pattern)
-    runner = unittest.TextTestRunner(stream=sys.stderr, verbosity=1 if args.quiet else 2)
-    result = _in_scratch(lambda: runner.run(suite))
+    modules = _selftest_module_names(tests_dir)
+    if pattern:
+        suite = unittest.defaultTestLoader.discover(str(tests_dir), pattern=_SELFTEST_PATTERN,
+                                                    top_level_dir=str(tests_dir.parents[1]))
+        package = _package_of(tests_dir)
+        selected = {_module_of(test, package) for test in _flattened(_filter(suite, pattern))}
+        modules = [name for name in modules if name in selected]
+    outcomes = _selftest_modules(tests_dir, modules, pattern, 1 if quiet else 2)
+    total = {field: sum(outcome[field] for outcome in outcomes)
+             for field in ("ran", "failures", "errors", "skipped")}
     # The skip count is printed because an all-skipped run must not read as a green one.
-    print(f"selftest: ran {result.testsRun}, failures {len(result.failures)}, "
-          f"errors {len(result.errors)}, skipped {len(result.skipped)}")
-    return OK if result.wasSuccessful() else DIFFERENCES
+    print(f"selftest: ran {total['ran']}, failures {total['failures']}, "
+          f"errors {total['errors']}, skipped {total['skipped']}")
+    return OK if all(outcome["successful"] for outcome in outcomes) else DIFFERENCES
+
+
+#: The file pattern a test module matches, which is ``unittest``'s own discovery default.
+_SELFTEST_PATTERN = "test*.py"
+
+
+def _selftest_module_names(tests_dir: Path) -> list[str]:
+    """The modules a run starts a process for, which are the ones directly under the tests package.
+
+    A module is started by its file stem, so only the top level of the package is listed - and a
+    package below it, which discovery would walk into, is refused rather than passed over: its
+    modules would start no process, and the run would report green over a suite it never ran.
+
+    :param tests_dir: the tests package's directory
+    :return: the modules' file stems, sorted
+    :raises Refused: if a package sits below the tests package
+    """
+    nested = sorted(path.parent.name for path in tests_dir.glob("*/__init__.py"))
+    if nested:
+        raise Refused(f"selftest starts one process per module directly under {tests_dir}, and "
+                      f"{', '.join(nested)} is a package below it whose modules none would run; "
+                      "move them up beside the rest")
+    return sorted(path.stem for path in tests_dir.glob(_SELFTEST_PATTERN))
+
+
+def _package_of(tests_dir: Path) -> str:
+    """The dotted package the test modules import as, discovery being rooted two levels above them."""
+    return f"{tests_dir.parent.name}.{tests_dir.name}"
+
+
+def _selftest_modules(tests_dir: Path, modules: Sequence[str], pattern: str | None,
+                      verbosity: int) -> list[dict]:
+    """Runs each test module in a pool process of its own and prints each one's output in order.
+
+    :param tests_dir: the directory holding the test modules, two levels below the import root
+    :param modules: the modules' file stems, in the order their output is printed
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param verbosity: the runner's verbosity
+    :return: one outcome per module, in the order given
+    """
+    if not modules:
+        return []
+    outcomes = []
+    context = multiprocessing.get_context("spawn")
+    workers = min(len(modules), os.cpu_count() or 1)
+    package = _package_of(tests_dir)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context,
+                             max_tasks_per_child=1) as pool:
+        pending = [(name, pool.submit(_selftest_module, str(tests_dir), name, pattern, verbosity))
+                   for name in modules]
+        for name, future in pending:
+            try:
+                outcome = future.result()
+            except Exception as error:
+                # A worker that died, or a module that raised out of the runner, is a failed module
+                # and not a reason to drop the rest of the tally.
+                outcome = {"errors": 1, "failures": 0, "module": name,
+                           "output": f"the process running {name} died: {error!r}\n",
+                           "ran": 0, "skipped": 0, "successful": False}
+            sys.stderr.write(f"selftest: {package}.{name}\n{outcome['output']}")
+            sys.stderr.flush()
+            outcomes.append(outcome)
+    return outcomes
+
+
+def _selftest_module(tests_dir: str, name: str, pattern: str | None, verbosity: int) -> dict:
+    """Runs one test module under a scratch root of its own, in the pool process that calls it.
+
+    Discovered rather than loaded by name, so a module that fails to import is reported as the
+    failed test discovery makes of it rather than raising out of the pool. Its stdout and stderr are
+    held with the runner's own output, so nothing it prints lands between another module's lines.
+
+    :param tests_dir: the tests package's directory
+    :param name: the module's file stem
+    :param pattern: the ``-k`` substring a test id must contain, or None for every test
+    :param verbosity: the runner's verbosity
+    :return: the module's tally, whether it passed, and everything it printed
+    """
+    directory = Path(tests_dir)
+    suite = unittest.defaultTestLoader.discover(tests_dir, pattern=f"{name}.py",
+                                                top_level_dir=str(directory.parents[1]))
+    if pattern:
+        suite = _filter(suite, pattern)
+    printed = io.StringIO()
+    runner = unittest.TextTestRunner(stream=printed, verbosity=verbosity)
+    with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(printed):
+        result = _in_scratch(lambda: runner.run(suite))
+    return {"errors": len(result.errors), "failures": len(result.failures), "module": name,
+            "output": printed.getvalue(), "ran": result.testsRun, "skipped": len(result.skipped),
+            "successful": result.wasSuccessful()}
+
+
+def _flattened(suite: unittest.TestSuite) -> list[unittest.TestCase]:
+    """Every test case under a suite, nested suites walked through."""
+    found = []
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            found.extend(_flattened(item))
+        else:
+            found.append(item)
+    return found
+
+
+def _module_of(test: unittest.TestCase, package: str) -> str:
+    """The file stem of the test module a case was loaded from.
+
+    A module that failed to import is a case discovery makes in its place, whose id carries the
+    module it stands for after a prefix of its own, so the id is searched rather than read from the
+    front or off the case's class.
+
+    :param test: the case
+    :param package: the dotted package the test modules import as
+    :return: the module's file stem, or the empty string for a case from outside that package
+    """
+    ident = test.id()
+    marker = f"{package}."
+    at = ident.find(marker)
+    return ident[at + len(marker):].split(".")[0] if at >= 0 else ""
 
 
 def _in_scratch(run: Callable[[], Any]) -> Any:
@@ -503,12 +653,6 @@ def _cmd_json(args: argparse.Namespace) -> int:
                 "reported success. Canonicalize them in place, or one at a time")
         for name in args.files:
             path = Path(name)
-            if "shipped-tables" in path.name:
-                raise Refused(
-                    f"{path.name} is digested under the table-canonical form "
-                    "(a Gson reparse-and-compact), not this one; a digest taken under one is "
-                    "meaningless under the other"
-                )
             text = canonical_json(read_json(path))
             write_text(_out_path(args) if args.out else path, text)
             print(f"canonicalized {path}")
@@ -583,8 +727,11 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     # that MOVED after it finished, which is the same trap one step along: a self-capturing producer
     # rewrites its file whenever its suite runs, so a root can be part this capture and part the run
     # after it while COMPLETE still describes the first. `provenance` is outside the compared
-    # payload, so the rewrite is invisible to every number the verdict prints.
+    # payload, so the rewrite is invisible to every number the verdict prints. And refuse one another
+    # toolkit closed: the gate ran its suite over the toolkit that closed the capture, and the verdict
+    # is written by the one reading it.
     capture_mod.require_unmoved(root.root)
+    capture_mod.require_same_toolkit(root.root)
 
     wanted = [name.strip() for name in args.artifacts.split(",")] if args.artifacts else None
     if not wanted:
@@ -628,8 +775,6 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             row["reason"] = licensed[row["artifact"]]
     if unproduced:
         payload["unproduced"] = unproduced
-    agreement = _shipped_tables_agreement(args, root)
-    payload["checks"] = {compare_mod.AGREEMENT_CHECK: agreement}
     if args.bootstrap:
         payload["bootstrap"] = True
     run = root.root / store_mod.RUN_DIR
@@ -665,7 +810,6 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     if not_captured:
         text += (f"\n\n**not captured by this run** (in the root, stamped by no capture step): "
                  f"{', '.join(not_captured)}")
-    text += "\n\n" + report_mod.render_checks(payload["checks"])
     _emit(args, text, payload)
 
     if missing and not args.bootstrap:
@@ -683,50 +827,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
             "and the rest of this bundle is a verdict about a narrower set than was planned. Fix the "
             "producer, or register the failure with "
             "`./gradlew parityExpect -Partifact=<id> -Punproduced -Preason=<why>`")
-    # Before the mover gate, because it is a POPULATION check like MISSING_BASELINE rather than a
-    # value one: if the two artifacts disagree about which tables exist, the per-row comparison over
-    # them is answering a question about a covered set that is already wrong.
-    if agreement["status"] == "disagreed":
-        raise ComparisonFailed(
-            f"{compare_mod.AGREEMENT_CHECK} on digest.shipped-tables: "
-            f"{', '.join(agreement['disagreements'])} "
-            f"{'is' if len(agreement['disagreements']) == 1 else 'are'} covered by one of "
-            f"{' / '.join(compare_mod.AGREEMENT_ARTIFACTS)} and not the other. The two digests are "
-            "over different canonical forms and are never comparable value for value; the covered "
-            "set is, and a table a flow added or dropped shows up exactly here")
     compare_mod.raise_on(results)
     return OK
-
-
-def _shipped_tables_agreement(args: argparse.Namespace, root: store_mod.ReadOnlyStore) -> dict:
-    """Resolve both operands and run the cross-artifact covered-set check.
-
-    Each operand is taken from the working root when the root holds it and from the base otherwise,
-    which is the state the store would be in **after** this capture were promoted - the thing a gate
-    is actually asserting about. A capture naming only one of the two is the common case
-    (``-Partifacts=digests``), and reading the other's last known value is what keeps the check
-    evaluable there instead of quietly skipping on nearly every run.
-    """
-    payloads = {}
-    absent = []
-    for artifact in compare_mod.AGREEMENT_ARTIFACTS:
-        for read in (lambda name=artifact: root.read(name),
-                     lambda name=artifact: _load(args, name, args.base)):
-            try:
-                payloads[artifact] = read()
-                break
-            except (MissingInput, ValueError):
-                continue
-        if artifact not in payloads:
-            absent.append(artifact)
-    if absent:
-        # Reported rather than silently omitted: a check that is never evaluated and never says so
-        # is indistinguishable from one that passes.
-        return {"absent": absent, "status": "not_evaluated"}
-    disagreements = compare_mod.shipped_tables_agreement(*(payloads[name]
-                                                           for name in compare_mod.AGREEMENT_ARTIFACTS))
-    return {"disagreements": disagreements,
-            "status": "disagreed" if disagreements else "agreed"}
 
 
 def _cmd_capture_begin(args: argparse.Namespace) -> int:
@@ -904,12 +1006,10 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 
-    index = store_mod.production(args.store, base).index()
+    production = store_mod.production(args.store, base)
+    index = production.index()
     plan, covered, manual = _split_reach(reach.sees, index)
-    durations = [index.get(_STORE_MAP, {}).get(artifact, {}).get("last_duration_ms")
-                 for artifact in plan]
-    measured = [int(value) for value in durations if value is not None]
-    budget = sum(measured)
+    measured, budget = _budget(plan, index, production)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
@@ -917,7 +1017,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         "budget_ms": budget,
         # How much of that number is real. A reader with the sum alone cannot tell a measured bundle
         # from one where most of the cost is missing, and the two call for opposite decisions.
-        "budget_measured": len(measured),
+        "budget_measured": measured,
         "changed": sorted(changed),
         # `sees` answers reach and `plan` selects a capture, which are two different sets: every
         # artifact the change moves, against the ones the store keeps a file for and a producer can
@@ -972,7 +1072,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                    if entry["action"] == _CAPTURE else "read it there")
             where = f" {entry['where']}" if entry["where"] else ""
             lines.append(f"  {entry['artifact']} [{entry['home']}]{where} - {act}")
-    lines.append(f"BUDGET {budget} ms{_budget_caveat(len(measured), len(plan))}")
+    lines.append(f"BUDGET {budget} ms{_budget_caveat(measured, len(plan))}")
     # The standing verdict, on every plan rather than only under --gate-exit. The predicate is the
     # hook's own, so the two cannot drift; what differs is that this one REPORTS. A plan is a Gradle
     # Exec and a non-zero exit fails the build, so answering "already gated" in the exit code would
@@ -989,6 +1089,51 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                      "any tracked file re-arms it.")
     _emit(args, "\n".join(lines), payload)
     return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+
+
+def _budget(plan: Sequence[str], index: dict,
+            production: store_mod.ReadOnlyStore) -> tuple[int, int]:
+    """How many of the plan's artifacts carry a duration, and what the plan's capture costs.
+
+    An artifact's duration is the wall time of the producers that wrote it, so the rows one producer
+    writes together each carry that producer's whole run: the pin rows carry one run of the pin
+    suite apiece, and the two dump manifests one dump each. A capture runs that producer once, so the
+    budget counts it once - rows are grouped by the producer their stored baseline names, and a group
+    costs the longest duration any of its rows recorded. A row whose baseline names no producer is a
+    group of its own.
+
+    :param plan: the artifacts the plan captures
+    :param index: the production store's index
+    :param production: the production store, whose baselines name each row's producer
+    :return: the number of planned artifacts carrying a duration, and the budget in milliseconds
+    """
+    rows = index.get(_STORE_MAP, {})
+    runs: dict[str, int] = {}
+    measured = 0
+    for artifact in plan:
+        value = (rows.get(artifact) or {}).get("last_duration_ms")
+        if value is None:
+            continue
+        measured += 1
+        producer = _stored_producer(production, artifact)
+        group = f"producer:{producer}" if producer else f"artifact:{artifact}"
+        runs[group] = max(runs.get(group, 0), int(value))
+    return measured, sum(runs.values())
+
+
+def _stored_producer(production: store_mod.ReadOnlyStore, artifact: str) -> str | None:
+    """The producer an artifact's stored baseline names, or None where it names none or is absent.
+
+    :param production: the production store
+    :param artifact: the artifact id
+    """
+    try:
+        payload = production.read(artifact)
+    except (MissingInput, ValueError):
+        return None
+    record = payload.get("provenance") if isinstance(payload, dict) else None
+    producer = record.get("producer") if isinstance(record, dict) else None
+    return producer if isinstance(producer, str) and producer else None
 
 
 def _budget_caveat(measured: int, planned: int) -> str:

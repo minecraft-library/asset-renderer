@@ -96,7 +96,7 @@ public final class ParityReferences {
         out.add("```");
         out.add("");
         out.add("Every artifact the store knows about, in roster order: sweep-table,");
-        out.add("render-manifest, file-digest-set, value-pin, roster, report, probe. `home` is where");
+        out.add("render-manifest, value-pin, roster, report, probe. `home` is where");
         out.add("the value lives - `STORE` has a file, `POINTER` is a field of another artifact's");
         out.add("file, `SOURCE` is a deliberate second copy held in Java, and `EXTERNAL` is not held");
         out.add("at all. An artifact that is not `baselined` has no last known value, so a comparison");

@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
  * The byte-level integrity digest is pinned alongside the other bundled JSON in
- * {@code digest.shipped-tables} and asserted by {@code BundledResourceShaTest}. This test cross-checks the
+ * {@code manifest.tooling-tables} and asserted by {@code BundledResourceShaTest}. This test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.variants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.

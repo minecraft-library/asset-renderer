@@ -1889,7 +1889,7 @@ public final class PipelineParityDump {
      * <p>What this section can see of a block overlay's placement is its product, because the product is
      * what the row carries and the ops that composed it are a fact of the shipped table rather than of
      * the built index. That splits the two questions cleanly rather than blurring them: an op that moves
-     * in the table moves {@code digest.shipped-tables} and is named there in its own vocabulary, and what
+     * in the table moves {@code manifest.tooling-tables} and is named there in its own vocabulary, and what
      * is left for this section to answer is whether the SAME ops still compose to the same bits - which
      * is the one thing folding at index build put at risk and the one thing a list of ops could not show.
      *

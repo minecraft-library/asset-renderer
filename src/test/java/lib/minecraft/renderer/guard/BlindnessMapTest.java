@@ -86,9 +86,9 @@ import static org.hamcrest.Matchers.not;
  * either side of the change settles one - the resolution above is judged against a second
  * implementation of the same grammar rather than against the truth. The toolkit holds its own
  * assertions over the same map, and a reach edit is worth running against those as well, because they
- * go through the code the planner really uses where this side goes through a mirror of it. Every
- * parity task depends on the task that runs them, so the gate does; a bare {@code ./gradlew test}
- * does not, which is the split rather than a gap.
+ * go through the code the planner really uses where this side goes through a mirror of it. The
+ * capture depends on the task that runs them, so the gate does, once, and so does {@code check}; a
+ * bare {@code ./gradlew test} does not, which is the split rather than a gap.
  */
 @DisplayName("The blindness map refers only to real paths and registered artifacts")
 final class BlindnessMapTest {
@@ -224,6 +224,7 @@ final class BlindnessMapTest {
         Map.entry("parityVisualSources", "\"src/visual/java\""),
         Map.entry("parityMainSources", "\"src/main/java\""),
         Map.entry("parityGitIndex", "gitIndex"),
+        Map.entry("parityClaudeMd", "\"CLAUDE.md\""),
         Map.entry("parityDocs", "parityDocs"));
 
     /**
@@ -320,14 +321,11 @@ final class BlindnessMapTest {
      * Artifacts the production context's graph row names that a file in {@link #CONTEXT_READS}
      * leaves unplanned, each one a decision a rule firing on that file states as blind.
      *
-     * <p>The colormap digests alone. Their test builds the pack stack and resolves the colormaps
-     * through it itself, and asks a context for nothing - the row names them because the test class
-     * reaches the client-assets extension that builds one. Flipping a bit of every texel the context
-     * answers, and taking the registration off the classpath, each left all three digests where they
-     * were, so the index rule and the registration's rule call them blind, while the pack rule, which
-     * speaks for the stack the colormaps resolve from, plans them.
+     * <p>None: every producer the row names draws through the context, so each file it reads through
+     * plans the whole row. An artifact recorded here is one whose producer reaches the context and
+     * asks it for nothing, which the rule over each such file calls blind with that mechanism.
      */
-    private static final Set<String> BLIND_TO_THE_CONTEXT = Set.of("digest.colormap-lut");
+    private static final Set<String> BLIND_TO_THE_CONTEXT = Set.of();
 
     /**
      * The shipped tables a measured perturbation moved a production-context producer through, each
@@ -472,6 +470,13 @@ final class BlindnessMapTest {
     /** The source roots the graph derives a type from, which is where it can answer a path at all. */
     private static final List<String> GRAPH_SOURCE_ROOTS =
         List.of("src/main/java", "src/test/java", "src/visual/java");
+
+    /** One heading of a markdown file, at any level. */
+    private static final Pattern MARKDOWN_HEADING = Pattern.compile("(?m)^#{1,6} (.+)$");
+
+    /** A citation naming a rules file and one of its sections, as the {@code source} column spells one. */
+    private static final Pattern SECTION_CITATION =
+        Pattern.compile("((?:docs/[\\w/]+|CLAUDE)\\.md) '([^']*)'");
 
     /** One inline code span, which is how the skill body spells each trigger path. */
     private static final Pattern BACKTICKED = Pattern.compile("`([^`]+)`");
@@ -730,6 +735,39 @@ final class BlindnessMapTest {
             + "is a move nobody regenerated, so the map states a reach no declaration makes - which "
             + "the toolkit's check of the generated trigger lists names more precisely, and this one "
             + "catches whether or not the file it points at still exists", orphaned, is(empty()));
+    }
+
+    @Test
+    @DisplayName("every rules-file section a rule cites is a heading that file still carries")
+    void everyClaudeMdCitationNamesALiveHeading() {
+        Set<String> tracked = Set.copyOf(trackedFiles());
+        Map<String, Set<String>> headings = new TreeMap<>();
+        List<String> cited = new ArrayList<>();
+        List<String> dead = new ArrayList<>();
+        for (JsonObject rule : rules()) {
+            Matcher citation = SECTION_CITATION.matcher(rule.get("source").getAsString());
+            while (citation.find()) {
+                Set<String> own = headings.computeIfAbsent(citation.group(1),
+                    file -> tracked.contains(file) ? headingsOf(Path.of(file)) : Set.of());
+                cited.add(rule.get("id").getAsString() + " -> " + citation.group(1) + " '"
+                    + citation.group(2) + "'");
+                if (!own.contains(citation.group(2)))
+                    dead.add(cited.getLast());
+            }
+        }
+
+        assertThat("a cited file git does not track or that carries no heading at all, so every "
+            + "citation into it would read as dead and the failure would be in this walk rather than "
+            + "in the map",
+            headings.entrySet().stream().filter(file -> file.getValue().isEmpty()).map(Map.Entry::getKey)
+                .toList(), is(empty()));
+        assertThat("no rule cites a section of any rules file, so this case has no operand; it "
+            + "needs a different shape rather than deleting", cited, is(not(empty())));
+        assertThat("rules citing a section the file they name has no heading for. A `source` is "
+            + "where the claim came from, and a reader following one to a heading that was deleted or "
+            + "renamed cannot tell a moved rule from an abandoned one; the plan never reads the "
+            + "column, so this is the one check that notices. Rename the citation with the heading",
+            dead, is(empty()));
     }
 
     @Test
@@ -2016,6 +2054,19 @@ final class BlindnessMapTest {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+    }
+
+    /**
+     * The headings of one markdown file, at any level, trimmed.
+     *
+     * @param markdown the file's repo-relative path
+     * @return the heading texts, sorted
+     */
+    private static Set<String> headingsOf(Path markdown) {
+        Set<String> own = new TreeSet<>();
+        Matcher heading = MARKDOWN_HEADING.matcher(text(markdown));
+        while (heading.find()) own.add(heading.group(1).trim());
+        return own;
     }
 
     /**

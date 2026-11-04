@@ -30,7 +30,7 @@ instead takes the tree from 29 engine-wide types to 151.
 **What a class cut whole holds plans only what the rules over it author.** The cut class answers its
 own row - every producer whose code reaches it - and nothing it holds inherits that row, so the pack
 stack, the texture rows and the sidecar parser behind the production context answer only the dumps
-and the colormap digests, which reach them around it. The rules over what a cut class holds are the
+and the two tooltip sweeps, which reach them around it. The rules over what a cut class holds are the
 one place the producers drawing through it are planned: between them, the rules firing on each file
 the cut class reads through list every producer its row names, or one of them calls that producer
 blind with the mechanism that keeps it out, and `BlindnessMapTest` holds the files the production

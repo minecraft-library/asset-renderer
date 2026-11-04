@@ -14,7 +14,8 @@ import unittest
 from pathlib import Path
 
 from parity import capture, cli, pixels, promote, provenance, store
-from parity.norm import canonical_json, read_json, read_text, sha256_text, write_json, write_text
+from parity.norm import (Refused, canonical_json, read_json, read_text, sha256_text, write_json,
+                         write_text)
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -177,6 +178,89 @@ class GlobalOptions(unittest.TestCase):
         self.assertIn("parity", out)
 
 
+class TheSelftestRunsEachModuleApart(unittest.TestCase):
+    """One module per pool process, and a failure in any of them is a failure of the run.
+
+    The suite's own modules cannot be the fixture - a run of them from inside one of them is the
+    recursion this is not - so two modules are written into a package of their own, one passing and
+    one failing, and the pool is handed that package's directory.
+    """
+
+    def setUp(self):
+        top = Path(tempfile.mkdtemp())
+        self.tests = top / "fixture" / "tests"
+        write_text(top / "fixture" / "__init__.py", "")
+        write_text(self.tests / "__init__.py", "")
+        write_text(self.tests / "test_held.py",
+                   "import unittest\n\n\nclass Held(unittest.TestCase):\n"
+                   "    def test_one(self):\n        print('said by the held module')\n"
+                   "        self.assertTrue(True)\n")
+        write_text(self.tests / "test_broken.py",
+                   "import unittest\n\n\nclass Broken(unittest.TestCase):\n"
+                   "    def test_one(self):\n        self.assertEqual(1, 2)\n\n"
+                   "    def test_two(self):\n        pass\n")
+
+    def _outcomes(self, pattern: str | None = None) -> tuple[list[dict], str]:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            outcomes = cli._selftest_modules(self.tests, ["test_broken", "test_held"], pattern, 2)
+        return outcomes, err.getvalue()
+
+    def test_a_failing_module_is_an_unsuccessful_outcome_and_the_rest_still_report(self):
+        outcomes, _ = self._outcomes()
+        self.assertEqual([(outcome["module"], outcome["ran"], outcome["failures"],
+                           outcome["successful"]) for outcome in outcomes],
+                         [("test_broken", 2, 1, False), ("test_held", 1, 0, True)])
+
+    def test_each_module_prints_whole_and_in_the_order_given(self):
+        """What a module prints is held with its runner's lines, so nothing lands between them."""
+        _, printed = self._outcomes()
+        broken = printed.index("selftest: fixture.tests.test_broken")
+        held = printed.index("selftest: fixture.tests.test_held")
+        self.assertLess(broken, held)
+        self.assertLess(held, printed.index("said by the held module"))
+        self.assertIn("FAILED (failures=1)", printed[broken:held])
+
+    def test_a_pattern_runs_only_the_tests_it_names(self):
+        outcomes, _ = self._outcomes("test_two")
+        self.assertEqual([(outcome["module"], outcome["ran"], outcome["successful"])
+                          for outcome in outcomes],
+                         [("test_broken", 1, True), ("test_held", 0, True)])
+
+    def test_a_module_whose_process_dies_fails_the_run_and_is_counted(self):
+        """A worker that exits takes no runner's report with it, so the run answers for it instead:
+        an error in the tally and a failed exit, never a green total over a module that never
+        reported."""
+        write_text(self.tests / "test_dies.py",
+                   "import os\nimport unittest\n\n\nclass Dies(unittest.TestCase):\n"
+                   "    def test_one(self):\n        os._exit(3)\n")
+        err, out = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+            code = cli._selftest(self.tests, "Dies", quiet=True)
+        self.assertEqual(code, cli.DIFFERENCES)
+        self.assertIn("the process running test_dies died", err.getvalue())
+        tally = re.search(r"selftest: ran (\d+), failures (\d+), errors (\d+), skipped (\d+)",
+                          out.getvalue())
+        self.assertIsNotNone(tally, out.getvalue())
+        self.assertEqual(int(tally.group(3)), 1)
+
+    def test_the_run_is_the_sum_of_its_modules(self):
+        err, out = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+            code = cli._selftest(self.tests, None, quiet=True)
+        self.assertEqual(code, cli.DIFFERENCES)
+        self.assertIn("selftest: ran 3, failures 1, errors 0, skipped 0", out.getvalue())
+
+    def test_a_package_below_the_tests_is_refused_rather_than_passed_over(self):
+        """Discovery walks into one and a module is started by its stem, so its modules would never
+        start a process and the run would report green without them."""
+        write_text(self.tests / "nested" / "__init__.py", "")
+        write_text(self.tests / "nested" / "test_unseen.py", "")
+        with self.assertRaises(Refused) as caught:
+            cli._selftest(self.tests, None, quiet=True)
+        self.assertIn("nested", str(caught.exception))
+
+
 class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
     """Both commands are defined over the store and neither could read one.
 
@@ -304,7 +388,7 @@ class ProgressGoesToStderrAndQuietSuppressesIt(unittest.TestCase):
     whose operand is a producer's raw output rather than the stored form.
     """
 
-    ARTIFACT = "digest.shipped-tables"
+    ARTIFACT = "pin.block-crc"
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
@@ -314,8 +398,8 @@ class ProgressGoesToStderrAndQuietSuppressesIt(unittest.TestCase):
     def _capture(self, *argv: str) -> tuple[str, str]:
         run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "capture-begin"])
         write_json(self.root / store.path_of(self.ARTIFACT),
-                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"sha256": "a"}}})
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "pin_key", "kind": "pin-set",
+                    "values": {"stone": {"crc32": "0x0000000A"}}})
         code, out, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
                               *argv, "capture-normalize", "--artifact", self.ARTIFACT,
                               "--source", str(self.root)])
@@ -418,7 +502,7 @@ class TheWallTimeReachesTheStampedRecord(unittest.TestCase):
     capture above 110 s could never fire.
     """
 
-    ARTIFACT = "digest.shipped-tables"
+    ARTIFACT = "pin.block-crc"
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
@@ -428,8 +512,8 @@ class TheWallTimeReachesTheStampedRecord(unittest.TestCase):
     def _provenance(self, *argv: str) -> dict:
         run(["--repo-root", str(self.repo), "--root", "cache/parity/current", "capture-begin"])
         write_json(self.root / store.path_of(self.ARTIFACT),
-                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"sha256": "a"}}})
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "pin_key", "kind": "pin-set",
+                    "values": {"stone": {"crc32": "0x0000000A"}}})
         code, _, err = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
                             "--quiet", "capture-normalize", "--artifact", self.ARTIFACT,
                             "--source", str(self.root), *argv])
@@ -445,19 +529,13 @@ class TheWallTimeReachesTheStampedRecord(unittest.TestCase):
         self.assertNotIn("wall_time_ms", self._provenance())
 
 
-class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
-    """Which COPY of each operand the check reads, and that it says so when it read neither."""
+class AnUnstampedByProductThroughTheCli(unittest.TestCase):
+    """A file in the root that no capture step stamped is named by the compare rather than joined."""
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
         self.root = self.repo / "cache" / "parity" / "current"
         self.store = self.repo / "store"
-
-    @staticmethod
-    def _digests(*names: str) -> dict:
-        return {"artifact": "digest.shipped-tables", "format": 1, "key": "name",
-                "kind": "digest-set", "provenance": {"determinism_runs": 2},
-                "digests": {name: {"form": "table-canonical", "sha256": "a"} for name in names}}
 
     @staticmethod
     def _tables(*names: str) -> dict:
@@ -476,50 +554,17 @@ class ShippedTablesAgreementThroughTheCli(unittest.TestCase):
                             "compare", "--bootstrap"])
         return code, json.loads(out)
 
-    def test_both_in_the_root_and_agreeing(self):
-        self._capture(self._digests("block_models"), self._tables("block_models"))
-        code, payload = self._compare()
-        self.assertEqual(code, cli.OK)
-        self.assertEqual(payload["checks"]["shipped-tables-agreement"]["status"], "agreed")
-
-    def test_both_in_the_root_and_disagreeing_fails(self):
-        self._capture(self._digests("block_models"), self._tables("block_models", "eleventh"))
-        code, payload = self._compare()
-        self.assertEqual(code, cli.DIFFERENCES)
-        verdict = payload["checks"]["shipped-tables-agreement"]
-        self.assertEqual(verdict["status"], "disagreed")
-        self.assertEqual(verdict["disagreements"], ["eleventh"])
-
-    def test_the_operand_the_capture_did_not_name_is_read_from_the_base(self):
-        """`-Partifacts=digests` is the common case; without the fallback the check never runs."""
-        store.WritableStore(self.store).write("manifest.tooling-tables",
-                                              self._tables("block_models", "eleventh"))
-        self._capture(self._digests("block_models"))
-        code, payload = self._compare()
-        self.assertEqual(code, cli.DIFFERENCES)
-        self.assertEqual(payload["checks"]["shipped-tables-agreement"]["disagreements"],
-                         ["eleventh"])
-
     def test_an_unstamped_by_product_is_named_rather_than_compared(self):
-        """`-Partifacts=digests` runs the suites, which write the PINS into the root too - stamped
-        by no capture step. Comparing one credits this run with capturing it."""
+        """A capture naming one pin runs the suite, which writes the OTHER pins into the root too -
+        stamped by no capture step. Comparing one credits this run with capturing it."""
         write_json(self.root / store.path_of("pin.player-crc"),
                    {"artifact": "pin.player-crc", "format": 1, "key": "pin_key", "kind": "pin-set",
                     "values": {"full_vanilla_iso": {"crc32": "0x1", "type": "crc32"}}})
-        self._capture(self._digests("block_models"), self._tables("block_models"))
+        self._capture(self._tables("block_models"))
         code, payload = self._compare()
         self.assertEqual(code, cli.OK)
         self.assertEqual(payload["not_captured"], ["pin.player-crc"])
         self.assertNotIn("pin.player-crc", [entry["artifact"] for entry in payload["artifacts"]])
-
-    def test_neither_side_holds_an_operand_says_so_rather_than_passing(self):
-        """A check that is silent when it did not run cannot be told from one that passed."""
-        self._capture(self._digests("block_models"))
-        code, payload = self._compare()
-        self.assertEqual(code, cli.OK)
-        verdict = payload["checks"]["shipped-tables-agreement"]
-        self.assertEqual(verdict["status"], "not_evaluated")
-        self.assertEqual(verdict["absent"], ["manifest.tooling-tables"])
 
 
 class OutNeverWritesProduction(unittest.TestCase):
@@ -953,7 +998,7 @@ class TheEntryPointDefaultsRunsToTheFloor(unittest.TestCase):
     the one the build gets.
     """
 
-    ARTIFACT = "digest.shipped-tables"
+    ARTIFACT = "pin.block-crc"
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
@@ -970,8 +1015,8 @@ class TheEntryPointDefaultsRunsToTheFloor(unittest.TestCase):
         """
         self._invoke("capture-begin")
         write_json(self.root / store.path_of(self.ARTIFACT),
-                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"sha256": "a"}}})
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "pin_key", "kind": "pin-set",
+                    "values": {"stone": {"crc32": "0x0000000A"}}})
         self._invoke("capture-normalize", "--artifact", self.ARTIFACT,
                      "--source", str(self.root), *argv, from_store=from_store)
         stamped = json.loads(
@@ -1019,7 +1064,7 @@ class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
     defect being guarded against is a call that compiles and drops its argument.
     """
 
-    ARTIFACT = "digest.shipped-tables"
+    ARTIFACT = "pin.block-crc"
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
@@ -1032,8 +1077,8 @@ class TheCaptureStampsWhatProducedTheValue(unittest.TestCase):
 
     def _written(self) -> None:
         write_json(self.root / store.path_of(self.ARTIFACT),
-                   {"artifact": self.ARTIFACT, "format": 1, "key": "name", "kind": "digest-set",
-                    "digests": {"block_models": {"sha256": "a"}}})
+                   {"artifact": self.ARTIFACT, "format": 1, "key": "pin_key", "kind": "pin-set",
+                    "values": {"stone": {"crc32": "0x0000000A"}}})
 
     def _provenance(self, *argv: str) -> dict:
         self._invoke("capture-begin")
@@ -1632,6 +1677,19 @@ class PlanSplit(unittest.TestCase):
         _, _, payload = self._plan()
         self.assertEqual(payload["budget_measured"], len(payload["plan"]))
 
+    def test_rows_one_producer_writes_are_priced_as_one_run_of_it(self):
+        """Each row a producer writes carries that producer's whole run, and a capture runs it once,
+        so a budget summing rows prices the pin suite once per pin row. The rows still count as
+        measured: what is grouped is the cost, not the coverage the caveat reads."""
+        for artifact in ("sweep.entity", "manifest.tooling-tables"):
+            write_json(self.store / store.path_of(artifact),
+                       {"artifact": artifact, "provenance": {"producer": "sharedProducer"}})
+        _, out, payload = self._plan()
+        self.assertEqual(payload["plan"], ["manifest.tooling-tables", "sweep.entity"])
+        self.assertEqual(payload["budget_ms"], 7)
+        self.assertEqual(payload["budget_measured"], 2)
+        self.assertIn("BUDGET 7 ms", out.splitlines())
+
     def test_an_index_that_registers_nothing_narrows_nothing(self):
         """Fail wide, never narrow: an empty plan reads downstream as nothing to capture."""
         write_json(self.store / "index.json", {**self.INDEX, "artifacts": {}})
@@ -1761,9 +1819,8 @@ class RegisteredPointers(unittest.TestCase):
         joined = sorted(name for name in self.targets if self._carried(name))
         self.assertEqual(joined, ["report.diagnostics-log", "report.failure-rows"])
         self.assertEqual(sorted(set(self.targets) - set(joined)),
-                         ["report.buckets", "report.coverage-gaps", "report.harness-sweep-counts",
-                          "report.run-provenance", "report.sum", "report.wall-time",
-                          "report.worst-list"])
+                         ["report.buckets", "report.harness-sweep-counts", "report.run-provenance",
+                          "report.sum", "report.wall-time"])
 
     def test_the_unjoined_half_still_names_a_file_the_store_keeps(self):
         """What separates the two halves is the join and not the file, so say so with the file.

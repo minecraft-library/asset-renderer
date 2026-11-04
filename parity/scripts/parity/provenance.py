@@ -11,6 +11,7 @@ artifact and can be separated from it is a value that will be separated from it.
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -19,7 +20,8 @@ from typing import Sequence
 
 from parity import VERSION
 from parity import manifest as manifest_mod
-from parity.norm import LF, Refused, canonical_json, read_text, sha256_text
+from parity.norm import (LF, Refused, canonical_json, read_json, read_text, sha256_text,
+                         write_json)
 
 #: The harness is a directory in this repo, not a repository of its own, so there is exactly one sha
 #: and one dirty flag. A `harness_sha` / `harness_dirty` pair beside the asset pair would equal it
@@ -29,21 +31,13 @@ HARNESS_PROPERTIES = "harness/gradle.properties"
 
 #: The reference tree, with the version segment left to be filled from the harness's own
 #: ``minecraft_version`` taken to major.minor - the same derivation the build applies to the same
-#: property. A literal here survives an MC bump by naming a directory that no longer exists, and an
-#: absent tree counts nothing, so the whole per-sub-tree evidence would leave every record with
-#: nothing at all saying why.
+#: property. A literal here survives an MC bump by naming a directory that no longer exists.
 REFERENCE_ROOT_TEMPLATE = "cache/asset-renderer/vanilla/{version}/references"
 
-#: Every sub-tree the reference tree holds, because the counts are the per-sub-tree evidence and a
-#: sub-tree left out of this tuple is one the record silently says nothing about. That reads exactly
-#: like a sub-tree the tree does not hold: ``reference_counts`` walks this list and skips what is not
-#: a directory, so an absent key means either, and a record naming part of the tree understates the
-#: reference set every number in it was measured against. The build declares the same list as
-#: ``referenceSubTrees`` so a partial run can name what it did NOT refresh; the two are written for
-#: different readers, and ``ParityTaskWiringTest`` holds them equal, in order, so a sub-tree added to
-#: the tree is added to both.
-REFERENCE_SUBTREES = ("blocks", "items", "entities", "players", "glint", "armor", "menus",
-                      "tooltips", "idle", "walk")
+#: Where a capture keeps the reference digests its steps have taken, one file per manifest row, under
+#: the working root's ``_run/`` - outside the capture, and erased by the ``capture-begin`` that opens
+#: the next one.
+REFERENCE_DIGEST_MEMO = "reference-digests"
 
 #: Every key a record can carry, and whether ``gather`` writes it on every call. The suite asserts a
 #: real record against this rather than against a list of its own, so all three ways the two can
@@ -65,7 +59,6 @@ KEYS = {
     "producer": True,
     "reason": False,
     "reference_artifact": False,
-    "reference_counts": False,
     "reference_manifest_digest": False,
     "root": False,
     "timestamp": True,
@@ -201,38 +194,39 @@ def reference_root(repo: Path) -> Path | None:
     return repo / REFERENCE_ROOT_TEMPLATE.format(version=".".join(version.split(".")[:2]))
 
 
-def reference_counts(repo: Path) -> dict:
-    """How many references each sub-tree of the vanilla reference tree holds.
+def tree_stamp(root: Path) -> str:
+    """A digest of every file under a tree by relative path, size and modification time.
 
-    A census of that tree, recorded on every artifact whatever the artifact read: a sweep measured
-    against the pack-tooltip drawings carries it too, beside a ``reference_artifact`` and digest that
-    name those drawings. Which ground truth a number was measured against is that pair, never this.
+    The quick check git keeps its own index by: a file rewritten moves its modification time, and a
+    file added, removed or renamed moves the listing, so a tree whose stamp holds still is the tree it
+    was without one byte of it having been read. A walk of directory entries and nothing more, which
+    is what makes it the cheap half of :func:`reference_manifest_digest`'s memo.
 
-    An absent tree answers with nothing and **says so on stderr**. Silence there is the failure this
-    is guarded against: a record missing its counts and a record whose counts are all zero read the
-    same downstream, and neither says the tree was never found.
+    Directories are walked without following a link, as ``Path.rglob`` walks them for the manifest
+    the digest is taken over, so the two see one tree.
 
-    :param repo: the repository root
-    :return: the PNG count per sub-tree; empty when the tree cannot be found
+    :param root: the tree
+    :return: the hex digest
     """
-    root = reference_root(repo)
-    if root is None:
-        sys.stderr.write("provenance: no harness minecraft_version, so no reference tree can be "
-                         "named; recording no reference_counts\n")
-        return {}
-    if not root.is_dir():
-        sys.stderr.write(f"provenance: no reference tree at {root}; recording no reference_counts, "
-                         "so this record carries no census of the vanilla reference tree\n")
-        return {}
-    counts = {}
-    for name in REFERENCE_SUBTREES:
-        subtree = root / name
-        if subtree.is_dir():
-            counts[name] = sum(1 for _ in subtree.rglob("*.png"))
-    return counts
+    entries = []
+    pending = [root]
+    while pending:
+        with os.scandir(pending.pop()) as listing:
+            for entry in listing:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file():
+                    found = entry.stat()
+                    entries.append((Path(entry.path).relative_to(root).as_posix(), found.st_size,
+                                    found.st_mtime_ns))
+    digest = hashlib.sha256()
+    for name, size, modified in sorted(entries):
+        digest.update(f"{name}\0{size}\0{modified}\n".encode("utf-8"))
+    return digest.hexdigest()
 
 
-def reference_manifest_digest(root: Path | None, artifact: str) -> str | None:
+def reference_manifest_digest(root: Path | None, artifact: str,
+                              memo: Path | None = None) -> str | None:
     """One digest naming the reference SET a number was measured against, instead of 2311 lines.
 
     Derived from the tree rather than read off a captured manifest file, and both halves of that are
@@ -257,8 +251,25 @@ def reference_manifest_digest(root: Path | None, artifact: str) -> str | None:
     there is None **and a warning**: the caller asked to tie this record to a reference set and the
     tie is not being made.
 
+    **A memo makes it once per capture rather than once per row.** Every sweep measured against one
+    tree stamps the same value, and reading the tree is the whole of its cost, so a capture step names
+    a memo directory under its root and each step after the first answers from it. An entry is the
+    digest beside the :func:`tree_stamp` it was taken at, and it answers only while the tree still
+    stamps the same. A render landing between two steps - which the build's ordering keeps out of one
+    invocation, and which a hand-run producer's step joining a capture an earlier invocation left
+    open can still meet - moves the stamp, and the tree is read again. The memo is never the captured
+    manifest: that file carries a provenance the stored row's identity leaves out, and a value read
+    off it would name the capture rather than the set.
+
+    One file per manifest row rather than one file every step rewrites, because a capture step is
+    one process per row and two of them can run at once: a shared file is two processes racing a
+    read-modify-write neither locks, and the loser's entry is the one dropped. Two steps for one row
+    write the same digest, so the most a race between them costs is a torn read - which answers as an
+    empty memo, and the tree is read again.
+
     :param root: the ground-truth tree, or None when the caller names none
     :param artifact: the stored manifest row the tree is the ground truth of
+    :param memo: the directory a capture keeps its digests in, or None to read the tree every time
     :return: the digest of that row's manifest over the tree, or None
     """
     if root is None:
@@ -268,6 +279,23 @@ def reference_manifest_digest(root: Path | None, artifact: str) -> str | None:
                          "reference_manifest_digest, so nothing ties this record to a reference "
                          "set\n")
         return None
+    if memo is None:
+        return _digest_of(root, artifact)
+    stamp = tree_stamp(root)
+    held = memo / f"{artifact}.json"
+    try:
+        entry = read_json(held) if held.is_file() else None
+    except (OSError, ValueError):
+        entry = None
+    if isinstance(entry, dict) and entry.get("stamp") == stamp:
+        return entry["digest"]
+    digest = _digest_of(root, artifact)
+    write_json(held, {"digest": digest, "stamp": stamp})
+    return digest
+
+
+def _digest_of(root: Path, artifact: str) -> str:
+    """The digest of ``artifact``'s manifest over ``root``, provenance out, read off the tree."""
     stored = manifest_mod.to_artifact(manifest_mod.build(artifact, root))
     return sha256_text(canonical_json(
         {name: value for name, value in stored.items() if name != "provenance"}))
@@ -278,7 +306,7 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
            parity_class: str = "", wall_time_ms: int | None = None,
            counts: dict | None = None, root: str | None = None,
            reference_tree: Path | None = None, reference_artifact: str | None = None,
-           now: str | None = None) -> dict:
+           memo: Path | None = None, now: str | None = None) -> dict:
     # A tree with no artifact is refused rather than defaulted: with more than one ground truth, a
     # default would digest a pack tree as the vanilla one, and a stored digest that does not say
     # whose manifest it is cannot be re-derived.
@@ -309,13 +337,10 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
     if root:
         record["root"] = root
     # The two always together: the digest identifies a stored row only beside the row's id.
-    digest = reference_manifest_digest(reference_tree, reference_artifact)
+    digest = reference_manifest_digest(reference_tree, reference_artifact, memo)
     if digest:
         record["reference_artifact"] = reference_artifact
         record["reference_manifest_digest"] = digest
-    found = reference_counts(repo)
-    if found:
-        record["reference_counts"] = found
     return record
 
 

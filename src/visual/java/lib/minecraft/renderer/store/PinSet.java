@@ -26,7 +26,7 @@ import java.util.TreeMap;
  *
  * <p><b>Every value carries its subject</b>, which is what a re-baseliner needs and what no inline
  * {@code long} argument could carry: the options a render was taken under, the expression a pose was
- * read from, the file a count was taken over.
+ * read from.
  */
 public final class PinSet {
 
@@ -62,18 +62,6 @@ public final class PinSet {
     public void crc32(@NotNull String key, long value) {
         JsonObject entry = entry(key, "crc32");
         entry.add("crc32", ParityJson.bits(value));
-        put(key, entry);
-    }
-
-    /**
-     * Records an observed exact count.
-     *
-     * @param key the counted thing's name
-     * @param value the count
-     */
-    public void count(@NotNull String key, int value) {
-        JsonObject entry = entry(key, "int");
-        entry.addProperty("count", value);
         put(key, entry);
     }
 

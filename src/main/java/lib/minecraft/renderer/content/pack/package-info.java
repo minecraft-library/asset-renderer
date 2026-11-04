@@ -44,7 +44,7 @@
  * <p><b>Parity.</b> With no pack loaded the rule set is empty and most of the id deriver never
  * executes, so a vanilla-only dump is a fixed empty shape whatever this code does - only the packs
  * configuration puts a rule through it at all. A loader here is not rule code and reaches both
- * dumps, and the colormap digests are taken over exactly what the colormap loader hands back.
+ * dumps.
  */
 @Parity(claim = "pack-resolution")
 package lib.minecraft.renderer.content.pack;

@@ -1,17 +1,10 @@
 package lib.minecraft.renderer.content.pack;
 
-import com.google.gson.JsonObject;
-import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
-import lib.minecraft.renderer.store.ParityJson;
-import lib.minecraft.renderer.store.Pins;
-import lib.minecraft.renderer.store.SelfCapture;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -37,9 +28,9 @@ import static org.hamcrest.Matchers.is;
 /**
  * End-to-end acquisition test that downloads the client jar for the Minecraft version
  * {@link ClientAssetsExtension} acquires, reads its vanilla pack into memory and asserts the asset
- * tree is there, and holds the stack-resolved colormaps to the digests pinned in the parity store. The
- * opt-in extraction is held to the in-memory read of the same jar: a small stand-in client jar, cached
- * under a temporary root, extracted to disk writes its vanilla pack and nothing beside it.
+ * tree is there. The opt-in extraction is held to the in-memory read of the same jar: a small
+ * stand-in client jar, cached under a temporary root, extracted to disk writes its vanilla pack and
+ * nothing beside it.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
  * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
@@ -62,27 +53,13 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("ClientAcquisition end-to-end integration")
 class ClientAcquisitionIntegrationTest {
 
-    /** The digest-set the colormap byte-parity assertion both writes and reads. */
-    private static final String COLORMAP_ARTIFACT = "digest.colormap-lut";
-
-    /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
-    private static final String COLORMAP_FORM = "raw-argb-bytes";
-
-    /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
-    private static ConcurrentMap<TintSource, ColorMap> colorMaps;
-
     /** The vanilla pack read into memory off the cached client jar, probed by the asset-tree assertions. */
     private static PackContainer vanilla;
 
-    /**
-     * Acquires the extension's client assets once for the class and publishes the shared
-     * {@link #vanilla} pack and the {@link #colorMaps} the pack stack over it resolves.
-     */
+    /** Acquires the extension's client assets once for the class and publishes its {@link #vanilla} pack. */
     @BeforeAll
     static void downloadAndRead() {
-        ClientAssets result = ClientAssetsExtension.assets();
-        vanilla = result.vanilla();
-        colorMaps = ColorMapLoader.load(PackAcquisition.acquire(result));
+        vanilla = ClientAssetsExtension.assets().vanilla();
     }
 
     @Test
@@ -112,36 +89,6 @@ class ClientAcquisitionIntegrationTest {
         assertThat("the extraction holds what the in-memory read holds",
             extracted.vanilla().entries("").sorted().toList(), equalTo(ClientAcquisition.readVanillaPack(jar).entries("").toList()));
         assertThat("the jar sits beside the pack, not in it", extracted.vanilla().exists("client.jar"), is(false));
-    }
-
-    @Test
-    @DisplayName("stack-resolved colormaps byte-match the digests pinned in the parity store")
-    void colormapsByteMatchBundledLut() {
-        // The byte-parity probe: sha256 of the raw big-endian ARGB bytes of each bundled colormap.
-        // The re-point resolves vanilla's own extracted PNG through the stack and must decode to
-        // the identical bytes. The form is `raw-argb-bytes`, which - unlike the shipped tables'
-        // `table-canonical` - encodes no library's formatting, so no dependency version rides with
-        // it.
-        Map<String, JsonObject> entries = new TreeMap<>();
-        Map<String, String> observed = new TreeMap<>();
-        for (TintSource type : List.of(TintSource.GRASS, TintSource.FOLIAGE,
-            TintSource.DRY_FOLIAGE)) {
-            String digest = ParityJson.sha256(colorMaps.get(type).pixels());
-            observed.put(type.name(), digest);
-            JsonObject entry = new JsonObject();
-            entry.addProperty("form", COLORMAP_FORM);
-            entry.addProperty("sha256", digest);
-            entries.put(type.name(), entry);
-        }
-        SelfCapture.write(COLORMAP_ARTIFACT, entries);
-
-        SelfCapture.requireBaseline(COLORMAP_ARTIFACT);
-
-        assertThat("the pinned LUT set and the LUTs actually resolved must be the same names",
-            Pins.keys(COLORMAP_ARTIFACT), equalTo(List.copyOf(observed.keySet())));
-        observed.forEach((name, digest) -> assertThat(name + " colormap LUT bytes; if intentional, "
-                + "re-baseline it: " + Pins.rebaselineCommand(COLORMAP_ARTIFACT),
-            digest, equalTo(Pins.digest(COLORMAP_ARTIFACT, name))));
     }
 
     /**

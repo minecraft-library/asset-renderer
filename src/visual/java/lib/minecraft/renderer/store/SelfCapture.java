@@ -17,12 +17,11 @@ import java.util.Optional;
 /**
  * Writes the observed value of a self-captured artifact into the parity working root.
  *
- * <p>A self-captured row is one whose value only exists inside a test JVM - a digest over a
- * canonical form this repository defines, a CRC32 over pixels this renderer just produced. No
- * producer directory holds it, so the capture step does not read one: the test writes the artifact
- * at its own production-relative path under {@link ParityStore#WORKING}, and
- * {@code capture-normalize} validates that file where it stands, stamps provenance onto it and
- * fails loudly when it is absent.
+ * <p>A self-captured row is one whose value only exists inside a test JVM - a CRC32 over pixels this
+ * renderer just produced, the pose matrix a camera just resolved. No producer directory holds it, so
+ * the capture step does not read one: the test writes the artifact at its own production-relative
+ * path under {@link ParityStore#WORKING}, and {@code capture-normalize} validates that file where it
+ * stands, stamps provenance onto it and fails loudly when it is absent.
  *
  * <p><b>The write happens before the assertion, always.</b> A capture records what the run
  * produced, and the run that most needs its value recorded is the one whose pin just drifted - so a
@@ -55,7 +54,6 @@ public final class SelfCapture {
 
     /** The three names an artifact kind spells its envelope with, by the id's kind prefix. */
     private static final @NotNull Map<String, Envelope> ENVELOPES = Map.of(
-        "digest", new Envelope("digest-set", "name", "digests"),
         "pin", new Envelope("pin-set", "pin_key", "values"));
 
     /** The marker {@code capture-index} writes last, after which the root is a finished capture. */

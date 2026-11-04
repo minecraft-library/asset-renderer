@@ -130,10 +130,9 @@ def canonical_json(obj: Any) -> str:
     Floats render through Python's shortest-round-trip repr, which is exact and locale-free.
     **This is deliberately not ``fixed``.** Rounding every float to four places in the canonical
     writer would be right for a sweep metric and destructive for a pin: ``pin.vanilla-iso-pose`` is
-    16 floats of a pose matrix and ``pin.kit-corners`` 24 of a fixture's corners, and four decimal
-    places does not hold either. ``fixed`` is the form a metric is *produced* in - a sweep table
-    already spells its deltas to four places, so reading one back and re-emitting it is byte-stable
-    without the writer rounding anything.
+    16 floats of a pose matrix, and four decimal places does not hold it. ``fixed`` is the form a
+    metric is *produced* in - a sweep table already spells its deltas to four places, so reading one
+    back and re-emitting it is byte-stable without the writer rounding anything.
 
     A non-finite float raises rather than being emitted. JSON has no ``Infinity``, and a failed
     subject is carried as an explicit status field rather than as an out-of-band magic value - so

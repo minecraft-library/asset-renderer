@@ -142,7 +142,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `pixels.py` | the whole optional-dependency surface: nothing else may import numpy or Pillow |
 | `cli.py` | the argparse tree and the one place an exception becomes an exit code |
 | `lab/` | the `[PX]` fragment family - probes, never a gate. Its own README names all six and records what was deliberately not ported. |
-| `tests/` | `unittest`, run by `python parity/scripts/parity selftest`; fast and offline |
+| `tests/` | `unittest`, run by `python parity/scripts/parity selftest` one module per process, each under a scratch root of its own, and reported in module order; fast and offline |
 
 `norm` being the sole writer is enforced by a test that reads the package's own source, so a module
 written next year is covered without being registered anywhere. The table above is enforced the

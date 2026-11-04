@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 final class PinsTest {
 
     /** Any registered id would do; the spelling is a pure function of it. */
-    private static final String ARTIFACT = "digest.shipped-tables";
+    private static final String ARTIFACT = "pin.block-crc";
 
     /**
      * The two source sets that produce every message on this list, and therefore where one can be
@@ -105,9 +105,9 @@ final class PinsTest {
     void theRebaselineSequenceNamesAllFour() {
         assertThat(Pins.rebaselineCommand(ARTIFACT), equalTo(
             "commit the change first - a capture from a dirty tree is refused at promotion - then: "
-                + "./gradlew parityCapture -Partifacts=digest.shipped-tables"
-                + ", ./gradlew parityCompare -Partifacts=digest.shipped-tables"
-                + ", ./gradlew parityPromote -Partifacts=digest.shipped-tables -Preason=<why>"));
+                + "./gradlew parityCapture -Partifacts=pin.block-crc"
+                + ", ./gradlew parityCompare -Partifacts=pin.block-crc"
+                + ", ./gradlew parityPromote -Partifacts=pin.block-crc -Preason=<why>"));
     }
 
     @Test
@@ -116,9 +116,9 @@ final class PinsTest {
         assertThat("the compare needs it too - a missing baseline is its refusal without it",
             Pins.bootstrapCommand(ARTIFACT), equalTo(
                 "commit the change first - a capture from a dirty tree is refused at promotion - "
-                    + "then: ./gradlew parityCapture -Partifacts=digest.shipped-tables"
-                    + ", ./gradlew parityCompare -Partifacts=digest.shipped-tables -Pbootstrap=true"
-                    + ", ./gradlew parityPromote -Partifacts=digest.shipped-tables"
+                    + "then: ./gradlew parityCapture -Partifacts=pin.block-crc"
+                    + ", ./gradlew parityCompare -Partifacts=pin.block-crc -Pbootstrap=true"
+                    + ", ./gradlew parityPromote -Partifacts=pin.block-crc"
                     + " -Pbootstrap=true -Preason=<why>"));
     }
 
@@ -134,7 +134,7 @@ final class PinsTest {
                 + "rather than against the sentence: what is under test is that it is ROUTED, and "
                 + "the sentence itself is asserted whole by the case above",
             thrown.getMessage(), equalTo("Parity artifact '" + ARTIFACT + "' is absent from the "
-                + "store at '" + empty.resolve("digests").resolve("shipped-tables.json")
+                + "store at '" + empty.resolve("pins").resolve("block-crc.json")
                 + "' - give it a first baseline: " + Pins.bootstrapCommand(ARTIFACT)));
     }
 
@@ -142,35 +142,35 @@ final class PinsTest {
     @DisplayName("a vector read at the wrong length is refused rather than truncated")
     void aVectorOfTheWrongLengthIsRefused() {
         ParityStoreException thrown = assertThrows(ParityStoreException.class,
-            () -> Pins.floats("pin.kit-corners", "corners", 23));
+            () -> Pins.floats("pin.vanilla-iso-pose", "pose", 15));
 
         assertThat("the caller states the length it requires, the file states its own, and the array "
                 + "states a third - so any two disagreeing is a failure rather than a silent "
                 + "narrowing. It is the guard an emptied golden array once walked straight past",
-            thrown.getMessage(), containsString("holds 24 values and the caller requires 23"));
+            thrown.getMessage(), containsString("holds 16 values and the caller requires 15"));
         assertThat("and it prescribes the regeneration, like every other refusal here",
-            thrown.getMessage(), containsString(Pins.regenCommand("pin.kit-corners")));
+            thrown.getMessage(), containsString(Pins.regenCommand("pin.vanilla-iso-pose")));
     }
 
     @Test
     @DisplayName("a key the pin does not declare is refused, and the message lists what it holds")
     void anAbsentKeyNamesWhatIsThere() {
         ParityStoreException thrown = assertThrows(ParityStoreException.class,
-            () -> Pins.floats("pin.kit-corners", "cornerz", 24));
+            () -> Pins.floats("pin.vanilla-iso-pose", "posz", 16));
 
         assertThat("a typo'd key would otherwise read as an absent pin, and the two are different "
-                + "questions", thrown.getMessage(), containsString("has no key 'cornerz'"));
+                + "questions", thrown.getMessage(), containsString("has no key 'posz'"));
         assertThat("listing the real keys is what makes the message answer the typo",
-            thrown.getMessage(), containsString("It holds: corners"));
+            thrown.getMessage(), containsString("It holds: pose"));
     }
 
     @Test
-    @DisplayName("a digest-set entry read as a vector is refused rather than answering empty")
+    @DisplayName("a CRC entry read as a vector is refused rather than answering empty")
     void anEntryWithNoValuesArrayIsRefused() {
         ParityStoreException thrown = assertThrows(ParityStoreException.class,
-            () -> Pins.floats("digest.shipped-tables", "block_models", 1));
+            () -> Pins.floats("pin.block-crc", "piston_serial", 1));
 
-        assertThat("a digest entry carries a sha256 and no vector, so reading one as floats is a "
+        assertThat("a CRC entry carries a crc32 and no vector, so reading one as floats is a "
                 + "caller error and not an empty answer",
             thrown.getMessage(), containsString("carries no 'values' array"));
     }

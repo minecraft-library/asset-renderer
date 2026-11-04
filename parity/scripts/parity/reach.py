@@ -56,11 +56,12 @@ STORED = "reach.json"
 
 #: Each artifact's producer entry point, by simple type name.
 #:
-#: A row produced by a whole SUITE is rooted at the class that WRITES it rather than at the suite,
-#: which is the same distinction the capture wiring draws: ``test`` runs the whole fast suite to
-#: write the shipped-tables digest and the pins the store keeps, and what those rows can be moved by
-#: is what their own writer reaches. A suite as a root would be every test class, which answers
-#: "everything" and says nothing.
+#: A row produced by a SUITE is rooted at the class that WRITES it rather than at the suite, which
+#: is the same distinction the capture wiring draws: ``parityPinTest`` runs the fast suite filtered
+#: to these writers to write the pins the store keeps, and what those rows can be moved by is what
+#: their own writer reaches. A suite as a root would be every test class it runs, which answers
+#: "everything" and says nothing. The build's filter and these roots name the same classes, and
+#: ``ParityTaskWiringTest`` holds the two to each other.
 #:
 #: A row one class writes under a property is rooted at that class, because a property changes what
 #: the class measures and never its constant pool, which is all this graph reads.
@@ -135,11 +136,7 @@ ROOTS: dict[str, tuple[str, ...]] = {
                         "ItemDayCycleDriver", "ItemRenderDriver", "LoreTooltipDriver",
                         "MenuRenderDriver", "BlockProjectionsDriver"),
     # --- self-captured rows, at their writer rather than at the suite that runs it
-    "digest.shipped-tables": ("BundledResourceShaTest",),
-    "digest.colormap-lut": ("ClientAcquisitionIntegrationTest",),
     "pin.vanilla-iso-pose": ("VanillaIsoPoseGoldenTest",),
-    "pin.kit-corners": ("VanillaEntityTransformGoldenTest",),
-    "pin.corpus-count": ("CorpusCountPinTest",),
     "pin.player-crc": ("PlayerRendererFittedGoldenTest",),
     "pin.block-crc": ("BlockRendererRasterPinTest",),
     "pin.portal-crc": ("PortalRendererFrameBakePinTest",),

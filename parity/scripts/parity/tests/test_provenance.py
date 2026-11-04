@@ -6,12 +6,14 @@ import contextlib
 import inspect
 import io
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from parity import capture, promote, provenance, store
 from parity import manifest as manifest_mod
@@ -44,19 +46,17 @@ PACK_TOOLTIPS = "manifest.pack-tooltips"
 #: accepts and the capture never passes is exactly how three fields reached 24 promoted baselines
 #: absent while a test that passed them by hand stayed green.
 CAPTURE_KEYWORDS = ("producer", "mode", "runs", "flags", "counts", "root", "reference_tree",
-                    "reference_artifact")
+                    "reference_artifact", "memo")
 
 
 def fixture_repo() -> Path:
     """A repository holding what a gathered record reads off one, and nothing a gather hashes.
 
-    Three inputs: the harness's own properties, copied, which ``mc_version`` and the reference
-    root's path come off; a store index declaring the floors of the two ground-truth manifests,
-    which a ``normalize`` passing no ``runs`` reads; and one reference under the derived root, so
-    ``reference_counts`` - the one conditional key that comes off the working tree rather than an
-    argument - is written. Outside git the commit and content fields record null and say so on
-    stderr, which the cases using this silence, where the live checkout would hash every tracked
-    file for values no case here reads.
+    Two inputs: the harness's own properties, copied, which ``mc_version`` comes off; and a store
+    index declaring the floors of the two ground-truth manifests, which a ``normalize`` passing no
+    ``runs`` reads. Outside git the commit and content fields record null and say so on stderr, which
+    the cases using this silence, where the live checkout would hash every tracked file for values no
+    case here reads.
 
     :return: the repository's path
     """
@@ -65,7 +65,6 @@ def fixture_repo() -> Path:
                read_text(REPO / provenance.HARNESS_PROPERTIES))
     floors = {name: {promote.FLOOR_FIELD: 2} for name in (REFERENCES, PACK_TOOLTIPS)}
     write_json(repo / store.PRODUCTION / "index.json", {"artifacts": floors})
-    write_text(provenance.reference_root(repo) / "blocks" / "stone.png", "x")
     return repo
 
 
@@ -77,7 +76,8 @@ def as_capture_gathers(repo: Path, **overrides) -> dict:
     :return: the gathered record
     """
     call = {"producer": "entityParityVanilla", "mode": None, "runs": 2, "flags": (),
-            "counts": None, "root": None, "reference_tree": None, "reference_artifact": None}
+            "counts": None, "root": None, "reference_tree": None, "reference_artifact": None,
+            "memo": None}
     call.update(overrides)
     return provenance.gather("sweep.entity", repo, **call)
 
@@ -143,7 +143,6 @@ class Registry(unittest.TestCase):
         # Both directions on the widest record there is. The subset is what catches a key gather
         # writes and the registry does not declare, and it can only be asked of a record that
         # supplies every argument - a bare one omits the conditional keys and passes either way.
-        # The fixture repository holds a reference tree, so `reference_counts` is wanted too.
         self.assertLessEqual(set(record), set(provenance.KEYS),
                              "keys gather writes that the registry does not declare")
         wanted = {name for name, always in provenance.KEYS.items() if not always}
@@ -180,30 +179,6 @@ class Degradation(unittest.TestCase):
 
     def test_no_harness_properties_gives_a_null_mc_version(self):
         self.assertIsNone(provenance.mc_version(self.empty))
-
-    def test_no_reference_tree_gives_empty_counts(self):
-        self.assertEqual(provenance.reference_counts(self.empty), {})
-
-    def test_an_unnameable_reference_tree_says_so_on_stderr(self):
-        """The arm for a repo whose harness version cannot be read, which names no tree at all."""
-        with contextlib.redirect_stderr(io.StringIO()) as err:
-            provenance.reference_counts(self.empty)
-        self.assertIn("no harness minecraft_version", err.getvalue())
-
-    def test_a_reference_tree_that_is_not_there_says_so_on_stderr(self):
-        """An MC bump's own shape: the version reads, and the tree it names does not exist.
-
-        This is the arm that matters, and the sibling above cannot reach it - a repo with no harness
-        properties stops one step earlier. A bump moves the derived path to a directory nothing has
-        rendered yet, and a silent {} there and a tree of zero references read the same downstream.
-        """
-        write_text(self.empty / provenance.HARNESS_PROPERTIES, "minecraft_version=27.1.0\n")
-        with contextlib.redirect_stderr(io.StringIO()) as err:
-            counts = provenance.reference_counts(self.empty)
-        self.assertEqual(counts, {})
-        self.assertIn(f"no reference tree at {self.empty / 'cache/asset-renderer/vanilla/27.1/references'}",
-                      err.getvalue())
-        self.assertIn("reference_counts", err.getvalue())
 
     def test_a_named_reference_tree_that_is_absent_says_so_on_stderr(self):
         with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -326,18 +301,82 @@ class ReferenceManifestDigest(unittest.TestCase):
 
         Two sweeps measured against one tree have to name it with one value or the field ties
         nothing, which is what reading the digest off the captured file gave: the timestamp alone
-        moves that sha on every capture, over a reference set nobody touched.
+        moves that sha on every capture, over a reference set nobody touched. Asked the way a sweep's
+        capture step asks - through the memo of a root that already holds the tree's own captured
+        row, with that row's timestamp moved under it - before the memo holds an answer and after,
+        and both answers have to be the stored row's identity, its payload with provenance out.
         """
-        stored = capture.normalize(REFERENCES, self.tree,
-                                   Path(tempfile.mkdtemp()), REPO)
-        payload = read_json(stored)
-        self.assertIn("timestamp", payload["provenance"])
-        before = sha256_file(stored)
-        derived = provenance.reference_manifest_digest(self.tree, REFERENCES)
-        payload["provenance"]["timestamp"] = "1999-01-01T00:00:00Z"
-        write_json(stored, payload)
-        self.assertNotEqual(sha256_file(stored), before)
-        self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES), derived)
+        with contextlib.redirect_stderr(io.StringIO()):
+            root = Path(tempfile.mkdtemp())
+            memo = root / store.RUN_DIR / provenance.REFERENCE_DIGEST_MEMO
+            stored = capture.normalize(REFERENCES, self.tree, root, fixture_repo())
+            payload = read_json(stored)
+            self.assertIn("timestamp", payload["provenance"])
+            before = sha256_file(stored)
+            payload["provenance"]["timestamp"] = "1999-01-01T00:00:00Z"
+            write_json(stored, payload)
+            self.assertNotEqual(sha256_file(stored), before)
+            content = {name: value for name, value in payload.items() if name != "provenance"}
+            taken = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+            again = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        self.assertEqual(taken, sha256_text(canonical_json(content)))
+        self.assertEqual(again, taken)
+        self.assertEqual(read_json(memo / f"{REFERENCES}.json")["digest"], taken)
+
+    def test_the_memo_answers_without_reading_the_tree_again(self):
+        """What the memo is for: the steps after the first of a capture read no reference byte."""
+        memo = Path(tempfile.mkdtemp()) / provenance.REFERENCE_DIGEST_MEMO
+        taken = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        with mock.patch.object(provenance.manifest_mod, "build",
+                               side_effect=AssertionError("the tree was read again")):
+            self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES, memo), taken)
+
+    def test_a_changed_tree_is_never_answered_from_the_memo(self):
+        """A memo kept past a re-render would stamp every later sweep with the old reference set."""
+        memo = Path(tempfile.mkdtemp()) / provenance.REFERENCE_DIGEST_MEMO
+        before = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        write_text(self.tree / "blocks" / "stone" / "vanilla.png", "edited")
+        after = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        self.assertNotEqual(after, before)
+        self.assertEqual(after, provenance.reference_manifest_digest(self.tree, REFERENCES))
+
+    def test_one_memo_holds_each_ground_truth_apart(self):
+        """One tree read as two manifests is two sets, so an entry answers for its own row alone."""
+        memo = Path(tempfile.mkdtemp()) / provenance.REFERENCE_DIGEST_MEMO
+        write_text(self.tree / "blocks" / "stack.json", "{}\n")
+        vanilla = provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        pack = provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS, memo)
+        self.assertNotEqual(pack, vanilla)
+        self.assertEqual(pack, provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS))
+
+    def test_each_row_s_entry_is_a_file_no_other_row_s_step_rewrites(self):
+        """Two steps are two processes, and a file both read and rewrite drops the loser's entry."""
+        memo = Path(tempfile.mkdtemp()) / provenance.REFERENCE_DIGEST_MEMO
+        write_text(self.tree / "blocks" / "stack.json", "{}\n")
+        provenance.reference_manifest_digest(self.tree, REFERENCES, memo)
+        written = (memo / f"{REFERENCES}.json").read_bytes()
+        provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS, memo)
+        self.assertEqual(sorted(path.name for path in memo.iterdir()),
+                         [f"{PACK_TOOLTIPS}.json", f"{REFERENCES}.json"])
+        self.assertEqual((memo / f"{REFERENCES}.json").read_bytes(), written)
+
+    def test_an_unreadable_memo_is_an_empty_one(self):
+        memo = Path(tempfile.mkdtemp()) / provenance.REFERENCE_DIGEST_MEMO
+        write_text(memo / f"{REFERENCES}.json", "{ not json")
+        self.assertEqual(provenance.reference_manifest_digest(self.tree, REFERENCES, memo),
+                         provenance.reference_manifest_digest(self.tree, REFERENCES))
+
+    def test_the_capture_takes_it_through_the_memo_of_its_own_root(self):
+        """The step is where the memo is named, so a capture that stopped naming it would pay the
+        whole tree on every sweep again and every value would still be right - only this sees it."""
+        with contextlib.redirect_stderr(io.StringIO()):
+            root = Path(tempfile.mkdtemp())
+            capture.normalize("sweep.armor", Path(__file__).resolve().parent / "data", root,
+                              fixture_repo(), runs=2, reference_tree=self.tree,
+                              reference_artifact=REFERENCES)
+        memo = read_json(root / store.RUN_DIR / provenance.REFERENCE_DIGEST_MEMO
+                         / f"{REFERENCES}.json")
+        self.assertEqual(memo["stamp"], provenance.tree_stamp(self.tree))
 
     def test_a_changed_reference_moves_it(self):
         before = provenance.reference_manifest_digest(self.tree, REFERENCES)
@@ -400,11 +439,11 @@ class PackTooltipDigest(unittest.TestCase):
                          provenance.reference_manifest_digest(self.tree, PACK_TOOLTIPS))
 
 
-class ReferenceCounts(unittest.TestCase):
+class ReferenceRoot(unittest.TestCase):
 
     def test_the_root_is_derived_from_the_harness_version_and_not_written_down(self):
         """The build derives the same path from the same property; a literal here goes stale on an
-        MC bump by naming a directory nothing creates, and an absent tree counts nothing."""
+        MC bump by naming a directory nothing creates."""
         self.assertEqual(provenance.reference_root(REPO),
                          REPO / "cache/asset-renderer/vanilla/26.1/references")
 
@@ -412,11 +451,15 @@ class ReferenceCounts(unittest.TestCase):
         self.assertIsNone(provenance.reference_root(Path(tempfile.mkdtemp())))
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
-    def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):
-        """An absent key and an absent sub-tree read the same, so the roster is what says the record
-        covers the whole tree; a sub-tree on disk that no key names is evidence nothing collects."""
-        on_disk = {path.name for path in provenance.reference_root(REPO).iterdir() if path.is_dir()}
-        self.assertEqual(on_disk - set(provenance.REFERENCE_SUBTREES), set())
+    def test_the_build_names_every_sub_tree_the_reference_root_holds(self):
+        """The build's ``referenceSubTrees`` is what a partial run names as left stale, so a sub-tree
+        on disk that it does not name is one a partial run would leave stale without saying so."""
+        build = read_text(REPO / "gradle" / "parity.gradle.kts")
+        listed = re.search(r"val referenceSubTrees =\s*listOf\(([^)]*)\)", build)
+        self.assertIsNotNone(listed, "the build declares no referenceSubTrees list")
+        named = set(re.findall(r'"([^"]+)"', listed.group(1)))
+        on_disk = {path.name for path in REFERENCE_TREE.iterdir() if path.is_dir()}
+        self.assertEqual(on_disk - named, set())
 
 
 if __name__ == "__main__":

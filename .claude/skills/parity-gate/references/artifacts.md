@@ -7,7 +7,7 @@ Generated from `ParityArtifacts` and `index.json`. **Do not edit** - regenerate 
 ```
 
 Every artifact the store knows about, in roster order: sweep-table,
-render-manifest, file-digest-set, value-pin, roster, report, probe. `home` is where
+render-manifest, value-pin, roster, report, probe. `home` is where
 the value lives - `STORE` has a file, `POINTER` is a field of another artifact's
 file, `SOURCE` is a deliberate second copy held in Java, and `EXTERNAL` is not held
 at all. An artifact that is not `baselined` has no last known value, so a comparison
@@ -55,36 +55,16 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2872 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 17263 ms | yes |
-| `digest.shipped-tables` | digest-set | STORE | `test` | 1 | 1 | 11 | 9418 ms | yes |
-| `digest.colormap-lut` | digest-set | STORE | `slowTest` | 1 | 2 | 3 | 22053 ms | yes |
-| `digest.dump-sections` | - | EXTERNAL | - | - | - | - | - | - |
-| `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
-| `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
-| `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.block-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.portal-crc` | pin-set | STORE | `test` | 1 | 2 | 2 | 22053 ms | yes |
-| `pin.fluid-crc` | pin-set | STORE | `test` | 1 | 2 | 13 | 22053 ms | yes |
+| `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 9502 ms | yes |
+| `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 2 | 22053 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
-| `pin.tick-lattice` | - | EXTERNAL | - | - | - | - | - | - |
-| `roster.humanoid-armor` | - | SOURCE | - | - | - | - | - | - |
-| `roster.overlay-pipeline` | - | SOURCE | - | - | - | - | - | - |
-| `roster.humanoid-part-crop` | - | SOURCE | - | - | - | - | - | - |
-| `roster.face-phase` | - | SOURCE | - | - | - | - | - | - |
-| `roster.frame-turn` | - | SOURCE | - | - | - | - | - | - |
-| `roster.armor-subjects` | - | SOURCE | - | - | - | - | - | - |
-| `roster.glint-subjects` | - | SOURCE | - | - | - | - | - | - |
-| `roster.player-scopes` | - | SOURCE | - | - | - | - | - | - |
-| `roster.sheet-groups` | - | SOURCE | - | - | - | - | - | - |
-| `roster.dump-sections` | - | SOURCE | - | - | - | - | - | - |
-| `roster.pack-fixtures` | - | SOURCE | - | - | - | - | - | - |
-| `roster.appearance-axes` | - | SOURCE | - | - | - | - | - | - |
 | `roster.blindness-rules` | blindness-roster | STORE | - | 1 | - | - | - | **no** |
 | `report.sum` | - | POINTER | - | - | - | - | - | - |
 | `report.buckets` | - | POINTER | - | - | - | - | - | - |
-| `report.coverage-gaps` | - | POINTER | - | - | - | - | - | - |
 | `report.wall-time` | - | POINTER | - | - | - | - | - | - |
-| `report.worst-list` | - | POINTER | - | - | - | - | - | - |
 | `report.failure-rows` | - | POINTER | - | - | - | - | - | - |
 | `report.run-provenance` | - | POINTER | - | - | - | - | - | - |
 | `report.diagnostics-log` | - | POINTER | - | - | - | - | - | - |
@@ -92,7 +72,6 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `report.movers` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.expected-diff` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.plan` | - | EXTERNAL | - | - | - | - | - | - |
-| `report.capture-note` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.harness-fit-log` | - | EXTERNAL | - | - | - | - | - | - |
 | `report.oracle-index` | index | STORE | `parityPromote` | 1 | - | - | - | **no** |
 | `probe.pixel` | - | EXTERNAL | - | - | - | - | - | - |

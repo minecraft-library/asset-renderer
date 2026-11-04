@@ -19,3 +19,14 @@ the zip is absent. `ClientJarGuardTest` and `FontCacheGuardTest` are the tests t
 absent client jar or font cache, so a suite thinned by assumption says so once rather than reporting
 green over coverage it skipped; nothing fails on an absent pack. `SlowTagRuleTest` holds that rule
 against the sources.
+
+**The slow suite runs only when asked for.** `./gradlew slowTest` is scheduled by no `check`, no
+`test` and no parity capture - no stored artifact names it as a producer - so the four classes that
+keep the tag run on a hand invocation and nowhere else.
+
+**A capture runs the pin writers, not the fast suite.** `parityPinTest` is `test` filtered to the
+classes `parityPinWriters` names in `gradle/parity.gradle.kts` - each one writes a self-captured
+row, and each is the class `reach.py` roots that row at - and it is those rows' producer, so the
+rest of the fast suite runs in no capture and is its own step before a commit. A new class that
+writes a self-captured row joins that list and `ROOTS` together, which `ParityTaskWiringTest` holds;
+a writer the list leaves out is a row every capture records UNPRODUCED.

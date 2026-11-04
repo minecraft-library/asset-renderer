@@ -153,12 +153,14 @@ fun parityFlag(name: String): Boolean =
 /**
  * Returns whether one of this invocation's typed tokens may have named the task.
  *
- * <p><b>It decides one thing: an up-to-date rule.</b> Its single caller marks a self-capturing
- * producer never-up-to-date while a capture is being run, because such a producer's real output is
- * a file in the root the erase has just emptied and Gradle cannot see that - on an unchanged tree
- * `test` is UP-TO-DATE, does not run, and the step then fails on a file nothing rewrote. Answering
- * true for an invocation that goes on to capture nothing costs that invocation a cache entry and
- * nothing else, which is the property that makes an imprecise predicate safe here.
+ * <p><b>It decides one thing: whether a producer's earlier outputs may stand in for a run.</b> Its
+ * single caller marks a self-capturing producer never-up-to-date and never cached while a capture is
+ * being run, because such a producer's real output is a file in the root the erase has just emptied
+ * and Gradle cannot see that - on an unchanged tree `parityPinTest` is UP-TO-DATE or FROM-CACHE,
+ * does not run, and the step then fails on a file nothing rewrote. Answering true for an invocation
+ * that goes on to capture nothing costs that invocation one run of the suite and the cache entry it
+ * would have stored, and nothing else, which is the property that makes an imprecise predicate safe
+ * here.
  *
  * <p><b>It over-answers, and cannot be made not to.</b> A task OPTION and its value ride this same
  * list - `tasks --group parity` arrives as `[tasks, --group, parity]` - and nothing on this side
@@ -465,16 +467,12 @@ data class ParityArtifact(
         groundTruth ?: artifact.takeIf { id -> parityArtifacts.any { it.groundTruth == id } }
 }
 
-// The digest and pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those
-// producers self-capture from inside the test JVM, so the capture step validates and stamps the
-// already-canonical file at its own production-relative path rather than reading a producer directory.
-// `--source` naming the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses
-// exactly as the shipped-tables directory does. `digest.shipped-tables` is one of them and not an
-// exception: `table-canonical` is Gson's number formatting, which Python cannot reproduce for the seven
-// float-bearing tables, so no reader outside the test JVM can take that digest at all.
-// `digest.shipped-tables` names `test` and `digest.colormap-lut` names `slowTest` because
-// BundledResourceShaTest runs in the fast suite while ClientAcquisitionIntegrationTest is @Tag("slow") -
-// naming `test` for the latter would let a fast-suite run credit itself with a value it never computed.
+// The pin rows carry the WORKING ROOT ITSELF as their source, with no sub-directory: those producers
+// self-capture from inside the test JVM, so the capture step validates and stamps the already-canonical
+// file at its own production-relative path rather than reading a producer directory. `--source` naming
+// the root IS what marks a row self-captured, so `$parityWorkingRoot/pins` refuses. Every one names
+// `parityPinTest`, the fast suite filtered to the classes that write these rows - see
+// `parityPinWriters` - so a capture runs those writers rather than the whole suite around them.
 //
 // manifest.references names ONE producer where several tasks write into that tree: every narrow run
 // leaves the sub-trees it does not name stale, and a whole-tree manifest taken after one of them hashes
@@ -549,15 +547,11 @@ val parityArtifacts = listOf(
         "src/main/resources/lib/minecraft/renderer",
         listOf("toolingOut"),
         logSource = parityProducerLogDir),
-    ParityArtifact("digest.shipped-tables", listOf("test"), parityWorkingRoot),
-    ParityArtifact("digest.colormap-lut", listOf("slowTest"), parityWorkingRoot),
-    ParityArtifact("pin.vanilla-iso-pose", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.kit-corners", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.corpus-count", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.player-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.block-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.portal-crc", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.fluid-crc", listOf("test"), parityWorkingRoot)
+    ParityArtifact("pin.vanilla-iso-pose", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.player-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.block-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.portal-crc", listOf("parityPinTest"), parityWorkingRoot),
+    ParityArtifact("pin.fluid-crc", listOf("parityPinTest"), parityWorkingRoot)
 )
 
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */
@@ -603,8 +597,7 @@ val parityArtifactAliases: Map<String, List<String>> = mapOf(
     "renders" to listOf("manifest.player-sheets", "manifest.fluid", "manifest.portal"),
     "dump" to listOf("manifest.dump.vanilla", "manifest.dump.packs"),
     "tables" to listOf("manifest.tooling-tables"),
-    "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") },
-    "digests" to parityArtifacts.map { it.artifact }.filter { it.startsWith("digest.") }
+    "pins" to parityArtifacts.map { it.artifact }.filter { it.startsWith("pin.") }
 )
 
 /**
@@ -659,7 +652,8 @@ fun parityPlannedArtifacts(): List<String>? {
  *
  * Three branches in order: an explicit comma list of ids and aliases; absent with a plan, which
  * resolves to the plan's capture set so a human never has to know the ids; absent with no plan,
- * which throws carrying the full id list.
+ * which throws carrying the full id list. An id no row answers throws on either of the first two,
+ * and the one read off a plan says to plan again, since that plan predates the table.
  *
  * @param spec the -Partifacts value, or null when it was not given
  * @return the named rows, in table order and without duplicates
@@ -668,13 +662,22 @@ fun resolveParityArtifacts(spec: String?): List<ParityArtifact> {
     val known = parityArtifacts.associateBy { it.artifact }
     val roster = "known artifacts: ${known.keys.joinToString(", ")}\n" +
         "known aliases: ${parityArtifactAliases.keys.joinToString(", ")}"
-    val requested = spec?.let { expandParityAliases(it).split(",").filter(String::isNotEmpty) }
+    val named = spec?.let { expandParityAliases(it).split(",").filter(String::isNotEmpty) }
+    val requested = named
         ?: parityPlannedArtifacts()
         ?: throw GradleException(
             "-Partifacts is required when no plan has been written: run parityPlan first, or name " +
                 "the artifacts.\n$roster")
     val ids = requested.distinct()
     ids.firstOrNull { it !in known }?.let {
+        // A plan names the rows the artifact table held when it was written, and it outlives the
+        // capture wipe, so one naming a row the table no longer answers was planned before that row
+        // was retired or renamed - and planning again is the answer rather than a corrected id.
+        if (named == null)
+            throw GradleException(
+                "the plan in $parityWorkingRoot/_run/plan.json names '$it', which no capture row " +
+                    "answers: it was written before that artifact was retired or renamed. Run " +
+                    "parityPlan again.\n$roster")
         throw GradleException("unknown artifact id '$it'.\n$roster")
     }
     return parityArtifacts.filter { it.artifact in ids }
@@ -693,8 +696,21 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 val referenceSubTrees =
     listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "tooltips", "idle", "walk")
 
-/** The whole-suite producers, which order a capture step but are never finalized by one. */
-val paritySuiteProducers = setOf("test", "slowTest")
+/** The suite producer, which orders a capture step but is never finalized by one. */
+val paritySuiteProducers = setOf("parityPinTest")
+
+// The test classes that write a self-captured row, and everything `parityPinTest` runs. Each is the
+// class reach.py roots its row at, and ParityTaskWiringTest holds the two lists to each other: a
+// writer missing here leaves its row unwritten by every capture, which the capture step then records
+// as UNPRODUCED - correct, but only once every producer of the bundle has run, where the fast suite
+// says it before any of them does.
+val parityPinWriters = listOf(
+    "lib.minecraft.renderer.BlockRendererRasterPinTest",
+    "lib.minecraft.renderer.FluidRendererFrameBakePinTest",
+    "lib.minecraft.renderer.PlayerRendererFittedGoldenTest",
+    "lib.minecraft.renderer.PortalRendererFrameBakePinTest",
+    "lib.minecraft.renderer.engine.camera.VanillaIsoPoseGoldenTest"
+)
 
 // Which ground-truth row each harness run WRITES, filled as the run is REGISTERED so the ordering
 // edges below can name every run writing a tree without a second list of their names. A run that
@@ -955,7 +971,7 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     }
     // Ordering first, and it holds for every producer: a capture reads what a producer wrote, so it
     // runs after one whenever both are in the graph. That is what a finalizer edge was implicitly
-    // giving, and the two suites below do not get one.
+    // giving, and the suite below does not get one.
     step.configure {
         mustRunAfter(spec.producers)
         mustRunAfter(parityCaptureBeginTask)
@@ -969,22 +985,21 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
         spec.tree?.let { tree -> mustRunAfter(harnessRunTrees.filterValues { it == tree }.keys) }
     }
 
-    // A hand-run producer captures without anyone remembering a flag - EXCEPT the two whole-suite
-    // producers. `test` and `slowTest` produce their nine rows from inside the test JVM, and a
-    // finalizer on them would make every ordinary `./gradlew test` write into the parity working root,
-    // wiping whatever capture was sitting there waiting to be compared. It would also fail the repo's
-    // primary gate outright until those rows have a writer, which was measured rather than foreseen.
-    // Their rows are still rows: parityCapture -Partifacts=pins runs the suite and then the step, and
-    // the step still fails on an absent file, which is the backstop a --tests-filtered run needs.
+    // A hand-run producer captures without anyone remembering a flag - EXCEPT the suite producer.
+    // `parityPinTest` produces its rows from inside the test JVM, and a finalizer on it would make a
+    // hand run of the pin suite take a capture step into the parity working root, wiping whatever
+    // capture was sitting there waiting to be compared. Its rows are still rows: parityCapture
+    // -Partifacts=pins runs the suite and then the step, and the step still fails on an absent file,
+    // which is the backstop a --tests-filtered run needs.
     spec.producers.forEach { producer ->
         named(producer) {
             // Every producer is ordered after the erase, not merely every capture step. Rows whose
             // source IS the working root are written there by the test JVM, so an erase on the far
-            // side of `slowTest` deletes the pins that run just wrote. mustRunAfter binds only when
-            // both tasks are in the graph, so a hand-run producer is unaffected by this edge.
+            // side of `parityPinTest` deletes the pins that run just wrote. mustRunAfter binds only
+            // when both tasks are in the graph, so a hand-run producer is unaffected by this edge.
             mustRunAfter(parityCaptureBeginTask)
             if (producer !in paritySuiteProducers) finalizedBy(step)
-            // A whole-suite producer is SCHEDULED by the erase rather than depended on by the index,
+            // A suite producer is SCHEDULED by the erase rather than depended on by the index,
             // and that is what makes an intentionally moved pin re-baselineable. A self-captured row's
             // writer asserts on the value it just wrote, so the run a re-baseline most needs recorded
             // is the one whose assertion fails - `SelfCapture` writes before asserting for exactly
@@ -993,27 +1008,36 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
             // prescribes cannot answer: measured on three player CRCs, under `--continue` and without
             // it. A finalizer is the one edge Gradle still runs after the task it finalizes failed,
             // and the erase is the right task to hang it on: it exists only inside a capture graph, so
-            // an ordinary `./gradlew test` neither schedules a step nor meets one. Ordering the index
+            // an ordinary run of the suite neither schedules a step nor meets one. Ordering the index
             // after the suite is the other half and cannot be the whole of it - `mustRunAfter` never
             // schedules, so on its own it drops the suite out of the graph and the step then fails on
             // a file nothing wrote, which is the same measurement one task earlier.
             // That edge is declared ON the erase, behind a Callable over the resolved set, rather than
             // reached back to from here - see `parityCaptureBeginTask`. Attached from here it would be
-            // eager: this function runs for every row at configuration time, so it scheduled BOTH
-            // suites on every capture whatever -Partifacts named. Measured at 1325 fast tests and 85
-            // slow ones for a capture scoped to the two dump rows, whose producer is neither.
+            // eager: this function runs for every row at configuration time, so it scheduled the
+            // suite on every capture whatever -Partifacts named. Measured at 1325 fast tests for a
+            // capture scoped to the two dump rows, whose producer it is not.
             // A self-capturing producer's real output is a file in the root the erase just emptied,
-            // and Gradle cannot see that: on an unchanged tree `test` is UP-TO-DATE, does not run,
-            // and the capture step then fails on a file the erase deleted and nothing rewrote. So a
-            // suite that feeds a capture is never up to date - only while a capture is being run,
-            // because an ordinary `./gradlew test` has no erase in front of it and keeps its cache.
-            if (spec.selfCaptured && parityTaskRequested("parityCapture")) outputs.upToDateWhen { false }
+            // and Gradle cannot see that: on an unchanged tree `parityPinTest` is UP-TO-DATE, does
+            // not run, and the capture step then fails on a file the erase deleted and nothing
+            // rewrote. So a suite that feeds a capture is never up to date - only while a capture is
+            // being run, because an ordinary run of it has no erase in front of it and keeps its cache.
+            // Nor is it taken from the build cache, which is the same skip by another route: an
+            // up-to-date rule decides whether the outputs on disk are reused and says nothing about
+            // the cache, and a Test task is cacheable, so a second capture of an unchanged tree would
+            // restore the reports, run no writer and leave the erased root empty all the same.
+            if (spec.selfCaptured && parityTaskRequested("parityCapture")) {
+                outputs.upToDateWhen { false }
+                outputs.doNotCacheIf("a self-capturing producer inside a capture writes into the working root") { true }
+            }
         }
     }
 }
 
 // The parity half of the fast suite's configuration. A second `configureEach` beside the root
-// script's, which carries the toolchain flag and the property forwarding; Gradle unions them.
+// script's, which carries the toolchain flag and the property forwarding; Gradle unions them. Every
+// Test task takes both, which is how `parityPinTest` runs its writers under exactly the JVM, the
+// properties and the declared inputs `test` runs them under.
 tasks.withType<Test>().configureEach {
     systemProperty("asset.parity.root", parityWorkingRoot)
     systemProperty("asset.parity.references", parityReferenceRoot)
@@ -1076,10 +1100,15 @@ tasks.withType<Test>().configureEach {
     // which is where that checkout's index lives. Declaring the literal path makes `test` refuse to
     // configure on every worktree, the input being a file that does not exist there.
     inputs.file(gitIndex).withPropertyName("parityGitIndex").optional()
-    // The topic files under docs/, because two guards read a bullet of one back against what this
-    // build wires: VectorModuleWiringTest the Vector flag's consumers, and ParityTaskWiringTest the
-    // reference sub-trees a harness run writes. Undeclared, rewording either bullet leaves `test`
-    // UP-TO-DATE and the guard that holds the sentence to the build never runs on the edit.
+    // CLAUDE.md, because the blindness map's `source` fields cite its headings by name and
+    // BlindnessMapTest reads them back: a heading renamed there turns a citation into a dead one
+    // with nothing in this file having moved.
+    inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
+    // The topic files under docs/, for the same citations and because two guards read a bullet of
+    // one back against what this build wires: VectorModuleWiringTest the Vector flag's consumers,
+    // and ParityTaskWiringTest the reference sub-trees a harness run writes. Undeclared, renaming a
+    // cited heading or rewording either bullet leaves `test` UP-TO-DATE and the guard never runs on
+    // the edit.
     inputs.files(parityDocs).withPropertyName("parityDocs")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
@@ -1337,19 +1366,30 @@ tasks {
     // Minecraft version bump requires regenerating the OTF files.
 
     // ---- parity: the entry points, and the capture step behind every producer --------------------
-    // Group `parity` is deliberately small and countable. The 24 capture steps below carry NO group,
+    // Group `parity` is deliberately small and countable. The capture steps below carry NO group,
     // because they are finalizers rather than something to run: a human runs a producer, and the
     // capture happens. That is the whole of "route through the same store without remembering a flag".
 
+    // Once per gate that captures: `parityCapture` depends on it and so does `check`, and nothing
+    // else does. A gate is four invocations over one tree and the suite answers the same in each, so a
+    // dependency of all four would run it four times for one answer. The capture is the one that
+    // carries it: no verdict is read off a capture that did not close, and a capture closes only
+    // behind a green suite. One tree is held rather than assumed - the capture index names the
+    // toolkit that closed it, and the compare and the promotion refuse a capture another toolkit
+    // closed, so code edited after the capture never writes a verdict or the store unchecked. A gate
+    // whose plan captures nothing runs the suite by name, as the rule a toolkit change fires says.
     register<Exec>("paritySelfTest") {
-        description = "Runs the parity toolkit's own unit suite. Every parity task depends on it, because a gate a broken toolkit computed is worse than no gate at all."
+        description = "Runs the parity toolkit's own unit suite. parityCapture and check depend on it, because a gate a broken toolkit computed is worse than no gate at all."
         group = "verification"
         parityToolkit("selftest")
         outputs.upToDateWhen { false }
-        // The suite's real-tree reach cases read every class root and skip where one is missing, so
-        // wherever the same invocation compiles the roots - `check` does - they run after it rather
-        // than beside it. Ordering only: a parity task on its own compiles nothing for them.
-        mustRunAfter("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
+        // The suite's real-tree reach cases read the class roots the reach graph walks and skip
+        // where one is missing, so the suite compiles them itself: a capture compiles only what its
+        // producers need, and a sweep-only one would otherwise leave the test and generator roots at
+        // whatever the last build wrote. Its cache-reading cases read what the producers write, so
+        // wherever the same invocation runs a producer the suite runs after it rather than beside it.
+        dependsOn("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
+        mustRunAfter(parityProducerNames)
     }
 
     register<Exec>("harnessClasses") {
@@ -1374,8 +1414,8 @@ tasks {
     }
 
     // `check`, below, is the one edge that puts this build's four cheap gates on a verification run;
-    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and every parity task
-    // depends on it - so a break was caught, but not before the next gate, which is the very run the
+    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and a capture runs it
+    // - so off this edge a break was caught, but not before the next gate, which is the very run the
     // toolkit is being trusted to compute, and the reach map answers a toolkit change with an empty
     // sees and names this task as the gate instead. `harnessClasses` is the only task here that
     // compiles the harness at all, and off this edge it runs only when it is asked for by name, so a
@@ -1406,6 +1446,27 @@ tasks {
         dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck")
     }
 
+    // The fast suite filtered to the classes that write a self-captured row, and the producer those
+    // rows name. A capture needs their values and not the suite around them, so this is what it runs
+    // rather than `test`. Everything else `test` runs under it takes from the two `withType<Test>`
+    // blocks - the Vector flag, the forwarded `-Dasset.*`, both parity roots, the declared inputs and
+    // the forwarded task registry - and the up-to-date rule a capture puts on a self-capturing
+    // producer reaches it through the artifact table. The tag filter is `test`'s own, so a writer
+    // tagged slow is left out here exactly as it is there.
+    //
+    // It gates nothing on its own. The fast suite is the gate on the rest of the tree and a capture
+    // does not run it, so it runs as a step of its own before the commit, which the parity-gate
+    // skill's runbook says.
+    register<Test>("parityPinTest") {
+        description = "Runs the test classes that write the self-captured pin rows - the fast suite filtered to " +
+            "parityPinWriters - which is what a capture of those rows runs in place of the whole suite."
+        group = "verification"
+        testClassesDirs = sourceSets["test"].output.classesDirs
+        classpath = sourceSets["test"].runtimeClasspath
+        useJUnitPlatform { excludeTags("slow") }
+        filter { parityPinWriters.forEach { includeTestsMatching(it) } }
+    }
+
     register<Exec>(parityCaptureBeginTask) {
         // No group: it is parityCapture's first act rather than an entry point. It exists as a task
         // rather than as something each capture step does, because the erase has to happen ONCE per
@@ -1420,20 +1481,20 @@ tasks {
         // parityExpect` in one invocation schedules the registration last, and the sentence saying
         // the registration runs before the capture is false of the case a reader is likeliest to try.
         mustRunAfter("parityExpect")
-        // The two whole-suite producers are SCHEDULED from here, and only when the resolved set holds
-        // a row one of them writes. A finalizer rather than a dependency for the reason
-        // `registerParityCapture` gives: a self-captured row's writer asserts on the value it just
-        // wrote, so a red suite must still leave the capture closeable. Hung on the erase because the
-        // erase exists only inside a capture graph, so an ordinary `./gradlew test` neither schedules
-        // a capture step nor meets one.
+        // The suite producer is SCHEDULED from here, and only when the resolved set holds a row it
+        // writes. A finalizer rather than a dependency for the reason `registerParityCapture` gives: a
+        // self-captured row's writer asserts on the value it just wrote, so a red suite must still
+        // leave the capture closeable. Hung on the erase because the erase exists only inside a
+        // capture graph, so an ordinary run of the suite neither schedules a capture step nor meets
+        // one.
         //
         // Behind a Callable for the reason parityCapture's own dependsOn is: Gradle resolves it while
         // it builds the graph, so `resolveParityArtifacts`'s no-plan refusal stays on the invocations
         // that will actually capture. Declared here rather than reached back to from
-        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached both
-        // suites to every capture whatever -Partifacts named - 1325 fast tests and 85 slow ones for a
-        // capture scoped to the two dump rows, whose producer is neither. Of the 26 rows carrying a
-        // step, 9 want a suite and 17 want neither.
+        // `registerParityCapture`, which runs for every row at CONFIGURATION time and so attached the
+        // suite to every capture whatever -Partifacts named - 1325 fast tests for a capture scoped to
+        // the two dump rows, whose producer it is not. Of the 26 rows carrying a step, 5 want the
+        // suite and 21 do not.
         finalizedBy(Callable {
             resolveParityArtifacts(parityProperty("artifacts"))
                 .flatMap { spec -> spec.producers.filter { it in paritySuiteProducers } }
@@ -1449,7 +1510,6 @@ tasks {
             "previous change's registration stands until this clears it. -PexpectEmpty | -PfromVerdict -Preason= | " +
             "-Partifact= -Pkey= -Pto= -Preason= | -Partifact= -Punproduced -Preason="
         group = "parity"
-        dependsOn("paritySelfTest")
         requireParityRootUnderCache()
         val empty = parityFlag("expectEmpty")
         val fromVerdict = parityFlag("fromVerdict")
@@ -1532,9 +1592,12 @@ tasks {
 
     register<ParityToolkitTask>("parityCapture") {
         description = "Runs the producers of -Partifacts and writes their captures into the parity working root. " +
-            "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins | digests. " +
+            "-Partifacts=sweep.entity,manifest.fluid | all | sweeps | renders | dump | tables | pins. " +
             "Absent, it reads the plan's capture set. -Pruns=<n> -PparityRoot=<dir>"
         group = "parity"
+        // The gate's one run of the toolkit's suite, ordered behind every producer of the bundle and
+        // compiling the class roots it reads - see `paritySelfTest` for why it is this task and no
+        // other parity task.
         dependsOn("paritySelfTest")
         dependsOn(parityCaptureBeginTask)
         requireParityRootUnderCache()
@@ -1579,7 +1642,7 @@ tasks {
         // any checkout carrying no plan: the same shape of refusal-at-configuration the promotion
         // reason was moved off. It still lands before the first task executes, so a missing plan
         // costs no producer.
-        // A whole-suite producer is ordered rather than depended on: the erase schedules it (see the
+        // A suite producer is ordered rather than depended on: the erase schedules it (see the
         // finalizer above), and depending on it here would put _run/COMPLETE back behind a green
         // assertion the capture exists to re-baseline. Every other producer keeps the dependency,
         // because nothing else schedules those.
@@ -1601,7 +1664,6 @@ tasks {
             "on any mover not listed in the expected-diff. Runs no producer. -Partifacts= -Pbase= -Pexpected= " +
             "-Pbootstrap -Psummary -PphaseGate"
         group = "parity"
-        dependsOn("paritySelfTest")
         // A compare reads what a capture wrote, so it never runs before one in the same invocation.
         // Command-line order decided it, and the sanctioned three-invocation runbook happens to get
         // it right; nothing made it so.
@@ -1647,7 +1709,6 @@ tasks {
         description = "Promotes the parity working root into the production store as the new baseline and writes the " +
             "diff analysis report. Runs no producer. Requires -Preason=<text>. -Partifacts= -Ppopulation=changed -Pclass= -Pbootstrap -PallowDirty -PallowPartial"
         group = "parity"
-        dependsOn("paritySelfTest")
         // `parityPromote parityCompare` promoted the root into the store and then diffed the root
         // against the store it had just been written into - necessarily zero movers - leaving a
         // verdict that says this exact tree was gated. Nothing wipes after a promote, so the hook
@@ -1698,9 +1759,9 @@ tasks {
             "changed where nothing is - prints SEES / BLIND / PLAN / BUDGET and writes _run/plan.json. Runs no " +
             "producer and measures nothing. -Pchanged=<paths> -Psince=<ref> -Pformat=json"
         group = "parity"
-        // The only dependency, and deliberately not a producer of any kind: a plan a broken toolkit
-        // produced is worse than no plan.
-        dependsOn("paritySelfTest")
+        // No dependency at all, the toolkit's suite included: the plan is the gate's first
+        // invocation and runs nothing, and the capture it plans runs the suite behind its producers,
+        // where the suite's real-tree cases read class roots and outputs that invocation wrote.
         requireParityRootUnderCache()
         val changed = parityProperty("changed")
         // Which ref a CLEAN tree is measured from, the toolkit defaulting to the trunk merge-base.
@@ -1742,9 +1803,9 @@ tasks {
 
     // A producer's stdout is the only source of its row counts and its wall time, and nothing
     // redirected it: Gradle discards the stream of a file-producing task either way. Driven off the
-    // artifact table so a new row needs no second edit. `test` and `slowTest` are Test rather than
-    // either shape below and are deliberately not reached - their rows self-capture a value instead
-    // of printing a count to be parsed.
+    // artifact table so a new row needs no second edit. `parityPinTest` is a Test rather than either
+    // shape below and is deliberately not reached - its rows self-capture a value instead of printing
+    // a count to be parsed.
     //
     // BOTH exec shapes and BOTH projects, because how a producer is STARTED says nothing about
     // whether its output is worth keeping, and neither does WHERE it is registered. The renderer's
@@ -1791,8 +1852,8 @@ tasks {
         }
 
     // And its wall time, which is the other thing only the producer can answer. Every producer,
-    // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
-    // and a budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
+    // whatever its type: the pin suite is a Test task and the reference render is an Exec, and a
+    // budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
     // start is taken before any action the task already carries.
     //
     // An AGGREGATOR is the shape that reading its own span misses. A producer that does its work

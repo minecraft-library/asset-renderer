@@ -485,7 +485,7 @@ class TheShippedMap(unittest.TestCase):
                      "src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java"):
             reach = self._reach([path])
             self.assertIn("manifest.dump.vanilla", reach.sees, path)
-            self.assertIn("digest.shipped-tables", reach.sees, path)
+            self.assertIn("pin.vanilla-iso-pose", reach.sees, path)
 
     def test_a_reader_in_a_write_path_package_is_demoted_back_to_nothing(self):
         """The other half of taking those packages whole: what they hold that emits nothing.
@@ -543,13 +543,13 @@ class TheShippedMap(unittest.TestCase):
 
     @staticmethod
     def _self_captured_rows() -> set[str]:
-        """The store rows no producer directory holds, which are exactly the pin and digest sets."""
+        """The store rows no producer directory holds, which are exactly the pin sets."""
         import json
         from parity import store
         index = json.loads(
             (store.repo_root() / store.PRODUCTION / "index.json").read_text(encoding="utf-8"))
         return {name for name, row in index["artifacts"].items()
-                if row["kind"] in ("pin-set", "digest-set")}
+                if row["kind"] == "pin-set"}
 
 
 class TheTwoIdNamespaces(unittest.TestCase):
