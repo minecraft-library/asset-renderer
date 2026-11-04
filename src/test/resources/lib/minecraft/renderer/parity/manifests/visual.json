@@ -7,27 +7,7 @@
       "sha256": "a2ddc7c3dadd4e02e593087dbed8a120658f82c036ea93070fd7d2ffdb75a704"
     },
     {
-      "path": "block-render-3d/minecraft_brewing_stand_bottle1_down.png",
-      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
-    },
-    {
-      "path": "block-render-3d/minecraft_brewing_stand_bottle1_east.png",
-      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
-    },
-    {
-      "path": "block-render-3d/minecraft_brewing_stand_bottle1_north.png",
-      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
-    },
-    {
-      "path": "block-render-3d/minecraft_brewing_stand_bottle1_south.png",
-      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
-    },
-    {
       "path": "block-render-3d/minecraft_brewing_stand_bottle1_up.png",
-      "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
-    },
-    {
-      "path": "block-render-3d/minecraft_brewing_stand_bottle1_west.png",
       "sha256": "db4e48ee120ed4e9cfeba13e5b03683456d718cd1a6b44b4def765b14ffa3b73"
     },
     {
@@ -63,27 +43,7 @@
       "sha256": "a60dd07144546cfc738b860e8823f9ba95db560000da171f506a3654d40e7f96"
     },
     {
-      "path": "block-render-3d/minecraft_lever_down.png",
-      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
-    },
-    {
-      "path": "block-render-3d/minecraft_lever_east.png",
-      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
-    },
-    {
-      "path": "block-render-3d/minecraft_lever_north.png",
-      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
-    },
-    {
-      "path": "block-render-3d/minecraft_lever_south.png",
-      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
-    },
-    {
       "path": "block-render-3d/minecraft_lever_up.png",
-      "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
-    },
-    {
-      "path": "block-render-3d/minecraft_lever_west.png",
       "sha256": "999f0bc4ce112d77e543dab858cf843dc8230b06a83e470f55bf04123e72b983"
     },
     {
@@ -91,27 +51,7 @@
       "sha256": "622d118316ffe12f9e2b047ac58a98703c68950769a0bc126e576a77819a00ee"
     },
     {
-      "path": "block-render-3d/minecraft_oak_stairs_down.png",
-      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
-    },
-    {
-      "path": "block-render-3d/minecraft_oak_stairs_east.png",
-      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
-    },
-    {
-      "path": "block-render-3d/minecraft_oak_stairs_north.png",
-      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
-    },
-    {
-      "path": "block-render-3d/minecraft_oak_stairs_south.png",
-      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
-    },
-    {
       "path": "block-render-3d/minecraft_oak_stairs_up.png",
-      "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
-    },
-    {
-      "path": "block-render-3d/minecraft_oak_stairs_west.png",
       "sha256": "c7f8d6d006bb61744154bf96af9c38ed62b6ee717e828dc0d7e0b378c4649a97"
     },
     {
@@ -119,32 +59,8 @@
       "sha256": "6d502bf3e78121e23e74f4809952db12f8a16bc74afb10851ee6b75c69fe6af1"
     },
     {
-      "path": "block-render-3d/minecraft_torch_down.png",
-      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
-      "path": "block-render-3d/minecraft_torch_east.png",
-      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
-      "path": "block-render-3d/minecraft_torch_north.png",
-      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
-      "path": "block-render-3d/minecraft_torch_south.png",
-      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
       "path": "block-render-3d/minecraft_torch_up.png",
       "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
-      "path": "block-render-3d/minecraft_torch_west.png",
-      "sha256": "4fb3c47c4480463f8fa71ef3a9d77f43bfcc1708ceb4127e2059c8b31d37a6cc"
-    },
-    {
-      "path": "entity-projections/minecraft_zombie.png",
-      "sha256": "41e5936acdfa01f7eded7e63ba77edda879383d8091ae1c0a495b4e739ab8094"
     },
     {
       "path": "entity-projections/minecraft_zombie/cabinet.png",
@@ -159,10 +75,6 @@
       "sha256": "e5a3c29bbc777db0c4055e3c52c8245f1ee11a936154ceacae550eabdc93d7f0"
     },
     {
-      "path": "entity-projections/minecraft_zombie/facing_cavalier_--.png",
-      "sha256": "83984d4e2d4e125f1aa776cbd4701443281a8042d62b96027a9d0ba20bad6588"
-    },
-    {
       "path": "entity-projections/minecraft_zombie/facing_cavalier_-F.png",
       "sha256": "77b5c1d6b2867a9e845dc9575ca932929d3aef47b5a4310dcfa806cc8889e43a"
     },
@@ -173,10 +85,6 @@
     {
       "path": "entity-projections/minecraft_zombie/facing_cavalier_MF.png",
       "sha256": "40bede7f5dd85b496692876cea09de073207a2b97777a733c86298ee02718f5a"
-    },
-    {
-      "path": "entity-projections/minecraft_zombie/facing_military_--.png",
-      "sha256": "bb23e9612dfcdff51ff398f434934cbdef8b6d40b502f02f7602ea6a0738ab1a"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_military_-F.png",
@@ -191,10 +99,6 @@
       "sha256": "716cfa8c69cd974f359ae4ba7aa4b1de11f2409f584b3166556933cf869d0788"
     },
     {
-      "path": "entity-projections/minecraft_zombie/facing_portrait_--.png",
-      "sha256": "f7dc3339b98d638b57e83cb070b93d0104b5c32a584716cbb1ec05a0e79c4357"
-    },
-    {
       "path": "entity-projections/minecraft_zombie/facing_portrait_-F.png",
       "sha256": "68a8e1daae54f07413324a5c88141fd0b121e72338e79a3c50fa3bb1ef7cb7a7"
     },
@@ -205,10 +109,6 @@
     {
       "path": "entity-projections/minecraft_zombie/facing_portrait_MF.png",
       "sha256": "edaf86330ff7cc60146191e3f89306f1e92ce34600be5bbc1fca8e7f57b1563b"
-    },
-    {
-      "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_--.png",
-      "sha256": "9a373ca96d8d95da2fb5613ed65f8649881ea018e5b1c05780c5f9755f2deb93"
     },
     {
       "path": "entity-projections/minecraft_zombie/facing_vanilla_iso_-F.png",
@@ -257,10 +157,6 @@
     {
       "path": "entity-projections/minecraft_zombie/vanilla_iso.png",
       "sha256": "9a373ca96d8d95da2fb5613ed65f8649881ea018e5b1c05780c5f9755f2deb93"
-    },
-    {
-      "path": "entity-projections/minecraft_zombie_facing.png",
-      "sha256": "814e71a63ee35946e61d30fe519ef4e9f3d90611b709e186ba230433a86f4096"
     },
     {
       "path": "entity-render-3d/minecraft_allay.png",
@@ -651,28 +547,8 @@
       "sha256": "7db1989ab14e5d0f7640ed95aac06e241c689ef82de527042df7bd0580aec9e0"
     },
     {
-      "path": "item-render-2d/minecraft_bow.png",
-      "sha256": "5b539f67ee89a16dd65e6644e77bbedbbe7335bd8151a33602b574dea5ce4aa6"
-    },
-    {
-      "path": "item-render-2d/minecraft_compass.png",
-      "sha256": "a5cacfa3cd55bd6f6f2ef3d900351316d958a2969f754c53338c5f5aa40b25a3"
-    },
-    {
       "path": "item-render-2d/minecraft_diamond_boots_gold_trim.png",
       "sha256": "8ef9dc104a2bc2c839dcdb4788f18b4c6e4264e9c2b898d05b9bc104bf7f43f9"
-    },
-    {
-      "path": "item-render-2d/minecraft_diamond_sword.png",
-      "sha256": "7db1989ab14e5d0f7640ed95aac06e241c689ef82de527042df7bd0580aec9e0"
-    },
-    {
-      "path": "item-render-2d/minecraft_golden_apple.png",
-      "sha256": "ca8d9f141d8698a1e06d6ce209e20fe692e8904edbbbbb922ccf4d6377134cf5"
-    },
-    {
-      "path": "item-render-2d/minecraft_iron_chestplate.png",
-      "sha256": "0b6a4ca4e78675faa701d8750ecad9df66f3e637a1371114d47d7f771c227be1"
     },
     {
       "path": "item-render-2d/minecraft_iron_chestplate_amethyst_trim.png",
@@ -719,18 +595,6 @@
       "sha256": "bb282dd45d48307414d206c414c2d3ec90e03359f4956b9b00875bd93cde2804"
     },
     {
-      "path": "lore-tooltip/weapon_lossy.webp",
-      "sha256": "e39d73a121bd5bd8721beed3bf4c961a3385c3a982f8c361b5d84626fb5176bd"
-    },
-    {
-      "path": "lore-tooltip/weapon_static.webp",
-      "sha256": "8073b8bd0d2cbb4e4d4a1c840e0ee7ed83a74113dce53e9b8599d721922c68ad"
-    },
-    {
-      "path": "menu-render/anvil.png",
-      "sha256": "fdf76b3b50ee0f98a3538b9cbb05f733a0afeeedf2f8d405916c2550eb401182"
-    },
-    {
       "path": "menu-render/anvil_bare.png",
       "sha256": "f9a476be576296864976408ccbe9f60fa466ca9af104f03dce1c0adeb9be0a05"
     },
@@ -739,44 +603,12 @@
       "sha256": "451b2f69cac3d176604a4ca1e57a941f29dcf8308204317b1f0fc08aab2073f2"
     },
     {
-      "path": "menu-render/chest_1row.png",
-      "sha256": "6bb4d9ffe3a077a41789b1027c98a77cf8fc8e74ade2f61b277e11bfe51057b4"
-    },
-    {
-      "path": "menu-render/chest_2row.png",
-      "sha256": "68f3a8d1ca7190c4b63cf33828d34f37873a071638f73fbc423237828fb4c1e2"
-    },
-    {
-      "path": "menu-render/chest_3row.png",
-      "sha256": "cdba12786bca9836a1f3bf48abe1dee0876a69f4989376034d76adca0aa3b16c"
-    },
-    {
-      "path": "menu-render/chest_6row.png",
-      "sha256": "33b9a121653f9b9781901e8fb700723e5b3cd359a4aad01b54e747aa8f9ff5db"
-    },
-    {
-      "path": "menu-render/crafting_table.png",
-      "sha256": "c1f2dfe3ed281a4cb94584e94bc6d14af216ff1e051d954b420c8fb5d8a77cd7"
-    },
-    {
-      "path": "menu-render/dispenser.png",
-      "sha256": "4a0542ee7109e61f78c4271f2bc139caefb27594ccf69f75aef0ae42a2d88dfa"
-    },
-    {
       "path": "menu-render/glinted_crafting.webp",
       "sha256": "15c01def1ce530b163d5fd2a0e66c2fd5fce7df7d04c9d5c8d92493d4e075e4a"
     },
     {
-      "path": "menu-render/hopper.png",
-      "sha256": "75d76be2f13773f757147915ae88082e47a0fa2dacddee52d2ef9d9be2262138"
-    },
-    {
       "path": "menu-render/server_menu.png",
       "sha256": "34843d73d4bab1168b6305154ff9fad4db47ab82fe1f81afd3351f5c5cbfec79"
-    },
-    {
-      "path": "menu-render/shulker_box.png",
-      "sha256": "6a6ca76ac422106521b5dbf7457df6058be9071df03e467f20493e152d0f27b1"
     },
     {
       "path": "menu-render/themed_dark.png",
@@ -852,33 +684,22 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "9463e2a03e8c24cad3c2ad5c3073bbfbeb9b17a94cb1fda30f35fc1c0021ac62",
-    "asset_dirty": true,
-    "asset_sha": "38d8a81c5e39c0abc1cd0b3c8890af384a7ada8b",
+    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
+    "asset_dirty": false,
+    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
     "counts": {
-      "files": 211
+      "files": 169
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "visualSweepSet",
-    "reason": "fce15c3f inks the theme's recipe-book button's right-hand chamfers and the book's two texels as the client's sprite: crafting_table.png and glinted_crafting.webp (60 frames) 0 px from the client in the button rect; sweep.menu crafting_table 16 to 0",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 13,
-      "players": 2,
-      "tooltips": 46,
-      "walk": 4896
-    },
+    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
     "root": "cache/visual",
-    "timestamp": "2026-10-30T17:54:34Z",
+    "timestamp": "2026-11-04T16:15:50Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 36137
+    "wall_time_ms": 14738
   }
 }

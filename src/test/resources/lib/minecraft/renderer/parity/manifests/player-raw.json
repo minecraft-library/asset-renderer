@@ -7,72 +7,36 @@
       "sha256": "9e85a6c308b1b34460bbac7c720d90b759a365f11756fcf09ce7143b0051cb22"
     },
     {
-      "path": "armor-parity-vanilla/minecraft__piglin_iron/vanilla.png",
-      "sha256": "4b6c32b3b0ae019a140d4656476d4e01a31cb229e27c868b58da25e912f02817"
-    },
-    {
       "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/java.png",
       "sha256": "9251865778e79341fb6ab82b1ae2e9bd27a0ddba1f849158d8f5eed5afbd8f37"
-    },
-    {
-      "path": "armor-parity-vanilla/minecraft__piglin_iron_baby/vanilla.png",
-      "sha256": "0af823356d009b8fce7bce1f21ea160cc8a46428877ba8169dc6df1a6642ee02"
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/java.png",
       "sha256": "c36c23fdd7c52da86ee1f393e7841957381512ba7753bfa9668cc472ba2fba3b"
     },
     {
-      "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/vanilla.png",
-      "sha256": "d5a78fbf0d184033a630cf06a206fa6c004d1c532e2eb85da1a83803ede848f3"
-    },
-    {
       "path": "armor-parity-vanilla/minecraft__zombie_iron/java.png",
       "sha256": "c6e23cfa4cf93b5283053c5482e7bc7468c4407a8f03519bb42e4a96194158ae"
-    },
-    {
-      "path": "armor-parity-vanilla/minecraft__zombie_iron/vanilla.png",
-      "sha256": "0c58177f221b472810c2ceed1a31354f472d8058e43c1e0d8608b42051a9fe56"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/java.png",
       "sha256": "b5adcb6b6e8507a37e6316d1f9303ef91436cfb5c230b1e3d909e1ffeb1129aa"
     },
     {
-      "path": "armor-parity-vanilla/minecraft__zombie_iron_baby/vanilla.png",
-      "sha256": "bfbfd4d40ccc7204c3be24b24c7e1c3e2c38f24844ee9aa3c6f11ea09f65dad5"
-    },
-    {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/java.png",
       "sha256": "998df1c071db89c0061e17c695ae286813360bfea1ac30c8a0f1a61482e3d6b4"
-    },
-    {
-      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/vanilla.png",
-      "sha256": "ffa1811d19f09af7815e24971a78a313e58352e3a1f2e0f29115473c3dde22df"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/java.png",
       "sha256": "7fc1be9107598596a6e1679c4e60e2c2a62f767d72a3e547342cdc84e125bc00"
     },
     {
-      "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/vanilla.png",
-      "sha256": "10e4ed4c99b67b54f4fa6cc0768297dea85b1a59850237da2596f9a1957c4fa1"
-    },
-    {
       "path": "player-parity-vanilla/full/java.png",
       "sha256": "1ab6d276783d7404a0e534840df6abff4f844fd9cb98fd7995fb912e9f9e2153"
     },
     {
-      "path": "player-parity-vanilla/full/vanilla.png",
-      "sha256": "a2053cfd938c47cb260fcb886129ffe89df811e96ef9867a951458eaac5225e9"
-    },
-    {
       "path": "player-parity-vanilla/skull/java.png",
       "sha256": "eed1a8d0f099c40d6e448f6cd361e15c1591d42b50afbf8dd2acd8ad2e223dde"
-    },
-    {
-      "path": "player-parity-vanilla/skull/vanilla.png",
-      "sha256": "825172ea51e6a9390e2a5c7c92d630b7b1caa86fb04d4e69816d76dcf969aed6"
     }
   ],
   "format": 1,
@@ -80,32 +44,22 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-raw",
-    "asset_content_digest": "89afed67930694973e0b9af5367e157f7379f22cdd8369af978cc1254937d843",
-    "asset_dirty": true,
-    "asset_sha": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
+    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
+    "asset_dirty": false,
+    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
     "counts": {
-      "files": 18
+      "files": 9
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "moving",
+    "parity_class": "shaped",
+    "population_changed": true,
     "producer": "playerRawSweepSet",
-    "reason": "The geometry generator writes each entity model's bones in the order vanilla's baked model draws them - each part's children in its PartDefinition HashMap's iteration order, depth first, replayed over vanilla's own map calls including the copies a whole-mesh scaling, a replaced part and a retain or clear surgery make - where it wrote addOrReplaceChild order; an exact depth tie goes to the part drawn last, so the tie now falls as vanilla's. entity_geometry.json reorders 151 of its 156 keys with every bone and member unchanged and adds four: the giant's, husk's and wither skeleton's armour shells at their scale, and the warden's bioluminescent layer; entity_models.json points those three wearers' armour and the warden's bioluminescent pass at them, the three armour rows dropping their scale member, which the scaled shells carry. Measured against vanilla: the still sweep's moved rows go 0.4492 to 0.3548 (7 better, 1 worse) - the iron-armoured wither skeleton 0.1675 to 0.1378, husk 0.0573 to 0.0313 and armour stand 0.0217 to 0.0000 - the walk sweep's 0.2543 to 0.2437 with no row worse, the armour sweep's iron piglin 2.4531 to 2.4463; the one row that grows, the zombie villager in iron 0.1112 to 0.1182, is decided by a corner on a snapping midpoint. The skeleton family's 3D renders, the piglin's raw armour render, both dumps' entity listing and the tooling and shipped-table digests move with the order; 12 of the 22 compared artifacts hold.",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 10,
-      "players": 2,
-      "walk": 4896
-    },
+    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
     "root": "cache/visual",
-    "timestamp": "2026-10-23T18:07:45Z",
+    "timestamp": "2026-11-04T16:15:49Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 8238
+    "wall_time_ms": 5905
   }
 }

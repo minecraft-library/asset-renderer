@@ -18,14 +18,14 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
-| `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
+| `manifest.fluid` | `manifests/fluid.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.pack-tooltips` | `manifests/pack-tooltips.json` | 44 | 44 entries | `5f2174f3c4e0f23707ff31931da0659c7b298b4e` | yes |
-| `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `5e04b56f6a5d1918fa9cb985475e642cbf1b9b61` | yes |
+| `manifest.player-raw` | `manifests/player-raw.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 97 | 97 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.portal` | `manifests/portal.json` | 6 | 6 entries | `d99fbb39861a7ecb8af36502129de262820a7977` | yes |
 | `manifest.references` | `manifests/references.json` | 9827 | 9827 entries | `7ceea5b9302a0279d78a2369c6cac23b676ad9e6` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
-| `manifest.visual` | `manifests/visual.json` | 211 | 211 entries | `38d8a81c5e39c0abc1cd0b3c8890af384a7ada8b` | yes |
+| `manifest.visual` | `manifests/visual.json` | 169 | 169 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
