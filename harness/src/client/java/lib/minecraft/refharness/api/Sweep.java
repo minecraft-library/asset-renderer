@@ -11,8 +11,8 @@ import java.util.List;
  * One reference sweep - what its subjects are, where they land, and how each one renders.
  *
  * <p>The bookkeeping every sweep shares - the work index, the rendered / skipped / failed tally, the
- * completion latch, and the one-subject-per-tick pacing the asynchronous read-back requires -
- * belongs to {@link SweepRunner} and is not restated here.
+ * completion latch, and the per-tick pacing - belongs to {@link SweepRunner} and is not restated
+ * here.
  *
  * @param <S> the subject descriptor this sweep enumerates; the live subject is built in
  *            {@link #render}, because most sweeps need level access to build one
@@ -102,12 +102,4 @@ public interface Sweep<S> {
      * @param ctx the sweep context
      */
     default void afterSweep(SweepContext ctx) {}
-
-    /**
-     * Whether the target allowlist applies to this sweep. False for sweeps whose subjects have no
-     * registry id to match against - filtering those would silently render nothing.
-     */
-    default boolean honoursTargetFilter() {
-        return true;
-    }
 }

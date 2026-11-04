@@ -63,6 +63,7 @@ KEYS = {
     "root": False,
     "timestamp": True,
     "tool_version": True,
+    "tree_refresh": False,
     "wall_time_ms": False,
 }
 
@@ -306,7 +307,8 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
            parity_class: str = "", wall_time_ms: int | None = None,
            counts: dict | None = None, root: str | None = None,
            reference_tree: Path | None = None, reference_artifact: str | None = None,
-           memo: Path | None = None, now: str | None = None) -> dict:
+           memo: Path | None = None, now: str | None = None,
+           tree_refresh: str | None = None) -> dict:
     # A tree with no artifact is refused rather than defaulted: with more than one ground truth, a
     # default would digest a pack tree as the vanilla one, and a stored digest that does not say
     # whose manifest it is cannot be re-derived.
@@ -326,6 +328,8 @@ def gather(artifact: str, repo: Path, producer: str = "", mode: str | None = Non
     record["asset_content_digest"] = content_digest(repo)
     if mode:
         record["mode"] = mode
+    if tree_refresh:
+        record["tree_refresh"] = tree_refresh
     if reason:
         record["reason"] = reason
     if parity_class:

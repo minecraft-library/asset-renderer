@@ -57,13 +57,4 @@ public final class PlayerSweep implements Sweep<PlayerFrameRenderer.Scope> {
         throws IOException {
         return frameRenderer.render(ctx.client(), scope, canvas, out);
     }
-
-    /**
-     * Returns {@code false} - a player scope has no registry id for the allowlist to match against,
-     * so honouring the filter would make any scoped run write no player reference at all.
-     */
-    @Override
-    public boolean honoursTargetFilter() {
-        return false;
-    }
 }

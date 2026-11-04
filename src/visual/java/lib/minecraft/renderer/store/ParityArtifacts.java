@@ -196,7 +196,6 @@ public final class ParityArtifacts {
         // --- probe. Produced by instrumented builds and deliberate off-tree harness runs, so none can
         // be captured, compared or promoted - the three verbs this store exists for.
         Registration.external("probe.pixel"),
-        Registration.external("probe.depth-quantum"),
         Registration.external("probe.pack-icons"),
         Registration.external("probe.pack-sources")
     );

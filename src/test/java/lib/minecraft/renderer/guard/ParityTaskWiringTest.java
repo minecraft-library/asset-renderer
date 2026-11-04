@@ -122,6 +122,12 @@ final class ParityTaskWiringTest {
     /** Where one harness run is registered, as opposed to where the registration is declared. */
     private static final String CALLS_A_HARNESS_RUN = "registerHarnessRun(\"";
 
+    /** The check a capture whose plan reaches the reference tree through the roster alone runs. */
+    private static final String SCHEDULE_CHECK = "parityScheduleCheck";
+
+    /** Where the whole-tree boot is told when a capture may skip it. */
+    private static final String GATES_THE_BOOT = "    named(\"renderVanillaAllReferences\") {";
+
     /** What a run's own description says when it writes outside the reference tree. */
     private static final String REFRESHES_NO_REFERENCE = "Refreshes no reference.";
 
@@ -1372,7 +1378,7 @@ final class ParityTaskWiringTest {
                 + "branch makes true: a SIBLING of the reference tree rather than a directory in it. "
                 + "Read from index.json rather than restated, because that file is what a reader "
                 + "resolves the path against", read(ParityStore.PRODUCTION.resolve("index.json")),
-            containsString("<version>/depth-quantum-probe/"));
+            containsString("<version>/pack-icons/"));
     }
 
     @Test
@@ -1573,6 +1579,127 @@ final class ParityTaskWiringTest {
                 + "run writes from, so a sub-tree missing there is one the tree holds and the doc "
                 + "does not",
             subTrees.stream().filter(name -> !written.contains("`" + name + "/`")).toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("a capture boots the client for the reference tree only where the schedule check disagrees")
+    void aRosterGatedCaptureBootsOnlyWhereTheRosterMoved() {
+        String check = collapsed(registeredBlock(SCHEDULE_CHECK));
+        assertThat("the check reads the roster the capture has just written, so it runs after the "
+                + "writer rather than over whatever an earlier run left beside the tree",
+            check, containsString("dependsOn(\"entityScheduleRoster\")"));
+        assertThat("and after the erase, which is what keeps the verdict it writes into the working "
+                + "root's _run/ this capture's: ahead of it, the erase deletes the verdict and the "
+                + "boot reads it as absent, which boots for nothing",
+            check, containsString("mustRunAfter(parityCaptureBeginTask)"));
+        assertThat("handed the tree the capture hashes and the client the harness runs, which the "
+                + "roster's source_version is held to as the harness holds it",
+            check, containsString("add(\"--references\"); add(parityReferenceRoot) "
+                + "add(\"--client-version\"); add(minecraftVersion)"));
+        assertThat("and the map the plan resolved against, which the check resolves the tree as it "
+                + "stands against again rather than trusting the plan file",
+            check, containsString("add(\"--store\"); add(parityProductionStore)"));
+        assertThat("after every narrow run writing the tree, which rewrites a sidecar or the record it "
+                + "reads while it boots; the whole-tree run waits on the check instead",
+            check, containsString("mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }"
+                + ".keys - \"renderVanillaAllReferences\")"));
+        assertThat("a step of the capture rather than an entry point, so the parity group the skill "
+                + "counts stays the tasks it runs",
+            check, not(containsString("group = ")));
+
+        assertThat("only a plan's own capture set is gated: a -Partifacts naming the row asks for the "
+                + "render, and the plan's `roster` answer is the one saying every rule that selected "
+                + "the row reaches the tree through the schedule roster alone",
+            collapsed(function("parityReferencesRosterGated")),
+            containsString("parityProperty(\"artifacts\") == null && "
+                + "parityPlannedReferencesRefresh() == \"roster\""));
+        assertThat("the capture schedules the check, behind a Callable, so the edge resolves only for a "
+                + "graph holding the capture and never off the typed tokens",
+            collapsed(taskBlock("parityCapture")),
+            containsString("dependsOn(Callable { if (parityReferencesRosterGated()) "
+                + "listOf(\"" + SCHEDULE_CHECK + "\") else emptyList() })"));
+
+        String boot = collapsed(toBlankLine(GATES_THE_BOOT));
+        assertThat("the boot waits on the check wherever both are in the graph",
+            boot, containsString("mustRunAfter(\"" + SCHEDULE_CHECK + "\")"));
+        assertThat("and the skip asks the plan, the resolved graph and the verdict this capture's "
+                + "check wrote, so a hand run of the render always renders, and a check that wrote "
+                + "nothing costs the boot rather than a capture of a tree nobody judged current",
+            boot, containsString("val rosterGated = parityReferencesRosterGated()"));
+        assertThat("the three together",
+            boot, containsString("val current = rosterGated && parityBootSkippable.get() && "
+                + "parityScheduleAgrees(verdict)"));
+        assertThat("and a skip is recorded, so the capture of the row says it hashed the tree",
+            boot, containsString("if (current) { parityReferencesHashed.set(true)"));
+        assertThat("which the row's capture step forwards as its provenance",
+            collapsed(buildFile()), containsString("if (spec.artifact == parityReferencesArtifact) "
+                + "doFirst { if (parityReferencesHashed.get()) args(\"--tree-refresh\", \"hashed\") }"));
+        assertThat("the graph the skip asks is the resolved one, filled once it is ready: it holds the "
+                + "capture, and no parityPlan writing a new plan after the build read the last one",
+            collapsed(buildFile()), containsString("gradle.taskGraph.whenReady { "
+                + "parityBootSkippable.set(hasTask(\":parityCapture\") && !hasTask(\":parityPlan\")) }"));
+        assertThat("declared once and read once: the whole-tree boot is the one run the check decides, "
+                + "and every narrow run and every other producer runs as it is asked to",
+            occurrences(buildFile(), "parityScheduleAgrees("), is(equalTo(2)));
+    }
+
+    @Test
+    @DisplayName("a client boot frees the project around it, one client at a time, and its readers wait")
+    void aBootRunsBesideTheProducersThatReadNothingOfIt() {
+        String build = collapsed(buildFile());
+        String registration = collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN));
+
+        assertThat("every harness run is the task type that hands its boot to the Worker API: an Exec "
+                + "holds the project's one lane for the whole render, so every producer that reads "
+                + "nothing of the tree waited it out",
+            registration, containsString("return register<HarnessRunTask>(name) {"));
+        assertThat("and the type submits the boot as work rather than running it in its own action",
+            build, containsString("workers.noIsolation().submit(HarnessBoot::class.java) {"));
+        assertThat("one client at a time: every run boots the same run directory and deletes the same "
+                + "world save, so two runs in one invocation would race over both",
+            registration, containsString("usesService(harnessClient)"));
+        assertThat("a lease of one",
+            build, containsString("val harnessClient = gradle.sharedServices.registerIfAbsent("
+                + "\"harnessClient\", HarnessClient::class) { maxParallelUsages.set(1) }"));
+        assertThat("and the harness compile leases it as well, running the same nested build over the "
+                + "same directory a boot does",
+            collapsed(registeredBlock("harnessClasses")), containsString("usesService(harnessClient)"));
+        assertThat("leased by the runs and the compile and nothing else, so the lease serialises the "
+                + "client and no producer beside it",
+            occurrences(buildFile(), "usesService(harnessClient)"), is(equalTo(2)));
+        assertThat("the slow suite reads the entity sub-tree, so it waits for every run that writes the "
+                + "reference tree, as the sweeps and the capture steps do off their own rows",
+            build, containsString("named(\"slowTest\") { mustRunAfter(harnessRunTrees.filterValues "
+                + "{ it == parityReferencesArtifact }.keys) }"));
+        assertThat("and each probe report waits for the probe that draws what it reads",
+            build, containsString("named(\"packIconParityVanilla\") { mustRunAfter(\"renderVanillaPackIcons\") }"));
+        assertThat("the same",
+            build, containsString("named(\"packSourceParityVanilla\") { mustRunAfter(\"renderVanillaPackSources\") }"));
+        assertThat("and the toolkit's suite, whose corpus case walks the reference tree, waits for every run",
+            collapsed(registeredBlock("paritySelfTest")), containsString("mustRunAfter(harnessRunTrees.keys)"));
+    }
+
+    @Test
+    @DisplayName("the render record stands only over a tree whose last write was a whole boot that exited 0")
+    void theRenderRecordStandsOnlyOverAWholeRender() {
+        String registration = collapsed(toBlankLine(REGISTERS_A_HARNESS_RUN));
+        assertThat("every run writing into the tree deletes the record before it boots, and every run "
+                + "but the sealing one the pending record as well",
+            registration, containsString("if (refreshes.isNotEmpty()) {"));
+        assertThat("the same",
+            registration, containsString("doFirst { record.delete() if (!seals) pending.delete() }"));
+        assertThat("only the run refreshing every sub-tree, with no target filter, seals it",
+            registration, containsString("val seals = refreshes.toSet() == referenceSubTrees.toSet() && "
+                + "!(forwardsTargets && project.hasProperty(\"refharnessTargets\"))"));
+        assertThat("after the record of its inputs is written, ahead of the boot",
+            registration, containsString("dependsOn(\"parityReferenceRenderRecord\")"));
+        assertThat("and in doLast, which runs only once the boot's work completed without failing",
+            registration, containsString("doLast { if (pending.isFile) Files.move(pending.toPath(), "
+                + "record.toPath(), StandardCopyOption.REPLACE_EXISTING) }"));
+        assertThat("the record of the inputs is the toolkit's, beside the tree the whole run writes",
+            collapsed(registeredBlock("parityReferenceRenderRecord")),
+            containsString("add(\"render-record\") add(\"--store\"); add(parityProductionStore) "
+                + "add(\"--references\"); add(parityReferenceRoot)"));
     }
 
     /**

@@ -263,13 +263,4 @@ public final class MenuSweep implements Sweep<MenuSweep.MenuSubject> {
             screen.extractRenderState(extractor, -1, -1, 0.0f);
         });
     }
-
-    /**
-     * A menu name is not a registry id, so the allowlist has nothing to match it against and applying
-     * one would render nothing at all.
-     */
-    @Override
-    public boolean honoursTargetFilter() {
-        return false;
-    }
 }

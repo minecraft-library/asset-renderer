@@ -122,15 +122,6 @@ public final class PackSourceSweep implements Sweep<String> {
         return true;
     }
 
-    /**
-     * Returns {@code false} - the one subject has no registry id for the allowlist to match against,
-     * so honouring the filter would make any scoped run write nothing.
-     */
-    @Override
-    public boolean honoursTargetFilter() {
-        return false;
-    }
-
     /** Builds the whole document off the running client's pack repository and resource manager. */
     private static JsonObject dump(Minecraft client) throws IOException {
         JsonObject root = new JsonObject();

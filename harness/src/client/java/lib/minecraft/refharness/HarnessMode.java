@@ -3,7 +3,6 @@ package lib.minecraft.refharness;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.BlockSweep;
-import lib.minecraft.refharness.sweep.DepthQuantumSweep;
 import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
@@ -79,8 +78,6 @@ public enum HarnessMode {
     WALK,
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
     PITCH_ROLL,
-    /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
-    DEPTH_QUANTUM,
     /**
      * Only the diagnostic pack-source probe, which renders nothing and writes outside the reference
      * tree: which pack the client takes each resource from, with {@link HarnessConfig#PACKS}
@@ -112,9 +109,9 @@ public enum HarnessMode {
      * Resolves the modes this run performs, in the order they run.
      *
      * <p><b>One boot renders as many modes as are asked for.</b> {@code -Drefharness.modes=a,b,c}
-     * names them by enum constant, case-insensitively; the single-mode boolean properties each name
-     * one and compose with it, so every task that set one still resolves exactly what it did. An
-     * empty selection is {@link #FULL}.
+     * names them by enum constant, case-insensitively, and is the one way a run names a reference
+     * mode. The pitch-roll probe's boolean names {@link #PITCH_ROLL} and composes with it. An empty
+     * selection is {@link #FULL}.
      *
      * <p>A mode is listed once however many times it is named, and the list is ordered by the
      * {@link Gait} its sweeps run at rather than by how it was asked for. That order is a
@@ -140,15 +137,7 @@ public enum HarnessMode {
                     + Arrays.toString(values()), ex);
             }
         }
-        if (HarnessConfig.EVERY_SWEEP) selected.add(EVERY);
-        if (HarnessConfig.GLINT_ONLY) selected.add(GLINT);
-        if (HarnessConfig.PLAYERS_ONLY) selected.add(PLAYERS);
-        if (HarnessConfig.ARMOR_ONLY) selected.add(ARMOR);
-        if (HarnessConfig.MENUS_ONLY) selected.add(MENUS);
-        if (HarnessConfig.ANIMATED) selected.add(ANIMATION);
-        if (HarnessConfig.WALKING) selected.add(WALK);
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
-        if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.isEmpty()) selected.add(FULL);
         if (!HarnessConfig.packIds().isEmpty() && !selected.stream().allMatch(HarnessMode::loadsPacks))
             throw new IllegalStateException(String.format(
@@ -223,7 +212,6 @@ public enum HarnessMode {
             case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case WALK -> List.of(new EntityAnimationSweep(Gait.WALK, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case PITCH_ROLL -> List.of(new PitchRollSweep());
-            case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
             case PACK_SOURCES -> List.of(new PackSourceSweep());
             case PACK_ICONS -> List.of(new PackIconSweep());
             case PACK_TOOLTIPS -> List.of(new TooltipSweep(HarnessConfig.packIds()));

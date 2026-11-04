@@ -39,6 +39,7 @@ from parity import jsondiff as jsondiff_mod
 from parity import manifest as manifest_mod
 from parity import render as render_mod
 from parity import report as report_mod
+from parity import schedule as schedule_mod
 from parity import store as store_mod
 from parity import sweep as sweep_mod
 from parity.norm import (
@@ -48,6 +49,7 @@ from parity.norm import (
     Refused,
     canonical_json,
     parse_json,
+    posix,
     read_json,
     write_json,
     write_text,
@@ -868,7 +870,7 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
         try:
             target = capture_mod.normalize(
                 artifact, source, root, repo, producer=args.producer or "",
-                mode=args.mode, flags=args.flag or (), runs=args.runs,
+                mode=args.mode, tree_refresh=args.tree_refresh, flags=args.flag or (), runs=args.runs,
                 logs=Path(args.logs) if args.logs else None,
                 reference_tree=(Path(args.reference_tree) if args.reference_tree else None),
                 reference_artifact=args.reference_artifact,
@@ -906,6 +908,112 @@ def _failed_producers(entries: Sequence[str]) -> list[tuple[str, str]]:
             raise Refused(f"--failed {entry!r} names no task")
         out.append((task, message))
     return out
+
+
+def _cmd_schedule_check(args: argparse.Namespace) -> int:
+    """Answer whether the reference tree on disk is the tree a render would write now.
+
+    Three holds, each of which only the tree as it stands can answer, and a capture may skip the boot
+    only where all three agree. The plan's ``references`` answer is held to the same answer resolved
+    again from git, since the plan is a file that outlives the edits made after it. What the tree is
+    rendered from beside the roster is held to the record of its last whole render. And the roster
+    is projected onto the schedules the posed sub-trees recorded.
+
+    Writes the verdict into the working root's ``_run/`` whatever it says, because the build reads it
+    back to decide whether the capture boots the client, and a disagreement is an answer rather than
+    a failure - the boot it costs is the one the gate would have paid without the check. A tree that
+    cannot be resolved, or files git cannot list, are disagreements of their own. Only a usage error
+    or a root outside ``cache/`` stops it.
+    """
+    base = _bases(args)
+    root = store_mod.working(args.root, base).root
+    refusals: list[str] = []
+    planned = _planned_references(root)
+    live = None
+    try:
+        live = _tree_references(base, args.store)
+        refusals += schedule_mod.held_to_plan(planned, live)
+    except (MissingInput, Refused) as error:
+        refusals.append(f"the tree as it stands could not be resolved: {error}")
+    try:
+        current = schedule_mod.inputs(base, _listed_files(base), _live_rules(base, args.store))
+    except (MissingInput, Refused):
+        current = None
+    refusals += schedule_mod.held_to_record(base / args.references, current)
+    verdict = schedule_mod.check(base, args.references, args.client_version, refusals)
+    verdict["refresh"] = {"plan": planned, "tree": live}
+    target = write_json(root / store_mod.RUN_DIR / schedule_mod.VERDICT, verdict)
+    stems = " + ".join(f"{verdict['stems'][gait]} {gait}" for gait in schedule_mod.GAITS)
+    if verdict["agrees"]:
+        lines = [f"schedule-check: the tree on disk is current - the plan holds for the tree as it "
+                 f"stands, the render record names its inputs, and the roster agrees with the "
+                 f"schedules the posed sub-trees recorded ({stems} stems) -> {posix(target, base)}"]
+    else:
+        lines = [f"schedule-check: {verdict['count']} disagreement(s), so a capture boots the client "
+                 f"({stems} stems) -> {posix(target, base)}"]
+        lines += [f"  {line}" for line in verdict["disagreements"]]
+    _emit(args, "\n".join(lines), verdict)
+    return OK
+
+
+def _planned_references(root: Path) -> dict | None:
+    """The working root's plan's ``references`` answer, or None where it holds no readable one.
+
+    :param root: the working root
+    :return: the answer, or None
+    """
+    try:
+        plan = read_json(root / store_mod.RUN_DIR / "plan.json")
+    except (OSError, ValueError):
+        return None
+    answer = plan.get("references") if isinstance(plan, dict) else None
+    return answer if isinstance(answer, dict) else None
+
+
+def _tree_references(base: Path, store: str | None) -> dict | None:
+    """The plan's ``references`` answer for the tree as it stands, resolved from git as a plan is.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :return: the answer, or None where the tree's plan holds no such row
+    """
+    changed = sorted(_changed_from_git(base))
+    _, reach, rules = _resolved(base, store, changed)
+    plan, _, _ = _split_reach(reach.sees, store_mod.production(store, base).index())
+    return _references(plan, reach, rules)
+
+
+def _listed_files(base: Path) -> list[str]:
+    """Every file git tracks and every one it would track, repo-relative and POSIX.
+
+    What a commit can carry, untracked files included: a new harness source compiles into the client
+    whether or not it has been added. NUL-separated, so no path comes back quoted.
+
+    :param base: the repository root
+    :return: the paths
+    :raises MissingInput: if git cannot list them
+    """
+    result = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                            cwd=base, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise MissingInput(f"git ls-files failed: {result.stderr.decode('utf-8', 'replace').strip()}")
+    return [name.replace("\\", "/") for name in result.stdout.decode("utf-8").split("\0") if name]
+
+
+def _cmd_render_record(args: argparse.Namespace) -> int:
+    """Write the record of what a whole-tree render is about to read, pending beside the tree.
+
+    The build runs this ahead of a whole, untargeted ``renderVanillaAllReferences`` and renames the
+    pending file to the record once the boot exits 0, so the record names the inputs the boot was
+    handed rather than whatever the tree held when it finished.
+    """
+    base = _bases(args)
+    current = schedule_mod.inputs(base, _listed_files(base), _live_rules(base, args.store))
+    payload = schedule_mod.record(args.references, current)
+    target = write_json((base / args.references).parent / schedule_mod.PENDING, payload)
+    _emit(args, f"render-record: {payload['files']} input(s) of {', '.join(payload['rules'])} -> "
+                f"{posix(target, base)}", payload)
+    return OK
 
 
 def _cmd_capture_index(args: argparse.Namespace) -> int:
@@ -990,26 +1098,17 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     """
     base = _bases(args)
     root = store_mod.working(args.root, base).root
-    store_root = store_mod.resolve_store(args.store, base)
-    rules, no_reach = blindness_mod.load(store_root)
-    # Re-derived from the tree rather than taken from the file, so a declaration that moved in the
-    # commit being planned is answered by the plan that gates that commit rather than by the next
-    # regeneration. The two halves agree by construction and a guard holds them to it.
-    rules = declarations_mod.live(rules, base)
 
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
         changed = sorted(set(changed) | set(_changed_from_git(base, getattr(args, "since", None))))
-    deleted = sorted(_deleted_from_head(base, changed))
-    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules),
-                                  _committed_map(base, store_root, deleted, rules, no_reach))
-    if reach.unknown:
-        raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
+    deleted, reach, rules = _resolved(base, args.store, changed)
 
     production = store_mod.production(args.store, base)
     index = production.index()
     plan, covered, manual = _split_reach(reach.sees, index)
     measured, budget = _budget(plan, index, production)
+    references = _references(plan, reach, rules)
     payload = {
         "//": "parity.report.plan · regen: ./gradlew parityPlan",
         "artifact": "report.plan",
@@ -1033,6 +1132,10 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         "kind": "plan",
         "manual": manual,
         "plan": plan,
+        # How the capture refreshes the reference tree, where the plan holds the row that hashes it:
+        # a boot, or the roster check that decides one. The build reads `refresh` back to decide
+        # whether the capture boots the client; null where the plan holds no such row.
+        "references": references,
         "rules_fired": reach.fired,
         "sees": reach.sees,
     }
@@ -1053,6 +1156,8 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         lines.append(f"DELETED ({len(deleted)}): {', '.join(deleted)}"
                      " - answered by the map and graph HEAD holds")
     lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))
+    if references is not None:
+        lines.append(_references_line(references))
     planned = set(plan)
     if covered:
         lines.append(f"COVERED ({len(covered)}): no capture row of its own; each one's value is a "
@@ -1081,14 +1186,95 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     # It is printed because the alternative is what the cost was: a capture is cheaper to re-run than
     # to reason about whether the last one still stands, so it got re-run. Whoever reads a plan is
     # about to spend the budget on the line above it, and this is the line that says they need not.
-    gated = _gate_exit(args, base, root, reach, plan) if reach.sees else OK
+    gated = _gate_exit(args, base, root, reach, plan, references) if reach.sees else OK
     payload["already_gated"] = gated == GATE_ALREADY_GATED
     if gated == GATE_ALREADY_GATED:
         lines.append("VERDICT already gated - a passing compare covers this exact tree state and "
                      "this whole plan. Nothing here needs running; quote _run/compare.md. Editing "
                      "any tracked file re-arms it.")
     _emit(args, "\n".join(lines), payload)
-    return _gate_exit(args, base, root, reach, plan) if args.gate_exit else OK
+    return _gate_exit(args, base, root, reach, plan, references) if args.gate_exit else OK
+
+
+def _live_rules(base: Path, store: str | None) -> list[blindness_mod.Rule]:
+    """The map's rules, their triggers re-derived from the declarations the tree holds now.
+
+    Re-derived from the tree rather than taken from the file, so a declaration that moved in the
+    commit being planned is answered by the plan that gates that commit rather than by the next
+    regeneration. The two halves agree by construction and a guard holds them to it. :func:`_resolved`
+    folds them in the same way over the map it has already loaded.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :return: the rules
+    """
+    rules, _ = blindness_mod.load(store_mod.resolve_store(store, base))
+    return declarations_mod.live(rules, base)
+
+
+def _resolved(base: Path, store: str | None, changed: Sequence[str]) \
+        -> tuple[list[str], blindness_mod.Reach, list[blindness_mod.Rule]]:
+    """Resolve a change set the way a plan does.
+
+    The one resolution behind the plan and behind the schedule check, which resolves the tree again
+    when a capture runs rather than trusting the plan it was handed - two spellings of it could part
+    company, and the check would then certify a tree the plan never described.
+
+    :param base: the repository root
+    :param store: the store the map is read from, or None for the production store
+    :param changed: the changed paths, repo-relative and POSIX
+    :return: the paths the change deletes, the reach, and every rule it was resolved against - the
+        working map's, and the committed map's where the change deletes a path
+    :raises Refused: if a changed path is covered by no rule
+    """
+    store_root = store_mod.resolve_store(store, base)
+    rules, no_reach = blindness_mod.load(store_root)
+    rules = declarations_mod.live(rules, base)
+    deleted = sorted(_deleted_from_head(base, changed))
+    committed = _committed_map(base, store_root, deleted, rules, no_reach)
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules), committed)
+    if reach.unknown:
+        raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
+    return deleted, reach, list(rules) + list(committed.rules if committed else ())
+
+
+def _references(plan: Sequence[str], reach: blindness_mod.Reach,
+                rules: Sequence[blindness_mod.Rule]) -> dict | None:
+    """How a capture of this plan refreshes the reference tree, or None where it holds no such row.
+
+    Read off which fired rules put the row in the plan rather than off which rules fired at all: a
+    harness rule that fired on a path and selected only sweeps reaches no reference byte, and one
+    that selected the row on a path where another rule demoted it away selected nothing. The rules'
+    derived flag comes from both statements of the map the plan resolved against, so a path the
+    change deletes is read as the commit before it held the rule.
+
+    :param plan: the artifacts the plan captures
+    :param reach: the resolved reach, carrying the rules that selected each artifact
+    :param rules: every rule the plan resolved against
+    :return: the refresh and the rules behind it, or None
+    """
+    if schedule_mod.REFERENCES not in plan:
+        return None
+    selected = reach.selectors.get(schedule_mod.REFERENCES, [])
+    derived = {rule.id for rule in rules if rule.derived}
+    return {"refresh": schedule_mod.refresh(selected, derived), "selected_by": selected}
+
+
+def _references_line(references: dict) -> str:
+    """The plan's line saying which of the two a capture does to the reference tree.
+
+    :param references: the plan's ``references`` member
+    :return: the line
+    """
+    rules = ", ".join(references["selected_by"])
+    if references["refresh"] == schedule_mod.ROSTER:
+        return (f"REFERENCES {schedule_mod.ROSTER} ({rules}): every rule selecting "
+                f"{schedule_mod.REFERENCES} reaches the tree through the entity schedule roster "
+                "alone, so the capture regenerates the roster and boots the client only if it "
+                "differs from the schedules idle/ and walk/ recorded; where it agrees, the capture "
+                "hashes the tree already on disk. BUDGET prices the boot")
+    return (f"REFERENCES {schedule_mod.BOOT} ({rules}): the capture re-renders the whole reference "
+            "tree before it hashes it")
 
 
 def _budget(plan: Sequence[str], index: dict,
@@ -1332,7 +1518,7 @@ GATE_ALREADY_GATED = 20
 
 
 def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
-               reach: blindness_mod.Reach, plan: list[str]) -> int:
+               reach: blindness_mod.Reach, plan: list[str], references: dict | None = None) -> int:
     """Answer the pre-commit hook's question in the exit code.
 
     Three answers: ``OK`` when no artifact can see the change, ``GATE_ALREADY_GATED`` when a passing
@@ -1365,6 +1551,8 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     :param root: the working root
     :param reach: the resolved reach, which decides whether there is anything to gate at all
     :param plan: the capture set drawn from it, which is what a verdict is measured against
+    :param references: how a capture of this plan refreshes the reference tree, or None where the
+        plan holds no such row
     :return: the exit code
     """
     if not reach.sees:
@@ -1412,7 +1600,27 @@ def _gate_exit(args: argparse.Namespace, base: Path, root: Path,
     # by every compare; until here nothing read either.
     if int(recorded.get("unexpected") or 0) > 0 or recorded.get("missing_baseline"):
         return GATE_SEES_UNGATED
+    # A tree this plan boots for and the capture hashed as it stood has not been measured: the
+    # unchanged tree matches its baseline whatever the change does to a render. The capture's own
+    # record says which it did, and it is read out of the root the verdict was written beside.
+    if (references is not None and references.get("refresh") == schedule_mod.BOOT
+            and _hashed_references(verdict.parent.parent)):
+        return GATE_SEES_UNGATED
     return GATE_ALREADY_GATED
+
+
+def _hashed_references(root: Path) -> bool:
+    """Whether a working root's capture of the reference tree hashed it rather than rendering it.
+
+    :param root: the working root
+    :return: whether its ``manifest.references`` provenance records the tree as hashed
+    """
+    try:
+        captured = read_json(root / store_mod.path_of(schedule_mod.REFERENCES))
+    except (OSError, ValueError):
+        return False
+    provenance = captured.get("provenance") if isinstance(captured, dict) else None
+    return isinstance(provenance, dict) and provenance.get("tree_refresh") == schedule_mod.HASHED
 
 
 def _newest_verdict(base: Path, root: Path) -> Path | None:
@@ -2108,6 +2316,11 @@ def _register(subparsers: Any) -> dict[str, Command]:
                           "this capture belongs to - the difference between ground truth refreshed "
                           "in part and refreshed whole. A comma-joined set when one invocation ran "
                           "more than one, and absent when it refreshed nothing")
+    cap.add_argument("--tree-refresh", dest="tree_refresh", default=None,
+                     choices=(schedule_mod.HASHED,),
+                     help="that the tree this row hashes was hashed as it stood rather than "
+                          "rendered, the schedule check having found it current; absent when a "
+                          "render wrote it or the row hashes no tree")
     cap.add_argument("--wall-time", dest="wall_time", type=int, default=None, metavar="MS",
                      help="how long this row's producers took, measured by the build. It is what "
                           "the plan's budget sums and what the skill's background-the-capture rule "
@@ -2124,6 +2337,28 @@ def _register(subparsers: Any) -> dict[str, Command]:
 
     subparsers.add_parser("capture-index", help="write _run/_capture.json then COMPLETE last")
     table["capture-index"] = _cmd_capture_index
+
+    sched = subparsers.add_parser(
+        "schedule-check", help="whether the reference tree on disk is the one a render would write now: "
+                               "the plan held to the tree as it stands, the harness inputs to the "
+                               "record of the last whole render, and the entity schedule roster to "
+                               "the schedules the posed sub-trees recorded; writes "
+                               "_run/schedule-check.json")
+    sched.add_argument("--references", required=True, metavar="DIR",
+                       help="the reference tree root, repo-relative; the roster and the render "
+                            "record are read beside it")
+    sched.add_argument("--client-version", required=True, dest="client_version", metavar="VERSION",
+                       help="the version of the client the harness runs, which the roster's "
+                            "source_version is held to by major.minor")
+    table["schedule-check"] = _cmd_schedule_check
+
+    rec = subparsers.add_parser(
+        "render-record", help="digest what a whole-tree render reads beside the schedule roster into "
+                              f"{schedule_mod.PENDING} beside the tree, which the build renames to "
+                              f"{schedule_mod.RECORD} once the boot exits 0")
+    rec.add_argument("--references", required=True, metavar="DIR",
+                     help="the reference tree root, repo-relative; the record is written beside it")
+    table["render-record"] = _cmd_render_record
 
     pln = subparsers.add_parser("plan", help="resolve which artifacts can SEE the working tree's change")
     pln.add_argument("--changed-from-git", action="store_true", dest="changed_from_git")

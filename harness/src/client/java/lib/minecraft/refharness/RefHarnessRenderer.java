@@ -123,8 +123,8 @@ public final class RefHarnessRenderer {
      *
      * <p>It sums two sources, because a subject can fail on either side of its copy. The runners'
      * tallies count a render that threw and a PNG directory that could not be made;
-     * {@link TextureReadback#failedWrites()} counts a PNG write that failed inside the copy's callback,
-     * a frame or more after the runner had counted that subject rendered.
+     * {@link TextureReadback#failedWrites()} counts a read-back or a PNG write that failed after the
+     * copy landed, a frame or more after the runner had counted that subject rendered.
      *
      * @return the summed failure tally
      */

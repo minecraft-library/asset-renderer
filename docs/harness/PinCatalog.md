@@ -4,7 +4,7 @@ Load when touching, gating or deleting one of the entity pins, freezes or `*Idle
 - and read *When to delete a freeze mixin* at the end before removing any. Writing a new one is
 [EntityPins.md](EntityPins.md). Indexed from [`harness/CLAUDE.md`](../../harness/CLAUDE.md).
 
-Formulas and the freeze / pin catalog are in [README](../../harness/README.md)'s Mixins section, which names 25 of the 55 classes `refharness.client.mixins.json` registers. Quick reference:
+Formulas and the freeze / pin catalog are in [README](../../harness/README.md)'s Mixins section, which names 24 of the 55 classes `refharness.client.mixins.json` registers. Quick reference:
 
 - `FreezeAnimationStateMixin` (`LivingEntityRenderer.extractRenderState`) - zero per-tick anim fields (`deathTime`, `ticksSinceKineticHitFeedback`, `wornHeadAnimationPos`, ...); force `isInWater` on `AbstractFish` (salmon/cod/tropical_fish upright). **Three of its fields are answered by `AnimationClock` rather than pinned**: `ageInTicks` is the frame's tick on a posed run, and `walkAnimationSpeed` / `walkAnimationPos` are, on a walking one, the speed and the tick times the walk-clock rate the subject's schedule armed - vanilla's own render-state values for a subject walking at that pace, its baby scale already inside the rate. **On a posed run the walk pair reaches the subject alone**: arming names the entity the frame draws, `AnimationClock.isSubject(entity)` answers whether a render state is that entity's, and every other entity the client extracts - a world mob in the level behind the capture, drawn before the first frame is armed or while another subject's is - keeps the pair vanilla's own extract gave it. **The capture holds the line from the other side**: `EntityFrameRenderer` refuses to measure or draw an entity on a posed run that no frame is armed for, so a subject armed under another instance, or under none, fails rather than coming out as a stray, and `EntityAnimationScheduleTest` in asset-renderer's suite holds both the refusal and every arm naming the entity it draws. A frozen run zeroes the pair on every entity, and `ageInTicks` reaches every render state alike.
 - `SuppressShakingMixin` (`LivingEntityRenderer.setupRotations`) - cancel the `isShaking` bodyRot wobble.
@@ -13,7 +13,7 @@ Formulas and the freeze / pin catalog are in [README](../../harness/README.md)'s
 - No bee pin. `BeeModel.setupAnim` skips the wing flap and the body bob when `isOnGround`, and a
   never-ticked bee reports false - so forcing the landed pose was a state no subject here is in,
   inert on every frozen sub-tree and worth 120 of animated delta on the one that reads it.
-- `EnderDragonModelMixin` / `WitherBossModelMixin` - cancel `setupAnim`; now redundant under `SkipSetupAnimMixin`, kept as model-specific docs.
+- `EnderDragonModelMixin` - cancels the dragon's `setupAnim`, and is load-bearing: the dragon's renderer is not a `LivingEntityRenderer`, so neither of `SkipSetupAnimMixin`'s redirects reaches it. The wither has no cancel of its own - it renders through `LivingEntityRenderer.submit`, and its charged layer hands the model to `ModelFeatureRenderer.renderModel`, so both of its `setupAnim` calls meet one of those redirects.
 - `GuardianStateMixin` - for the guardian a posed frame draws, `tailAnimation` and `spikesAnimation` are the clock values the roster carries for the subject's gait (`AnimationClock.clock`); on every other render `tailAnimation = 0`, vanilla seeding it at random; `lookAtPosition` / `lookDirection` = null on every frame.
 - `ParrotStandingMixin` (`ParrotRenderer`) - `pose = STANDING` on a posed frame. A never-ticked parrot is off the ground and vanilla draws it flying; the asset side rests a parrot standing in every render, so both posed gaits pin the rest it takes. `setupAnim` is the pose's one reader, so the frozen sub-trees cannot see it.
 - `IronGolemOfferMixin` (`IronGolemRenderer`) - on a posed frame `offerFlowerTick` is the golem's own counter less the frame's tick, floored at 0, which is what `aiStep` would have left. The carried trait starts the offer at 400 and nothing ticks the golem, so without it every frame holds one instant of the arm's sway. Written at RETURN, after the renderer resolved the poppy, so the flower stays drawn; a golem offering nothing is untouched.
@@ -29,9 +29,9 @@ Formulas and the freeze / pin catalog are in [README](../../harness/README.md)'s
 
 ## When to delete a freeze mixin
 
-> **A `setupAnim` freeze is never deleted; it is gated.** `SkipSetupAnimMixin` and the two per-model
-> cancels beside it (`EnderDragonModelMixin`, `WitherBossModelMixin` - the dragon's is load-bearing,
-> its renderer not being a `LivingEntityRenderer`) are what `entities/` is ground truth FOR, and the
+> **A `setupAnim` freeze is never deleted; it is gated.** `SkipSetupAnimMixin` and the per-model
+> cancel beside it (`EnderDragonModelMixin`, load-bearing because the dragon's renderer is not a
+> `LivingEntityRenderer`) are what `entities/` is ground truth FOR, and the
 > asset-renderer's own default draws the mesh as authored. Deleting one would move 88 of the 90
 > modelled entities. So each of them, and `FreezeAnimationStateMixin`'s `ageInTicks`, reads
 > `PoseState.posed()` and the frozen and posed reference sets exist side by side.

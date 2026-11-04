@@ -413,15 +413,6 @@ public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
     }
 
     /**
-     * A tooltip key is not a registry id, so the allowlist has nothing to match it against and
-     * applying one would render nothing at all.
-     */
-    @Override
-    public boolean honoursTargetFilter() {
-        return false;
-    }
-
-    /**
      * Lists the subjects this sweep draws - the roster's own for the vanilla roster, and for a pack run
      * its section's, each with the lines of the unstyled vanilla subject its key names.
      *

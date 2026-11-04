@@ -53,8 +53,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  *
  * <h2>Per-model mixins this generalises</h2>
  * {@link EnderDragonModelMixin} still required (its renderer doesn't go through this path).
- * The previously-added {@code WitherBossModelMixin} is now redundant but harmless - both this
- * redirect and the per-model HEAD cancel resolve to "skip {@code setupAnim}".
+ * The wither needs no cancel of its own: it renders through {@code LivingEntityRenderer.submit},
+ * and its charged layer hands the model to {@code ModelFeatureRenderer.renderModel}, so both of its
+ * {@code setupAnim} calls meet one of the two redirects above.
  *
  * <h2>When to remove this mixin</h2>
  * <b>Never, while the seven static sub-trees exist.</b> This freeze is what they are ground truth
@@ -66,9 +67,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * a whole-run switch, because both redirects decide per render and a run producing one kind of
  * reference cannot produce the other.
  *
- * <p>Same {@code refharness.headless} gate as the other harness mixins, and the animated flag beside
- * it: a run with neither is vanilla, a run with headless alone freezes, and a run with both lets
- * vanilla's own animation through.
+ * <p>Same {@code refharness.headless} gate as the other harness mixins, and the armed gait beside
+ * it: a run without headless is vanilla, a headless render at the frozen gait freezes, and a
+ * headless render at a posed gait lets vanilla's own animation through.
  */
 @Mixin({LivingEntityRenderer.class, ModelFeatureRenderer.class})
 public abstract class SkipSetupAnimMixin {

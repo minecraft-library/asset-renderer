@@ -182,15 +182,6 @@ public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {
     }
 
     /**
-     * Returns {@code false} - the roster is hard-coded rather than drawn from a registry, so
-     * honouring the allowlist would make any scoped run write no armor reference at all.
-     */
-    @Override
-    public boolean honoursTargetFilter() {
-        return false;
-    }
-
-    /**
      * Puts a full set of {@code material} armor on the entity through
      * {@link LivingEntity#setItemSlot}, the same setter the server uses when a mob spawns with gear,
      * so the render state extracts exactly as it would in world.

@@ -1,11 +1,6 @@
 package lib.minecraft.refharness;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.refharness.sweep.ArmorSweep;
-import lib.minecraft.refharness.sweep.EntityAnimationSweep;
-import lib.minecraft.refharness.sweep.GlintSweep;
-import lib.minecraft.refharness.sweep.MenuSweep;
-import lib.minecraft.refharness.sweep.PlayerSweep;
 import lib.minecraft.refharness.sweep.TooltipSweep;
 
 import java.nio.file.Path;
@@ -88,85 +83,12 @@ public final class HarnessConfig {
     public static final String TARGETS = System.getProperty("refharness.targets", "");
 
     /**
-     * When {@code true}, the harness runs <em>only</em> the {@link GlintSweep} (the 7 always-foil
-     * GUI items + the 4 worn leather-armor diagnostics), each as an animated sequence of per-frame
-     * PNGs under {@code references/glint/}, and skips the block / item / entity sweeps entirely. Keeps
-     * glint iteration fast and decoupled from the ~5-minute full reference sweep. Pair with
-     * {@code -PrefharnessGlintOnly=true} on {@code renderVanillaGlintReferences}.
-     */
-    public static final boolean GLINT_ONLY = Boolean.getBoolean("refharness.glintOnly");
-
-    /**
-     * When {@code true}, the harness runs <em>only</em> the {@link PlayerSweep} (the vanilla player
-     * FULL + SKULL references under {@code players/}), skipping the block / item / entity sweeps.
-     * Keeps player-lighting iteration fast and decoupled from the full reference sweep. Pair with
-     * {@code -PrefharnessPlayersOnly=true} on {@code renderVanillaPlayerReferences}.
-     */
-    public static final boolean PLAYERS_ONLY = Boolean.getBoolean("refharness.playersOnly");
-
-    /**
-     * When {@code true}, the harness runs <em>only</em> the {@link ArmorSweep} (armored mobs under
-     * {@code armor/}), skipping the block / item / entity / player sweeps. The main entity sweep
-     * puts armor on no baby and dyes no humanoid leather, so vanilla's separate baby armor model and
-     * dyed humanoid leather have no ground truth without this mode. Pair with
-     * {@code -PrefharnessArmorOnly=true} on {@code renderVanillaArmorReferences}.
-     */
-    public static final boolean ARMOR_ONLY = Boolean.getBoolean("refharness.armorOnly");
-
-    /**
-     * When {@code true}, the harness runs <em>only</em> the {@link MenuSweep} (the shipped container
-     * screens under {@code menus/}), skipping every other sweep. A menu is drawn through the
-     * client's own GUI pipeline rather than by submitting geometry, so its mechanism is worth
-     * iterating on alone. Pair with {@code -PrefharnessMenusOnly=true} on
-     * {@code renderVanillaMenuReferences}.
-     */
-    public static final boolean MENUS_ONLY = Boolean.getBoolean("refharness.menusOnly");
-
-    /**
-     * When {@code true}, the harness runs <em>every</em> reference sweep in one boot - the block /
-     * item / entity / player sweeps plus {@link GlintSweep} and {@link ArmorSweep}, which no other
-     * mode runs alongside them. Each narrowing mode above renders part of the tree, so a change to a
-     * frame renderer two of them share leaves whichever sweep nobody re-ran holding ground truth
-     * recorded by the old code; this mode is the one that cannot. Pair with
-     * {@code -PrefharnessEverySweep=true} on {@code renderVanillaAllReferences}.
-     */
-    public static final boolean EVERY_SWEEP = Boolean.getBoolean("refharness.everySweep");
-
-    /**
-     * When {@code true}, the harness runs <em>only</em> the {@link EntityAnimationSweep} - each
-     * subject posed at every frame of the idle schedule the roster names for it, under
-     * {@code idle/}, at the gait a subject standing still is in.
-     *
-     * <p>What turns the freezes off is {@link #POSED} rather than this, because
-     * {@link #WALKING} needs them off too. Pair with {@code -PrefharnessAnimated=true} on
-     * {@code renderVanillaAnimationReferences}.
-     */
-    public static final boolean ANIMATED = Boolean.getBoolean("refharness.animated");
-
-    /**
-     * When {@code true}, the harness runs <em>only</em> the animated entity sweep with a stride
-     * under it, writing to {@code walk/} rather than to {@code idle/} - every subject posed at
-     * every frame of the walk schedule the roster names for it, walking at that schedule's walk speed
-     * and walk-clock rate.
-     *
-     * <p><b>It implies {@link #ANIMATED} and is not the same run.</b> A stride reaches a model only
-     * through {@code setupAnim}, so the freezes have to be off for this too; what it adds is that
-     * {@code FreezeAnimationStateMixin} answers the two figures a gait is carried on from the
-     * schedule instead of pinning them at zero. The two sets are two sub-trees because they are two
-     * poses of one subject at one tick - the asset-renderer renders {@code IDLE} against one and
-     * {@code WALK} against the other - so a run that drove the stride into {@code idle/} would
-     * move every row of a promoted gate rather than adding a second one.
-     *
-     * <p>Pair with {@code -PrefharnessWalking=true} on {@code renderVanillaWalkReferences}.
-     */
-    public static final boolean WALKING = Boolean.getBoolean("refharness.walking");
-
-    /**
      * Comma-separated {@link HarnessMode} names this run performs, case-insensitively - the way to
      * ask one boot for more than one sub-tree ({@code -Drefharness.modes=EVERY,ANIMATION,WALK}).
      *
-     * <p>The single-mode booleans above each name one mode and compose with this, so a task that sets
-     * one resolves exactly what it always did. Empty and no boolean set is {@link HarnessMode#FULL}.
+     * <p>It is the one way a run names a reference mode, so the task named for a sub-tree cannot leave
+     * out a line of its own and silently render {@link HarnessMode#FULL} instead. Empty, with
+     * {@link #PITCH_ROLL_SWEEP} unset, is {@link HarnessMode#FULL}.
      *
      * <p><b>What a posed run needs is a {@link Gait}, and a gait is armed per sweep rather than per
      * JVM.</b> {@code SkipSetupAnimMixin}'s redirects both decide per render, so the freezes never
@@ -184,22 +106,25 @@ public final class HarnessConfig {
     public static final String TOOLTIP_ROSTER = System.getProperty("refharness.tooltipRoster", "");
 
     /**
-     * How many subjects one client tick renders. Defaults to {@code 8}; it was effectively {@code 1}
-     * for the harness's whole life, and that was the run's largest single cost.
+     * How many subjects one client tick renders, {@code 8} by default.
      *
-     * <p>A client ticks twenty times a second whatever the machine can draw, so one render per tick
-     * priced a 2310-reference run at nearly two minutes of waiting on the tick clock alone - the
-     * largest single cost in the run, ahead of the boot. What held it there was the read-back:
-     * {@code PipTarget} closed its colour texture on a canvas resize, and only the length of a tick
-     * kept a copy in flight from meeting a released one. The texture is retired rather than closed
-     * now, so this is a throughput knob rather than the correctness fence it used to be.
+     * <p>A client ticks twenty times a second whatever the machine can draw, so the tick clock prices
+     * a run: at one render a tick, a 2310-reference tree waits nearly two minutes on it alone, ahead
+     * of the boot. {@code PipTarget} retires a colour texture a canvas resize replaces rather than
+     * closing it, and closes it only once enough renders are queued behind it that no copy in flight
+     * can meet it, so this is a throughput knob rather than a correctness fence.
      *
-     * <p>It is still a knob rather than a constant because the ceiling is the machine's: each render
-     * queues a copy the GPU has to execute, and asking for more per tick than it can retire just moves
-     * the wait. Measured on the whole tree, every one of them byte-identical: {@code 1} renders it in
-     * {@code 3m 28s}, {@code 4} in {@code 1m 13s}, {@code 16} in {@code 1m 7s} and {@code 32} in
-     * {@code 1m 8s}. Past the low tens the run is boot-bound rather than tick-bound, so the default
-     * sits where the curve flattens rather than at the fastest single reading.
+     * <p>Measured on the whole tree on the machine the reference tree is rendered on, every reading
+     * byte-identical to the stored tree: {@code 8} renders it in {@code 1m 25s} and {@code 16} in
+     * {@code 52s}, and at both every sub-tree of more than a hundred references renders at the cap the
+     * value sets - 160 and 320 a second. So on that machine the tick bounds the run at either value,
+     * and the default is not the fastest one measured.
+     *
+     * <p>It stays at {@code 8} because a value past it is measured on one machine only, and what it
+     * costs depends on the GPU: each render queues a copy the GPU has to execute, and a machine asked
+     * for more per tick than its GPU retires moves the wait from the tick to the copies, while doubling
+     * the value doubles the renders, {@code max(8, 2 x RENDERS_PER_TICK)}, that a replaced texture is
+     * held open for. {@code -PrefharnessRendersPerTick} takes another value for one run.
      */
     public static final int RENDERS_PER_TICK = Math.max(1, Integer.getInteger("refharness.rendersPerTick", 8));
 
@@ -213,14 +138,6 @@ public final class HarnessConfig {
      * alone gives the desired screen orientation (Euler-angle gimbal interaction).
      */
     public static final boolean PITCH_ROLL_SWEEP = Boolean.getBoolean("refharness.pitchRollSweep");
-
-    /**
-     * Diagnostic flag: when {@code true}, the run renders the depth-quantum probe instead of any
-     * reference sweep - two overlapping quads a swept distance apart, whose contested band says how
-     * finely the depth test can tell two surfaces apart. Writes outside the reference tree and
-     * re-renders nothing.
-     */
-    public static final boolean DEPTH_QUANTUM_PROBE = Boolean.getBoolean("refharness.depthQuantumProbe");
 
     /**
      * Comma-separated file names of the resource packs the client selects over its own selection at

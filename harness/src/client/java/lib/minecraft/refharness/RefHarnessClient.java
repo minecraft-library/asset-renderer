@@ -1,5 +1,6 @@
 package lib.minecraft.refharness;
 
+import lib.minecraft.refharness.pip.TextureReadback;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
@@ -168,12 +169,15 @@ public final class RefHarnessClient implements ClientModInitializer {
      *
      * <p>It runs as a shutdown hook rather than at the moment the sweep finishes because the last
      * subject's read-back callback is still in flight when a sweep completes; halting there would
-     * truncate the PNG the run exists to produce. The client is asked to stop normally and the status
-     * is overridden at the very end, which is the only point where the exit code is still ours to
-     * set. {@code halt} may cut a logging framework's own hook short, so the message goes to
-     * {@code System.err} directly rather than through the logger.
+     * truncate the PNG the run exists to produce. It waits the encoders out first, for the same reason
+     * one step further on: the callback hands its image to them, and their writes count here. The
+     * client is asked to stop normally and the status is overridden at the very end, which is the
+     * only point where the exit code is still ours to set. {@code halt} may cut a logging framework's
+     * own hook short, so the message goes to {@code System.err} directly rather than through the
+     * logger.
      */
     private static void reportIncompleteSweep() {
+        TextureReadback.drain();
         int failed = RefHarnessRenderer.failedSubjects();
         if (failed == 0 && !CRASHED.get()) return;
         System.err.printf("refharness: sweep incomplete - %d subject(s) failed%s. Exiting %d; the "

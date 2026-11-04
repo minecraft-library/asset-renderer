@@ -17,8 +17,8 @@ property of the mechanism.
 
 **`stride` has a vanilla reference of its own, and it is `walk/`.** The harness drives the same two
 figures at the speed and rate the asset side resolves for each subject - the roster
-`entityScheduleRoster` writes from `StyleResolution` - under `-Drefharness.walking=true`, which is the
-animated run with a stride rather than a run of its own. `StyleCatalogMirrorTest` holds the harness to
+`entityScheduleRoster` writes from `StyleResolution` - under the `WALK` mode, which is the animated
+sweep with a stride rather than a sweep of its own. `StyleCatalogMirrorTest` holds the harness to
 arming what the roster names and nothing of its own, because the speed is the swing as well as the
 phase and a value that moved on one side puts the two at different points of different strides.
 `entityWalkParityVanilla` is the sweep, and it is `entityAnimationParityVanilla`'s own driver handed

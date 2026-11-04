@@ -97,7 +97,7 @@ in. The texel half of the raster contract, and the corner snap's grid and tie ru
   bounds, the scrolled pass, and what the snapped corners decide for it - is [TexelFetch.md](TexelFetch.md), beside
   what the reference GPU does to the coordinate and what the renderer does not reproduce of it.
 - The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
-  at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
+  at `1000`.
   A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
   the ground truth first.
 

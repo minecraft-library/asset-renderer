@@ -1,18 +1,29 @@
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.support.serviceOf
 import org.gradle.process.ExecOperations
+import org.gradle.workers.WorkAction
+import org.gradle.workers.WorkParameters
+import org.gradle.workers.WorkerExecutor
 
 import javax.inject.Inject
 
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Callable
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 // Everything the parity store is gated by: the roots, the artifact roster, the harness runs, the
@@ -111,11 +122,102 @@ class TeeStream(private val console: OutputStream, private val log: OutputStream
     }
 }
 
+/**
+ * What one client boot is handed: where the harness's wrapper runs, the argv it runs, and the log its
+ * stdout is teed to.
+ */
+interface HarnessBootParameters : WorkParameters {
+    /** The harness build's directory, which the wrapper runs in. */
+    val workingDirectory: DirectoryProperty
+
+    /** The wrapper's whole argv. */
+    val commandLine: ListProperty<String>
+
+    /** Where the harness's stdout is teed beside the console. */
+    val log: RegularFileProperty
+}
+
+/**
+ * Boots the client once through the harness's own wrapper, its stdout teed to the console and a log.
+ *
+ * <p>The harness prints `<sweep>: done. rendered= skipped= failed= total=` and one fit line per cohort,
+ * and both are discarded with its gitignored logs. `failed=` is the only signal a partially failed
+ * sweep leaves, so the stream is teed rather than swallowed. A non-zero exit fails the work and so the
+ * task that submitted it.
+ */
+abstract class HarnessBoot @Inject constructor(private val execOps: ExecOperations) :
+    WorkAction<HarnessBootParameters> {
+
+    override fun execute() {
+        val log = parameters.log.get().asFile
+        log.parentFile.mkdirs()
+        TeeStream(System.out, FileOutputStream(log)).use { tee ->
+            execOps.exec {
+                workingDir = parameters.workingDirectory.get().asFile
+                commandLine(parameters.commandLine.get())
+                standardOutput = tee
+            }
+        }
+    }
+}
+
+/**
+ * One harness run: a client boot handed to the Worker API rather than run on the task's own thread.
+ *
+ * <p>That is the whole difference from an `Exec`, and it is what frees the root project while the
+ * client renders. Gradle runs one task of a project at a time unless a task's work is in flight
+ * through the Worker API, so an `Exec` boot would hold every root-project producer behind it for the
+ * length of the render, including the ones that read nothing of the tree. A task is complete only once its
+ * work is, so its `doLast` actions - the stamp of the mode that ran and the producer's wall time - run
+ * after the boot, and every edge ordering a reader after this task still waits for the render.
+ */
+abstract class HarnessRunTask @Inject constructor(private val workers: WorkerExecutor) : DefaultTask() {
+
+    /** The harness build's directory, which the wrapper runs in. */
+    @get:Internal
+    abstract val workingDirectory: DirectoryProperty
+
+    /** The wrapper's whole argv. */
+    @get:Input
+    abstract val commandLine: ListProperty<String>
+
+    /** Where the harness's stdout is teed beside the console. */
+    @get:Internal
+    abstract val log: RegularFileProperty
+
+    @TaskAction
+    fun boot() {
+        val directory = workingDirectory
+        val argv = commandLine
+        val teeTo = log
+        workers.noIsolation().submit(HarnessBoot::class.java) {
+            workingDirectory.set(directory)
+            commandLine.set(argv)
+            log.set(teeTo)
+        }
+    }
+}
+
+/**
+ * The one client a build boots at a time, leased by every harness run and by the harness compile.
+ *
+ * <p>Every run boots the same run directory - one options file, one world save the run deletes before
+ * it starts - and the compile runs the same nested build, so two of them at once would race over both.
+ * A lease is held until its task completes, the boot's work included, so a second run waits for the
+ * first client to stop while everything else in the project goes on around it.
+ */
+abstract class HarnessClient : BuildService<BuildServiceParameters.None>
+
 // The vanilla-reference-harness Fabric mod, which lives inside this repo at harness/ and stays its
 // own Gradle build - its own gradlew, its own JDK 25 toolchain, and no Loom in settings.gradle.kts.
 // The five reference-render tasks below drive it externally through that wrapper, so this is the one
 // place the path is written and the only thing a future relocation has to edit.
 val harnessDir = layout.projectDirectory.dir("harness")
+
+/** The lease on the one client a build boots at a time. */
+val harnessClient = gradle.sharedServices.registerIfAbsent("harnessClient", HarnessClient::class) {
+    maxParallelUsages.set(1)
+}
 
 // ---- reading a -P without hitting a Project bean property ----------------------------------------
 // Project.findProperty resolves a project's BEAN properties as well as its project properties, and
@@ -361,6 +463,13 @@ val parityReferenceRoot: String =
 // resolves the same sibling, in TooltipParitySweep.
 val parityPackTooltipRoot: String = parityReferenceRoot.substringBeforeLast('/') + "/pack-tooltips"
 
+// The record of the last whole-tree render, a sibling of the tree so the manifest hashing the tree
+// never reads it, and the pending copy a whole-tree render writes of its inputs before it boots. The
+// toolkit writes the pending one and the schedule check reads the sealed one; the build seals it.
+val parityReferenceRecord: String = parityReferenceRoot.substringBeforeLast('/') + "/references-rendered.json"
+val parityReferenceRecordPending: String =
+    parityReferenceRoot.substringBeforeLast('/') + "/references-rendered.pending.json"
+
 
 /**
  * Where every parity producer's stdout is teed, as a project-relative path the toolkit can read.
@@ -600,9 +709,10 @@ val parityProducerElapsedMs: MutableMap<String, Long> = linkedMapOf()
 
 // Every alias that can be derived from the table is derived from it, so a new row joins its alias
 // without a second edit. `renders`, `dump` and `tables` name their members because those three are
-// groupings rather than kinds. manifest.references is deliberately in `all`: naming it means booting
-// the Minecraft client for 152 seconds, which is correct, because the alternative is a reference
-// manifest captured against whatever happened to be on disk.
+// groupings rather than kinds. manifest.references is deliberately in `all`: a -Partifacts naming
+// the row always boots the client and renders the whole tree before hashing it. Only a capture of a
+// plan's own set, whose every rule reaches the tree through the schedule roster, may hash the tree on
+// disk instead, and only once the schedule check has found it current.
 val parityArtifactAliases: Map<String, List<String>> = mapOf(
     "all" to parityArtifacts.map { it.artifact },
     "sweeps" to parityArtifacts.map { it.artifact }.filter { it.startsWith("sweep.") },
@@ -658,6 +768,75 @@ fun parityPlannedArtifacts(): List<String>? {
     val plan = groovy.json.JsonSlurper().parseText(text) as Map<*, *>
     return (plan["plan"] as List<*>?)?.map { it.toString() }
 }
+
+/**
+ * How the plan says a capture refreshes the reference tree, or null where no plan holds that row.
+ *
+ * <p>`roster` where every rule that put manifest.references in the plan reaches the tree through the
+ * entity schedule roster alone - B47's version pins, B65's roster inputs or a derived rule's graph
+ * answer - and `boot` where any other rule did. The toolkit decides it and prints it on the plan's
+ * REFERENCES line; this reads the plan `parityPlannedArtifacts` reads, through the same declared input.
+ *
+ * @return the plan's refresh, or null when no plan has been written or it holds no such row
+ */
+fun parityPlannedReferencesRefresh(): String? {
+    val text = providers
+        .fileContents(layout.projectDirectory.file("$parityWorkingRoot/_run/plan.json"))
+        .asText.orNull ?: return null
+    val plan = groovy.json.JsonSlurper().parseText(text) as Map<*, *>
+    return (plan["references"] as Map<*, *>?)?.get("refresh")?.toString()
+}
+
+/**
+ * Whether a capture's boot of the reference tree waits on the schedule check and may be skipped.
+ *
+ * <p>True where no -Partifacts was given, so the capture is the plan's own set, and that plan says
+ * `roster`. A -Partifacts naming the row asks for the render, and a plan saying `boot` - or holding no
+ * such row - has no check to wait on.
+ *
+ * <p>The plan read here only decides whether the check is scheduled. The check resolves the tree
+ * again when the capture runs and disagrees wherever its answer is not the plan's.
+ *
+ * @return whether the plan gates the boot on the roster
+ */
+fun parityReferencesRosterGated(): Boolean =
+    parityProperty("artifacts") == null && parityPlannedReferencesRefresh() == "roster"
+
+/**
+ * Whether the schedule check this capture ran found the reference tree on disk current.
+ *
+ * <p>Read where the boot decides, at execution, off the verdict the check has just written into the
+ * working root. Absent or unreadable answers no, so a check that never wrote one costs the boot the
+ * capture would have paid without it rather than a capture of a tree nobody judged current.
+ *
+ * @param verdict the check's `_run/schedule-check.json`
+ * @return whether it says the tree is current
+ */
+fun parityScheduleAgrees(verdict: File): Boolean {
+    if (!verdict.isFile) return false
+    val read = runCatching { groovy.json.JsonSlurper().parse(verdict) as Map<*, *> }.getOrNull()
+    return read?.get("agrees") == true
+}
+
+/**
+ * Whether this invocation's resolved graph is one whose boot the skip may take, filled once the
+ * graph is ready.
+ *
+ * <p>It holds the capture, and it holds no `parityPlan`: the build read the last plan to choose the
+ * capture's rows and to schedule the check before that task writes the next one. Asked of the graph
+ * rather than of the typed tokens for the reason `parityTaskRequested` gives: a token that names no
+ * capture must never cost a hand-run render its refresh.
+ */
+val parityBootSkippable = AtomicBoolean(false)
+gradle.taskGraph.whenReady { parityBootSkippable.set(hasTask(":parityCapture") && !hasTask(":parityPlan")) }
+
+/**
+ * Whether this invocation skipped the whole-tree boot, filled where the skip is decided.
+ *
+ * <p>The capture of manifest.references records it, so a gate whose plan boots the tree can tell a
+ * capture that hashed the tree as it stood from one a render wrote.
+ */
+val parityReferencesHashed = AtomicBoolean(false)
 
 /**
  * Expands `-Partifacts` into the rows to capture.
@@ -775,7 +954,7 @@ fun TaskContainer.registerHarnessRun(
     refreshes: List<String>,
     describe: String,
     extraArgs: List<String> = emptyList()
-): TaskProvider<Exec> {
+): TaskProvider<HarnessRunTask> {
     // The ground-truth row this run writes: the reference tree's when it refreshes a sub-tree of it,
     // otherwise the row the artifact table names it the producer of, and none for a probe. Recorded
     // here, where the run is REGISTERED: the configuration block below runs only when the task is
@@ -791,10 +970,12 @@ fun TaskContainer.registerHarnessRun(
         drawn.singleOrNull()?.artifact
     }
     if (writes != null) harnessRunTrees[name] = writes
-    return register<Exec>(name) {
+    return register<HarnessRunTask>(name) {
         description = describe
         group = "tooling"
-        workingDir = harnessDir.asFile
+        workingDirectory.set(harnessDir)
+        // One client at a time: two runs in one invocation boot the same run directory.
+        usesService(harnessClient)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         // layout.projectDirectory, never File(relative): a bare File resolves against the JVM's
@@ -807,7 +988,7 @@ fun TaskContainer.registerHarnessRun(
         // so a run handed the tree itself lands INSIDE it - and manifest.references walks that root for
         // `*.png` at any depth with no member list, so one such run would enter its whole grid as rows
         // of a manifest no reference render had touched. The store already says where a probe's output
-        // belongs: index.json homes probe.depth-quantum at a SIBLING of the tree, "written
+        // belongs: index.json homes probe.pack-icons at a SIBLING of the tree, "written
         // deliberately outside the reference tree". This is what makes that true.
         val outputDir = if (refreshes.isEmpty()) referenceDir.parentFile else referenceDir
         val argv = mutableListOf<String>()
@@ -827,20 +1008,39 @@ fun TaskContainer.registerHarnessRun(
         harnessDiagnosticProperties.filter { project.hasProperty(it) }
             .forEach { argv += "-P$it=${project.property(it)}" }
         argv += extraArgs
-        commandLine = argv
-        val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
+        commandLine.set(argv)
+        log.set(layout.buildDirectory.file("parity/harness-$name.log"))
         val stale = referenceSubTrees - refreshes.toSet()
         doFirst {
-            log.parentFile.mkdirs()
-            // The harness prints "<sweep>: done. rendered= skipped= failed= total=" and one fit line
-            // per cohort, and both are discarded with its gitignored logs. failed= is the only signal a
-            // partially failed sweep leaves, so the stream is tee'd rather than swallowed.
-            standardOutput = TeeStream(System.out, FileOutputStream(log))
             outputDir.mkdirs()
             println("$name -> ${outputDir.toPath().toAbsolutePath().normalize()}")
             if (refreshes.isNotEmpty() && stale.isNotEmpty())
                 println("$name does NOT refresh ${stale.joinToString()} - those sub-trees keep " +
                     "whatever produced them. After any harness render change run renderVanillaAllReferences.")
+        }
+        // The record of the last whole-tree render, which the schedule check holds the tree's inputs
+        // to before a capture may hash the tree in place of a render. Every run writing into the tree
+        // deletes it before it boots: a narrow run leaves the sub-trees it never touched, a targeted
+        // run the subjects it filtered out, and a boot that fails part-way whatever it had not reached.
+        // So it stands only over a tree last written by a whole, untargeted boot that exited 0, and
+        // that run seals the record parityReferenceRenderRecord wrote of its inputs before it booted.
+        // Sealed in doLast, which runs only once the boot's work has completed without failing.
+        if (refreshes.isNotEmpty()) {
+            val record = layout.projectDirectory.file(parityReferenceRecord).asFile
+            val pending = layout.projectDirectory.file(parityReferenceRecordPending).asFile
+            val seals = refreshes.toSet() == referenceSubTrees.toSet() &&
+                !(forwardsTargets && project.hasProperty("refharnessTargets"))
+            doFirst {
+                record.delete()
+                if (!seals) pending.delete()
+            }
+            if (seals) {
+                dependsOn("parityReferenceRenderRecord")
+                doLast {
+                    if (pending.isFile)
+                        Files.move(pending.toPath(), record.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
         }
         // The run happened, so any capture still to come in this invocation reads a tree this mode
         // wrote. doLast rather than doFirst: a render that failed left a half-written tree, and a
@@ -961,6 +1161,11 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
                 if (ran.isNotEmpty()) args("--mode", ran)
             }
         }
+        // And, on the row hashing the reference tree, that this invocation hashed the tree as it stood
+        // rather than rendering it - the skip having found it current. A gate whose plan boots the
+        // tree reads this, because an unrendered tree matches its baseline whatever the change does.
+        if (spec.artifact == parityReferencesArtifact)
+            doFirst { if (parityReferencesHashed.get()) args("--tree-refresh", "hashed") }
         // And the wall time of this row's producers, appended for the same reason: how long they
         // took is not known while the graph is configured. Only what RAN is summed, so a step whose
         // producers were up to date or absent from the invocation stamps no duration at all - a zero
@@ -1176,38 +1381,36 @@ tasks {
         }
     }
 
-    // The harness runs. Seven rows over one helper, where there used to be five 30-line Exec bodies
-    // re-declaring workingDir, the wrapper path, the OS test and the argv prologue verbatim and
-    // differing only by a mode flag, whether they forward -PrefharnessTargets, and which sub-trees
-    // they refresh. Those are three columns, so they are rows. The argument for keeping clones is
-    // that one can diverge; the recorded history is that divergence IS the defect - one of the five
-    // forwarded a MODE flag as if it were a filter, and two accepted no properties at all with no
-    // stated reason.
+    // The harness runs, as rows over one helper. What differs between them is a mode flag, whether
+    // they forward -PrefharnessTargets, and which sub-trees they refresh - three columns, so they are
+    // rows, and the working directory, the wrapper path, the OS test and the argv prologue are written
+    // once. A run declared as a body of its own is a place for one run to diverge from the rest - a
+    // mode flag forwarded as if it were a filter, a property accepted by one and not another - with
+    // nothing to show it.
     //
-    // A mode is a task, never a pass-through. -PrefharnessPitchRollSweep used to ride
-    // renderVanillaReferences, where it made the task render no reference at all - under a name
-    // claiming otherwise, and exiting 0. It has its own task now, and so does the depth-quantum
-    // probe, which was previously reachable only by cd-ing into the harness.
+    // A mode is a task, never a pass-through: a mode flag riding another task makes a task named for
+    // the references render none and exit 0. Every reference mode is named through
+    // -PrefharnessModes, the one spelling the harness reads a reference mode from, so no task names a
+    // sub-tree through a line of its own that could go missing and render FULL instead.
     registerHarnessRun("renderVanillaReferences", null, "FULL", true,
         listOf("blocks", "items", "entities", "players"),
         "Runs the harness in FULL mode: blocks, items, entities and the player. Refreshes those four " +
         "sub-trees and no other - use renderVanillaAllReferences after any harness render change. ~125 s warm.")
 
-    registerHarnessRun("renderVanillaGlintReferences", "refharnessGlintOnly", "GLINT", true, listOf("glint"),
+    registerHarnessRun("renderVanillaGlintReferences", "refharnessModes=GLINT", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
     // forwardsTargets = false on the player, armour, menu and tooltip runs, and the reason is in the
-    // sweep rather than in the task: PlayerSweep.honoursTargetFilter(), ArmorSweep.honoursTargetFilter(),
-    // MenuSweep.honoursTargetFilter() and TooltipSweep.honoursTargetFilter() all return false because
-    // none of those sweeps' subjects have a registry id, so a filter would match nothing and the run
-    // would write no reference at all.
-    registerHarnessRun("renderVanillaPlayerReferences", "refharnessPlayersOnly", "PLAYERS", false, listOf("players"),
+    // sweeps: none of their subjects has a registry id, so none of them reads -PrefharnessTargets in
+    // the enumerate where the block, item, entity and glint sweeps filter, and each renders its whole
+    // roster whatever the filter names. Forwarding it would read as a scoped run that is not one.
+    registerHarnessRun("renderVanillaPlayerReferences", "refharnessModes=PLAYERS", "PLAYERS", false, listOf("players"),
         "Runs the harness in PLAYERS mode: references/players/ only. Then run playerParityVanilla.")
 
-    registerHarnessRun("renderVanillaArmorReferences", "refharnessArmorOnly", "ARMOR", false, listOf("armor"),
+    registerHarnessRun("renderVanillaArmorReferences", "refharnessModes=ARMOR", "ARMOR", false, listOf("armor"),
         "Runs the harness in ARMOR mode: references/armor/ only. ~27 s. Then run armorParityVanilla.")
 
-    registerHarnessRun("renderVanillaMenuReferences", "refharnessMenusOnly", "MENUS", false, listOf("menus"),
+    registerHarnessRun("renderVanillaMenuReferences", "refharnessModes=MENUS", "MENUS", false, listOf("menus"),
         "Runs the harness in MENUS mode: references/menus/ only - every subject of MenuSweep's " +
         "roster, each drawn through the client's own GUI pipeline. Then run menuParityVanilla.")
 
@@ -1218,13 +1421,13 @@ tasks {
         "line through the text draw of the client's hotbar-name call, into tooltips/plain/. Then run " +
         "tooltipParityVanilla.")
 
-    registerHarnessRun("renderVanillaAnimationReferences", "refharnessAnimated", "ANIMATION", true,
+    registerHarnessRun("renderVanillaAnimationReferences", "refharnessModes=ANIMATION", "ANIMATION", true,
         listOf("idle"),
         "Runs the harness in ANIMATION mode: references/idle/ only - every entity posed at each tick " +
         "of its own schedule, with vanilla's own setupAnim running; the roster is written first. " +
         "Then run entityAnimationParityVanilla.")
 
-    registerHarnessRun("renderVanillaWalkReferences", "refharnessWalking", "WALK", true,
+    registerHarnessRun("renderVanillaWalkReferences", "refharnessModes=WALK", "WALK", true,
         listOf("walk"),
         "Runs the harness in WALK mode: references/walk/ only - the same subjects, each at its walk " +
         "schedule, the stride armed at the walk speed and walk-clock rate the roster names. " +
@@ -1246,10 +1449,6 @@ tasks {
         "Harness PITCH_ROLL probe: renders the first -PrefharnessTargets subject over a 24x24 pitch/roll " +
         "grid into entities-pitch-roll-sweep/, OUTSIDE the reference tree. Refreshes no reference. " +
         "Requires -PrefharnessTargets.")
-
-    registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", "DEPTH_QUANTUM", false, emptyList(),
-        "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
-        "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
 
     // renderVanillaPackSources, renderVanillaPackTooltipsHypixelSkyblock and renderVanillaPackIcons are
     // the runs that load resource packs, one per pack mode. HarnessMode.resolve refuses packs beside any
@@ -1338,6 +1537,15 @@ tasks {
 
     named("renderVanillaPackIcons") { dependsOn("packIconRoster") }
 
+    // A harness run's boot is Worker API work, so the project's other tasks run beside it, and every
+    // task that reads what one draws waits for it. The sweeps and the capture steps take that edge off
+    // the trees the runs write, further down, and the schedule check and the toolkit's suite where
+    // each is registered; the slow suite reads the entity sub-tree, and each probe report reads the
+    // directory its own probe draws beside the tree.
+    named("slowTest") { mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }.keys) }
+    named("packIconParityVanilla") { mustRunAfter("renderVanillaPackIcons") }
+    named("packSourceParityVanilla") { mustRunAfter("renderVanillaPackSources") }
+
     // The schedule every posed reference run renders at, written by the asset side's own resolution
     // before each of the three runs that read it, so no posed run boots the client over a stale roster.
     // It declares no outputs and is never up to date, as packIconRoster is not.
@@ -1349,6 +1557,81 @@ tasks {
     }
     listOf("renderVanillaAnimationReferences", "renderVanillaWalkReferences", "renderVanillaAllReferences")
         .forEach { named(it) { dependsOn("entityScheduleRoster") } }
+
+    // Whether the tree on disk is the one a render would write now, for a capture whose plan reaches
+    // it through the roster alone: the plan held to the tree as it stands, the harness inputs to the
+    // record of the last whole render, and the roster the asset side has just written projected onto
+    // the schedules the posed sub-trees recorded - every frozen sub-tree reads nothing of the roster.
+    // The toolkit answers it, so each comparison is written once, and writes its verdict into the
+    // working root's _run/ - after the erase, which is the one edge that keeps the verdict this
+    // capture's.
+    register<ParityToolkitTask>("parityScheduleCheck") {
+        description = "Holds the reference tree on disk to the one a render would write now - the plan to the tree " +
+            "as it stands, the harness inputs to the record of the last whole render, and the entity schedule " +
+            "roster to the schedules the posed sub-trees recorded - and writes the verdict to the working root's " +
+            "_run/schedule-check.json. A capture whose plan reaches the reference tree through the roster alone " +
+            "runs it, and boots the client only where it disagrees."
+        dependsOn("entityScheduleRoster")
+        mustRunAfter(parityCaptureBeginTask)
+        // And after every narrow run writing the tree, which rewrites what the check reads - a
+        // sidecar, the record - while it boots. The whole-tree run waits on this check instead.
+        mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }.keys - "renderVanillaAllReferences")
+        pythonExe.set(parityPythonExe)
+        argv.set(buildList {
+            add("schedule-check")
+            add("--root"); add(parityWorkingRoot)
+            add("--store"); add(parityProductionStore)
+            add("--references"); add(parityReferenceRoot)
+            add("--client-version"); add(minecraftVersion)
+        })
+        outputs.upToDateWhen { false }
+    }
+
+    // What a whole-tree render reads beside the schedule roster - the trigger paths of every rule that
+    // boots the tree, the harness's sources and wiring and the tooltip roster - digested into a pending
+    // record beside the tree before the boot. The whole, untargeted renderVanillaAllReferences depends
+    // on it and seals the record once its boot exits 0.
+    register<ParityToolkitTask>("parityReferenceRenderRecord") {
+        description = "Digests what a whole-tree render reads beside the entity schedule roster into " +
+            "references-rendered.pending.json beside the reference tree, which renderVanillaAllReferences " +
+            "renames to references-rendered.json once its boot exits 0."
+        pythonExe.set(parityPythonExe)
+        argv.set(buildList {
+            add("render-record")
+            add("--store"); add(parityProductionStore)
+            add("--references"); add(parityReferenceRoot)
+        })
+        outputs.upToDateWhen { false }
+    }
+
+    // The boot a capture skips. A plan whose rules reach the reference tree through the schedule
+    // roster alone says `roster`, and a capture of that plan's own set schedules the check, which this
+    // run waits on. The check resolves the tree again rather than trusting the plan, holds the
+    // harness inputs to the record of the last whole render, and projects the roster onto what the
+    // posed sub-trees recorded; the boot runs wherever any of the three disagrees. Where all three
+    // agree, the run is skipped and the capture step behind it hashes the tree as it stands, through
+    // the same step and into the same digest form a boot would have led to, stamping no mode and
+    // recording that it hashed. A -Partifacts naming the row and a plan any harness rule or the
+    // tooltip roster selected the row in never schedule the check; a graph holding parityPlan never
+    // skips; and a run outside a capture always renders, the skip asking the resolved graph whether
+    // the capture is in it. Typed beside a bare capture of a roster plan, the render is that
+    // capture's producer and is skipped where the check finds the tree current.
+    named("renderVanillaAllReferences") {
+        mustRunAfter("parityScheduleCheck")
+        val rosterGated = parityReferencesRosterGated()
+        val verdict = layout.projectDirectory.file("$parityWorkingRoot/_run/schedule-check.json").asFile
+        onlyIf("the schedule check did not find the reference tree current") {
+            val current = rosterGated && parityBootSkippable.get() && parityScheduleAgrees(verdict)
+            if (current) {
+                parityReferencesHashed.set(true)
+                logger.lifecycle("parity: renderVanillaAllReferences skipped - every rule selecting " +
+                    "$parityReferencesArtifact reaches the tree through the schedule roster, the tree was " +
+                    "last rendered whole from the inputs it holds now, and the roster agrees with what " +
+                    "idle/ and walk/ recorded, so the capture hashes the tree on disk.")
+            }
+            !current
+        }
+    }
 
     // All eight tooling flows write through one constant into src/main/resources/lib/minecraft/renderer/
     // and therefore dirty tracked files on every run. That is the signal, not a problem, so nothing
@@ -1402,12 +1685,17 @@ tasks {
         // wherever the same invocation runs a producer the suite runs after it rather than beside it.
         dependsOn("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
         mustRunAfter(parityProducerNames)
+        // And after every harness run, a boot leaving the project free around it: the corpus case
+        // walks the reference tree a narrow run may be rewriting.
+        mustRunAfter(harnessRunTrees.keys)
     }
 
     register<Exec>("harnessClasses") {
         description = "Compiles the vanilla-reference-harness through its own wrapper. The cheap gate on a harness edit: nothing else in this build compiles those sources, so a mistake in them otherwise surfaces at the next client boot."
         group = "verification"
         workingDir = harnessDir.asFile
+        // The client's lease too: it runs the same nested build a boot does, over the same directory.
+        usesService(harnessClient)
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         // Both source sets, and `clientClasses` is the load-bearing one: Loom's
@@ -1668,6 +1956,10 @@ tasks {
         mustRunAfter(Callable {
             resolveParityArtifacts(parityProperty("artifacts")).flatMap { spec -> spec.producers }
         })
+        // The schedule check, where the plan gates the reference tree's boot on it. Scheduled from
+        // here, behind a Callable, because the capture is the one graph the check belongs in and this
+        // edge resolves only for a graph holding the capture - a hand run of the render never meets it.
+        dependsOn(Callable { if (parityReferencesRosterGated()) listOf("parityScheduleCheck") else emptyList() })
         outputs.upToDateWhen { false }
     }
 
@@ -1831,7 +2123,8 @@ tasks {
     // a count to be parsed.
     //
     // BOTH exec shapes and BOTH projects, because how a producer is STARTED says nothing about
-    // whether its output is worth keeping, and neither does WHERE it is registered. The renderer's
+    // whether its output is worth keeping, and neither does WHERE it is registered. The harness runs
+    // are neither shape: each tees its own boot into build/parity/harness-<name>.log. The renderer's
     // own producers are JavaExec on this project; the eight generator flows are JavaExec on
     // `:tooling`, reached here through an alias that does its work by `dependsOn` alone. An alias is
     // a DefaultTask, so neither `withType` below matches it and attaching to this container alone
@@ -1884,7 +2177,7 @@ tasks {
     }
 
     // And its wall time, which is the other thing only the producer can answer. Every producer,
-    // whatever its type: the pin suite is a Test task and the reference render is an Exec, and a
+    // whatever its type: the pin suite is a Test task and the reference render a HarnessRunTask, and a
     // budget missing those is a budget missing the expensive half. `doFirst` prepends, so the
     // start is taken before any action the task already carries.
     //

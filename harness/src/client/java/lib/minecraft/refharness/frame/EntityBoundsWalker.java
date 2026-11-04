@@ -1713,45 +1713,6 @@ final class EntityBoundsWalker implements AutoCloseable {
         return p;
     }
 
-    /**
-     * Legacy binary include/exclude polygon filter, retained as a reference. Replaced in the
-     * walk path by {@link #contributePolygonExtents}, which keeps a similar 5×5 sampling
-     * approach but contributes <em>per-opaque-sample</em> bilinearly-interpolated positions
-     * to the bounds instead of the full 4 vertex corners. That's strictly tighter for
-     * polygons with sparse opaque regions (warden tendrils) while matching the legacy
-     * behaviour for fully-opaque polygons (every sample is opaque, all 25 contribute, the
-     * union of their bilinear positions equals the 4-corner bounds).
-     */
-    @SuppressWarnings("unused")
-    private static boolean polygonAllTransparent(ModelPart.Polygon polygon, NativeImage texture) {
-        int width = texture.getWidth();
-        int height = texture.getHeight();
-        if (width <= 0 || height <= 0) return false;
-        float uMin = Float.POSITIVE_INFINITY, uMax = Float.NEGATIVE_INFINITY;
-        float vMin = Float.POSITIVE_INFINITY, vMax = Float.NEGATIVE_INFINITY;
-        for (ModelPart.Vertex vertex : polygon.vertices()) {
-            uMin = Math.min(uMin, vertex.u());
-            uMax = Math.max(uMax, vertex.u());
-            vMin = Math.min(vMin, vertex.v());
-            vMax = Math.max(vMax, vertex.v());
-        }
-        // Sample on a 5x5 grid spanning the UV box (inclusive of edges). Step=1/4 puts a
-        // sample at each corner, each edge midpoint, the four edge quarter-points, and the
-        // four interior quarter-points. 25 samples is overkill for huge faces but makes the
-        // tiny-face case robust against off-by-one alpha-edge artifacts.
-        for (int j = 0; j <= 4; j++) {
-            float v = vMin + (vMax - vMin) * (j / 4.0f);
-            int y = clampPixel((int) Math.floor(v * height), height);
-            for (int i = 0; i <= 4; i++) {
-                float u = uMin + (uMax - uMin) * (i / 4.0f);
-                int x = clampPixel((int) Math.floor(u * width), width);
-                int alpha = (texture.getPixel(x, y) >>> 24) & 0xFF;
-                if (alpha != 0) return false;
-            }
-        }
-        return true;
-    }
-
     private static int clampPixel(int value, int size) {
         if (value < 0) return 0;
         if (value >= size) return size - 1;

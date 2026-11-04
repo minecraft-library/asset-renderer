@@ -45,8 +45,8 @@ PACK_TOOLTIPS = "manifest.pack-tooltips"
 #: ``gather``. Stated once and asserted against the capture below, because a keyword the signature
 #: accepts and the capture never passes is exactly how three fields reached 24 promoted baselines
 #: absent while a test that passed them by hand stayed green.
-CAPTURE_KEYWORDS = ("producer", "mode", "runs", "flags", "counts", "root", "reference_tree",
-                    "reference_artifact", "memo")
+CAPTURE_KEYWORDS = ("producer", "mode", "tree_refresh", "runs", "flags", "counts", "root",
+                    "reference_tree", "reference_artifact", "memo")
 
 
 def fixture_repo() -> Path:
@@ -75,9 +75,9 @@ def as_capture_gathers(repo: Path, **overrides) -> dict:
     :param overrides: what to change about that call shape
     :return: the gathered record
     """
-    call = {"producer": "entityParityVanilla", "mode": None, "runs": 2, "flags": (),
-            "counts": None, "root": None, "reference_tree": None, "reference_artifact": None,
-            "memo": None}
+    call = {"producer": "entityParityVanilla", "mode": None, "tree_refresh": None, "runs": 2,
+            "flags": (), "counts": None, "root": None, "reference_tree": None,
+            "reference_artifact": None, "memo": None}
     call.update(overrides)
     return provenance.gather("sweep.entity", repo, **call)
 
@@ -132,7 +132,8 @@ class Registry(unittest.TestCase):
         """A registered key nothing can write would pass the assertion above by staying absent."""
         tree = Path(tempfile.mkdtemp()) / "references"
         write_text(tree / "blocks" / "stone" / "vanilla.png", "x")
-        record = as_capture_gathers(self.repo, mode="EVERY", flags=("asset.depth.range=1000",),
+        record = as_capture_gathers(self.repo, mode="EVERY", tree_refresh="hashed",
+                                    flags=("asset.depth.range=1000",),
                                     counts={"rows": 1}, root="cache/visual",
                                     reference_tree=tree, reference_artifact=REFERENCES)
         # `reason`, `parity_class` and `wall_time_ms` are gather's own arguments that no capture

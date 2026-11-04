@@ -202,6 +202,23 @@ which is the dangerous reading: a bundle whose measured half is a two-second tab
 unmeasured half boots the client prints comfortably under the 110s rule. A bare `BUDGET N ms` is the
 whole cost. In the first two states, read the producer list instead.
 
+**A plan holding `manifest.references` says on its `REFERENCES` line what the capture does to the
+tree.** `boot` re-renders the whole tree in one client boot before hashing it, and is the answer
+whenever a harness rule or the tooltip roster selected the row. `roster` is the answer when every rule
+that selected it reaches the tree through the entity schedule roster alone - the version pins, the
+roster's own inputs, or a derived rule's graph answer: the capture regenerates the roster, runs
+`parityScheduleCheck`, and boots the client wherever the check disagrees. It resolves the tree again
+from git rather than trusting the plan, so an edit made after the plan that selects a booting rule
+boots; it requires `references-rendered.json` beside the tree - the record the whole untargeted
+render seals once its boot exits 0, and every other run into the tree deletes - to name the harness
+inputs the tree holds now; and it projects the roster onto the schedules `idle/` and `walk/`
+recorded. Where all three agree, the boot is skipped and the capture hashes the tree already on
+disk, through the same step and into the same digest form, stamping no mode and recording
+`tree_refresh: hashed` - which the pre-commit hook refuses as a gating of any change whose plan boots
+the tree. BUDGET prices the boot either way. A `-Partifacts` naming the row always boots, which the
+reference refresh in `references/procedures.md` relies on, and so does an invocation whose graph
+holds `parityPlan` beside the capture.
+
 ## Common flags
 
 - `-Partifacts=<comma list|alias>` - **optional**, and read by `parityCapture`, `parityCompare` and

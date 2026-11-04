@@ -46,7 +46,7 @@ Or directly from the harness:
 ```bash
 ./gradlew runRenderReferences
 ./gradlew runRenderReferences -PrefharnessTargets=minecraft:cow
-./gradlew runRenderReferences -PrefharnessGlintOnly=true
+./gradlew runRenderReferences -PrefharnessModes=GLINT
 ```
 
 Either path launches MC 26.1.2 with a hidden GLFW window, programmatically creates a flat normal-difficulty world, pins noon + freezes the daylight cycle, runs a family-fit pre-pass to size each entity-family canvas, then renders every block (as true 3D geometry), every non-block item (as a GUI inventory icon), every entity variant and the vanilla player into transparent PNGs before exiting. The entity bounds pre-pass takes ~250 ms. `GLINT` runs the glint sweep alone; `EVERY` runs it beside the block, item, entity, player, armor, menu and tooltip sweeps in one boot.
@@ -178,7 +178,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 - **7 always-foil GUI items** (`enchanted_book`, `written_book`, `enchanted_golden_apple`, `experience_bottle`, `nether_star`, `debug_stick`, `end_crystal`) - the item glint, via `ItemFrameRenderer`.
 - **4 worn leather-armor diagnostics** - the distinct armor glint, an `armor_stand` wearing one glint-forced leather piece rendered through `EntityFrameRenderer`. Byte-parity is out of scope (different pose/model); this exists so the armor-glint animation can be eyeballed side-by-side.
 
-The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-UV rect). It runs under `GLINT` (`-PrefharnessGlintOnly=true` / `renderVanillaGlintReferences`) and under `EVERY` (`renderVanillaAllReferences`), and is never part of `FULL`'s block / item / entity / player sweep.
+The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-UV rect). It runs under `GLINT` (`-PrefharnessModes=GLINT` / `renderVanillaGlintReferences`) and under `EVERY` (`renderVanillaAllReferences`), and is never part of `FULL`'s block / item / entity / player sweep.
 
 > [!IMPORTANT]
 > `GlintSweep.FRAME_COUNT` (30) and `STEP_MILLIS` (1000) **must match asset-renderer's `GlintParitySweep`** or the frames misalign.
@@ -189,29 +189,27 @@ The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-
 
 ### Project properties
 
-Use `-PrefharnessXxx` on the Gradle command line. The run config forwards nineteen; the ones a run most often names are below.
+Use `-PrefharnessXxx` on the Gradle command line. The run config forwards eleven; the ones a run most often names are below.
 
 | Property                  | Default                  | Purpose                                                                                            |
 | ------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `refharnessTargets`       | _(empty)_                | Comma-separated `<ns>:<id>` filter; empty means all                                                |
 | `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `items/`, `entities/`, `players/`, `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/`, `walk/` are created under it, `idle/` and `walk/` each with its `schedule.json`. The posed modes read `entity-schedule/roster.json` beside it |
 | `refharnessTooltipRoster` | the tracked roster       | The tooltip roster `TOOLTIPS` draws, by path. Set on every run; the default is asset-renderer's `src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json` |
-| `refharnessGlintOnly`     | `false`                  | Render only the animated-glint references (the 7 foil items + 4 armor diagnostics); skip the full sweep |
-| `refharnessAnimated`      | `false`                  | Render only `idle/` - one strip per entity with vanilla's own `setupAnim` running. The gait is armed per sweep off `PoseState`, so `-PrefharnessModes=EVERY,ANIMATION,WALK` writes this sub-tree in the same boot as the frozen ones |
+| `refharnessModes`         | _(empty, `FULL`)_        | Comma-separated `HarnessMode` names, the one way a run names a reference mode - `GLINT` renders only the animated-glint references, `ANIMATION` only `idle/`. The gait is armed per sweep off `PoseState`, so `EVERY,ANIMATION,WALK` writes every sub-tree in one boot |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
 | `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES`, `PACK_ICONS` and `PACK_TOOLTIPS`; never written to `options.txt` |
 | `refharnessPackDir`       | _(unset)_                | The folder those packs are discovered in, handed to the client as `--resourcePackDir`               |
 
 ### System properties
 
-Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads seventeen; the ones a run most often names are below.
+Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads nine; the ones a run most often names are below.
 
 | Property                     | Default | Purpose                                                                                                              |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
 | `refharness.headless`        | `true`  | Hides the GLFW window via mixin; gates every refharness mixin so non-harness consumers of the jar get vanilla behaviour |
 | `refharness.size`            | `512`   | Block canvas square edge (pixels)                                                                                    |
-| `refharness.glintOnly`       | `false` | Run only `GlintSweep` (animated-glint references), skipping the block / item / entity sweeps                       |
-| `refharness.animated`        | `false` | Run only `EntityAnimationSweep`, and let `setupAnim` through while `ageInTicks` follows the frame's tick             |
+| `refharness.modes`           | _(empty)_ | The `HarnessMode` names this run performs, comma-separated - `GLINT` runs only `GlintSweep`, `ANIMATION` only `EntityAnimationSweep` with `setupAnim` let through while `ageInTicks` follows the frame's tick |
 
 **Entity texel resolution and the canvas cap are frozen constants, not properties.** `HarnessConfig.PIXELS_PER_BLOCK` (`256`) and `HarnessConfig.MAX_CANVAS_SIZE` (`1024`) used to read `-Drefharness.pixelsPerBlock` / `-Drefharness.maxCanvasSize`, and asset-renderer's `EntityOptions` read the same two property names on its own JVM. No task on either side forwarded either, so the documented override was inert - and had it worked on one side only, every entity reference would have been measured at one scale and compared against renders taken at another, which reports framing rather than the render. A literal on each side makes that unrepresentable. Changing either means editing both constants in one commit.
 
@@ -223,7 +221,7 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 | ---------------- | -------------------------------------- |
 | Minecraft        | 26.1.2 (Mojang official mappings)      |
 | Fabric Loader    | 0.19.2                                 |
-| Fabric Loom      | 1.16-SNAPSHOT                          |
+| Fabric Loom      | 1.16.3                                 |
 | Fabric API       | 0.147.0+26.1.2                         |
 | Java             | 25 (Loom toolchain; `JAVA_25` mixins)  |
 | Gradle           | 9.4.1                                  |
@@ -239,7 +237,7 @@ src/
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
+    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
     │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # First settled screen → WorldOpenFlows.createFreshLevel(...)
     │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin
@@ -297,8 +295,7 @@ src/
     │       ├── FreezeAnimationStateMixin.java   # Zero per-tick state on every LivingEntityRenderState
     │       ├── SuppressShakingMixin.java        # Cancel isShaking bodyRot wobble in setupRotations
     │       ├── SkipSetupAnimMixin.java          # Generic setupAnim bypass; bind pose for all models
-    │       ├── EnderDragonModelMixin.java       # Cancel setupAnim → authored rest pose (redundant under SkipSetupAnimMixin)
-    │       ├── WitherBossModelMixin.java        # Cancel setupAnim → no chest-bob (redundant under SkipSetupAnimMixin)
+    │       ├── EnderDragonModelMixin.java       # Cancel setupAnim → authored rest pose (the dragon's renderer meets no SkipSetupAnimMixin redirect)
     │       ├── GuardianStateMixin.java          # Pin the gaze; the tail and spikes from the roster's clocks
     │       ├── ParrotStandingMixin.java         # Stand the parrot on a posed frame
     │       ├── IronGolemOfferMixin.java         # Count the golem's flower offer down per posed frame
@@ -356,8 +353,7 @@ src/
 
 | Mixin                       | Target                                | Effect                                                                                                                                                                                                                                                          |
 | --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EnderDragonModelMixin`     | `EnderDragonModel.setupAnim`          | Cancels `setupAnim` entirely - leaves every part at its authored `PartPose` (flat wings, straight neck/tail, closed jaw). Now redundant under `SkipSetupAnimMixin`; idempotent and kept as model-specific documentation                                         |
-| `WitherBossModelMixin`      | `WitherBossModel.setupAnim`           | Cancels at-rest chest-bob. Now redundant under `SkipSetupAnimMixin`; kept as model-specific documentation                                                                                                                                                       |
+| `EnderDragonModelMixin`     | `EnderDragonModel.setupAnim`          | Cancels `setupAnim` entirely - leaves every part at its authored `PartPose` (flat wings, straight neck/tail, closed jaw). Load-bearing: the dragon's renderer is not a `LivingEntityRenderer`, so neither of `SkipSetupAnimMixin`'s redirects reaches it. The wither needs no cancel of its own - both of its `setupAnim` calls meet one of those redirects |
 | `GuardianStateMixin`        | `GuardianRenderer.extractRenderState` | For the guardian a posed frame draws, writes `tailAnimation` and `spikesAnimation` from the clock values the roster carries for the subject's gait (`AnimationClock.clock`) - the spikes out and the tail at `0.125` a tick in `idle/`, the spikes in and the tail at `0.5` a tick in `walk/`. On every other render pins `tailAnimation = 0` (defeats the per-instance `random.nextFloat()` constructor seed). Pins `lookAtPosition = lookDirection = null` on every frame (skips the eye-direction block that tracks the player camera) |
 | `ParrotStandingMixin`       | `ParrotRenderer.extractRenderState`   | On a posed frame pins `state.pose = ParrotModel.Pose.STANDING`. A never-ticked parrot is off the ground, so vanilla draws it flying, while the asset side rests a parrot standing in every render; `setupAnim` is the pose's one reader, so the frozen sub-trees cannot see it |
 | `IronGolemOfferMixin`       | `IronGolemRenderer.extractRenderState` | On a posed frame writes `offerFlowerTick` as the golem's own counter less the frame's tick, floored at `0` - what `IronGolem.aiStep` would have left - so a golem offering a poppy (400 from the carried trait) sways its arm across the strip. A golem offering nothing is untouched, and so is every frozen frame |
@@ -386,7 +382,7 @@ These make the block / item / glint sweeps match the in-world appearance and run
 | `GlintTexturingMixin`          | `TextureTransform.setupGlintTexturing`      | Substitutes `GlintClock.overrideT` for vanilla's wall-clock glint time (`Util.getMillis()·glintSpeed·8`) when `overrideT ≥ 0`, rebuilding the exact scroll matrix so each captured frame lands at a deterministic, asset-aligned glint phase. |
 
 > [!CAUTION]
-> **The `setupAnim` freezes are gated rather than deleted.** `SkipSetupAnimMixin` is the broadest one, and `entities/` is ground truth for exactly what it produces - the authored bind pose, which is what asset-renderer's own default draws; removing it moves 88 of the 90 modelled entities. So it and the two per-model cancels beside it (`EnderDragonModelMixin`, whose renderer is not a `LivingEntityRenderer` and which is therefore load-bearing, and `WitherBossModelMixin`) read the gait `PoseState` holds, and the posed reference sets live beside the frozen ones under `idle/` and `walk/`. The state pins (`GuardianStateMixin`, `PhantomStateMixin`, `PufferfishStateMixin`, `ZombieVillagerStateMixin`, `WitchNoseMixin`) are not freezes and stay: each takes an input that varies with the client's own history out of the render, and the animated set needs them more, because most of them are read through no code at all while the freeze holds. **A pin that is not one of those does not survive that reading**: a field only `setupAnim` reads is inert on all seven frozen sub-trees, so a value chosen there for how it looks is a state the asset side has no way to know about and reads as its own defect on the two posed ones. The bee's wings stand where vanilla's own never-ticked entity puts them, and the guardian's spikes follow the roster's clock. On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin` (cloth wave) delete when asset-renderer animates those; `GlintTexturingMixin` and `ShadeFalseFullBrightMixin` are permanent (they enforce determinism / in-world parity, not a freeze).
+> **The `setupAnim` freezes are gated rather than deleted.** `SkipSetupAnimMixin` is the broadest one, and `entities/` is ground truth for exactly what it produces - the authored bind pose, which is what asset-renderer's own default draws; removing it moves 88 of the 90 modelled entities. So it and the per-model cancel beside it (`EnderDragonModelMixin`, whose renderer is not a `LivingEntityRenderer` and which is therefore load-bearing) read the gait `PoseState` holds, and the posed reference sets live beside the frozen ones under `idle/` and `walk/`. The state pins (`GuardianStateMixin`, `PhantomStateMixin`, `PufferfishStateMixin`, `ZombieVillagerStateMixin`, `WitchNoseMixin`) are not freezes and stay: each takes an input that varies with the client's own history out of the render, and the animated set needs them more, because most of them are read through no code at all while the freeze holds. **A pin that is not one of those does not survive that reading**: a field only `setupAnim` reads is inert on all seven frozen sub-trees, so a value chosen there for how it looks is a state the asset side has no way to know about and reads as its own defect on the two posed ones. The bee's wings stand where vanilla's own never-ticked entity puts them, and the guardian's spikes follow the roster's clock. On the block side, `FreezeSpriteAnimationMixin` (texture animation) and `BannerFlagModelMixin` (cloth wave) delete when asset-renderer animates those; `GlintTexturingMixin` and `ShadeFalseFullBrightMixin` are permanent (they enforce determinism / in-world parity, not a freeze).
 
 ---
 

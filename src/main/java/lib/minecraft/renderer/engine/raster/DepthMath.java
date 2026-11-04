@@ -35,8 +35,7 @@ public class DepthMath {
      * <p>Every {@code FrameRenderer} in the vanilla-reference-harness declares its own
      * {@code DEPTH_RANGE} holding this same value, which is what puts both sides of a comparison on
      * one window-depth grid. Changing it means editing this constant and each of theirs in one
-     * commit. The harness's depth-quantum probe is deliberately outside that set - it drives two
-     * ranges at once and refreshes no reference.
+     * commit.
      */
     private static final float VANILLA_DEPTH_RANGE = Float.parseFloat(System.getProperty("asset.depth.range", "1000"));
 

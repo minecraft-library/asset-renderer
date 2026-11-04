@@ -185,7 +185,7 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
               mode: str | None = None, flags: Sequence[str] = (), runs: int | None = None,
               logs: Path | None = None, reference_tree: Path | None = None,
               reference_artifact: str | None = None, wall_time_ms: int | None = None,
-              store: str | None = None) -> Path:
+              store: str | None = None, tree_refresh: str | None = None) -> Path:
     """Read a producer's raw output and write the canonical form at its production-relative path.
 
     An absent ``runs`` means the artifact's declared floor, which is the value the build has always
@@ -207,6 +207,10 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     is the milliseconds of a normalize rather than the minutes the plan's budget exists to warn
     about. An absent one records nothing, so a hand-run capture stamps no duration instead of
     stamping a zero every later reader would sum.
+
+    ``tree_refresh`` says the tree a manifest row hashes was hashed as it stood rather than rendered,
+    the schedule check having found it current, so a gate whose plan boots the tree can tell this
+    capture from one a render wrote.
     """
     # Imported at call time rather than at module scope: `promote` reads this module for its root
     # checks, and the floor is the one value that has to travel back the other way.
@@ -233,7 +237,7 @@ def normalize(artifact: str, source: Path, root: Path, repo: Path, producer: str
     # `--flag` guessed on the build side must not overwrite it. The reference digest goes through the
     # capture's memo, so the steps of one capture read the tree once between them.
     payload["provenance"] = provenance_mod.gather(
-        artifact, repo, producer=producer, mode=mode, runs=runs,
+        artifact, repo, producer=producer, mode=mode, tree_refresh=tree_refresh, runs=runs,
         flags=[*flags, *payload.pop("_flags", [])],
         counts=payload.pop("_counts", None), root=payload.pop("_root", None),
         reference_tree=reference_tree, reference_artifact=reference_artifact,

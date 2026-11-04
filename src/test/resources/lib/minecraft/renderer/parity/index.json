@@ -287,11 +287,6 @@
     }
   },
   "external": {
-    "probe.depth-quantum": {
-      "home": "cache/asset-renderer/vanilla/<version>/depth-quantum-probe/",
-      "reason": "written deliberately outside the reference tree by renderVanillaDepthQuantumProbe",
-      "stored": false
-    },
     "probe.pack-icons": {
       "home": "cache/asset-renderer/vanilla/<version>/pack-icons/",
       "reason": "written deliberately outside the reference tree by renderVanillaPackIcons over the roster packIconRoster writes beside it, and read by packIconParityVanilla, a diagnostic report rather than a gate",
