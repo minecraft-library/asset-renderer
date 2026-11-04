@@ -55,11 +55,11 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 2872 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 17263 ms | yes |
-| `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 9502 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.portal-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 2 | 22053 ms | yes |
-| `pin.fluid-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 13 | 22053 ms | yes |
+| `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 2666 ms | yes |
+| `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 2666 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 2666 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 2 | 2666 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `parityPinTest` | 1 | 2 | 13 | 2666 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
 | `roster.blindness-rules` | blindness-roster | STORE | - | 1 | - | - | - | **no** |
 | `report.sum` | - | POINTER | - | - | - | - | - | - |

@@ -108,7 +108,7 @@
       "entries": 3,
       "file": "pins/block-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 19235,
+      "last_duration_ms": 2666,
       "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
       "sha256": "09ca31c0306705f24324bd7e0efd3f1f42c312bb9b9b181ea7e9c9cc6c58ea02"
     },
@@ -118,7 +118,7 @@
       "entries": 13,
       "file": "pins/fluid-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 22053,
+      "last_duration_ms": 2666,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "f2d6408409a24ac139402ce174d1c1a6aa1f5d8b5cc22d46e1faafce975ba22c"
     },
@@ -128,7 +128,7 @@
       "entries": 3,
       "file": "pins/player-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 19235,
+      "last_duration_ms": 2666,
       "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
       "sha256": "44b087f432f0df2ab61686f7ecf058ff1d1a87b8fa5024e7f7fb7efb6da52200"
     },
@@ -138,7 +138,7 @@
       "entries": 2,
       "file": "pins/portal-crc.json",
       "kind": "pin-set",
-      "last_duration_ms": 22053,
+      "last_duration_ms": 2666,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "61e8265b1178cae2848f2d1ef9b4994292ce34653a7170bf8297abe5cce2d4e8"
     },
@@ -148,7 +148,7 @@
       "entries": 1,
       "file": "pins/vanilla-iso-pose.json",
       "kind": "pin-set",
-      "last_duration_ms": 9502,
+      "last_duration_ms": 2666,
       "promoted_at": "00a006307ac6443e243d30caf238849e20cd9c60",
       "sha256": "7618413736607fc41bd45ad925f4c0fe3df305d385d22605a796a91aba72acdc"
     },
