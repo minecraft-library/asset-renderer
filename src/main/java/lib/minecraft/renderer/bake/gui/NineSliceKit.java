@@ -27,7 +27,9 @@ import java.util.Optional;
  * convention. Every {@code gui/sprites/**} widget scales through the same {@link MCMeta.GuiScaling}
  * system, and the themable tooltip chrome draws its sprite pair through it, and a menu window sliced
  * from art its cells and the widgets the client blits over the art - the anvil's name field and cross
- * and the crafting table's recipe-book button. A sprite read by id is the one the client's GUI atlas
+ * and the crafting table's recipe-book button. The book's page is laid through it too, from the book
+ * texture its caller reads and hands in - a plain texture, no GUI atlas sprite - as one tile over the
+ * book's square, the client's one quad. A sprite read by id is the one the client's GUI atlas
  * holds, the missing texture standing in, stretched, for one no pack supplies, one that cannot be read
  * and one whose {@code gui} section the client's codec refuses.
  * <p>
@@ -56,8 +58,10 @@ public class NineSliceKit {
      * the destination bounds (the rect may start off-canvas at a negative origin).
      *
      * @param dest the target buffer
-     * @param sprite the sprite texture, at its declared size or any multiple of it
-     * @param scaling the {@code gui.scaling} sidecar; {@code stretch} when a pack ships no mcmeta
+     * @param sprite the sprite texture, at any size - a stretch reads the whole texture, and each tile or
+     * nine-slice quad reads it by fraction of the size its scaling declares
+     * @param scaling how the sprite is laid over the rect - its {@code gui.scaling} sidecar's,
+     * {@code stretch} where a pack ships none, or the caller's own
      * @param x the rect's left edge in mcPixels
      * @param y the rect's top edge in mcPixels
      * @param w the rect's width in mcPixels
@@ -102,8 +106,10 @@ public class NineSliceKit {
      * first pixel the sprite draws before drawing it. A sprite that draws nothing over the rect answers
      * none.
      *
-     * @param sprite the sprite texture, at its declared size or any multiple of it
-     * @param scaling the {@code gui.scaling} sidecar; {@code stretch} when a pack ships no mcmeta
+     * @param sprite the sprite texture, at any size - a stretch reads the whole texture, and each tile or
+     * nine-slice quad reads it by fraction of the size its scaling declares
+     * @param scaling how the sprite is laid over the rect - its {@code gui.scaling} sidecar's,
+     * {@code stretch} where a pack ships none, or the caller's own
      * @param w the rect's width in mcPixels
      * @param h the rect's height in mcPixels
      * @param alphaMul the per-texel alpha multiplier {@link #draw} would apply

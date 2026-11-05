@@ -185,11 +185,14 @@ public final class TooltipParitySweep {
          * measures, rather than a plain line, which the client draws on nothing.
          *
          * @return whether the subject is a tooltip
+         * @throws IllegalStateException if the subject is a book page, which the tooltip roster holds none of
          */
         boolean hasBox() {
             return switch (this.options.getStyle()) {
                 case LORE -> true;
                 case CHAT -> false;
+                case BOOK -> throw new IllegalStateException(String.format(
+                    "Subject '%s' is a book page, which the tooltip sweep does not draw", this.key));
             };
         }
 

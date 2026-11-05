@@ -4,12 +4,12 @@ import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerSlot;
 
 /**
- * Paint-order slots for the text {@link ImageLayer} stack: tooltip background and border (LORE
- * only), then the glyph rows.
+ * Paint-order slots for the text {@link ImageLayer} stack: the background - a tooltip's fill or a book's
+ * texture - and a tooltip's border, then the glyph rows.
  */
 public enum TextSlot implements LayerSlot {
 
-    /** Tooltip background fill (LORE only). */
+    /** The tooltip's background fill, or the book's texture. */
     BACKGROUND,
     /** Tooltip gradient border (LORE only). */
     BORDER,

@@ -50,8 +50,8 @@
  *   <li>{@link lib.minecraft.renderer.PortalRenderer PortalRenderer} - end portal and end gateway, both
  *       reproducing vanilla's CPU-baked parallax star-field shader.</li>
  *   <li>{@link lib.minecraft.renderer.TextRenderer TextRenderer} - styled Minecraft text in lore-tooltip
- *       (purple-bordered) or plain-chat mode, with animated output when any segment is
- *       obfuscated ({@code &sect;k}).</li>
+ *       (purple-bordered), plain-chat or book-page mode, the last one page of a written book on the game's
+ *       book texture, with animated output when any segment is obfuscated ({@code &sect;k}).</li>
  * </ul>
  *
  * <p><b>Where the real work lives.</b> This package is intentionally a thin dispatch surface:

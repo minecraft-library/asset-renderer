@@ -2,8 +2,8 @@
 
 Load when touching `Projection`, `engine/light` - `LightingFrame`, `Shading` - the entity and player
 lighting fold, a renderer's `Placement`, `Rasterizer.rasterizeFitted` and `prepareFit`, the entity
-canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's
-and chat text's included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
+canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's,
+chat text's and a book page's included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
@@ -63,7 +63,9 @@ entry rather than the entity's.
   client's sprite rect, which `NineSliceKit.extent` answers before the draw, or the code-drawn box
   round the text at the request's padding, less any part the request's alpha clears. Chat text's
   canvas is what its lines draw over every frame, which `TextKit.inkBounds` answers before the draw,
-  and it ends inside a Minecraft pixel where the first or last output pixel drawn does.
+  and it ends inside a Minecraft pixel where the first or last output pixel drawn does. A book page's
+  canvas is what its texture's quad draws, which `NineSliceKit.extent` answers, joined with what its
+  lines draw, rounded out to whole Minecraft pixels because the quad is laid at a whole one.
   `GROUP_BOUNDS`, the family fit, sizes a member to its group instead, and a fixed-scale or
   caller-sized canvas is neither.
 

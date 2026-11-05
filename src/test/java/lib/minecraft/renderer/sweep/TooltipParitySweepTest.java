@@ -521,6 +521,16 @@ class TooltipParitySweepTest {
     }
 
     @Test
+    @DisplayName("a book page is no subject of the tooltip sweep, which draws tooltips and plain lines alone")
+    void aBookPageIsNoSubjectOfTheTooltipSweep() {
+        TooltipParitySweep.Subject page = new TooltipParitySweep.Subject("page", Optional.empty(),
+            TextOptions.builder().style(TextOptions.Style.BOOK).build());
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, page::hasBox);
+        assertThat(thrown.getMessage(), is("Subject 'page' is a book page, which the tooltip sweep does not draw"));
+    }
+
+    @Test
     @DisplayName("every pack section of the tracked roster draws unstyled subjects of the roster by key, "
         + "each in the style its entry names, over the sprite box")
     void everyPackSectionResolves() throws IOException {

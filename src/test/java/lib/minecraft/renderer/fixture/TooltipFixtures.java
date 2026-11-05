@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -22,7 +23,8 @@ import java.util.Optional;
 /**
  * Tooltip chrome inputs for the tests that resolve or draw a sprite chrome - the nine-slice sidecars
  * vanilla's tooltip sprites ship, an item carrying a {@code minecraft:tooltip_style} component, and a
- * context that answers only the sprites and sidecars it is seeded with.
+ * context that answers only the sprites and sidecars it is seeded with - and a context answering one text
+ * palette over another, for the tests that draw text in a pack's colours.
  */
 public final class TooltipFixtures {
 
@@ -90,6 +92,17 @@ public final class TooltipFixtures {
     }
 
     /**
+     * Wraps a context in one answering the given text palette and forwarding every other lookup to it.
+     *
+     * @param context the context every other lookup reaches
+     * @param palette the palette the wrapper answers
+     * @return the wrapping context
+     */
+    public static @NotNull RendererContext withPalette(@NotNull RendererContext context, @NotNull TextPalette palette) {
+        return new PaletteContext(context, palette);
+    }
+
+    /**
      * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
      * with. A texture it serves with no sidecar or animation seeded answers the interface's own empty,
      * and one it does not serve answers absent, so its views agree with its texture lookup; its playback
@@ -108,6 +121,22 @@ public final class TooltipFixtures {
         @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NonNull String textureId) { return this.textures.containsKey(textureId) ? Possible.of(this.textures.get(textureId)) : Possible.absent(); }
         @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) { return this.metas.containsKey(textureId) ? Possible.of(this.metas.get(textureId)) : RendererContext.super.findMeta(textureId); }
         @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) { return this.animations.containsKey(textureId) ? Possible.of(this.animations.get(textureId)) : RendererContext.super.findAnimation(textureId); }
+    }
+
+    /**
+     * A context answering one text palette and forwarding every other lookup.
+     *
+     * @param delegate the context every other lookup reaches
+     * @param palette the palette it answers
+     */
+    private record PaletteContext(@NotNull RendererContext delegate, @NotNull TextPalette palette) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<TextPalette> findTextPalette() {
+            return Possible.of(this.palette);
+        }
+
     }
 
 }

@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static lib.minecraft.renderer.fixture.TooltipFixtures.withPalette;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -254,7 +255,7 @@ class MenuRendererGeometryTest {
         TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
             Concurrent.newUnmodifiableMap(Map.of(argb & 0xFFFFFF, 0x2B5D8A)));
         PixelBuffer without = render(bare);
-        PixelBuffer with = new MenuRenderer(new Palette(RendererContext.builder().build(), palette))
+        PixelBuffer with = new MenuRenderer(withPalette(RendererContext.builder().build(), palette))
             .render(bare.mutate().title("Chest").build())
             .image().getFrames().getFirst().pixels();
 
@@ -282,7 +283,7 @@ class MenuRendererGeometryTest {
         assertThat("the field draws in white", well, is(equalTo(0xFFFFFFFF)));
         TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
             Concurrent.newUnmodifiableMap(Map.of(well & 0xFFFFFF, 0x4CC2FF, shadow, 0x13303F)));
-        MenuRenderer renderer = new MenuRenderer(new Palette(RendererContext.builder().build(), palette));
+        MenuRenderer renderer = new MenuRenderer(withPalette(RendererContext.builder().build(), palette));
         MenuOptions bare = MenuOptions.builder().type(MenuOptions.Type.ANVIL).caret(false).build();
         PixelBuffer without = renderer.render(bare).image().getFrames().getFirst().pixels();
         PixelBuffer with = renderer.render(bare.mutate().fieldText("Excalibur").build()).image().getFrames().getFirst().pixels();
@@ -320,22 +321,6 @@ class MenuRendererGeometryTest {
 
         assertThat("the bare well under the band", under, is(equalTo(Map.of(0xFF4E4737, 264))));
         assertThat("the well and the shadow, each with the blue added", banded, is(equalTo(Map.of(0xFF4E47FF, 256, 0xFF3F3FFF, 8))));
-    }
-
-    /**
-     * A context answering one text palette and forwarding every other lookup.
-     *
-     * @param delegate the context every other lookup reaches
-     * @param palette the palette it answers
-     */
-    private record Palette(@NotNull RendererContext delegate, @NotNull TextPalette palette) implements RendererContext.Forwarding {
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Possible<TextPalette> findTextPalette() {
-            return Possible.of(this.palette);
-        }
-
     }
 
     @Test
