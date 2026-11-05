@@ -4415,6 +4415,78 @@
       "sha256": "83e2514ecc142bbe73d738a37a1b2144418f14597a2cea66bfffdd2604a83748"
     },
     {
+      "path": "books/alt_font.png",
+      "sha256": "1bf4a67521ba3214f457d61cd155530d41ec6489e15b4c657b8418ab22efa9d0"
+    },
+    {
+      "path": "books/background.png",
+      "sha256": "c6e8afe57666ae917ab7c675bad139a53386e30dc369ea7a2e1302a27aa12d16"
+    },
+    {
+      "path": "books/colors.png",
+      "sha256": "e2a4f58f66d391ebadc27b56bab83c4499a146dea97c74883c733f22e4cf5b84"
+    },
+    {
+      "path": "books/empty.png",
+      "sha256": "c6e8afe57666ae917ab7c675bad139a53386e30dc369ea7a2e1302a27aa12d16"
+    },
+    {
+      "path": "books/formats.png",
+      "sha256": "39677c9bcf3411aca490d8adbaab8dbbd1b10db414e3c5cc5bf69eacde385ff9"
+    },
+    {
+      "path": "books/full_page.png",
+      "sha256": "91fdf4e81f0e502d7bdd109e8d522178d8beda04223eb1fce4814def7807bfe1"
+    },
+    {
+      "path": "books/leading_space.png",
+      "sha256": "93d594beac4a4e4e91f2c86cb0a64416fb88e4dc0e825076ce765acef873b621"
+    },
+    {
+      "path": "books/long_word.png",
+      "sha256": "e3f8a439460ebdf0ccbd1b268ba82fffdf4b0595f8d7b41ba36e9e2b27fe6828"
+    },
+    {
+      "path": "books/newlines.png",
+      "sha256": "61f6b63c35f1b35499868602d9a55b11b1e2d4e3a72c8ab63aab0e218c9ec793"
+    },
+    {
+      "path": "books/one_line.png",
+      "sha256": "a391a8b1d63306f53da3f3e383eaf72d93e9596855d8780f0b698e7d3d51c3b4"
+    },
+    {
+      "path": "books/overflow.png",
+      "sha256": "91fdf4e81f0e502d7bdd109e8d522178d8beda04223eb1fce4814def7807bfe1"
+    },
+    {
+      "path": "books/section_codes.png",
+      "sha256": "5daad6957fb35963fad777f3f3283aaf53a6c8f25f62ac9b275cbbc77410628c"
+    },
+    {
+      "path": "books/shadow_color.png",
+      "sha256": "a9dce31f1a9e145c32d36cb587778edccaf141e1c3ed7b20080f4d87040f5758"
+    },
+    {
+      "path": "books/space_then_newline.png",
+      "sha256": "4051f94e001755eeb2383dc20627621b055135f53e3f8827670d9451db996fbb"
+    },
+    {
+      "path": "books/spaces_at_break.png",
+      "sha256": "603133ba322f8b6692d12b37bf6595705eeb4c1071a7c03f9780ec74e7170b66"
+    },
+    {
+      "path": "books/styled_wrap.png",
+      "sha256": "7c9be5a952527d6ee5c173fc77e63a9ad0dfb5e0d0429293b63d38470ffb5773"
+    },
+    {
+      "path": "books/width_glyphs.png",
+      "sha256": "8e31516319cd732dd259fee497a9b3ec649b8483eff479146c024b177daccd94"
+    },
+    {
+      "path": "books/wrapped.png",
+      "sha256": "7b03fd91f061e726184a72a3621e7c7f42441cb83fd6194716e90e96c53a6b27"
+    },
+    {
       "path": "entities/minecraft__allay.png",
       "sha256": "3e69338f6ae035d8a10f44665b22ce2cdfaea0ab320c9b9c494474847488f012"
     },
@@ -39316,11 +39388,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "d2533076bf16cb9f897a709d923ddc46011b8a58b5ba864fd23cf8728a235ab3",
+    "asset_content_digest": "57ce22e97936e82f0c32ddbd456193cd7273b8b2f825e580c5aaec67f8460afb",
     "asset_dirty": true,
-    "asset_sha": "7ceea5b9302a0279d78a2369c6cac23b676ad9e6",
+    "asset_sha": "a3bb78c08cfc4e255bbd2bf81f019f091a629685",
     "counts": {
-      "files": 9827
+      "files": 9845
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39329,22 +39401,10 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "86ad2430 adds anvil_apple (an enchanted golden apple named by the client's setValue) and anvil_highlight (a name whose three scroll passes leave the cursor out of view, the blue band drawn); two whole-tree boots and a menus-only boot agree on both and hold the other 9825; sweep.menu gains 2 rows at 1978 and 1772 output px against today's renderer, 13 held; a second root reads 0 movers over 15 rows",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 15,
-      "players": 2,
-      "tooltips": 46,
-      "walk": 4896
-    },
+    "reason": "The book references: 18 pages drawn through the client's book screen, added under books/; every other member held",
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-10-30T19:05:27Z",
+    "timestamp": "2026-11-05T17:01:32Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 127322
+    "wall_time_ms": 89746
   }
 }
