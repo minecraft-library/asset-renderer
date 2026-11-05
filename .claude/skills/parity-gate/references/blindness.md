@@ -836,17 +836,17 @@ The harness reads this file by path - the harness build defaults refharness.tool
 
 *Probe:* change one subject's colour, run renderVanillaTooltipReferences and then tooltipParityVanilla: that subject's full reference and its full row move, and its box-alone reference, its box-alone row and every other file and row hold
 
-## B68 - The shared GUI capture reaches the menu and tooltip references and the pack-tooltip drawings, and no other sub-tree
+## B68 - The shared GUI capture reaches the menu, tooltip and book references and the pack-tooltip drawings, and no other sub-tree
 
 - **mode** demote
 - **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/GuiFrameRenderer.java`
 - **sees** `sweep.menu`, `manifest.references`, `sweep.tooltip`, `manifest.pack-tooltips`, `sweep.tooltip-hypixel-skyblock`
 - **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
-- **source** measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held
+- **source** measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held; the book sweep constructs its own capture and hands it the book screen's extract, and a render of every frozen sweep into a scratch root, the book sweep last, held every sub-tree but books/ byte-identical to the stored tree
 
-GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep and TooltipSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu and tooltip references are what sweep.menu and sweep.tooltip diff against, and manifest.references hashes the whole tree; the pack-tooltip drawings are what sweep.tooltip-hypixel-skyblock diffs against, and manifest.pack-tooltips hashes them; so those five are the whole answer.
+GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep, TooltipSweep and BookSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu and tooltip references are what sweep.menu and sweep.tooltip diff against, the book references are what no stored sweep diffs against, and manifest.references hashes the whole tree; the pack-tooltip drawings are what sweep.tooltip-hypixel-skyblock diffs against, and manifest.pack-tooltips hashes them; so those five are the whole answer.
 
-*Probe:* change the capture's clear colour and re-render the whole tree: menus/ and tooltips/ move and every other sub-tree hashes identically
+*Probe:* change the capture's clear colour and re-render the whole tree: menus/, tooltips/ and books/ move and every other sub-tree hashes identically
 
 ## B69 - A text render reaches the visual manifest and the tooltip sweeps, and nothing else this store holds
 
@@ -883,6 +883,42 @@ PackSourceSweep writes the pack-source dump beside the reference tree, a probe n
 renderVanillaPackTooltipsHypixelSkyblock hands the harness a folder this script derives: packTooltipPacks copies hypixel-skyblock from the fixture folder and places its core/text.vsh also at core/rendertype_text.vsh, the program the 26.1 client draws text with, so the client runs the pack's colour swap on every glyph, shadow and effect it draws. The pack the run names, the folder it hands over and that derivation are all typed here, so an edit to any of them changes what the client draws while no file the drawings' other rules trigger on changes. The handshake records the folder and the pack's tooltip sweep loads its packs back out of it, so the sweep reads the pack the client drew from, and a capture of the drawings re-runs the derivation through the run's dependency on it. The trigger takes the file whole for B41's reason, and B31 keeps its empty sees list.
 
 *Probe:* drop the shader alias from packTooltipPacks and run renderVanillaPackTooltipsHypixelSkyblock, then tooltipHypixelSkyblockParityVanilla: the full drawings whose text uses a colour the pack swaps go back to vanilla's colours, every box-alone drawing holds, and the pack's tooltip sweep refuses the configuration before comparing a pixel, the client running vanilla's text shader where the renderer reads the pack's
+
+## B72 - The book sweep reaches the book references and no other sub-tree
+
+- **mode** demote
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/sweep/BookSweep.java`
+- **sees** `manifest.references`
+- **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`, `sweep.tooltip`, `manifest.pack-tooltips`, `sweep.tooltip-hypixel-skyblock`
+- **source** declared from the write site, the B61 shape: SweepRunner resolves every path this sweep writes as outputRoot / sweep.outputDir(), and it makes no write outside that resolution; a render of every frozen sweep into a scratch root, this one last, wrote its 18 files under books/ and held every other sub-tree it wrote byte-identical to the stored tree
+
+BookSweep draws every page of the tracked book roster through the client's own book screen - the book's background, then the page's text through the screen's own text visit with the page-number line left out by its own flag - into the shared GUI capture, and writes books/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. manifest.references hashes the whole tree, books/ with it, and no stored sweep diffs against the book references, so that one is the whole answer. The pack-tooltip run, whose drawings manifest.pack-tooltips hashes and sweep.tooltip-hypixel-skyblock diffs against, runs the tooltip sweep alone.
+
+*Probe:* lay the book screen out two GUI pixels wider, which moves the book one GUI pixel right, and re-render the whole tree: every books/ file moves and every other sub-tree hashes identically
+
+## B73 - The book roster is what the book references are drawn from, so an edit to it reaches them
+
+- **mode** select
+- **triggers** `src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json`
+- **sees** `manifest.references`
+- **blind** -
+- **source** declared from the read site: BookSweep enumerates the file refharness.bookRoster names and nothing else, and the harness build sets that property on every run
+
+The harness reads this file by path - the harness build defaults refharness.bookRoster to it - and draws every page it names through the client's own book screen into books/, so an edit to it re-renders that sub-tree, and manifest.references hashes the whole tree. It is a resource, which no declaration can reach, so the rule is authored. The harness's own sources reach the same sub-tree through B29 and B72. No stored sweep reads it, and nothing else in the harness or the build does.
+
+*Probe:* change one page's text and run renderVanillaBookReferences: that page's reference moves and every other file under books/ holds
+
+## B74 - The harness's own unit suite asserts over the refusals the harness makes with no running client, and emits nothing
+
+- **mode** select
+- **triggers** `harness/src/test/java/**`
+- **sees** -
+- **blind** -
+- **source** declares no store artifact, so its reason names the gate that answers instead
+
+Every case here calls a harness refusal that needs no running client - the run's check of the client's pack selection and text options, and the book roster's own reads - over values the case builds, or reads a harness source as text, and none starts a client, so none writes a reference, a drawing beside the tree or any other byte a stored artifact holds. The gate for a change here is the suite itself, the harness build's own test task, which check schedules through harnessTest by shelling into the harness's wrapper as harnessClasses does. The classes it exercises reach the reference tree through B29 and their own rules. This is the harness half of what B33 says for src/test/java.
+
+*Probe:* run ./gradlew harnessTest, then capture any artifact and confirm it is byte-identical
 
 ## Paths that reach nothing
 

@@ -1,0 +1,45 @@
+{
+  "//": "The pages the harness draws into references/books/, each through the client's own book screen as a written book of that one page is read: the book's background, then the page's text, which the screen wraps at 114 GUI pixels and draws in the page's black from its own origin, at most fourteen lines, with the page-number line left out by the screen's own flag. A subject naming no page is the background alone, the one drawing every page shares; empty draws the whole step over an empty page, and the same pixels. Every colour and format is spelled as a JSON field except on section_codes, whose text holds section-sign codes, each sign and the character after it a format code to the client; it holds no reset inside a bold or alt-font run, where the client's wrap and its draw read a reset differently. No page is obfuscated: the client's obfuscation random is unseeded, so such a page would not reproduce. Translatable components are out, resolving through the client's language; selector, score and NBT components are out, being resolved by a server in play; hover and click events draw nothing on a still page nobody points at; private-use glyphs are out. Every page is drawn over vanilla's own resources alone, and every key is lowercase, as every reference stem is.",
+  "format": 1,
+  "subjects": [
+    {"key": "background"},
+    {"key": "empty", "page": {"text": ""}},
+    {"key": "one_line", "page": {"text": "A single plain line"}},
+    {"key": "wrapped", "page": {"text": "This paragraph is long enough to wrap several times at the width of the page, each line ending at the last space before the edge."}},
+    {"key": "long_word", "page": {"text": "Pneumonoultramicroscopicsilicovolcanoconiosis"}},
+    {"key": "spaces_at_break", "page": {"text": "aaaaaaaaaaaaaaaaaaa  b\naaaaaaaaaaaaaaaaa  aaaaa"}},
+    {"key": "space_then_newline", "page": {"text": "aaaaaaaaaaaaaaaaaaa \nb"}},
+    {"key": "leading_space", "page": {"text": " aaaaaaaaaaaaaaaaaaaa"}},
+    {"key": "styled_wrap", "page": {"text": "", "extra": [
+      {"text": "Plain words run into "},
+      {"text": "a bold red span that wraps", "color": "dark_red", "bold": true},
+      {"text": " and plain words after it."}]}},
+    {"key": "newlines", "page": {"text": "First line\n\nThird line\n"}},
+    {"key": "full_page", "page": {"text": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14"}},
+    {"key": "overflow", "page": {"text": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16"}},
+    {"key": "colors", "page": {"text": "", "extra": [
+      {"text": "black ", "color": "black"}, {"text": "dark_blue ", "color": "dark_blue"},
+      {"text": "dark_green ", "color": "dark_green"}, {"text": "dark_aqua ", "color": "dark_aqua"},
+      {"text": "dark_red ", "color": "dark_red"}, {"text": "dark_purple ", "color": "dark_purple"},
+      {"text": "gold ", "color": "gold"}, {"text": "gray ", "color": "gray"},
+      {"text": "dark_gray ", "color": "dark_gray"}, {"text": "blue ", "color": "blue"},
+      {"text": "green ", "color": "green"}, {"text": "aqua ", "color": "aqua"},
+      {"text": "red ", "color": "red"}, {"text": "light_purple ", "color": "light_purple"},
+      {"text": "yellow ", "color": "yellow"}, {"text": "white", "color": "white"}]}},
+    {"key": "formats", "page": {"text": "", "extra": [
+      {"text": "Bold", "bold": true}, {"text": "\n"},
+      {"text": "Italic", "italic": true}, {"text": "\n"},
+      {"text": "Underlined", "underlined": true}, {"text": "\n"},
+      {"text": "Strikethrough", "strikethrough": true}]}},
+    {"key": "shadow_color", "page": {"text": "", "extra": [
+      {"text": "Opaque shadow", "shadow_color": -16776961}, {"text": "\n"},
+      {"text": "Translucent shadow", "shadow_color": -2130771968}, {"text": "\n"},
+      {"text": "Shadow alpha zero", "shadow_color": 16711680}]}},
+    {"key": "width_glyphs", "page": {"text": "\"'()*{}"}},
+    {"key": "alt_font", "page": {"text": "", "extra": [
+      {"text": "Plain then "},
+      {"text": "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "font": "minecraft:alt"}, {"text": "\n"},
+      {"text": "abcdefghijklmnopqrstuvwxyz", "font": "minecraft:alt"}]}},
+    {"key": "section_codes", "page": {"text": "Plain words, \u00a7lbold words, \u00a7cred plain words, \u00a7Lred bold words, \u00a7zan unknown pair dropped, and a sign that ends the text\u00a7"}}
+  ]
+}

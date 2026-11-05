@@ -64,7 +64,7 @@ verdict is in and before `git commit`:
 
 ```bash
 ./gradlew test      # the fast suite
-./gradlew check     # the same, plus paritySelfTest, harnessClasses, toolingTest and parityReachCheck
+./gradlew check     # the same, plus paritySelfTest, harnessClasses, harnessTest, toolingTest and parityReachCheck
 ```
 
 Either one is the step; `check` is the one that also compiles the harness and holds the reach graph
@@ -252,6 +252,14 @@ a `renderVanilla*` task, which does not.
 `clientClasses` is the load-bearing half and the task runs both: Loom's
 `splitEnvironmentSourceSets()` puts every harness java file in the **client** source set, so a bare
 `classes` reports `:compileJava NO-SOURCE` and succeeds over sources it never read.
+
+```bash
+./gradlew harnessTest             # the harness's own suite, through the same wrapper
+```
+
+The harness's `test` source set compiles against the client one and holds the refusals the harness
+makes with no running client - the run's check of the client's packs and text options, and the book
+roster's own reads - which no boot over the shared run directory reaches. `check` depends on it too.
 
 ## Exercising the pre-commit hook
 

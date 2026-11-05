@@ -72,6 +72,10 @@ loom {
             // pointed elsewhere draws that file instead.
             property("refharness.tooltipRoster", optionalProperty("refharnessTooltipRoster")
                 ?: rootProject.file("../src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json").canonicalPath)
+            // The book sweep's roster, by path, set on every run the same way: the default is the tracked
+            // roster beside the tooltip one, and a run pointed elsewhere draws that file instead.
+            property("refharness.bookRoster", optionalProperty("refharnessBookRoster")
+                ?: rootProject.file("../src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json").canonicalPath)
             // The pack modes: the packs the client selects over vanilla, by file name, and the folder
             // its own folder source discovers them in. Only a pack mode may run with packs -
             // HarnessMode.resolve refuses a run naming them beside any other mode - and the selection
@@ -112,6 +116,23 @@ dependencies {
     // Simplified Annotations
     "clientCompileOnly"("io.github.simplified-dev:annotations:2.6.1")
     "clientAnnotationProcessor"("io.github.simplified-dev:annotations:2.6.1")
+
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+// The unit suite holds what the harness decides with no running client - the run's refusals and a
+// roster's own refusals - over the classes the client source set compiles and the client jar they
+// compile against. Loom's splitEnvironmentSourceSets() puts every harness java file in that set, which
+// `test` does not see on its own.
+sourceSets.test {
+    compileClasspath += sourceSets["client"].output + sourceSets["client"].compileClasspath
+    runtimeClasspath += sourceSets["client"].output + sourceSets["client"].runtimeClasspath
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 tasks.processResources {

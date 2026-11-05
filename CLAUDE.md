@@ -104,14 +104,15 @@ A `--tests` filter applies to EVERY `Test` task, so an unqualified one that name
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when
 filtering.
 
-`./gradlew check` is `test` plus four gates `test` does not reach: `paritySelfTest`, the parity
+`./gradlew check` is `test` plus five gates `test` does not reach: `paritySelfTest`, the parity
 toolkit's own suite, which otherwise runs only inside a capture; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
-name; `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
-build of their own; and `parityReachCheck`, which holds the committed reach graph,
-`parity/reach.json`, to the compiled tree. The harness is a separate Gradle build, so `test` passes
-over one that does not compile and the next thing that would catch it is a client boot; the four
-gates together cost seconds.
+name; `harnessTest`, the harness's own suite through the same wrapper - the refusals it makes with
+no running client, which no boot reaches; `toolingTest`, which is `:tooling:test` under the name it
+had when the generators were a build of their own; and `parityReachCheck`, which holds the
+committed reach graph, `parity/reach.json`, to the compiled tree. The harness is a separate Gradle
+build, so `test` passes over one that does not compile and the next thing that would catch it is a
+client boot; the five gates together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`

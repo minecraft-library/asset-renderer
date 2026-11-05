@@ -20,10 +20,11 @@ import java.util.List;
  * no window in which the client holds vanilla alone.
  *
  * <p><b>The repository is the only thing changed.</b> {@code Options.resourcePacks} is what
- * {@code options.txt} is written from, and it is never touched, so the run directory every reference
- * run shares keeps no record of a pack - a selection persisted there would load into the next vanilla
- * render. A later reload rebuilds from the repository's selection, so one selection here holds for the
- * whole run.
+ * {@code options.txt} is written from, and it is never touched, so the run directory every run shares
+ * keeps no record of a pack - a selection persisted there would stay selected in every later run, and
+ * each run that did not ask for the pack, every reference run among them, would refuse it before its
+ * first sweep. A later reload rebuilds from the repository's selection, so one selection here holds for
+ * the whole run.
  *
  * <p>Applied as asked even to a pack whose declared format is not the client's. The selection screen
  * and {@code options.txt}'s load refuse one of those, but the repository itself does not, and what a

@@ -19,6 +19,16 @@ pluginManagement {
 
 rootProject.name = "vanilla-reference-harness"
 
+// The test libraries are asset-renderer's own catalog entries, read from its file rather than restated,
+// so the harness's unit suite and asset-renderer's run one JUnit.
+dependencyResolutionManagement {
+    versionCatalogs {
+        create("libs") {
+            from(files("../gradle/libs.versions.toml"))
+        }
+    }
+}
+
 // The annotation vocabulary this build declares its own parity reach in, and the only build it
 // includes. It resolves nothing, ships nothing and is taken compileOnly, so the mod jar Loom
 // assembles is unchanged by it.

@@ -21,7 +21,6 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.Options;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
@@ -71,9 +70,7 @@ import java.util.stream.Stream;
  * asset-renderer's {@code src/visual/resources} unless a run names another. Each line is a text
  * component as an item tooltip carries one, parsed by the client's own component codec against the
  * running registries, so a line the client would refuse refuses the run rather than drawing
- * something else; so does a roster of another format, two subjects that would write one file, and a
- * client whose built-in high-contrast or programmer-art pack is selected, the first of which replaces
- * both tooltip sprites.
+ * something else; so does a roster of another format and two subjects that would write one file.
  *
  * <p>The call is the direct one and never the item route, which adds attribute and advanced lines
  * the roster did not ask for. It is made at a fixed content origin with a positioner that places the
@@ -139,15 +136,9 @@ public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
      */
     private static final int HOTBAR_NAME_COLOR = ARGB.white(255);
 
-    /** The built-in packs that redraw a tooltip, and that a reference run therefore never selects. */
-    private static final Set<String> REDRAWING_PACKS = Set.of("high_contrast", "programmer_art");
-
     /** Places the box at the point it is asked for, whatever the window measures. */
     private static final ClientTooltipPositioner AT_THE_ORIGIN =
         (screenWidth, screenHeight, x, y, width, height) -> new Vector2i(x, y);
-
-    /** The prefix the client's folder source gives the id of every pack it discovers. */
-    private static final String FILE_PREFIX = "file/";
 
     /** The handshake a pack run writes beside its drawings. */
     private static final String STACK = "stack.json";
@@ -193,7 +184,7 @@ public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
      */
     public TooltipSweep(List<String> packIds) {
         this.requested = List.copyOf(packIds);
-        this.pack = Optional.of(packIds.stream().map(id -> id.substring(FILE_PREFIX.length())).collect(Collectors.joining(",")));
+        this.pack = Optional.of(packIds.stream().map(id -> id.substring(HarnessConfig.FOLDER_PACK_PREFIX.length())).collect(Collectors.joining(",")));
     }
 
     /** One drawing the sweep writes - a roster subject's tooltip or its box alone, or one of its plain lines. */
@@ -254,22 +245,15 @@ public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
      *
      * @param ctx the sweep context
      * @return the drawings, in roster order
-     * @throws IllegalStateException if a redrawing pack is selected, a requested pack is not, or the
-     *     roster is unnamed, absent, malformed, of another format, has no section for a pack run's
-     *     packs, lists a pack subject naming no unstyled subject, carries a line the client's codec
-     *     refuses, has no plain section for a vanilla run, carries a plain line the client's codec
-     *     refuses, or names two subjects that would write one file
+     * @throws IllegalStateException if a requested pack is not selected, or the roster is unnamed,
+     *     absent, malformed, of another format, has no section for a pack run's packs, lists a pack
+     *     subject naming no unstyled subject, carries a line the client's codec refuses, has no plain
+     *     section for a vanilla run, carries a plain line the client's codec refuses, or names two
+     *     subjects that would write one file
      */
     @Override
     public List<Drawing> enumerate(SweepContext ctx) {
         Collection<String> selected = ctx.client().getResourcePackRepository().getSelectedIds();
-        List<String> redrawing = selected.stream().filter(REDRAWING_PACKS::contains).toList();
-        if (!redrawing.isEmpty()) {
-            throw new IllegalStateException(String.format(
-                "The tooltip references are drawn over %s, and this client selected '%s' of '%s'",
-                pack.isEmpty() ? "vanilla's own sprites" : "the sprites of '" + requested + "' over vanilla's",
-                redrawing, selected));
-        }
         List<String> unselected = requested.stream().filter(id -> !selected.contains(id)).toList();
         if (!unselected.isEmpty()) {
             throw new IllegalStateException(String.format(
@@ -327,30 +311,14 @@ public final class TooltipSweep implements Sweep<TooltipSweep.Drawing> {
     }
 
     /**
-     * Refuses a client whose options draw a tooltip other than vanilla's default, then, for a pack
-     * run, writes the handshake beside its drawings.
-     *
-     * <p>Asserted rather than set: a font option takes effect through a resource reload, and the run
-     * directory every run shares would keep whatever this set.
+     * For a pack run, writes the handshake beside its drawings.
      *
      * @param ctx the sweep context
      * @param subjects the enumerated work list
-     * @throws IllegalStateException if high contrast, the forced Unicode font or the Japanese glyph
-     *     variants are on, or the language is not {@code en_us}
      * @throws UncheckedIOException if a pack run's handshake cannot be written
      */
     @Override
     public void prepare(SweepContext ctx, List<Drawing> subjects) {
-        Options options = ctx.client().options;
-        boolean highContrast = options.highContrast().get();
-        boolean unicode = options.forceUnicodeFont().get();
-        boolean japanese = options.japaneseGlyphVariants().get();
-        if (highContrast || unicode || japanese || !"en_us".equals(options.languageCode)) {
-            throw new IllegalStateException(String.format(
-                "The tooltip references are drawn at high contrast, forced Unicode font and Japanese glyph variants "
-                    + "off in 'en_us', and this client runs them at '%s', '%s' and '%s' in '%s'",
-                highContrast, unicode, japanese, options.languageCode));
-        }
         if (pack.isPresent()) writeStack(ctx, subjects);
     }
 

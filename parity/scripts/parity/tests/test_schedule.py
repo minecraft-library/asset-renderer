@@ -528,6 +528,12 @@ class TheShippedMap(unittest.TestCase):
         answer = self._answer(["src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json"])
         self.assertEqual(answer, {"refresh": schedule.BOOT, "selected_by": ["B67"]})
 
+    def test_the_book_roster_boots(self):
+        """Read by the harness by path, as the tooltip roster is, so the schedule roster says nothing
+        about it."""
+        answer = self._answer(["src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json"])
+        self.assertEqual(answer, {"refresh": schedule.BOOT, "selected_by": ["B73"]})
+
     def test_a_harness_edit_boots(self):
         answer = self._answer(["harness/build.gradle.kts"])
         self.assertEqual(answer["refresh"], schedule.BOOT)

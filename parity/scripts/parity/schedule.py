@@ -20,10 +20,10 @@ the same step either way, so the stored value is digested in the same form wheth
 re-rendered or not, and a capture that hashed it says so in its provenance.
 
 **The record is written around the one run that renders the tree whole.** :func:`inputs` digests
-every file a rule that boots the tree triggers on - the harness's sources and wiring, and the tooltip
-roster - before a whole, untargeted ``renderVanillaAllReferences`` boots, into :data:`PENDING` beside
-the tree; the build renames it to :data:`RECORD` once that boot exits 0, and every run that writes
-into the tree deletes :data:`RECORD` before it boots.
+every file a rule that boots the tree triggers on - the harness's sources and wiring, and the two
+rosters it reads by path - before a whole, untargeted ``renderVanillaAllReferences`` boots, into
+:data:`PENDING` beside the tree; the build renames it to :data:`RECORD` once that boot exits 0, and
+every run that writes into the tree deletes :data:`RECORD` before it boots.
 
 **The check refuses rather than guesses.** Anything it cannot certify is a disagreement, and a
 disagreement only ever costs the boot the gate would have paid anyway: a roster it cannot read, one of
@@ -120,8 +120,8 @@ def held_to_plan(planned: dict | None, live: dict | None) -> list[str]:
     capture may follow a plan priced for other paths, or one written in the same invocation after
     the build had already read the last one. So the tree is resolved again from git when the capture
     runs, and the skip stands only where that answer is :data:`ROSTER` and names the very rules the
-    plan named - a harness edit or a tooltip-roster edit made since the plan selects a rule that
-    boots, and a change set the plan was never priced for names other rules.
+    plan named - a harness edit or an edit to a roster the harness reads by path made since the plan
+    selects a rule that boots, and a change set the plan was never priced for names other rules.
 
     :param planned: the plan's ``references`` member, or None where the working root holds no plan
         or a plan holding no such row
@@ -148,8 +148,8 @@ def boot_rules(rules: Sequence[Rule]) -> list[Rule]:
     """The rules whose route into the reference tree is not the roster.
 
     Every rule naming ``manifest.references`` but the roster rules and the derived ones - the
-    harness's sources and wiring, and the tooltip roster the harness reads by path. What their
-    triggers match is what a whole-tree render reads beside the roster.
+    harness's sources and wiring, and the tooltip and book rosters the harness reads by path. What
+    their triggers match is what a whole-tree render reads beside the roster.
 
     :param rules: the map's rules
     :return: those rules, in map order

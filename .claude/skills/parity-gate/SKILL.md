@@ -204,7 +204,8 @@ whole cost. In the first two states, read the producer list instead.
 
 **A plan holding `manifest.references` says on its `REFERENCES` line what the capture does to the
 tree.** `boot` re-renders the whole tree in one client boot before hashing it, and is the answer
-whenever a harness rule or the tooltip roster selected the row. `roster` is the answer when every rule
+whenever a harness rule or one of the rosters the harness reads by path - the tooltip roster and the
+book roster - selected the row. `roster` is the answer when every rule
 that selected it reaches the tree through the entity schedule roster alone - the version pins, the
 roster's own inputs, or a derived rule's graph answer: the capture regenerates the roster, runs
 `parityScheduleCheck`, and boots the client wherever the check disagrees. It resolves the tree again

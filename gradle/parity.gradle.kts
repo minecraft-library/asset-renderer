@@ -885,7 +885,7 @@ val harnessDiagnosticProperties = listOf("refharnessBoundsDump", "entityPixelDum
 // the tree: the reference manifest walks the root for images at any depth, so a sub-tree left out of
 // the list is one every partial run stops naming while the manifest goes on hashing it.
 val referenceSubTrees =
-    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "tooltips", "idle", "walk")
+    listOf("blocks", "items", "entities", "players", "glint", "armor", "menus", "tooltips", "books", "idle", "walk")
 
 /** The suite producer, which orders a capture step but is never finalized by one. */
 val paritySuiteProducers = setOf("parityPinTest")
@@ -1400,8 +1400,8 @@ tasks {
     registerHarnessRun("renderVanillaGlintReferences", "refharnessModes=GLINT", "GLINT", true, listOf("glint"),
         "Runs the harness in GLINT mode: references/glint/ only. ~43 s. Then run glintParityVanilla.")
 
-    // forwardsTargets = false on the player, armour, menu and tooltip runs, and the reason is in the
-    // sweeps: none of their subjects has a registry id, so none of them reads -PrefharnessTargets in
+    // forwardsTargets = false on the player, armour, menu, tooltip and book runs, and the reason is in
+    // the sweeps: none of their subjects has a registry id, so none of them reads -PrefharnessTargets in
     // the enumerate where the block, item, entity and glint sweeps filter, and each renders its whole
     // roster whatever the filter names. Forwarding it would read as a scoped run that is not one.
     registerHarnessRun("renderVanillaPlayerReferences", "refharnessModes=PLAYERS", "PLAYERS", false, listOf("players"),
@@ -1420,6 +1420,11 @@ tasks {
         "tooltip roster drawn through the client's own tooltip call, and its box alone, and every plain " +
         "line through the text draw of the client's hotbar-name call, into tooltips/plain/. Then run " +
         "tooltipParityVanilla.")
+
+    registerHarnessRun("renderVanillaBookReferences", "refharnessModes=BOOKS", "BOOKS", false, listOf("books"),
+        "Runs the harness in BOOKS mode: references/books/ only - every page of the tracked book roster " +
+        "drawn through the client's own book screen, the book's background and then the page's text, " +
+        "with the page-number line left out by the screen's own flag.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessModes=ANIMATION", "ANIMATION", true,
         listOf("idle"),
@@ -1588,9 +1593,9 @@ tasks {
     }
 
     // What a whole-tree render reads beside the schedule roster - the trigger paths of every rule that
-    // boots the tree, the harness's sources and wiring and the tooltip roster - digested into a pending
-    // record beside the tree before the boot. The whole, untargeted renderVanillaAllReferences depends
-    // on it and seals the record once its boot exits 0.
+    // boots the tree, the harness's sources and wiring and the tooltip and book rosters - digested into
+    // a pending record beside the tree before the boot. The whole, untargeted renderVanillaAllReferences
+    // depends on it and seals the record once its boot exits 0.
     register<ParityToolkitTask>("parityReferenceRenderRecord") {
         description = "Digests what a whole-tree render reads beside the entity schedule roster into " +
             "references-rendered.pending.json beside the reference tree, which renderVanillaAllReferences " +
@@ -1611,11 +1616,11 @@ tasks {
     // posed sub-trees recorded; the boot runs wherever any of the three disagrees. Where all three
     // agree, the run is skipped and the capture step behind it hashes the tree as it stands, through
     // the same step and into the same digest form a boot would have led to, stamping no mode and
-    // recording that it hashed. A -Partifacts naming the row and a plan any harness rule or the
-    // tooltip roster selected the row in never schedule the check; a graph holding parityPlan never
-    // skips; and a run outside a capture always renders, the skip asking the resolved graph whether
-    // the capture is in it. Typed beside a bare capture of a roster plan, the render is that
-    // capture's producer and is skipped where the check finds the tree current.
+    // recording that it hashed. A -Partifacts naming the row and a plan any harness rule or either
+    // roster the harness reads by path selected the row in never schedule the check; a graph holding
+    // parityPlan never skips; and a run outside a capture always renders, the skip asking the resolved
+    // graph whether the capture is in it. Typed beside a bare capture of a roster plan, the render is
+    // that capture's producer and is skipped where the check finds the tree current.
     named("renderVanillaAllReferences") {
         mustRunAfter("parityScheduleCheck")
         val rosterGated = parityReferencesRosterGated()
@@ -1713,14 +1718,32 @@ tasks {
         }
     }
 
-    // `check`, below, is the one edge that puts this build's four cheap gates on a verification run;
+    register<Exec>("harnessTest") {
+        description = "Runs the vanilla-reference-harness's unit suite through its own wrapper: the refusals the harness makes with no running client, which no client boot over the shared run directory reaches."
+        group = "verification"
+        workingDir = harnessDir.asFile
+        // The client's lease, for harnessClasses' reason: the same nested build over the same directory.
+        usesService(harnessClient)
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
+        commandLine = buildList {
+            if (isWindows) { add("cmd"); add("/c") }
+            add(gradlew)
+            add("test")
+            add("--no-daemon")
+        }
+    }
+
+    // `check`, below, is the one edge that puts this build's five cheap gates on a verification run;
     // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and a capture runs it
     // - so off this edge a break was caught, but not before the next gate, which is the very run the
     // toolkit is being trusted to compute, and the reach map answers a toolkit change with an empty
-    // sees and names this task as the gate instead. `harnessClasses` is the only task here that
-    // compiles the harness at all, and off this edge it runs only when it is asked for by name, so a
-    // harness edit that does not compile waits minutes for a client boot rather than the seconds this
-    // costs. `toolingTest` runs the tooling subproject's suite, and the fourth is this reach check.
+    // sees and names this task as the gate instead. `harnessClasses` and `harnessTest` are the only
+    // tasks here that compile the harness at all, and off this edge they run only when asked for by
+    // name, so a harness edit that does not compile waits minutes for a client boot rather than the
+    // seconds this costs; `harnessTest` runs the harness's own suite, whose refusals no boot over the
+    // shared run directory reaches. `toolingTest` runs the tooling subproject's suite, and the fifth is
+    // this reach check.
     // A type whose derived reach differs from the committed graph fails here, at the cost of two
     // compiles, rather than mis-scheduling a gate an hour later. Ungrouped and paired with a python
     // regenerator rather than a second task, exactly as `triggers` is: the parity GROUP is the five
@@ -1743,7 +1766,7 @@ tasks {
     }
 
     named("check") {
-        dependsOn("paritySelfTest", "harnessClasses", "toolingTest", "parityReachCheck")
+        dependsOn("paritySelfTest", "harnessClasses", "harnessTest", "toolingTest", "parityReachCheck")
     }
 
     // The fast suite filtered to the classes that write a self-captured row, and the producer those

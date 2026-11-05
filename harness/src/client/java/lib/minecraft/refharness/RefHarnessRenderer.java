@@ -9,6 +9,7 @@ import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
 import lib.minecraft.refharness.frame.BlockFrameRenderer;
 import lib.minecraft.refharness.pip.TextureReadback;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.gamerules.GameRules;
@@ -16,7 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Top-level orchestrator. Once the world is ready and the warmup ticks elapse, advances the
@@ -33,6 +36,9 @@ public final class RefHarnessRenderer {
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     private static final TargetFilter TARGETS = TargetFilter.parse(HarnessConfig.TARGETS);
+
+    /** The built-in packs that redraw vanilla's own resources, which no run draws through. */
+    private static final Set<String> REDRAWING_PACKS = Set.of("high_contrast", "programmer_art");
 
     /**
      * The run's sweeps, in the order they run. One step advances the first that is not finished, so
@@ -60,6 +66,7 @@ public final class RefHarnessRenderer {
         client.options.hideGui = true;
 
         List<HarnessMode> modes = HarnessMode.resolve();
+        requireVanillaClient(client);
         List<Sweep<?>> sweeps = HarnessMode.sweeps(modes);
         LOG.info("RefHarnessRenderer: modes={}, sweeps={}", modes,
             sweeps.stream().map(sweep -> sweep.outputDir() + "@" + sweep.gait()).toList());
@@ -73,6 +80,70 @@ public final class RefHarnessRenderer {
         List<SweepRunner<?>> built = new ArrayList<>();
         for (Sweep<?> sweep : sweeps) built.add(SweepRunner.of(sweep));
         runners = List.copyOf(built);
+    }
+
+    /**
+     * Refuses a client that does not draw as vanilla's own, before the run's first sweep exists.
+     *
+     * <p>Every run is read as the client drawing vanilla's own resources at vanilla's defaults, a pack
+     * run with the packs it asked for over them. So a run is refused when its client selected a built-in
+     * pack that redraws vanilla's resources, or a pack from its resource-pack folder the run did not ask
+     * for - every one, for a run that names no pack - and when it runs at high contrast, with the forced
+     * Unicode font or the Japanese glyph variants on, or in a language other than {@code en_us}. Each is
+     * read rather than set: a pack and a font option take effect through a resource reload, and the run
+     * directory every run shares would keep whatever a run set, so only a hand launch leaves one changed.
+     *
+     * <p>The check is the same for every mode, a mode that draws no text included: the pack selection and
+     * the options are the shared run directory's state rather than any mode's, and a list of the modes
+     * each one reaches would be one more statement a new sweep could be left out of. It is made before
+     * any sweep exists, so a refused run writes no file.
+     *
+     * @param client the running client
+     * @throws IllegalStateException if a redrawing built-in pack or a folder pack the run did not ask for
+     *     is selected, or an option is not vanilla's default
+     */
+    private static void requireVanillaClient(Minecraft client) {
+        requireVanillaPacks(client.getResourcePackRepository().getSelectedIds(), HarnessConfig.packIds());
+        Options options = client.options;
+        requireVanillaOptions(options.highContrast().get(), options.forceUnicodeFont().get(),
+            options.japaneseGlyphVariants().get(), options.languageCode);
+    }
+
+    /**
+     * Refuses a pack selection holding a built-in pack that redraws vanilla's resources, or a pack from
+     * the client's resource-pack folder the run did not ask for.
+     *
+     * @param selected the ids of every pack the client selected
+     * @param requested the ids of the folder packs the run asked for, empty for a run that names none
+     * @throws IllegalStateException if a redrawing built-in pack or an unrequested folder pack is selected
+     */
+    static void requireVanillaPacks(Collection<String> selected, List<String> requested) {
+        List<String> foreign = selected.stream()
+            .filter(id -> REDRAWING_PACKS.contains(id) || (id.startsWith(HarnessConfig.FOLDER_PACK_PREFIX) && !requested.contains(id)))
+            .toList();
+        if (!foreign.isEmpty()) {
+            throw new IllegalStateException(String.format(
+                "Every run draws over vanilla's own resources and the packs it asked for, '%s', and this client also selected '%s' of '%s'",
+                requested, foreign, selected));
+        }
+    }
+
+    /**
+     * Refuses text options other than vanilla's defaults.
+     *
+     * @param highContrast whether the client runs at high contrast
+     * @param forcedUnicode whether the client forces the Unicode font
+     * @param japaneseVariants whether the client draws the Japanese glyph variants
+     * @param language the client's language code
+     * @throws IllegalStateException if any option is on, or the language is not {@code en_us}
+     */
+    static void requireVanillaOptions(boolean highContrast, boolean forcedUnicode, boolean japaneseVariants, String language) {
+        if (highContrast || forcedUnicode || japaneseVariants || !"en_us".equals(language)) {
+            throw new IllegalStateException(String.format(
+                "Every run draws at high contrast, forced Unicode font and Japanese glyph variants off in 'en_us', "
+                    + "and this client runs them at '%s', '%s' and '%s' in '%s'",
+                highContrast, forcedUnicode, japaneseVariants, language));
+        }
     }
 
     /**

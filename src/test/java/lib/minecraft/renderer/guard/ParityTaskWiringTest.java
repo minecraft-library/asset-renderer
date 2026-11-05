@@ -149,6 +149,39 @@ final class ParityTaskWiringTest {
     private static final Path HARNESS_MODE =
         Path.of("harness/src/client/java/lib/minecraft/refharness/HarnessMode.java");
 
+    /** The method of that enum answering one mode's sweeps, opened - the one place a sweep is constructed. */
+    private static final String ANSWERS_A_MODES_SWEEPS = "public List<Sweep<?>> sweeps() {";
+
+    /** One arm of that method, capturing its mode; the sweeps follow inside the list's parentheses. */
+    private static final Pattern SWEEP_ARM = Pattern.compile("case ([A-Z_]+) -> List\\.of\\(");
+
+    /** One sweep construction inside an arm, opened, capturing nothing; its arguments follow. */
+    private static final Pattern CONSTRUCTS_A_SWEEP = Pattern.compile("new [A-Z]\\w*\\(");
+
+    /** A harness run refreshing a literal list of sub-trees, capturing its name, its modes and the list. */
+    private static final Pattern NARROW_REFRESH = Pattern.compile(
+        "registerHarnessRun\\(\"([^\"]+)\", (?:null|\"[^\"]+\"), \"([^\"]+)\", (?:true|false),\\s*listOf\\(([^)]*)\\)");
+
+    /** The harness run refreshing the build's whole sub-tree list, capturing its name and its modes. */
+    private static final Pattern WHOLE_TREE_REFRESH = Pattern.compile(
+        "registerHarnessRun\\(\"([^\"]+)\",\\s*(?:null|\"[^\"]+\"),\\s*\"([^\"]+)\",\\s*(?:true|false),\\s*referenceSubTrees\\b");
+
+    /** The harness's own build, whose run config is the one every harness launch takes. */
+    private static final Path HARNESS_BUILD = Path.of("harness/build.gradle.kts");
+
+    /** That run config, opened. */
+    private static final String OPENS_THE_RUN_CONFIG = "create(\"renderReferences\") {";
+
+    /** One system property the run config sets on the client, capturing its name. */
+    private static final Pattern SETS_A_RUN_PROPERTY = Pattern.compile("\\bproperty\\(\"([^\"]+)\"");
+
+    /** Where the harness keeps every source a running client reads a property from. */
+    private static final Path HARNESS_SOURCES = Path.of("harness/src/client/java");
+
+    /** One system property a harness source reads, in each spelling the JDK reads one by, capturing its name. */
+    private static final Pattern READS_A_RUN_PROPERTY = Pattern.compile(
+        "\\b(?:System\\.getProperty|Boolean\\.getBoolean|Integer\\.getInteger|Long\\.getLong)\\(\"([^\"]+)\"");
+
     /** One artifact row of the build's table: its id and its producer list. */
     private static final Pattern ARTIFACT_ROW =
         Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)");
@@ -322,8 +355,8 @@ final class ParityTaskWiringTest {
 
     /** The edge that puts this build's cheap gates on a default verification run. */
     private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
-        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\", "
-            + "\"parityReachCheck\") }";
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"harnessTest\", "
+            + "\"toolingTest\", \"parityReachCheck\") }";
 
     /** That edge's operand list, for reading back which tasks it actually names. */
     private static final Pattern CHECK_SCHEDULES =
@@ -351,6 +384,10 @@ final class ParityTaskWiringTest {
     /** The argv the harness gate hands its own wrapper, captured whole. */
     private static final Pattern HARNESS_COMMAND_LINE = Pattern.compile(
         "(?s)register<Exec>\\(\"harnessClasses\"\\) \\{.*?commandLine = buildList \\{(.*?)\n {8}}");
+
+    /** The argv the harness suite's gate hands the same wrapper, captured whole. */
+    private static final Pattern HARNESS_SUITE_COMMAND_LINE = Pattern.compile(
+        "(?s)register<Exec>\\(\"harnessTest\"\\) \\{.*?commandLine = buildList \\{(.*?)\n {8}}");
 
     /** One operand of it, read as written: a quoted literal with its quotes, an expression bare. */
     private static final Pattern ADDED_OPERAND = Pattern.compile("add\\((.+?)\\)");
@@ -930,6 +967,56 @@ final class ParityTaskWiringTest {
                 + "and `--no-daemon` is what stops a second toolchain's daemon outliving the run",
             operands, is(equalTo(List.of("\"cmd\"", "\"/c\"", "gradlew", "\"classes\"",
                 "\"clientClasses\"", "\"--no-daemon\""))));
+    }
+
+    @Test
+    @DisplayName("the harness suite's gate asks the wrapper for the harness's own test task")
+    void theHarnessSuiteGateAsksForTheTestTask() {
+        List<String> operands = new ArrayList<>();
+        Matcher added = ADDED_OPERAND.matcher(declared(buildFile(), HARNESS_SUITE_COMMAND_LINE.pattern()));
+        while (added.find()) operands.add(added.group(1));
+
+        assertThat("the wrapper's whole argv, in order and as written. `test` is the one operand that "
+                + "runs anything: without it the wrapper answers with its help text and exits 0, and "
+                + "`check` reports the harness's refusals held over a suite that never ran. The rest "
+                + "are the compile gate's, for the compile gate's reasons",
+            operands, is(equalTo(List.of("\"cmd\"", "\"/c\"", "gradlew", "\"test\"", "\"--no-daemon\""))));
+    }
+
+    @Test
+    @DisplayName("every property the harness run config sets is one a harness source reads, and the reverse")
+    void everyRunPropertyIsSetAndRead() {
+        String harnessBuild = read(HARNESS_BUILD);
+        int open = harnessBuild.indexOf(OPENS_THE_RUN_CONFIG);
+        assertThat("the harness build declares no run config named renderReferences", open, is(not(-1)));
+        int close = closing(harnessBuild, open + OPENS_THE_RUN_CONFIG.length() - 1);
+        assertThat("the run config's block never closes", close, is(not(-1)));
+
+        Set<String> set = new TreeSet<>();
+        Matcher sets = SETS_A_RUN_PROPERTY.matcher(harnessBuild.substring(open, close));
+        while (sets.find()) set.add(sets.group(1));
+
+        Set<String> read = new TreeSet<>();
+        try (Stream<Path> sources = Files.walk(HARNESS_SOURCES)) {
+            for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                Matcher reads = READS_A_RUN_PROPERTY.matcher(read(source));
+                while (reads.find()) read.add(reads.group(1));
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
+        assertThat("the run config sets no property, which leaves both clauses below vacuous",
+            set, is(not(empty())));
+        assertThat("and no harness source reads one, the same", read, is(not(empty())));
+        assertThat("properties the run config sets that no harness source reads. The client is handed "
+                + "a name nothing asks for, so the value an operator forwards reaches nothing and the "
+                + "run renders at the property's default - which, for a roster, is no roster at all",
+            set.stream().filter(name -> !read.contains(name)).toList(), is(empty()));
+        assertThat("properties a harness source reads that the run config never sets. A run launched "
+                + "through this build hands the client no such value, so the reader sees its default "
+                + "on every run and a spelling slip between the two files fails only at a client boot",
+            read.stream().filter(name -> !set.contains(name)).toList(), is(empty()));
     }
 
     @Test
@@ -1582,6 +1669,38 @@ final class ParityTaskWiringTest {
     }
 
     @Test
+    @DisplayName("the whole-tree run constructs every sweep a run refreshing one of its sub-trees constructs")
+    void theWholeTreeRunConstructsEveryNarrowRunsSweep() {
+        Map<String, Set<String>> arms = sweepArms();
+        String build = buildFile();
+
+        Matcher whole = WHOLE_TREE_REFRESH.matcher(build);
+        assertThat("no harness run refreshes the build's whole sub-tree list", whole.find(), is(true));
+        Set<String> drawn = sweepsOf(arms, whole.group(2));
+        assertThat("a second run refreshes the whole list, and the clause below would hold of one of them only",
+            whole.find(), is(false));
+
+        Map<String, List<String>> left = new TreeMap<>();
+        int narrow = 0;
+        Matcher runs = NARROW_REFRESH.matcher(build);
+        while (runs.find()) {
+            if (quotedMembers(runs.group(3)).isEmpty()) continue;
+            narrow++;
+            List<String> missing = sweepsOf(arms, runs.group(2)).stream()
+                .filter(sweep -> !drawn.contains(sweep))
+                .toList();
+            if (!missing.isEmpty()) left.put(runs.group(1), missing);
+        }
+        assertThat("no harness run refreshes a literal list of sub-trees, which leaves the clause below "
+            + "vacuous", narrow, is(greaterThan(0)));
+        assertThat("sweeps a run refreshing a sub-tree constructs that the whole-tree run constructs in "
+                + "none of its modes. No harness run clears what it refreshes, so the whole-tree boot "
+                + "would leave that sub-tree as the last narrow run drew it, exit 0, and seal the render "
+                + "record over the whole tree - stale ground truth with every record saying it is fresh",
+            left, equalTo(Map.of()));
+    }
+
+    @Test
     @DisplayName("a capture boots the client for the reference tree only where the schedule check disagrees")
     void aRosterGatedCaptureBootsOnlyWhereTheRosterMoved() {
         String check = collapsed(registeredBlock(SCHEDULE_CHECK));
@@ -1664,9 +1783,11 @@ final class ParityTaskWiringTest {
         assertThat("and the harness compile leases it as well, running the same nested build over the "
                 + "same directory a boot does",
             collapsed(registeredBlock("harnessClasses")), containsString("usesService(harnessClient)"));
-        assertThat("leased by the runs and the compile and nothing else, so the lease serialises the "
-                + "client and no producer beside it",
-            occurrences(buildFile(), "usesService(harnessClient)"), is(equalTo(2)));
+        assertThat("and so does the harness's own suite, the same nested build again",
+            collapsed(registeredBlock("harnessTest")), containsString("usesService(harnessClient)"));
+        assertThat("leased by the runs, the compile and the suite and nothing else, so the lease "
+                + "serialises the client and no producer beside it",
+            occurrences(buildFile(), "usesService(harnessClient)"), is(equalTo(3)));
         assertThat("the slow suite reads the entity sub-tree, so it waits for every run that writes the "
                 + "reference tree, as the sweeps and the capture steps do off their own rows",
             build, containsString("named(\"slowTest\") { mustRunAfter(harnessRunTrees.filterValues "
@@ -1882,6 +2003,75 @@ final class ParityTaskWiringTest {
             else if (ch == '{' && depth-- == 0) return at;
         }
         return -1;
+    }
+
+    /**
+     * Returns where the bracket opened at a position is closed.
+     *
+     * @param text the text to walk
+     * @param open the offset of the opening brace or parenthesis
+     * @return the offset of the bracket closing it, or -1 when it never closes
+     */
+    private static int closing(String text, int open) {
+        char opener = text.charAt(open);
+        char closer = opener == '(' ? ')' : '}';
+        int depth = 0;
+        for (int at = open; at < text.length(); at++) {
+            char ch = text.charAt(at);
+            if (ch == opener) depth++;
+            else if (ch == closer && --depth == 0) return at;
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the sweeps each arm of {@code HarnessMode.sweeps()} constructs, each as its construction is
+     * written, whitespace collapsed - so two modes constructing one sweep class with different arguments,
+     * the two posed gaits, construct two different sweeps.
+     *
+     * @return the constructions by mode
+     */
+    private static Map<String, Set<String>> sweepArms() {
+        String source = read(HARNESS_MODE);
+        int body = source.indexOf(ANSWERS_A_MODES_SWEEPS);
+        assertThat("HarnessMode declares no " + ANSWERS_A_MODES_SWEEPS, body, is(not(-1)));
+        int end = closing(source, body + ANSWERS_A_MODES_SWEEPS.length() - 1);
+        assertThat("HarnessMode's sweeps() never closes", end, is(not(-1)));
+
+        Map<String, Set<String>> arms = new TreeMap<>();
+        Matcher arm = SWEEP_ARM.matcher(source).region(body, end);
+        while (arm.find()) {
+            int listClose = closing(source, arm.end() - 1);
+            assertThat("the " + arm.group(1) + " arm's list never closes", listClose, is(not(-1)));
+            Set<String> constructed = new TreeSet<>();
+            Matcher construction = CONSTRUCTS_A_SWEEP.matcher(source).region(arm.end(), listClose);
+            while (construction.find()) {
+                int argumentsClose = closing(source, construction.end() - 1);
+                constructed.add(collapsed(source.substring(construction.start(), argumentsClose + 1)));
+                construction.region(argumentsClose + 1, listClose);
+            }
+            arms.put(arm.group(1), constructed);
+        }
+        assertThat("HarnessMode's sweeps() carries no arm, which leaves every caller of this vacuous",
+            arms, is(not(equalTo(Map.of()))));
+        return arms;
+    }
+
+    /**
+     * Returns every sweep a harness run's modes construct between them.
+     *
+     * @param arms the constructions by mode, from {@link #sweepArms}
+     * @param modes the run's modes as the build spells them, joined on {@link #MODE_SEPARATOR}
+     * @return the constructions
+     */
+    private static Set<String> sweepsOf(Map<String, Set<String>> arms, String modes) {
+        Set<String> sweeps = new TreeSet<>();
+        for (String mode : modes.split(MODE_SEPARATOR)) {
+            assertThat("a harness run names the mode " + mode + ", which HarnessMode.sweeps() has no arm for",
+                arms.containsKey(mode), is(true));
+            sweeps.addAll(arms.get(mode));
+        }
+        return sweeps;
     }
 
     /**
