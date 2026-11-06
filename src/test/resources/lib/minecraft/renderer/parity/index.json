@@ -187,9 +187,15 @@
       "sum": "7.6024"
     },
     "sweep.book": {
-      "baselined": false,
+      "baselined": true,
       "determinism_floor": 2,
-      "kind": "sweep-table"
+      "entries": 19,
+      "file": "sweeps/book.json",
+      "kind": "sweep-table",
+      "last_duration_ms": 4319,
+      "promoted_at": "7d5af558e13726ff73f2f588a98217b8f4134a6a",
+      "sha256": "1b8cbff0eebd06d6e7de34e521ed4ae055adda64de3d7d4ff5ca7855b6b6a942",
+      "sum": "0.0000"
     },
     "sweep.entity": {
       "baselined": true,
