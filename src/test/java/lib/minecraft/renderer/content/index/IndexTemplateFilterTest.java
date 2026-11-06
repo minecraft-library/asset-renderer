@@ -83,7 +83,7 @@ class IndexTemplateFilterTest {
 
         BlockModelLoader.LoadResult be = BlockModelLoader.load();
 
-        BlockTables blockTables = new BlockTables(models.blocks(), blockTints, itemDefinitions, blockDefaultStates,
+        BlockTables blockTables = new BlockTables(models.blocks(), models.all(), blockTints, itemDefinitions, blockDefaultStates,
             blockItemAliases, be.models(), be.variants(), itemTrees, models.items());
         blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
         itemRows = ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows);

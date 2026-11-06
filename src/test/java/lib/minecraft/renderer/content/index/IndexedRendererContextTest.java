@@ -272,7 +272,7 @@ class IndexedRendererContextTest {
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.BlockEntity> blockEntities = beResult.models();
         BlockTables blockTables = new BlockTables(
-            blockModels, blockTints, Concurrent.newMap(), blockDefaults, Concurrent.newMap(),
+            blockModels, allModels, blockTints, Concurrent.newMap(), blockDefaults, Concurrent.newMap(),
             blockEntities, beResult.variants(), itemTrees, itemModels);
         IndexRows<Block> blockRows = BlockIndexBuilder.load(
             blockTables, new BlockStates(blockstates, Concurrent.newMap()), blockTags, stack);

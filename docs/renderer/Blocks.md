@@ -91,6 +91,9 @@ whether that entry survives the `rendersNothing` filter at all.
   names no default state at all, resolves hanging instead of standing.
 - Nothing downstream recovers the intended variant, so this order is a contract. A pass that means to
   iterate either map differently moves rows and owes a promote.
+- A variant's, a multipart apply's and the first-variant pick's model id resolve against every model
+  under `models/`, whatever folder it sits in, as the client's one model map does; only the primary
+  pass keys a row off a `models/block/` file.
 
 ## Decisions that stay closed
 

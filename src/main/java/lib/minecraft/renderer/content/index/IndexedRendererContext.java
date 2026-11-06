@@ -180,6 +180,7 @@ public final class IndexedRendererContext implements RendererContext {
 
         BlockTables blockTables = new BlockTables(
             models.blocks(),
+            models.all(),
             blockTints,
             itemDefinitions,
             blockDefaultStates,
