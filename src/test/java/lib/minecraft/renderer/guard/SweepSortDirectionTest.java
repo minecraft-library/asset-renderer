@@ -33,6 +33,15 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Read off the sources rather than off a run, because a run of one of these boots the pipeline and
  * renders a corpus.
+ *
+ * <p>The same sources say which writers run at all: the writers named here are the ones the sweep
+ * producers run, and the shared sweep JVM's table holds every writer the build hands it and no other.
+ *
+ * <p>And they say where a capture finds each sweep's table. The build's artifact row names the
+ * directory the table is read from and the property whose presence suppresses the capture, and each
+ * value is typed a second time - the directory in the writer that writes it, the property where the
+ * producer reads it - so each pair is held equal here, and the directory to the layout the toolkit
+ * attributes a table by.
  */
 @DisplayName("The sweep writers rank their tables the same way")
 final class SweepSortDirectionTest {
@@ -51,9 +60,7 @@ final class SweepSortDirectionTest {
         "EntityParitySweep.java", "EntityAnimationParitySweep.java",
         "BlockParitySweep.java", "ItemParitySweep.java",
         "PlayerParitySweep.java", "ArmorParitySweep.java", "GlintParitySweep.java",
-        "MenuParitySweep.java", "TooltipParitySweep.java");
-
-    /** Where the build file registers the task that runs each writer. */
+        "MenuParitySweep.java", "TooltipParitySweep.java", "BookParitySweep.java");
 
     /** The id prefix of the artifacts whose producers are the writers, which is what selects them. */
     private static final String SWEEP_ID_PREFIX = "sweep.";
@@ -61,11 +68,44 @@ final class SweepSortDirectionTest {
     /** What a writer's source file is called, given the class its producer runs. */
     private static final String JAVA = ".java";
 
-    /** How a registration names the class it runs, which is where a producer's writer is read from. */
-    private static final Pattern RUNS_A_CLASS = Pattern.compile("mainClass\\.set\\(\"([^\"]+)\"\\)");
+    /** The source root the writers' classes are declared under. */
+    private static final String VISUAL_SOURCES = "src/visual/java";
 
-    /** How the vanilla sweep JVM's table names the class it runs for a producer, by producer name. */
-    private static final String SHARED_JVM_ROW = "\"%s\" to VanillaSweep\\(\"([^\"]+)\"";
+    /**
+     * One sweep row of the build's artifact table, capturing its id, its producers, the directory its
+     * table is read from and the properties that scope it.
+     */
+    private static final Pattern SWEEP_ROW = Pattern.compile("ParityArtifact\\(\"(sweep\\.[^\"]+)\",\\s*"
+        + "listOf\\(([^)]*)\\),\\s*\"([^\"]+)\"(?:,\\s*listOf\\(([^)]*)\\))?");
+
+    /** One quoted value of a list the build types inline. */
+    private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"");
+
+    /** How the vanilla sweep JVM's table names the property a producer narrows by, by producer name. */
+    private static final String SHARED_JVM_SCOPE = "\"%s\" to VanillaSweep\\(\"[^\"]+\"(?:,\\s*\"([^\"]+)\")?";
+
+    /** How a registration reads a project property, capturing the property's name. */
+    private static final Pattern READS_A_PROPERTY = Pattern.compile("project\\.findProperty\\(\"([^\"]+)\"\\)");
+
+    /** How a writer declares the one directory it writes, capturing the directory. */
+    private static final Pattern WRITES_UNDER = Pattern.compile("OUTPUT_DIR = Path\\.of\\(\"([^\"]+)\"\\)");
+
+    /** Where every sweep writes its table, ahead of the sweep's name. */
+    private static final String SWEEP_OUTPUT_ROOT = "cache/visual/";
+
+    /** What follows the sweep's name in the directory it writes, which is what the toolkit attributes a table by. */
+    private static final String SWEEP_OUTPUT_SUFFIX = "-parity-vanilla";
+
+    /** How the vanilla sweep JVM's table hands a writer to the JVM, capturing the writer's simple name. */
+    private static final Pattern HANDED_WRITER =
+        Pattern.compile("to VanillaSweep\\(\"lib\\.minecraft\\.renderer\\.sweep\\.(\\w+)\"");
+
+    /** How the shared JVM's own table holds a writer it runs, capturing the writer's simple name. */
+    private static final Pattern HELD_WRITER =
+        Pattern.compile("sweeps\\.put\\((\\w+)\\.class\\.getName\\(\\), \\1::run\\);");
+
+    /** The shared sweep JVM, whose table is every writer it can run. */
+    private static final Path BUNDLE = HOME.resolve("SweepBundle.java");
 
     /** The one spelling of the ranking, which is the shared comparator applied to the row's delta. */
     private static final String THE_SORT = "rows.sort(SweepReport.byDelta(Row::meanDelta));";
@@ -99,6 +139,152 @@ final class SweepSortDirectionTest {
         assertThat("and the directory holds no writer the producers do not run", present, equalTo(run));
     }
 
+    @Test
+    @DisplayName("the shared sweep JVM runs every writer the build hands it, and holds no other")
+    void theSharedJvmRunsEveryWriterTheBuildHandsIt() {
+        List<String> handed = HANDED_WRITER.matcher(BuildScripts.all()).results()
+            .map(hit -> hit.group(1)).distinct().sorted().toList();
+        List<String> held = HELD_WRITER.matcher(read(BUNDLE)).results()
+            .map(hit -> hit.group(1)).sorted().toList();
+
+        assertThat("the build hands the shared JVM no writer, which would leave the clause below holding "
+            + "over nothing", handed, is(not(empty())));
+        assertThat("the writers the build hands the shared JVM, against the ones its table holds. A writer the "
+            + "table lacks refuses the whole plan, so every sweep of the invocation goes unreported, and one "
+            + "the build never hands it is a row nothing reaches", held, equalTo(handed));
+    }
+
+    @Test
+    @DisplayName("each sweep's capture row is scoped by the property its producer narrows by")
+    void everySweepRowIsScopedByWhatItsProducerReads() {
+        String build = BuildScripts.all();
+        List<SweepRow> rows = sweepRows(build);
+        List<String> unreadable = new ArrayList<>();
+        List<String> parted = new ArrayList<>();
+        for (SweepRow row : rows) {
+            for (String producer : row.producers()) {
+                Optional<List<String>> read = scopeReadBy(build, producer);
+                if (read.isEmpty()) unreadable.add(producer);
+                else if (!read.get().equals(row.scopedBy()))
+                    parted.add(row.artifact() + " by " + row.scopedBy() + ", " + producer + " by " + read.get());
+            }
+        }
+
+        assertThat("the sweep rows the build's artifact table holds, against the sweeps the roster registers",
+            rows.stream().map(SweepRow::artifact).sorted().toList(), equalTo(registeredSweeps()));
+        assertThat("no sweep row is scoped by any property, which would leave the clause below holding over "
+            + "nothing", rows.stream().anyMatch(row -> !row.scopedBy().isEmpty()), is(true));
+        assertThat("sweep producers neither the vanilla sweep JVM's table nor a JavaExec registration runs",
+            unreadable, is(empty()));
+        assertThat("sweep rows scoped by another property than the one their producer narrows by. The capture "
+            + "reads only the row's, so a hand run narrowed by the producer's still captures its table as the "
+            + "whole of it, and a run given the row's alone is suppressed with nothing narrowed", parted,
+            is(empty()));
+    }
+
+    @Test
+    @DisplayName("each sweep's capture row reads the directory its writer writes, in the layout the toolkit reads")
+    void everySweepRowReadsTheDirectoryItsWriterWrites() {
+        String build = BuildScripts.all();
+        List<SweepRow> rows = sweepRows(build);
+        List<String> offTheLayout = new ArrayList<>();
+        List<String> unreadable = new ArrayList<>();
+        List<String> parted = new ArrayList<>();
+        int declaring = 0;
+        for (SweepRow row : rows) {
+            String layout = SWEEP_OUTPUT_ROOT + row.artifact().substring(SWEEP_ID_PREFIX.length()) + SWEEP_OUTPUT_SUFFIX;
+            if (!row.source().equals(layout)) offTheLayout.add(row.artifact() + " -> " + row.source());
+            for (String producer : row.producers()) {
+                Optional<Path> writer = BuildScripts.classRunBy(build, producer)
+                    .map(name -> Path.of(VISUAL_SOURCES, name.replace('.', '/') + JAVA))
+                    .filter(Files::isRegularFile);
+                if (writer.isEmpty()) {
+                    unreadable.add(producer);
+                    continue;
+                }
+                Matcher declared = WRITES_UNDER.matcher(read(writer.get()));
+                if (!declared.find()) continue;
+                declaring++;
+                String written = declared.group(1);
+                if (!written.equals(row.source()))
+                    parted.add(row.artifact() + " reads " + row.source() + ", its writer writes " + written);
+            }
+        }
+
+        assertThat("the sweep rows the build's artifact table holds, against the sweeps the roster registers",
+            rows.stream().map(SweepRow::artifact).sorted().toList(), equalTo(registeredSweeps()));
+        assertThat("sweep producers whose writer the build does not name, or names outside " + VISUAL_SOURCES,
+            unreadable, is(empty()));
+        assertThat("no sweep writer declares the one directory it writes, which would leave the last clause "
+            + "holding over nothing", declaring > 0, is(true));
+        assertThat("sweep rows reading another directory than " + SWEEP_OUTPUT_ROOT + "<name>" + SWEEP_OUTPUT_SUFFIX
+            + ", the directory name the toolkit attributes a table by, so a capture of one finds no table and "
+            + "fails with MissingInput", offTheLayout, is(empty()));
+        assertThat("sweep rows reading another directory than the one their writer writes, so a capture of one "
+            + "finds no table and fails with MissingInput", parted, is(empty()));
+    }
+
+    /**
+     * One sweep row of the build's artifact table.
+     *
+     * @param artifact the artifact id
+     * @param producers the tasks that write the table
+     * @param source the directory the capture reads the table from
+     * @param scopedBy the project properties whose presence suppresses the capture
+     */
+    private record SweepRow(String artifact, List<String> producers, String source, List<String> scopedBy) {}
+
+    /**
+     * Reads every sweep row of the build's artifact table.
+     *
+     * @param build the build's text
+     * @return the rows, in table order
+     */
+    private static List<SweepRow> sweepRows(String build) {
+        return SWEEP_ROW.matcher(build).results()
+            .map(row -> new SweepRow(row.group(1), quoted(row.group(2)), row.group(3),
+                row.group(4) == null ? List.of() : quoted(row.group(4))))
+            .toList();
+    }
+
+    /**
+     * Reads the values of a list the build types inline.
+     *
+     * @param list the list's text between its parentheses
+     * @return the values, in order
+     */
+    private static List<String> quoted(String list) {
+        return QUOTED.matcher(list).results().map(hit -> hit.group(1)).toList();
+    }
+
+    /**
+     * Returns every sweep the artifact roster registers.
+     *
+     * @return the ids, sorted
+     */
+    private static List<String> registeredSweeps() {
+        return ParityArtifacts.ALL.stream().map(ParityArtifacts.Registration::id)
+            .filter(id -> id.startsWith(SWEEP_ID_PREFIX)).sorted().toList();
+    }
+
+    /**
+     * Reads the properties one registered producer narrows its sweep by.
+     *
+     * <p>A producer of the vanilla sweep JVM is narrowed by the property its row of that JVM's table
+     * names. Any other reads its properties in its own registration.
+     *
+     * @param build the build's text
+     * @param producer the task name
+     * @return the property names, in the order the build reads them, or empty when the vanilla sweep JVM
+     *     runs nothing for the producer and the build registers no {@code JavaExec} by that name
+     */
+    private static Optional<List<String>> scopeReadBy(String build, String producer) {
+        Matcher shared = Pattern.compile(String.format(SHARED_JVM_SCOPE, Pattern.quote(producer))).matcher(build);
+        if (shared.find()) return Optional.of(shared.group(1) == null ? List.of() : List.of(shared.group(1)));
+        return BuildScripts.javaExecOf(build, producer).map(registration ->
+            READS_A_PROPERTY.matcher(registration).results().map(hit -> hit.group(1)).distinct().toList());
+    }
+
     /**
      * The writer file each sweep producer runs, beside the producers whose writer could not be read.
      *
@@ -120,7 +306,7 @@ final class SweepSortDirectionTest {
         for (ParityArtifacts.Registration registration : ParityArtifacts.ALL) {
             if (!registration.id().startsWith(SWEEP_ID_PREFIX)) continue;
             for (String producer : registration.producers()) {
-                Optional<String> className = classRunBy(build, producer);
+                Optional<String> className = BuildScripts.classRunBy(build, producer);
                 if (className.isEmpty()) {
                     unreadable.add(producer);
                     continue;
@@ -130,31 +316,6 @@ final class SweepSortDirectionTest {
             }
         }
         return new ProducerWriters(found.stream().sorted().toList(), List.copyOf(unreadable));
-    }
-
-    /**
-     * Reads the class one registered producer runs.
-     *
-     * <p>A producer of the vanilla sweep JVM runs the class its row of that JVM's table names. Any
-     * other is read off its own registration, sliced to that registration's block, so a task
-     * registered without a main class reads as one rather than borrowing the next registration's.
-     *
-     * @param build the build file's text
-     * @param producer the task name
-     * @return the fully-qualified class name, or empty when the vanilla sweep JVM runs nothing for the
-     *     producer and the build file registers no {@code JavaExec} by that name, or its registration
-     *     names no main class
-     */
-    private static Optional<String> classRunBy(String build, String producer) {
-        Matcher shared = Pattern.compile(String.format(SHARED_JVM_ROW, Pattern.quote(producer))).matcher(build);
-        if (shared.find()) return Optional.of(shared.group(1));
-        String opening = "register<JavaExec>(\"" + producer + "\") {";
-        int start = build.indexOf(opening);
-        if (start < 0) return Optional.empty();
-        int next = build.indexOf("\n    register<", start + opening.length());
-        Matcher runs = RUNS_A_CLASS.matcher(
-            next < 0 ? build.substring(start) : build.substring(start, next));
-        return runs.find() ? Optional.of(runs.group(1)) : Optional.empty();
     }
 
     /**

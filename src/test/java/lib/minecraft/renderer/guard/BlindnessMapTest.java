@@ -75,8 +75,8 @@ import static org.hamcrest.Matchers.not;
  * too. The suite carries the same union-then-demote-then-suppress arithmetic the toolkit does and
  * runs it against the shipped map, so a reach edit answers to checks on this side and not only to the
  * generated reference: the membership checks pin that the two files a member list is typed in reach
- * the artifacts that list defines, and the version, context and folder-derivation checks pin the same
- * of the files each of them holds. Dropping one of those artifacts from a {@code sees} list, or
+ * the artifacts that list defines, and the version, context, roster and folder-derivation checks pin
+ * the same of the files each of them holds. Dropping one of those artifacts from a {@code sees} list, or
  * narrowing a trigger off one of those files, fails here and names the file. What goes through is an
  * edit the map's own redundancy absorbs: dropping an artifact a second rule selects on the same path
  * leaves every resolution where it was, and the reference is the only thing that moves.
@@ -351,6 +351,22 @@ final class BlindnessMapTest {
     private static final List<String> UNREAD_BY_THE_CONTEXT =
         List.of("src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java");
 
+    /** The package the sweep writers are declared in, as a path under either visual root. */
+    private static final String SWEEP_PACKAGE = "lib/minecraft/renderer/sweep";
+
+    /** What a sweep writer's source file is called, ahead of the extension. */
+    private static final String SWEEP_WRITER_SUFFIX = "ParitySweep.java";
+
+    /**
+     * A sweep writer's roster, named as the classpath resource beside the writer, capturing the
+     * resource's file name.
+     *
+     * <p>A roster the harness draws its references from is read by the writer measuring them as that
+     * resource, which no declaration reaches, so the rule over the roster's path is all that plans the
+     * tables the writer writes for an edit to it.
+     */
+    private static final Pattern READS_A_ROSTER = Pattern.compile("\\bROSTER = \"([^\"]+)\"");
+
     /**
      * The directory a renderer is a direct child of.
      *
@@ -417,11 +433,11 @@ final class BlindnessMapTest {
      * split ids on a dot would hand each of them a renderer that does not exist.
      *
      * <p><b>A renderer can have more than one picture and the entity renderer has two</b>, one per
-     * pose the same subjects are drawn in, and the text renderer has two, one per pack its tooltips
-     * are drawn under - the client's own assets and hypixel-skyblock. So the clauses below quantify
-     * over a list: reaching any of a renderer's own artifacts is naming that renderer, and reaching
-     * any of another's is the contradiction - which is what lets a claim over the animated sweep
-     * alone belong to the entity renderer without also having to move the still one.
+     * pose the same subjects are drawn in, and the text renderer has three, one per pack its tooltips
+     * are drawn under - the client's own assets and hypixel-skyblock - and its book pages. So the
+     * clauses below quantify over a list: reaching any of a renderer's own artifacts is naming that
+     * renderer, and reaching any of another's is the contradiction - which is what lets a claim over
+     * the animated sweep alone belong to the entity renderer without also having to move the still one.
      */
     private static final Map<String, List<String>> IDENTIFYING_ARTIFACTS = Map.of(
         "BLOCK", List.of("sweep.block"),
@@ -431,7 +447,7 @@ final class BlindnessMapTest {
         "MENU", List.of("sweep.menu"),
         "PLAYER", List.of("sweep.player"),
         "PORTAL", List.of("manifest.portal"),
-        "TEXT", List.of("sweep.tooltip", "sweep.tooltip-hypixel-skyblock"));
+        "TEXT", List.of("sweep.tooltip", "sweep.tooltip-hypixel-skyblock", "sweep.book"));
 
     /**
      * The renderers with no stored artifact of their own, in enum order.
@@ -1192,6 +1208,58 @@ final class BlindnessMapTest {
         assertThat("artifacts of the context's row a file no producer of that row loads still plans. The "
             + "tooling demote is what subtracts them there, so one here is a widening it lost",
             overplanned, is(empty()));
+    }
+
+    @Test
+    @DisplayName("an edit to a roster a sweep writer reads plans every table that writer writes")
+    void everyRosterEditPlansTheTablesMeasuredFromIt() {
+        String build = buildFile();
+        Map<String, List<String>> tablesByRoster = new TreeMap<>();
+        for (Path writer : sweepWriters()) {
+            Matcher roster = READS_A_ROSTER.matcher(text(writer));
+            if (!roster.find()) continue;
+            String file = writer.getFileName().toString();
+            String className = SWEEP_PACKAGE.replace('/', '.') + "." + file.substring(0, file.length() - ".java".length());
+            List<String> tables = ParityArtifacts.ALL.stream()
+                .filter(registration -> registration.producers().stream()
+                    .map(producer -> BuildScripts.classRunBy(build, producer).orElse("")).anyMatch(className::equals))
+                .map(ParityArtifacts.Registration::id).sorted().toList();
+            tablesByRoster.put("src/visual/resources/" + SWEEP_PACKAGE + "/" + roster.group(1), tables);
+        }
+        List<String> tracked = trackedFiles();
+        List<String> untracked = new ArrayList<>();
+        List<String> unrun = new ArrayList<>();
+        List<String> unplanned = new ArrayList<>();
+        tablesByRoster.forEach((path, tables) -> {
+            if (!tracked.contains(path)) untracked.add(path);
+            if (tables.isEmpty()) unrun.add(path);
+            Set<String> sees = seesFor(path);
+            tables.stream().filter(id -> !sees.contains(id)).forEach(id -> unplanned.add(path + " -> " + id));
+        });
+
+        assertThat("no sweep writer reads a roster beside it, which would leave every clause below about nothing",
+            tablesByRoster.keySet(), is(not(empty())));
+        assertThat("rosters a sweep writer reads that git does not track, so what an edit to one plans is about a "
+            + "path no commit can change", untracked, is(empty()));
+        assertThat("rosters whose writer no registered producer runs, so the clause below holds over no table "
+            + "for them", unrun, is(empty()));
+        assertThat("tables an edit to the roster their writer reads does not plan. The writer reads the roster as "
+            + "the resource beside it, which no declaration reaches, so the rule over the roster's path is the "
+            + "only place an edit to it plans the table measured from it, and a table that rule leaves out moves "
+            + "unseen with the roster and its references. Add it to that rule's sees", unplanned, is(empty()));
+    }
+
+    /**
+     * Returns every sweep writer's source the sweep package holds.
+     *
+     * @return the paths, sorted
+     */
+    private static List<Path> sweepWriters() {
+        try (Stream<Path> files = Files.list(Path.of("src/visual/java", SWEEP_PACKAGE))) {
+            return files.filter(file -> file.getFileName().toString().endsWith(SWEEP_WRITER_SUFFIX)).sorted().toList();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @Test

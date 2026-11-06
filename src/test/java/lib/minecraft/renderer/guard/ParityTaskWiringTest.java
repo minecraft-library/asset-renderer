@@ -149,6 +149,89 @@ final class ParityTaskWiringTest {
     private static final Path HARNESS_MODE =
         Path.of("harness/src/client/java/lib/minecraft/refharness/HarnessMode.java");
 
+    /** The method of that enum answering one mode's sweeps, opened - the one place a sweep is constructed. */
+    private static final String ANSWERS_A_MODES_SWEEPS = "public List<Sweep<?>> sweeps() {";
+
+    /** One arm of that method, capturing its mode; the sweeps follow inside the list's parentheses. */
+    private static final Pattern SWEEP_ARM = Pattern.compile("case ([A-Z_]+) -> List\\.of\\(");
+
+    /** One sweep construction inside an arm, opened, capturing nothing; its arguments follow. */
+    private static final Pattern CONSTRUCTS_A_SWEEP = Pattern.compile("new [A-Z]\\w*\\(");
+
+    /** A harness run refreshing a literal list of sub-trees, capturing its name, its modes and the list. */
+    private static final Pattern NARROW_REFRESH = Pattern.compile(
+        "registerHarnessRun\\(\"([^\"]+)\", (?:null|\"[^\"]+\"), \"([^\"]+)\", (?:true|false),\\s*listOf\\(([^)]*)\\)");
+
+    /** The harness run refreshing the build's whole sub-tree list, capturing its name and its modes. */
+    private static final Pattern WHOLE_TREE_REFRESH = Pattern.compile(
+        "registerHarnessRun\\(\"([^\"]+)\",\\s*(?:null|\"[^\"]+\"),\\s*\"([^\"]+)\",\\s*(?:true|false),\\s*referenceSubTrees\\b");
+
+    /** The harness's own build, whose run config is the one every harness launch takes. */
+    private static final Path HARNESS_BUILD = Path.of("harness/build.gradle.kts");
+
+    /** That run config, opened. */
+    private static final String OPENS_THE_RUN_CONFIG = "create(\"renderReferences\") {";
+
+    /** One system property the run config sets on the client, capturing its name. */
+    private static final Pattern SETS_A_RUN_PROPERTY = Pattern.compile("\\bproperty\\(\"([^\"]+)\"");
+
+    /** Where the harness keeps every source a running client reads a property from. */
+    private static final Path HARNESS_SOURCES = Path.of("harness/src/client/java");
+
+    /** One system property a harness source reads, in each spelling the JDK reads one by, capturing its name. */
+    private static final Pattern READS_A_RUN_PROPERTY = Pattern.compile(
+        "\\b(?:System\\.getProperty|Boolean\\.getBoolean|Integer\\.getInteger|Long\\.getLong)\\(\"([^\"]+)\"");
+
+    /** The harness's own settings, which import this build's version catalog as {@code libs}. */
+    private static final Path HARNESS_SETTINGS = Path.of("harness/settings.gradle.kts");
+
+    /**
+     * A Kotlin comment, block or line, opening at the start of a line or after whitespace.
+     * <p>
+     * Anchored that way because the same characters occur inside the harness build's strings - a
+     * repository URL's {@code //} and a glob's {@code /*} - where they open nothing.
+     */
+    private static final Pattern KOTLIN_COMMENT = Pattern.compile("(?s)(?<!\\S)/\\*.*?\\*/|(?<!\\S)//[^\n]*");
+
+    /** A block of a settings script importing catalogs, opened; an import written any other way reads as a use. */
+    private static final Pattern IMPORTS_A_CATALOG = Pattern.compile("\\bversionCatalogs\\s*\\{");
+
+    /**
+     * One read of the catalog the harness settings name {@code libs}, capturing either the path its
+     * generated accessor takes after {@code libs.}, or the catalog's quoted name or a word of the API that
+     * looks a catalog up by that name and reads its entries.
+     * <p>
+     * The accessor is not preceded by a word character, a dot or a path separator, which is what keeps the
+     * catalog's own file, {@code ../gradle/libs.versions.toml}, from reading as a reference to it.
+     */
+    private static final Pattern READS_THE_CATALOG = Pattern.compile("(?<![\\w./\\\\-])libs\\.([\\w.]+)"
+        + "|(\"libs\"|\\b(?:versionCatalogs|VersionCatalogsExtension|LibrariesForLibs"
+        + "|find(?:Library|Version|Bundle|Plugin))\\b)");
+
+    /** The name a call opens with, bare or quoted, read back from its parenthesis. */
+    private static final Pattern CALLEE = Pattern.compile("(?:\"(\\w+)\"|(\\w+))\\s*$");
+
+    /** A dependency configuration of the harness's unit suite, which no client run puts on its classpath. */
+    private static final Pattern SUITE_CONFIGURATION = Pattern.compile("test(?!Fixtures)[A-Z]\\w*");
+
+    /** One name the harness's unit suite goes by - a configuration, its source set or its task - however written. */
+    private static final Pattern NAMES_THE_SUITE = Pattern.compile("\\btest(?:(?!Fixtures)[A-Z]\\w*)?\\b");
+
+    /** A dependency line of the unit suite, a statement opening on a call to one of its configurations. */
+    private static final Pattern DECLARES_A_SUITE_DEPENDENCY =
+        Pattern.compile("(?m)^\\s*\"?(test(?!Fixtures)[A-Z]\\w*)\"?\\s*\\(");
+
+    /** The block configuring the unit suite's source set or its task, opened, capturing the container and the name. */
+    private static final Pattern CONFIGURES_THE_SUITE = Pattern.compile("\\b(sourceSets|tasks)\\.(test)\\s*\\{");
+
+    /** A statement of the suite's source-set block that adds to that set's own classpath. */
+    private static final Pattern ADDS_TO_THE_SUITES_CLASSPATH =
+        Pattern.compile("\\s*(?:compileClasspath|runtimeClasspath)\\s*\\+=[^\n]*");
+
+    /** What a catalog version reaching a client boot owes the store, which both harness catalog guards end on. */
+    private static final String OWES_B47_A_BOOT = "That edit owes B47 a boot - take it out of ROSTER_RULES, or "
+        + "put the catalog in a boot rule's triggers - and manifest.pack-tooltips a place in B47's sees";
+
     /** One artifact row of the build's table: its id and its producer list. */
     private static final Pattern ARTIFACT_ROW =
         Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)");
@@ -322,8 +405,8 @@ final class ParityTaskWiringTest {
 
     /** The edge that puts this build's cheap gates on a default verification run. */
     private static final String CHECK_SCHEDULES_THE_CHEAP_GATES =
-        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"toolingTest\", "
-            + "\"parityReachCheck\") }";
+        "named(\"check\") { dependsOn(\"paritySelfTest\", \"harnessClasses\", \"harnessTest\", "
+            + "\"toolingTest\", \"parityReachCheck\") }";
 
     /** That edge's operand list, for reading back which tasks it actually names. */
     private static final Pattern CHECK_SCHEDULES =
@@ -351,6 +434,10 @@ final class ParityTaskWiringTest {
     /** The argv the harness gate hands its own wrapper, captured whole. */
     private static final Pattern HARNESS_COMMAND_LINE = Pattern.compile(
         "(?s)register<Exec>\\(\"harnessClasses\"\\) \\{.*?commandLine = buildList \\{(.*?)\n {8}}");
+
+    /** The argv the harness suite's gate hands the same wrapper, captured whole. */
+    private static final Pattern HARNESS_SUITE_COMMAND_LINE = Pattern.compile(
+        "(?s)register<Exec>\\(\"harnessTest\"\\) \\{.*?commandLine = buildList \\{(.*?)\n {8}}");
 
     /** One operand of it, read as written: a quoted literal with its quotes, an expression bare. */
     private static final Pattern ADDED_OPERAND = Pattern.compile("add\\((.+?)\\)");
@@ -920,7 +1007,7 @@ final class ParityTaskWiringTest {
 
         assertThat("the wrapper's whole argv, in order and as written, because `clientClasses` is "
                 + "the operand that compiles anything at all: Loom's splitEnvironmentSourceSets() "
-                + "puts every harness java file in the CLIENT source set, so `classes` alone "
+                + "puts every mod java file in the CLIENT source set, so `classes` alone "
                 + "reports :compileJava NO-SOURCE and this gate reports success in seconds over a "
                 + "harness that does not compile - the exact state it was added to end, and one "
                 + "nothing else in either build notices before a client boot. The rest are read "
@@ -930,6 +1017,199 @@ final class ParityTaskWiringTest {
                 + "and `--no-daemon` is what stops a second toolchain's daemon outliving the run",
             operands, is(equalTo(List.of("\"cmd\"", "\"/c\"", "gradlew", "\"classes\"",
                 "\"clientClasses\"", "\"--no-daemon\""))));
+    }
+
+    @Test
+    @DisplayName("the harness suite's gate asks the wrapper for the harness's own test task")
+    void theHarnessSuiteGateAsksForTheTestTask() {
+        List<String> operands = new ArrayList<>();
+        Matcher added = ADDED_OPERAND.matcher(declared(buildFile(), HARNESS_SUITE_COMMAND_LINE.pattern()));
+        while (added.find()) operands.add(added.group(1));
+
+        assertThat("the wrapper's whole argv, in order and as written. `test` is the one operand that "
+                + "runs anything: without it the wrapper answers with its help text and exits 0, and "
+                + "`check` reports the harness's refusals held over a suite that never ran. The rest "
+                + "are the compile gate's, for the compile gate's reasons",
+            operands, is(equalTo(List.of("\"cmd\"", "\"/c\"", "gradlew", "\"test\"", "\"--no-daemon\""))));
+    }
+
+    @Test
+    @DisplayName("every property the harness run config sets is one a harness source reads, and the reverse")
+    void everyRunPropertyIsSetAndRead() {
+        String harnessBuild = read(HARNESS_BUILD);
+        int open = harnessBuild.indexOf(OPENS_THE_RUN_CONFIG);
+        assertThat("the harness build declares no run config named renderReferences", open, is(not(-1)));
+        int close = closing(harnessBuild, open + OPENS_THE_RUN_CONFIG.length() - 1);
+        assertThat("the run config's block never closes", close, is(not(-1)));
+
+        Set<String> set = new TreeSet<>();
+        Matcher sets = SETS_A_RUN_PROPERTY.matcher(harnessBuild.substring(open, close));
+        while (sets.find()) set.add(sets.group(1));
+
+        Set<String> read = new TreeSet<>();
+        try (Stream<Path> sources = Files.walk(HARNESS_SOURCES)) {
+            for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                Matcher reads = READS_A_RUN_PROPERTY.matcher(read(source));
+                while (reads.find()) read.add(reads.group(1));
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
+        assertThat("the run config sets no property, which leaves both clauses below vacuous",
+            set, is(not(empty())));
+        assertThat("and no harness source reads one, the same", read, is(not(empty())));
+        assertThat("properties the run config sets that no harness source reads. The client is handed "
+                + "a name nothing asks for, so the value an operator forwards reaches nothing and the "
+                + "run renders at the property's default - which, for a roster, is no roster at all",
+            set.stream().filter(name -> !read.contains(name)).toList(), is(empty()));
+        assertThat("properties a harness source reads that the run config never sets. A run launched "
+                + "through this build hands the client no such value, so the reader sees its default "
+                + "on every run and a spelling slip between the two files fails only at a client boot",
+            read.stream().filter(name -> !set.contains(name)).toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the harness build takes from the version catalog only its unit suite's libraries")
+    void theHarnessTakesOnlyItsSuitesLibrariesFromTheCatalog() {
+        List<String> suite = new ArrayList<>();
+        List<String> outside = new ArrayList<>();
+        for (Path file : List.of(HARNESS_SETTINGS, HARNESS_BUILD)) {
+            String script = withoutComments(read(file));
+            String code = file.equals(HARNESS_SETTINGS) ? withoutTheImports(script) : script;
+            Matcher reference = READS_THE_CATALOG.matcher(code);
+            while (reference.find()) {
+                String read = reference.group(1) != null ? "libs." + reference.group(1) : reference.group(2);
+                boolean plugin = read.startsWith("libs.plugins.") || read.equals("findPlugin");
+                (!plugin && insideASuiteConfiguration(code, reference.start()) ? suite : outside)
+                    .add(site(file, code, reference.start(), read));
+            }
+        }
+
+        assertThat("the harness build reads nothing from the catalog its settings import, which leaves the "
+                + "clause below vacuous - and B47's source, which names the unit suite's libraries as what "
+                + "the harness takes from it, false",
+            suite, is(not(empty())));
+        assertThat("catalog reads in the harness build outside a test configuration, or naming a plugin - "
+                + "through the libs accessor or through the API that looks a catalog up by name. B47 lists "
+                + "manifest.pack-tooltips blind to a catalog edit, and schedule.ROSTER_RULES lets a capture "
+                + "over one skip the client boot, because the harness takes only its unit suite's libraries "
+                + "from the catalog and no client run puts a test configuration on its classpath. A catalog "
+                + "version on a client, run or plugin line chooses code every boot executes. " + OWES_B47_A_BOOT,
+            outside, is(empty()));
+    }
+
+    @Test
+    @DisplayName("the harness build hands its unit suite's configurations and output to nothing else")
+    void theHarnessHandsItsSuiteToNothingElse() {
+        String code = withoutComments(read(HARNESS_BUILD));
+        Set<Integer> own = new TreeSet<>();
+        DECLARES_A_SUITE_DEPENDENCY.matcher(code).results().forEach(line -> own.add(line.start(1)));
+        List<String> blockStatements = new ArrayList<>();
+        Matcher block = CONFIGURES_THE_SUITE.matcher(code);
+        while (block.find()) {
+            own.add(block.start(2));
+            if (!block.group(1).equals("sourceSets")) continue;
+            int open = block.end() - 1;
+            int close = closing(code, open);
+            assertThat("the suite's source-set block never closes", close, is(not(-1)));
+            int at = open + 1;
+            for (String line : code.substring(open + 1, close).split("\n", -1)) {
+                if (!line.isBlank() && !ADDS_TO_THE_SUITES_CLASSPATH.matcher(line).matches())
+                    blockStatements.add(site(HARNESS_BUILD, code, at, line.strip()));
+                at += line.length() + 1;
+            }
+        }
+        List<String> elsewhere = NAMES_THE_SUITE.matcher(code).results()
+            .filter(name -> !own.contains(name.start()))
+            .map(name -> site(HARNESS_BUILD, code, name.start(), name.group()))
+            .toList();
+
+        assertThat("names of the harness's unit suite outside its own dependency lines and the blocks "
+                + "configuring its source set and its task. The catalog's libraries reach only the suite, "
+                + "which is what lets B47 list manifest.pack-tooltips blind to a catalog edit and "
+                + "schedule.ROSTER_RULES skip the client boot over one, and a client configuration extending "
+                + "one of the suite's, or a client classpath or run taking its source set or its output, puts "
+                + "a catalog version on every boot. " + OWES_B47_A_BOOT,
+            elsewhere, is(empty()));
+        assertThat("statements of the suite's source-set block other than one adding to that set's own "
+                + "classpath. Inside the block the suite's output and classpaths are named unqualified, so a "
+                + "statement there handing them to a client set names nothing the clause above reads, and "
+                + "puts a catalog version on every boot. " + OWES_B47_A_BOOT,
+            blockStatements, is(empty()));
+    }
+
+    /**
+     * Blanks every comment of a Kotlin script, keeping each line break, so what is matched afterwards is
+     * code and its offsets and line numbers are the file's own.
+     *
+     * @param source the script's text
+     * @return the text with each comment character but a line break replaced by a space
+     */
+    private static String withoutComments(String source) {
+        return KOTLIN_COMMENT.matcher(source).replaceAll(comment -> comment.group().replaceAll("[^\n]", " "));
+    }
+
+    /**
+     * Blanks every block of a settings script that imports a catalog, keeping each line break, so an
+     * import does not read as a use of what it imports and the offsets and line numbers stay the file's own.
+     * <p>
+     * A block that never closes is left as it is, so what it holds reads as a use.
+     *
+     * @param settings the settings script's text, its comments blanked
+     * @return the text with each import block's every character but a line break replaced by a space
+     */
+    private static String withoutTheImports(String settings) {
+        StringBuilder blanked = new StringBuilder(settings);
+        Matcher opened = IMPORTS_A_CATALOG.matcher(settings);
+        while (opened.find()) {
+            int close = closing(settings, opened.end() - 1);
+            if (close == -1) continue;
+            for (int at = opened.start(); at <= close; at++)
+                if (blanked.charAt(at) != '\n') blanked.setCharAt(at, ' ');
+        }
+        return blanked.toString();
+    }
+
+    /**
+     * Names a place in a Kotlin script by its file, its line and what stands there.
+     *
+     * @param file the script's repo-relative path
+     * @param code the script's text, its offsets the file's own
+     * @param at the offset of what stands there
+     * @param what what stands there, as a failure prints it
+     * @return the file, the line number and what stands there
+     */
+    private static String site(Path file, String code, int at, String what) {
+        return file + ":" + (1 + occurrences(code.substring(0, at), "\n")) + " " + what;
+    }
+
+    /**
+     * Answers whether a position sits inside a call to a configuration of the harness's unit suite.
+     * <p>
+     * Walks back to the brace opening the block the position sits in, and reads the OUTERMOST call
+     * between the two, which is the configuration a dependency line opens with: a catalog reference
+     * handed through a helper, {@code testImplementation(platform(libs.bom))}, belongs to the suite, and
+     * one handed through a helper named like a configuration into a client one does not.
+     *
+     * @param code the script's text, its comments blanked
+     * @param at the position of the reference
+     * @return whether the outermost call around it is a test configuration
+     */
+    private static boolean insideASuiteConfiguration(String code, int at) {
+        String outermost = null;
+        int depth = 0;
+        for (int i = at - 1; i >= 0; i--) {
+            char ch = code.charAt(i);
+            if (ch == ')' || ch == '}') depth++;
+            else if ((ch == '(' || ch == '{') && depth > 0) depth--;
+            else if (ch == '{') break;
+            else if (ch == '(') {
+                Matcher callee = CALLEE.matcher(code.substring(code.lastIndexOf('\n', i) + 1, i));
+                outermost = callee.find() ? (callee.group(1) != null ? callee.group(1) : callee.group(2)) : "";
+            }
+        }
+        return outermost != null && SUITE_CONFIGURATION.matcher(outermost).matches();
     }
 
     @Test
@@ -1582,6 +1862,38 @@ final class ParityTaskWiringTest {
     }
 
     @Test
+    @DisplayName("the whole-tree run constructs every sweep a run refreshing one of its sub-trees constructs")
+    void theWholeTreeRunConstructsEveryNarrowRunsSweep() {
+        Map<String, Set<String>> arms = sweepArms();
+        String build = buildFile();
+
+        Matcher whole = WHOLE_TREE_REFRESH.matcher(build);
+        assertThat("no harness run refreshes the build's whole sub-tree list", whole.find(), is(true));
+        Set<String> drawn = sweepsOf(arms, whole.group(2));
+        assertThat("a second run refreshes the whole list, and the clause below would hold of one of them only",
+            whole.find(), is(false));
+
+        Map<String, List<String>> left = new TreeMap<>();
+        int narrow = 0;
+        Matcher runs = NARROW_REFRESH.matcher(build);
+        while (runs.find()) {
+            if (quotedMembers(runs.group(3)).isEmpty()) continue;
+            narrow++;
+            List<String> missing = sweepsOf(arms, runs.group(2)).stream()
+                .filter(sweep -> !drawn.contains(sweep))
+                .toList();
+            if (!missing.isEmpty()) left.put(runs.group(1), missing);
+        }
+        assertThat("no harness run refreshes a literal list of sub-trees, which leaves the clause below "
+            + "vacuous", narrow, is(greaterThan(0)));
+        assertThat("sweeps a run refreshing a sub-tree constructs that the whole-tree run constructs in "
+                + "none of its modes. No harness run clears what it refreshes, so the whole-tree boot "
+                + "would leave that sub-tree as the last narrow run drew it, exit 0, and seal the render "
+                + "record over the whole tree - stale ground truth with every record saying it is fresh",
+            left, equalTo(Map.of()));
+    }
+
+    @Test
     @DisplayName("a capture boots the client for the reference tree only where the schedule check disagrees")
     void aRosterGatedCaptureBootsOnlyWhereTheRosterMoved() {
         String check = collapsed(registeredBlock(SCHEDULE_CHECK));
@@ -1664,9 +1976,11 @@ final class ParityTaskWiringTest {
         assertThat("and the harness compile leases it as well, running the same nested build over the "
                 + "same directory a boot does",
             collapsed(registeredBlock("harnessClasses")), containsString("usesService(harnessClient)"));
-        assertThat("leased by the runs and the compile and nothing else, so the lease serialises the "
-                + "client and no producer beside it",
-            occurrences(buildFile(), "usesService(harnessClient)"), is(equalTo(2)));
+        assertThat("and so does the harness's own suite, the same nested build again",
+            collapsed(registeredBlock("harnessTest")), containsString("usesService(harnessClient)"));
+        assertThat("leased by the runs, the compile and the suite and nothing else, so the lease "
+                + "serialises the client and no producer beside it",
+            occurrences(buildFile(), "usesService(harnessClient)"), is(equalTo(3)));
         assertThat("the slow suite reads the entity sub-tree, so it waits for every run that writes the "
                 + "reference tree, as the sweeps and the capture steps do off their own rows",
             build, containsString("named(\"slowTest\") { mustRunAfter(harnessRunTrees.filterValues "
@@ -1882,6 +2196,75 @@ final class ParityTaskWiringTest {
             else if (ch == '{' && depth-- == 0) return at;
         }
         return -1;
+    }
+
+    /**
+     * Returns where the bracket opened at a position is closed.
+     *
+     * @param text the text to walk
+     * @param open the offset of the opening brace or parenthesis
+     * @return the offset of the bracket closing it, or -1 when it never closes
+     */
+    private static int closing(String text, int open) {
+        char opener = text.charAt(open);
+        char closer = opener == '(' ? ')' : '}';
+        int depth = 0;
+        for (int at = open; at < text.length(); at++) {
+            char ch = text.charAt(at);
+            if (ch == opener) depth++;
+            else if (ch == closer && --depth == 0) return at;
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the sweeps each arm of {@code HarnessMode.sweeps()} constructs, each as its construction is
+     * written, whitespace collapsed - so two modes constructing one sweep class with different arguments,
+     * the two posed gaits, construct two different sweeps.
+     *
+     * @return the constructions by mode
+     */
+    private static Map<String, Set<String>> sweepArms() {
+        String source = read(HARNESS_MODE);
+        int body = source.indexOf(ANSWERS_A_MODES_SWEEPS);
+        assertThat("HarnessMode declares no " + ANSWERS_A_MODES_SWEEPS, body, is(not(-1)));
+        int end = closing(source, body + ANSWERS_A_MODES_SWEEPS.length() - 1);
+        assertThat("HarnessMode's sweeps() never closes", end, is(not(-1)));
+
+        Map<String, Set<String>> arms = new TreeMap<>();
+        Matcher arm = SWEEP_ARM.matcher(source).region(body, end);
+        while (arm.find()) {
+            int listClose = closing(source, arm.end() - 1);
+            assertThat("the " + arm.group(1) + " arm's list never closes", listClose, is(not(-1)));
+            Set<String> constructed = new TreeSet<>();
+            Matcher construction = CONSTRUCTS_A_SWEEP.matcher(source).region(arm.end(), listClose);
+            while (construction.find()) {
+                int argumentsClose = closing(source, construction.end() - 1);
+                constructed.add(collapsed(source.substring(construction.start(), argumentsClose + 1)));
+                construction.region(argumentsClose + 1, listClose);
+            }
+            arms.put(arm.group(1), constructed);
+        }
+        assertThat("HarnessMode's sweeps() carries no arm, which leaves every caller of this vacuous",
+            arms, is(not(equalTo(Map.of()))));
+        return arms;
+    }
+
+    /**
+     * Returns every sweep a harness run's modes construct between them.
+     *
+     * @param arms the constructions by mode, from {@link #sweepArms}
+     * @param modes the run's modes as the build spells them, joined on {@link #MODE_SEPARATOR}
+     * @return the constructions
+     */
+    private static Set<String> sweepsOf(Map<String, Set<String>> arms, String modes) {
+        Set<String> sweeps = new TreeSet<>();
+        for (String mode : modes.split(MODE_SEPARATOR)) {
+            assertThat("a harness run names the mode " + mode + ", which HarnessMode.sweeps() has no arm for",
+                arms.containsKey(mode), is(true));
+            sweeps.addAll(arms.get(mode));
+        }
+        return sweeps;
     }
 
     /**

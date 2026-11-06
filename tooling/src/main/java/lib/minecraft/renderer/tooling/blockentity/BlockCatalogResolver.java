@@ -46,8 +46,11 @@ import java.util.stream.Collectors;
  * {@code <clinit>} - the chest variants, copper oxidation, skull skins, conduit and bell from their
  * own renderer, the per-family sheet bases from the sheet field {@link BlockFamilyPolicies}
  * ({@code SHEET_TEXTURE_BASES}) names. Which field a family reads is the authored half of that row;
- * the string bound to it is read. The colour / wood / weather / type discriminators ride the block
- * id directly, without walking constructor enum arguments.
+ * the string bound to it is read. Each row's texture is read with its binding: a literal under
+ * {@code textures/} or a default skin names a texture file the client's texture manager loads, a sprite
+ * mapper's base or a sprite id a sheet sprite, and a split answers its rows' common binding as its
+ * model's {@code plain_texture}. The colour / wood / weather / type discriminators ride the block id
+ * directly, without walking constructor enum arguments.
  */
 public final class BlockCatalogResolver {
 
@@ -65,6 +68,9 @@ public final class BlockCatalogResolver {
 
     /** The caller label a stale skull model-dispatch coordinate is reported under. */
     private static final @NotNull String SKULL_DISPATCH = "the skull model dispatch";
+
+    /** The caller label a stale default-skin binding is reported under. */
+    private static final @NotNull String DEFAULT_SKIN_BINDING = "the default skin's texture binding";
 
     /** The caller label a stale sheet coordinate is reported under. */
     private static final @NotNull String SHEET_BASE = "a catalog family's sheet texture base";
@@ -86,6 +92,9 @@ public final class BlockCatalogResolver {
     private final @NotNull ToolingRun run;
 
     private @Nullable Map<String, JsonTree> bySplitId;
+
+    /** Each split's rows' common texture binding - whether they bind a texture file - set beside {@link #bySplitId}. */
+    private @Nullable Map<String, Boolean> fileBySplitId;
 
     BlockCatalogResolver(
         @NotNull ToolingRun run,
@@ -115,7 +124,27 @@ public final class BlockCatalogResolver {
         return this.bySplitId.get(splitId);
     }
 
-    /** Dispatches the subject to its family builder, producing split id -> block rows. */
+    /**
+     * Answers whether a split's renderer binds its texture file itself - a plain texture the client's
+     * texture manager loads - rather than a sprite of a block-entity sheet atlas, as the readers of its
+     * rows read each binding. A split with no rows binds no file.
+     *
+     * @param splitId the models key
+     * @return whether the split's rows bind a texture file
+     * @throws ToolingException if the split's rows disagree
+     */
+    boolean bindsTextureFile(@NotNull String splitId) {
+        if (this.bySplitId == null) this.bySplitId = build();
+        return Boolean.TRUE.equals(Objects.requireNonNull(this.fileBySplitId).get(splitId));
+    }
+
+    /**
+     * Dispatches the subject to its family builder, producing split id -> block rows, and records each
+     * split's rows' common texture binding in {@link #fileBySplitId}.
+     *
+     * @return split id to its {@code blocks} array
+     * @throws ToolingException if a split's rows bind both a texture file and a sheet sprite
+     */
     private @NotNull Map<String, JsonTree> build() {
         Map<String, List<Row>> rows = new LinkedHashMap<>();
         BlockFamilyPolicies.CatalogFamily family = BlockFamilyPolicies.catalogFamily(this.subject.localId());
@@ -134,6 +163,18 @@ public final class BlockCatalogResolver {
                 case BANNER -> banner(rows);
             }
 
+        Map<String, Boolean> files = new LinkedHashMap<>();
+        rows.forEach((splitId, list) -> {
+            boolean file = !list.isEmpty() && list.getFirst().file();
+            if (list.stream().anyMatch(row -> row.file() != file)) {
+                throw new ToolingException(
+                    "Split '%s' binds both a texture file and a sheet sprite - the jar is either obfuscated or from an unsupported version",
+                    splitId);
+            }
+            files.put(splitId, file);
+        });
+        this.fileBySplitId = files;
+
         return rows.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> toArray(entry.getValue()),
@@ -151,7 +192,7 @@ public final class BlockCatalogResolver {
         Row uncolored = null;
         for (String field : this.subject.blockFields()) {
             String local = blockLocal(field);
-            Row row = new Row(blockId(field), shulkerTextureStem(sheet, local), null, null);
+            Row row = new Row(blockId(field), shulkerTextureStem(sheet, local), null, null, false);
             if (local.equals(SHULKER_BASE_LOCAL)) uncolored = row;
             else byColour.put(stripSuffix(local, SHULKER_BASE_LOCAL), row);
         }
@@ -181,7 +222,7 @@ public final class BlockCatalogResolver {
             .stream()
             .map(field -> {
                 String colour = stripSuffix(blockLocal(field), "bed");
-                return Map.entry(colour, new Row(blockId(field), sheet + colour, null, null));
+                return Map.entry(colour, new Row(blockId(field), sheet + colour, null, null, false));
             })
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
         rows.put(primarySplit(), orderByDye(byColour));
@@ -222,7 +263,7 @@ public final class BlockCatalogResolver {
                 this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
                 base = "";
             }
-            Row row = new Row(blockId(field), sheet + base, null, null);
+            Row row = new Row(blockId(field), sheet + base, null, null, false);
             switch (local) {
                 case "trapped_chest" -> trapped = row;
                 case "ender_chest" -> ender = row;
@@ -246,7 +287,7 @@ public final class BlockCatalogResolver {
                     this.diagnostics.warn("no CopperGolemOxidationLevels texture bound for weather '%s' (block '%s') - empty stem", weather, field);
                     texture = "";
                 }
-                return new Row(blockId(field), texture, null, null);
+                return new Row(blockId(field), texture, null, null, true);
             })
             .collect(Collectors.toCollection(ArrayList::new));
         rows.put(primarySplit(), list);
@@ -256,7 +297,7 @@ public final class BlockCatalogResolver {
     private void single(@NotNull Map<String, List<Row>> rows, @NotNull String texture) {
         List<Row> list = this.subject.blockFields()
             .stream()
-            .map(field -> new Row(blockId(field), texture, null, null))
+            .map(field -> new Row(blockId(field), texture, null, null, false))
             .collect(Collectors.toCollection(ArrayList::new));
         rows.put(primarySplit(), list);
     }
@@ -273,7 +314,7 @@ public final class BlockCatalogResolver {
             if (split == null) continue;
             String wood = stripSuffix(blockLocal, localId(split));
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), texturePrefix + wood, null, null));
+                .add(new Row(blockId(field), texturePrefix + wood, null, null, false));
         }
     }
 
@@ -288,7 +329,7 @@ public final class BlockCatalogResolver {
         if (base == null) return;
         List<Row> alternate = base
             .stream()
-            .map(row -> new Row(row.block(), row.texture(), ATTACHED_VARIANT, null))
+            .map(row -> new Row(row.block(), row.texture(), ATTACHED_VARIANT, null, row.file()))
             .collect(Collectors.toCollection(ArrayList::new));
         rows.put(attached, alternate);
     }
@@ -298,6 +339,7 @@ public final class BlockCatalogResolver {
         Map<String, String> skins = skullSkins();
         Map<String, String> splits = skullTypeSplits();
         String playerSkin = playerSkullSkin();
+        boolean playerFile = defaultSkinBindsAFile(this.cache);
         for (String field : this.subject.blockFields()) {
             String type = skullType(blockLocal(field));
             String split = splits.get(type.toUpperCase(Locale.ROOT));
@@ -305,13 +347,14 @@ public final class BlockCatalogResolver {
                 this.diagnostics.warn("skull block '%s' has unknown type prefix '%s' - dropped", field, type);
                 continue;
             }
-            String skin = "player".equals(type) ? playerSkin : skins.get(type.toUpperCase(Locale.ROOT));
+            boolean player = "player".equals(type);
+            String skin = player ? playerSkin : skins.get(type.toUpperCase(Locale.ROOT));
             if (skin == null) {
                 this.diagnostics.warn("no skull skin for type '%s' (block '%s') - dropped", type, field);
                 continue;
             }
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), skin, null, null));
+                .add(new Row(blockId(field), skin, null, null, !player || playerFile));
         }
     }
 
@@ -364,7 +407,7 @@ public final class BlockCatalogResolver {
             if (split == null) continue;
             String tint = stripSuffix(blockLocal, localId(split)).toUpperCase(Locale.ROOT);
             rows.computeIfAbsent(split, key -> new ArrayList<>())
-                .add(new Row(blockId(field), sheet, null, tint));
+                .add(new Row(blockId(field), sheet, null, tint, false));
         }
     }
 
@@ -516,6 +559,22 @@ public final class BlockCatalogResolver {
                 "Trace at '%s.%s' recovered '%s' where the skin stem was required",
                 coordinate.owner(), coordinate.member(), recovered);
         return stem;
+    }
+
+    /**
+     * Answers whether a default skin is a texture the client's texture manager loads by its file - whether
+     * the factory that builds each default skin out of the stem the PLAYER skull's trace recovers
+     * constructs a {@code ClientAsset$ResourceTexture} over it.
+     *
+     * @param cache the run's cache
+     * @return whether a default skin binds a texture file
+     * @throws ToolingException if the default-skin class or its factory is absent
+     */
+    static boolean defaultSkinBindsAFile(@NotNull ClassNodeCache cache) {
+        ClassNode skins = ClassKit.requireClass(cache, SourceClasses.Types.DEFAULT_PLAYER_SKIN, DEFAULT_SKIN_BINDING);
+        MethodNode create = ClassKit.requireMethod(skins, SourceClasses.Methods.CREATE, DEFAULT_SKIN_BINDING);
+        return AsmWalker.over(create).first(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW
+            && SourceClasses.Types.CLIENT_ASSET_RESOURCE_TEXTURE.equals(type.desc))) != null;
     }
 
     /**
@@ -736,7 +795,12 @@ public final class BlockCatalogResolver {
             + stem + SourceClasses.Paths.PNG_SUFFIX;
     }
 
-    /** One catalog row: the block id, its entity-texture stem, an optional blockstate gate, an optional dye tint. */
-    private record Row(@NotNull String block, @NotNull String texture, @Nullable String variant, @Nullable String tint) {}
+    /**
+     * One catalog row: the block id, its entity-texture stem, an optional blockstate gate, an optional
+     * dye tint, and whether the stem names a texture file the client's texture manager loads rather than a
+     * sheet sprite.
+     */
+    private record Row(@NotNull String block, @NotNull String texture, @Nullable String variant, @Nullable String tint,
+                       boolean file) {}
 
 }

@@ -4,30 +4,37 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.call.slot.TextSlot;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
- * Configures a single {@code TextRenderer} invocation. Renders styled text in either the
- * Minecraft tooltip aesthetic ({@link Style#LORE}) or as plain transparent-background chat
- * text ({@link Style#CHAT}).
+ * Configures a single {@link TextRenderer} invocation. Renders styled text in the Minecraft tooltip
+ * aesthetic ({@link Style#LORE}), as plain transparent-background chat text ({@link Style#CHAT}), or as one
+ * page of a written book on the book texture ({@link Style#BOOK}).
+ * <p>
+ * A tooltip and chat text draw their {@link #getLines() lines}; a book draws its {@link #getPage() page},
+ * which the renderer wraps itself. Padding and the tooltip's background and border apply only to
+ * {@link Style#LORE}; {@link Style#CHAT} draws the glyph rows alone, on a canvas ending at the first pixel
+ * they draw, and {@link Style#BOOK} the book texture and its page, on a canvas ending at the first pixel
+ * either draws, rounded out to whole Minecraft pixels. When any line drawn carries obfuscated text the
+ * renderer emits an animated image of {@link #getFrameCount() frameCount} frames at
+ * {@link #getFramesPerSecond() fps}, except that a render whose canvas holds no pixel - chat text drawing
+ * nothing, a tooltip box of no width round lines that advance nothing, or a book whose texture and page
+ * draw nothing - is the still, empty 1x1 image, obfuscated or not.
  *
- * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
- * glyph rows alone, on a canvas ending at the first pixel they draw. When any {@link #getLines() line}
- * carries obfuscated text the renderer emits an animated image of {@link #getFrameCount() frameCount}
- * frames at {@link #getFramesPerSecond() fps}, except that a render whose canvas holds no pixel - chat
- * text drawing nothing, or a tooltip box of no width round lines that advance nothing - is the still,
- * empty 1x1 image, obfuscated or not.
- *
- * @see lib.minecraft.renderer.TextRenderer
+ * @see TextRenderer
  */
 @Getter
 @ClassBuilder
@@ -63,15 +70,25 @@ public class TextOptions implements RenderOptions {
     public static final int VANILLA_TICK_FPS = Timeline.TICKS_PER_SECOND;
 
     /**
-     * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.
+     * Rendering style - {@link Style#LORE} tooltip chrome, plain {@link Style#CHAT} text, or a
+     * {@link Style#BOOK} page.
      */
     private final @NotNull Style style = Style.LORE;
 
     /**
-     * Styled text segments to render; each {@link LineSegment} is drawn as its own line (the
-     * renderer does not itself re-wrap segments).
+     * The lines a {@link Style#LORE} or {@link Style#CHAT} request draws, each {@link LineSegment} as its own
+     * line - the renderer never re-wraps them. A {@link Style#BOOK} request draws its {@link #getPage() page}
+     * and does not read them.
      */
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
+
+    /**
+     * The page a {@link Style#BOOK} request draws, as one text component with its section-sign ({@code §})
+     * codes still in its text - the renderer wraps it to the page as the client wraps a book page, reading
+     * those codes as it wraps and drawing any other character, {@code &} among them, as written - and the
+     * empty component, a page of no text, by default. Read by no other style.
+     */
+    private final @NotNull TextSegment page = TextSegment.literal("");
 
     /**
      * The distance in mcPixels the code-drawn box reaches past the text on every side, its ring 1 inside
@@ -116,9 +133,9 @@ public class TextOptions implements RenderOptions {
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
     /**
-     * Advisory maximum characters per line, defaulting to {@link #VANILLA_WRAP_WIDTH_CHARS}. Exposed
-     * for callers that pre-wrap their {@link #lines} to vanilla tooltip width; the renderer does not
-     * wrap on its own.
+     * Advisory maximum characters per line, defaulting to {@link #VANILLA_WRAP_WIDTH_CHARS} - a character
+     * count no style reads. The renderer never wraps the {@link #lines} by it, and a {@link Style#BOOK} page is
+     * wrapped at the client's own page width of 114 Minecraft pixels.
      */
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
 
@@ -151,20 +168,56 @@ public class TextOptions implements RenderOptions {
     }
 
     /**
-     * Controls background rendering and line spacing behavior.
+     * What a request draws and on what - the input it reads, the background drawn under it and the spacing
+     * between its lines.
      */
     public enum Style {
 
         /**
          * Plain text on a transparent canvas that ends at the first pixel it draws, with uniform line
-         * spacing.
+         * spacing. It draws the {@linkplain TextOptions#getLines() lines} and reads neither the
+         * {@linkplain TextOptions#getPage() page}, nor the {@link TextOptions#getWrapWidth() wrapWidth}, nor any
+         * of the tooltip's fields - {@link TextOptions#getChromeStyle() chromeStyle},
+         * {@link TextOptions#getTooltipStyle() tooltipStyle}, {@link TextOptions#getPadding() padding},
+         * {@link TextOptions#getBackgroundAlpha() backgroundAlpha} and
+         * {@link TextOptions#getBorderAlpha() borderAlpha}.
          */
         CHAT,
 
         /**
-         * Minecraft tooltip with purple border/background and wider gap after the first line.
+         * Minecraft tooltip with purple border/background and wider gap after the first line. It draws the
+         * {@linkplain TextOptions#getLines() lines} in the chrome {@link TextOptions#getChromeStyle() chromeStyle}
+         * selects, and reads no {@linkplain TextOptions#getPage() page} and no
+         * {@link TextOptions#getWrapWidth() wrapWidth}.
          */
-        LORE
+        LORE,
+
+        /**
+         * One page of a written book as the client's book screen draws it: the game's book texture,
+         * {@code minecraft:gui/book}, a pack's in place of vanilla's, laid as the client lays it - one quad over
+         * 192 Minecraft pixels a side reading the texture's top-left three quarters, whatever its size - and
+         * the {@linkplain TextOptions#getPage() page} on it. The page is wrapped at 114 Minecraft pixels as the
+         * client wraps a page, reading its legacy codes as it wraps, and its first 14 lines are drawn 9 apart
+         * from the client's text origin; the rest are dropped unmarked. Its text is black where it names no
+         * colour and has no shadow where it names no shadow colour, and text the wrap opens in no style at all,
+         * after a reset code a break follows, draws white with a drop shadow, as the client draws it. The canvas
+         * ends at the first pixel the texture or the text draws, rounded out to whole Minecraft pixels. The page
+         * indicator the client's screen writes above every page, {@code Page 1 of 1} on a one-page book, is not
+         * drawn.
+         * <p>
+         * A page's codes are section-sign ({@code §}) codes, which the wrap reads; any other character,
+         * {@code &} among them, draws as written. A page of plain or section-sign-coded text is
+         * {@link TextSegment#literal(String)} of it, its codes left in its text for the wrap - never
+         * {@link TextSegment#fromLegacy(String, char)} or {@link LineSegment#fromLegacy(String, char)}, which
+         * read the codes before any wrap and answer lines. A book needs a renderer built with a
+         * {@link RendererContext}, which reads the texture; one built without raises a {@link RenderException}.
+         * {@link TextOptions#getLines() lines},
+         * {@link TextOptions#getChromeStyle() chromeStyle}, {@link TextOptions#getTooltipStyle() tooltipStyle},
+         * {@link TextOptions#getPadding() padding}, {@link TextOptions#getBackgroundAlpha() backgroundAlpha},
+         * {@link TextOptions#getBorderAlpha() borderAlpha} and {@link TextOptions#getWrapWidth() wrapWidth}
+         * are not read.
+         */
+        BOOK
 
     }
 

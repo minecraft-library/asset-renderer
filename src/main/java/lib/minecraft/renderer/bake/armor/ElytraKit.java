@@ -4,7 +4,6 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
@@ -16,6 +15,7 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -105,7 +105,7 @@ public class ElytraKit {
         @NotNull RendererContext context, boolean baby, @NotNull FitFrame frame,
         @NotNull Optional<ItemContext> item, int tick
     ) {
-        Optional<PixelBuffer> texture = wingsTexture(context, item, tick);
+        Optional<SampledTexture> texture = wingsTexture(context, item, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
         return EntityGeometryKit.buildTriangles(wingsMesh(baby), texture.get(),
@@ -127,8 +127,8 @@ public class ElytraKit {
      * @param context the texture context for pack-aware texture resolution
      * @param torsoMin the player torso's minimum-corner bounds
      * @param torsoMax the player torso's maximum-corner bounds
-     * @param playerTexture the wearer's cape or elytra texture, or empty when the wearer names none, in
-     *     which case the static elytra skin draws
+     * @param playerTexture the wearer's cape or elytra texture, with the sampler it is read through, or
+     *     empty when the wearer names none, in which case the static elytra skin draws
      * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override,
      *     which wins over the wearer texture; empty leaves the wings on the wearer / static texture
      * @param tick the current animation tick
@@ -136,9 +136,9 @@ public class ElytraKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildPlayerWings3D(
         @NotNull RendererContext context, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax,
-        @NotNull Optional<PixelBuffer> playerTexture, @NotNull Optional<ItemContext> item, int tick
+        @NotNull Optional<SampledTexture> playerTexture, @NotNull Optional<ItemContext> item, int tick
     ) {
-        Optional<PixelBuffer> texture = citWingTexture(context, item, tick)
+        Optional<SampledTexture> texture = citWingTexture(context, item, tick)
             .or(() -> playerTexture)
             .or(() -> resolveWingTexture(context, tick));
         if (texture.isEmpty()) return Concurrent.newList();
@@ -248,9 +248,9 @@ public class ElytraKit {
      * @param item the equipped elytra item identity, for the pack-rule override; empty leaves the wings
      *     on the equipment-model texture
      * @param tick the current animation tick
-     * @return the wing texture, or empty when nothing names one
+     * @return the wing texture, with the sampler it is read through, or empty when nothing names one
      */
-    public static @NotNull Optional<PixelBuffer> wingsTexture(
+    public static @NotNull Optional<SampledTexture> wingsTexture(
         @NotNull RendererContext context, @NotNull Optional<ItemContext> item, int tick) {
         return citWingTexture(context, item, tick).or(() -> resolveWingTexture(context, tick));
     }
@@ -262,9 +262,10 @@ public class ElytraKit {
      *
      * @param context the texture context the declared texture is read through
      * @param tick the current animation tick
-     * @return the wing texture, or empty when the asset declares no wing layer
+     * @return the wing texture, with the sampler it is read through, or empty when the asset declares no
+     *     wing layer
      */
-    private static @NotNull Optional<PixelBuffer> resolveWingTexture(@NotNull RendererContext context, int tick) {
+    private static @NotNull Optional<SampledTexture> resolveWingTexture(@NotNull RendererContext context, int tick) {
         List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
         if (layers.isEmpty()) return Optional.empty();
         return Optional.of(frame(context, layers.getFirst().textureLocation(LayerType.WINGS).id(), tick));
@@ -280,9 +281,9 @@ public class ElytraKit {
      * @param context the texture context the rule and its tile are read through
      * @param item the equipped elytra item identity
      * @param tick the current animation tick
-     * @return the tile, or empty when nothing names one
+     * @return the tile, with the sampler it is read through, or empty when nothing names one
      */
-    private static @NotNull Optional<PixelBuffer> citWingTexture(
+    private static @NotNull Optional<SampledTexture> citWingTexture(
         @NotNull RendererContext context, @NotNull Optional<ItemContext> item, int tick) {
         return item
             .map(itemContext -> context.resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, itemContext))
@@ -291,18 +292,19 @@ public class ElytraKit {
     }
 
     /**
-     * The frame a wing texture displays at a tick, read through the context's
-     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, whose answers always hold
-     * pixels.
+     * The frame a wing texture displays at a tick, read as the client reads the wings layer, a plain
+     * texture, through the context's {@link RendererContext#withMissingTexture() missing-texture wrapper},
+     * whose answers always hold pixels.
      *
      * @param context the texture context the texture is read through
      * @param textureId the namespaced texture id
      * @param tick the current animation tick
-     * @return the frame, the checkerboard where no pack supplies the texture or it cannot be read
+     * @return the frame and the sampler its sidecar's texture section selects, the checkerboard where no
+     *     pack supplies the texture or it cannot be read
      */
-    private static @NotNull PixelBuffer frame(@NotNull RendererContext context, @NotNull String textureId, int tick) {
+    private static @NotNull SampledTexture frame(@NotNull RendererContext context, @NotNull String textureId, int tick) {
         RendererContext textures = context.withMissingTexture();
-        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get();
+        return Flipbook.atTick(textures.resolvePlainTexture(textureId).get(), textures.findFlipbook(textureId), tick);
     }
 
 }

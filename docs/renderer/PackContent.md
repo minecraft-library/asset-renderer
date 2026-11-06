@@ -87,13 +87,24 @@ section. A document that is not JSON, or is blank, is held as there and yielding
 of its texture loses it. A section the codec refuses is held as there and refused - its `Possible`
 empty - and the document's other sections stand, because each of the client's reads parses only the
 sections it asks for: an atlas sprite reads the animation and texture sections, the GUI atlas the `gui`
-section beside them, and the villager hat its own. So a refused animation or texture section loses the
-texture on every read, and leaves a villager hat declared beside it standing.
+section beside them, a plain texture - one the client's texture manager loads by its file, such as the
+book, a container sheet or an entity's - the texture section alone, and the villager hat its own. So a
+refused texture section loses the texture on every read, a refused animation section only where it is
+read as an atlas sprite, and either leaves a villager hat declared beside it standing.
 
 The texture section, `MCMeta.TextureSampling`, holds `blur` and `clamp`, each a JSON boolean defaulting
 to false; `mipmap_strategy`, one of `auto`, `mean`, `cutout`, `strict_cutout` and `dark_cutout` spelled
-exactly, defaulting to `auto`; and `alpha_cutoff_bias`, a JSON number defaulting to 0. No render reads
-them. How the animation section is read, and the frame table it builds, is
+exactly, defaulting to `auto`; and `alpha_cutoff_bias`, a JSON number defaulting to 0. A plain texture
+is drawn by the first two - linear filtering where it blurs, clamped to the edge where it clamps, nearest
+and repeating otherwise, as the client builds a texture's sampler (`MCMeta.sampler`,
+`engine.draw.Sampler`) - on every draw that reads it whole: the book, the glint, the end portal's two, and
+every texture the 3D raster draws an entity, a single flat equipment layer, the wings, a skull or the
+statue with. Three readers prepare a plain texture before the draw and read what they make nearest and
+repeating whatever its section sets, where the client samples the texture itself by it: a skin, cape or
+worn armour face cut out of its sheet, an equipment asset's layers pasted or tinted into one picture, and
+a shipped container's panel composed from its sheet. An atlas sprite is read by its atlas's sampler
+whatever its section sets, and the missing texture, standing in for any texture, nearest and repeating.
+No render reads the other two. How the animation section is read, and the frame table it builds, is
 [Timelines](Timelines.md).
 
 ## A sprite's gui section

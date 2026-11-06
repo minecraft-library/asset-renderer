@@ -49,7 +49,7 @@ Or directly from the harness:
 ./gradlew runRenderReferences -PrefharnessModes=GLINT
 ```
 
-Either path launches MC 26.1.2 with a hidden GLFW window, programmatically creates a flat normal-difficulty world, pins noon + freezes the daylight cycle, runs a family-fit pre-pass to size each entity-family canvas, then renders every block (as true 3D geometry), every non-block item (as a GUI inventory icon), every entity variant and the vanilla player into transparent PNGs before exiting. The entity bounds pre-pass takes ~250 ms. `GLINT` runs the glint sweep alone; `EVERY` runs it beside the block, item, entity, player, armor, menu and tooltip sweeps in one boot.
+Either path launches MC 26.1.2 with a hidden GLFW window, programmatically creates a flat normal-difficulty world, pins noon + freezes the daylight cycle, runs a family-fit pre-pass to size each entity-family canvas, then renders every block (as true 3D geometry), every non-block item (as a GUI inventory icon), every entity variant and the vanilla player into transparent PNGs before exiting. The entity bounds pre-pass takes ~250 ms. `GLINT` runs the glint sweep alone; `EVERY` runs it beside the block, item, entity, player, armor, menu, tooltip and book sweeps in one boot.
 
 ---
 
@@ -164,8 +164,8 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 `walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing the corners of each face's opaque-texel sub-rectangle:
 
-1. Sample every texel inside each polygon's UV box.
-2. Compute the tight opaque-pixel bbox.
+1. Sample every texel inside each polygon's UV box - and, where the texture's own `texture` section blurs, every texel whose reach, half a texel past its own edges, meets it, read as the section's address mode puts it.
+2. Compute the tight opaque-pixel bbox, grown by half a texel a side and clipped to the UV box where the section blurs.
 3. Bilinearly interpolate the bbox's 4 corners through the polygon's vertex positions to get 3D positions.
 4. Feed those 3D positions to the bounds accumulator.
 
@@ -189,13 +189,14 @@ The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-
 
 ### Project properties
 
-Use `-PrefharnessXxx` on the Gradle command line. The run config forwards eleven; the ones a run most often names are below.
+Use `-PrefharnessXxx` on the Gradle command line. The run config forwards twelve; the ones a run most often names are below.
 
 | Property                  | Default                  | Purpose                                                                                            |
 | ------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `refharnessTargets`       | _(empty)_                | Comma-separated `<ns>:<id>` filter; empty means all                                                |
-| `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `items/`, `entities/`, `players/`, `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/`, `walk/` are created under it, `idle/` and `walk/` each with its `schedule.json`. The posed modes read `entity-schedule/roster.json` beside it |
+| `refharnessOutputDir`     | `build/refharness-output` | Output root; `blocks/`, `items/`, `entities/`, `players/`, `glint/`, `armor/`, `menus/`, `tooltips/`, `books/`, `idle/`, `walk/` are created under it, `idle/` and `walk/` each with its `schedule.json`. The posed modes read `entity-schedule/roster.json` beside it |
 | `refharnessTooltipRoster` | the tracked roster       | The tooltip roster `TOOLTIPS` draws, by path. Set on every run; the default is asset-renderer's `src/visual/resources/lib/minecraft/renderer/sweep/tooltip-roster.json` |
+| `refharnessBookRoster`    | the tracked roster       | The book roster `BOOKS` draws, by path. Set on every run; the default is asset-renderer's `src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json` |
 | `refharnessModes`         | _(empty, `FULL`)_        | Comma-separated `HarnessMode` names, the one way a run names a reference mode - `GLINT` renders only the animated-glint references, `ANIMATION` only `idle/`. The gait is armed per sweep off `PoseState`, so `EVERY,ANIMATION,WALK` writes every sub-tree in one boot |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
 | `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES`, `PACK_ICONS` and `PACK_TOOLTIPS`; never written to `options.txt` |
@@ -203,11 +204,11 @@ Use `-PrefharnessXxx` on the Gradle command line. The run config forwards eleven
 
 ### System properties
 
-Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads nine; the ones a run most often names are below.
+Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads ten; the ones a run most often names are below.
 
 | Property                     | Default | Purpose                                                                                                              |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| `refharness.headless`        | `true`  | Hides the GLFW window via mixin; gates every refharness mixin so non-harness consumers of the jar get vanilla behaviour |
+| `refharness.headless`        | `true`  | Hides the GLFW window via mixin; gates every refharness mixin that changes the client's behaviour so non-harness consumers of the jar get vanilla behaviour |
 | `refharness.size`            | `512`   | Block canvas square edge (pixels)                                                                                    |
 | `refharness.modes`           | _(empty)_ | The `HarnessMode` names this run performs, comma-separated - `GLINT` runs only `GlintSweep`, `ANIMATION` only `EntityAnimationSweep` with `setupAnim` let through while `ageInTicks` follows the frame's tick |
 
@@ -234,10 +235,13 @@ Set automatically by the Loom run config; override with `-Drefharness.xxx=` for 
 src/
 ├── main/resources/
 │   └── fabric.mod.json
+├── test/java/lib/minecraft/refharness/      # The unit suite: what the harness decides with no running client
+│   ├── RefHarnessRendererTest.java          # The run's refusal of a client that does not draw as vanilla's own
+│   └── sweep/BookSweepTest.java             # The book roster's own refusals
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / ANIMATION / WALK / PITCH_ROLL / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
+    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / TOOLTIPS / BOOKS / ANIMATION / WALK / PITCH_ROLL / PACK_SOURCES / PACK_ICONS / PACK_TOOLTIPS -> their sweeps
     │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # First settled screen → WorldOpenFlows.createFreshLevel(...)
     │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin
@@ -281,6 +285,7 @@ src/
     │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
     │   │   ├── MenuSweep.java              # Container screens, each laid out at its panel's own size
     │   │   ├── TooltipSweep.java           # The tooltip roster, each subject whole and as its box alone, and its plain lines
+    │   │   ├── BookSweep.java              # The book roster, each page through the client's book screen with the page number left out
     │   │   ├── PitchRollSweep.java         # Diagnostic pitch × roll pose sweep (outside the tree)
     │   │   ├── PackSourceSweep.java        # Diagnostic: which pack the client takes each resource from (outside the tree)
     │   │   ├── PackIconSweep.java          # Diagnostic: the slot drawing of each pack-icon roster stack (outside the tree)
@@ -320,7 +325,7 @@ src/
 ## Mixins
 
 > [!NOTE]
-> All mixins are gated on `Boolean.getBoolean("refharness.headless")` so non-harness consumers of the jar get vanilla behaviour. The Loom run config sets the property to `true`.
+> Every mixin that changes the client's behaviour is gated on `Boolean.getBoolean("refharness.headless")` so non-harness consumers of the jar get vanilla behaviour; the accessor and invoker interfaces, which open a private member and patch nothing, carry no gate. The Loom run config sets the property to `true`.
 
 ### Suppression mixins
 

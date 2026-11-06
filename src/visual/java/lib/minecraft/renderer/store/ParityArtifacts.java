@@ -128,6 +128,10 @@ public final class ParityArtifacts {
         // under that pack beside the reference tree rather than against the tree. Same floor, a sweep
         // being a pure function of two file sets.
         Registration.store("sweep.tooltip-hypixel-skyblock", 2, "tooltipHypixelSkyblockParityVanilla"),
+        // The book references diffed at an equal canvas, each page of the tracked book roster and the
+        // book's background alone, so a mover in the background row is the book's texture and one in a
+        // page alone is its text. Same floor, a sweep being a pure function of two file sets.
+        Registration.store("sweep.book", 2, "bookParityVanilla"),
 
         // --- render-manifest. Two-run reproducibility is the precondition that makes a digest
         // comparison admissible at all.

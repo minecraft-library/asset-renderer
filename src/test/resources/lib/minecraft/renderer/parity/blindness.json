@@ -1,5 +1,5 @@
 {
-  "//": "parity.roster.blindness-rules · regen: trigger_paths from python parity/scripts/parity triggers, everything else hand-authored; render the human view with ./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun",
+  "//": "parity.roster.blindness-rules · regen: trigger_paths from python parity/scripts/parity triggers, everything else hand-authored; render the human view with ./gradlew :test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun",
   "artifact": "roster.blindness-rules",
   "format": 1,
   "key": "id",
@@ -164,7 +164,7 @@
       "id": "B4",
       "mode": "select",
       "probe": "run parityDump and compare rules.json between the two configs: the vanilla one is empty and the packs one is not; and widen every gui.scaling border by one pixel in MCMetaParser and re-run tooltipParityVanilla: the tooltip rows move while neither dump can, since neither records a border",
-      "reason": "With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all. The stack is also where every texture and its sidecar resolve: TextureIndexer scans each pack into rows, ResolvedTexture binds a PNG to the .png.mcmeta beside it, MCMetaParser reads the sidecar's gui.scaling, and PackStack decodes, caches and plays them, so the production context's texture, sidecar and flipbook lookups answer from here. The reference graph cuts that context whole, so nothing here inherits the producers that reach it, and every one of them is listed because every one draws a texture through it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table draws its recipe-book button, a knowledge book, through the item renderer over this stack; the tooltip sweep, whose sprite box is the tooltip background and frame sprites nine-sliced by their gui.scaling sidecars; the hypixel-skyblock tooltip sweep, which stacks that pack over vanilla and resolves its chrome from it; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders. Neither dump records a texel or a border - a texture row carries its pack, its path and its sidecar's type, size and stretch_inner - so a texel or border change here is seen by the renders alone.",
+      "reason": "With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never execute, so the vanilla dump section for rules is a fixed empty shape whatever the code does. Only the packs configuration puts a rule through the deriver at all. The stack is also where every texture and its sidecar resolve: TextureIndexer scans each pack into rows, ResolvedTexture binds a PNG to the .png.mcmeta beside it, MCMetaParser reads the sidecar's gui.scaling, and PackStack decodes, caches and plays them, so the production context's texture, sidecar and flipbook lookups answer from here. The reference graph cuts that context whole, so nothing here inherits the producers that reach it, and every one of them is listed because every one draws a texture through it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table draws its recipe-book button, a knowledge book, through the item renderer over this stack; the tooltip sweep, whose sprite box is the tooltip background and frame sprites nine-sliced by their gui.scaling sidecars; the hypixel-skyblock tooltip sweep, which stacks that pack over vanilla and resolves its chrome from it; the book sweep, whose page is drawn on the book texture this stack decodes; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders. Neither dump records a texel or a border - a texture row carries its pack, its path and its sidecar's type, size and stretch_inner - so a texel or border change here is seen by the renders alone.",
       "sees": [
         "manifest.dump.packs",
         "sweep.block",
@@ -187,9 +187,10 @@
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
-      "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved; by perturbing PackStack.java's decode: one bit of every texel flipped moved the menu sweep's crafting-table row, 25 of the tooltip sweep's 28 rows, every row of the entity (406), entity-animation (134), entity-walk (134), glint (11), armour (7) and player (2) sweeps, 210 of the visual manifest's 211 members, every member of the player-sheet (104), fluid (12) and portal (12) manifests, the nine java.png members of the raw player and armour manifest and every entry of the four CRC pins; the gui/ textures alone moved the same 25 tooltip rows and no menu row, and the item/ textures alone the crafting-table row and no tooltip row; by perturbing MCMetaParser.java: every gui.scaling border a pixel wider moved 23 tooltip rows, the eleven lore-tooltip members of the visual manifest and no menu row; and over the hypixel-skyblock tooltip sweep: one bit of every gui/ texel flipped in PackStack's decode moved 42 of its 44 rows, every ok row, and all 44 of its java.png renders, its two failed rows failing as before, the resolution check comparing the file's bytes rather than the decode; every gui.scaling border a pixel wider in MCMetaParser made that check refuse the configuration before any row, every chrome sprite named",
+      "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved; by perturbing PackStack.java's decode: one bit of every texel flipped moved the menu sweep's crafting-table row, 25 of the tooltip sweep's 28 rows, every row of the entity (406), entity-animation (134), entity-walk (134), glint (11), armour (7) and player (2) sweeps, 210 of the visual manifest's 211 members, every member of the player-sheet (104), fluid (12) and portal (12) manifests, the nine java.png members of the raw player and armour manifest and every entry of the four CRC pins; the gui/ textures alone moved the same 25 tooltip rows and no menu row, and the item/ textures alone the crafting-table row and no tooltip row; by perturbing MCMetaParser.java: every gui.scaling border a pixel wider moved 23 tooltip rows, the eleven lore-tooltip members of the visual manifest and no menu row; and over the hypixel-skyblock tooltip sweep: one bit of every gui/ texel flipped in PackStack's decode moved 42 of its 44 rows, every ok row, and all 44 of its java.png renders, its two failed rows failing as before, the resolution check comparing the file's bytes rather than the decode; every gui.scaling border a pixel wider in MCMetaParser made that check refuse the configuration before any row, every chrome sprite named; and over the book sweep: one bit of every texel flipped in PackStack's decode moved all 19 of its rows and every java.png render, and every gui.scaling border a pixel wider in MCMetaParser moved none of them, the book laying its texture by a tile of its own",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/BlockModelLoader.java",
         "src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java",
@@ -211,8 +212,8 @@
       "claim_key": "index-and-loader",
       "id": "B5",
       "mode": "select",
-      "probe": "PipelineParityDump builds an IndexedRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult; and make IndexedRendererContext.findMeta answer no sidecar and re-run tooltipParityVanilla: the 25 compared rows move",
-      "reason": "BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. IndexedRendererContext is that context, and the reference graph cuts it whole, so nothing it holds inherits the producers that reach it and what a change behind it plans is what the rules over these packages author. Its resolveTexture, findMeta and findFlipbook answer every texture, sidecar and flipbook a renderer asks for, so every producer that draws through a context is on it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table resolves its recipe-book button's knowledge-book texture through resolveTexture; the tooltip sweep, whose sprite box reads all three for the tooltip background and frame sprites; the hypixel-skyblock tooltip sweep, which reads the same three for that pack's chrome; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders.",
+      "probe": "PipelineParityDump builds an IndexedRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult; and make IndexedRendererContext.findMeta answer no sidecar and re-run tooltipParityVanilla: 30 of its 76 rows move",
+      "reason": "BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. IndexedRendererContext is that context, and the reference graph cuts it whole, so nothing it holds inherits the producers that reach it and what a change behind it plans is what the rules over these packages author. Its resolveTexture and resolvePlainTexture, findMeta and findFlipbook answer every texture, sidecar and flipbook a renderer asks for - an atlas sprite through the first, a plain texture through the second - so every producer that draws through a context is on it: the block, item, entity, armour, glint and player sweeps; the menu sweep, whose crafting table resolves its recipe-book button's knowledge-book texture through resolveTexture and whose anvil reads its enchanted golden apple's glint through resolvePlainTexture; the tooltip sweep, whose sprite box reads resolveTexture, findMeta and findFlipbook for the tooltip background and frame sprites; the hypixel-skyblock tooltip sweep, which reads the same three for that pack's chrome; the book sweep, whose page reads the book texture through resolvePlainTexture; the fluid, portal and visual manifests, the player sheets and the raw player and armour renders; and the CRC pins taken over four of those renders.",
       "sees": [
         "manifest.dump.vanilla",
         "manifest.dump.packs",
@@ -235,9 +236,10 @@
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
-      "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved; by perturbing IndexedRendererContext.java: resolveTexture flipping one bit of every texel it answers moved the menu sweep's crafting-table row, 25 of the tooltip sweep's 28 rows, every row of the glint (11), armour (7) and player (2) sweeps, 210 of the visual manifest's 211 members, every member of the player-sheet (104), fluid (12) and portal (12) manifests, the nine java.png members of the raw player and armour manifest and every entry of the four CRC pins; findMeta answering no sidecar moved the same 25 tooltip rows, the eleven lore-tooltip members of the visual manifest and nothing else those producers write; and over the hypixel-skyblock tooltip sweep: resolveTexture flipping one bit of every texel moved 42 of its 44 rows, every ok row, and all 44 of its java.png renders, and findMeta answering no sidecar made its resolution check refuse the configuration before any row, the renderer reading every chrome sprite as a stretch where the client nine-slices it",
+      "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved; by perturbing IndexedRendererContext.java, each against an unperturbed run of the same producers on the same tree: resolveTexture flipping one bit of every texel it answers moved 1030 of the block sweep's 1063 rows, 478 of the item sweep's 479, 5 of the entity sweep's 406 (its carried blocks and the mooshrooms' mushrooms), 7 of the glint sweep's 11 (none of the leather armour's), 5 of the menu sweep's 15 (the crafting table's and four anvil states'), 30 of the tooltip sweep's 76, 56 of the visual manifest's 169 members, the 12 trim members of the player-sheet manifest's 97, every member of the fluid manifest (9) and every entry of the block and fluid CRC pins, and nothing of the armour, player or book sweeps, the portal or raw player and armour manifests, or the player and portal CRC pins; resolvePlainTexture flipping one bit of every texel it answers moved every row of the entity (406), armour (7), player (2), glint (11) and book (19) sweeps, 22 of the block sweep's rows (the skulls, heads and copper golem statues), 7 of the item sweep's (the glinted items), the menu sweep's enchanted-golden-apple anvil row, 115 of the visual manifest's members, every member of the player-sheet (97), portal (6) and raw player and armour (9) manifests and every entry of the player and portal CRC pins, and nothing of the tooltip sweep or the fluid manifest; the two together leave 11 block rows, 1 item row, 10 menu rows, 46 tooltip rows and 1 visual member unmoved, every moved row's java.png render moves with it, and resolveTexture moves the black, lime and white stained glass renders while their rows hold; findMeta answering no sidecar moved the same 30 tooltip rows as resolveTexture, the nine lore-tooltip members of the visual manifest and three of the entity sweep's desert villager rows, whose hat it reads, and nothing else those producers write; and over the hypixel-skyblock tooltip sweep: resolveTexture flipping one bit of every texel moved all 44 of its rows and all 44 of its java.png renders, resolvePlainTexture none, and findMeta answering no sidecar made its resolution check refuse the configuration before any row, the renderer reading every chrome sprite as a stretch where the client nine-slices it; and over the book sweep: resolvePlainTexture flipping one bit of every texel moved all 19 of its rows and every java.png render, resolveTexture none, and findMeta answering no sidecar moved none of them, the book's texture shipping no sidecar",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/**",
         "src/main/java/lib/minecraft/renderer/content/pack/BlockEntityShadows.java",
@@ -454,7 +456,8 @@
         "manifest.visual",
         "manifest.player-sheets",
         "pin.fluid-crc",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "Every test and sweep in the repo is structurally blind to a tooling/ change",
       "claim_key": "tooling-blindness",
@@ -466,7 +469,7 @@
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
-      "source": "measured by perturbing PotionColorsFlow.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'; and no producer the production context's rules plan loads TableEnvelope: with its static initialiser made to throw, the menu, tooltip, glint, armour and player sweeps, the fluid, portal, visual and player-sheet drivers and the four CRC pin tests all ran, and nothing they write moved; and the hypixel-skyblock tooltip sweep, run under the same edit, held all 44 rows and every java.png render",
+      "source": "measured by perturbing PotionColorsFlow.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'; and no producer the production context's rules plan loads TableEnvelope: with its static initialiser made to throw, the menu, tooltip, glint, armour and player sweeps, the fluid, portal, visual and player-sheet drivers and the four CRC pin tests all ran, and nothing they write moved; and the hypixel-skyblock tooltip sweep, run under the same edit, held all 44 rows and every java.png render; and the book sweep, run under the same edit, held all 19 rows and every java.png render",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java",
         "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
@@ -913,7 +916,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "source": "measured by perturbing PipTarget.java: 8 of 8 declared sees moved; CLAUDE.md 'Parity: the harness contract'; manifest.pack-tooltips and sweep.tooltip-hypixel-skyblock declared from the pack run, which boots this harness and draws through TooltipSweep and GuiFrameRenderer",
       "trigger_paths": [
@@ -1010,7 +1014,8 @@
         "sweep.entity-animation",
         "sweep.entity-walk",
         "sweep.tooltip",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "source": "measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held",
       "trigger_paths": [
@@ -1068,7 +1073,7 @@
       "id": "B35",
       "mode": "select",
       "probe": "edit one value in block_tints.json and re-run the block sweep and parityDump; both move, and manifest.tooling-tables moves whether or not a generator ran",
-      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, every one of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files, so it sees any edit directly; the sweeps and the dumps see it through the index the loaders build. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything. The menu sweep reads one: its crafting table's recipe-book button draws a knowledge book through the item index, so whether it glints is glint_items.json's to say, and the visual manifest's item and menu renders read the same list. The block CRC pin reads block_models.json, its white banner being a block entity drawn from that table. Neither tooltip sweep reads one - the chrome of each is GUI sprites and their sidecars, under vanilla or under the hypixel-skyblock pack, and the text minecraft-text's - and neither do the player sweep, the player sheets, the fluid and portal manifests or the fluid, player and portal pins: each draws from textures, code and constants no table holds a row of, so no table value reaches them and they are on neither list. A table edit that fails to decode still stops a context loading, which reaches all of them the way the service registration does; that is B36's load-time reach rather than the per-value one this rule states.",
+      "reason": "src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived tables the tooling flows emit, every one of which the loaders read at runtime, so an edit here is indistinguishable at render time from a generator change that produced it. manifest.tooling-tables is a manifest over these very files, so it sees any edit directly; the sweeps and the dumps see it through the index the loaders build. This is the converse of B13: that rule says a tooling/ SOURCE change is invisible because it does not regenerate the tables, and this one says changing the tables themselves is visible to everything. The menu sweep reads one: its crafting table's recipe-book button draws a knowledge book through the item index, so whether it glints is glint_items.json's to say, and the visual manifest's item and menu renders read the same list. The block CRC pin reads block_models.json, its white banner being a block entity drawn from that table. Neither tooltip sweep reads one - the chrome of each is GUI sprites and their sidecars, under vanilla or under the hypixel-skyblock pack, and the text minecraft-text's - nor does the book sweep, whose page is the book texture and minecraft-text's text, and neither do the player sweep, the player sheets, the fluid and portal manifests or the fluid, player and portal pins: each draws from textures, code and constants no table holds a row of, so no table value reaches them and they are on neither list. A table edit that fails to decode still stops a context loading, which reaches all of them the way the service registration does; that is B36's load-time reach rather than the per-value one this rule states.",
       "sees": [
         "manifest.tooling-tables",
         "sweep.entity",
@@ -1085,7 +1090,7 @@
         "manifest.visual",
         "pin.block-crc"
       ],
-      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over; and by adding minecraft:knowledge_book to glint_items.json: the menu sweep's crafting-table row moved and no tooltip row did; by listing every item in glint_items.json and tinting every block block_tints.json names no tint for: the crafting-table row and 25 of the visual manifest's 211 members moved, every one an item or menu render, and glint_items.json alone moved the same 25; by emptying block_models.json: the block CRC pin's white banner moved; and with every table's rows emptied, and again under the listing and tinting above, the player sweep, the player sheets, the fluid and portal manifests, the fluid, player and portal pins and the tooltip sweep held; and the hypixel-skyblock tooltip sweep, run under the emptied tables and again under the listing and tinting, held all 44 rows and every java.png render",
+      "source": "measured by perturbing block_tints.json: 3 of 11 declared sees moved; the gap refusal R1 stopped on - no rule covered the files two artifacts are defined over; and by adding minecraft:knowledge_book to glint_items.json: the menu sweep's crafting-table row moved and no tooltip row did; by listing every item in glint_items.json and tinting every block block_tints.json names no tint for: the crafting-table row and 25 of the visual manifest's 211 members moved, every one an item or menu render, and glint_items.json alone moved the same 25; by emptying block_models.json: the block CRC pin's white banner moved; and with every table's rows emptied, and again under the listing and tinting above, the player sweep, the player sheets, the fluid and portal manifests, the fluid, player and portal pins and the tooltip sweep held; and the hypixel-skyblock tooltip sweep, run under the emptied tables and again under the listing and tinting, held all 44 rows and every java.png render; and the book sweep, run under the emptied tables, held all 19 rows and every java.png render",
       "trigger_paths": [
         "src/main/resources/lib/minecraft/renderer/*.json"
       ]
@@ -1099,7 +1104,7 @@
       "id": "B36",
       "mode": "select",
       "probe": "delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one",
-      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how RendererGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35. Every producer that loads the production context is on it - the block, item, entity, armour, glint, player and menu sweeps, the tooltip sweep under vanilla and under the hypixel-skyblock pack, the fluid, portal and visual manifests, the player sheets, the raw player and armour renders and the CRC pins taken over four of those renders - because without the registration the context fails to load before any of them writes a byte.",
+      "reason": "META-INF/services/dev.simplified.gson.GsonContributor is how RendererGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35. Every producer that loads the production context is on it - the block, item, entity, armour, glint, player and menu sweeps, the tooltip sweep under vanilla and under the hypixel-skyblock pack, the book sweep, the fluid, portal and visual manifests, the player sheets, the raw player and armour renders and the CRC pins taken over four of those renders - because without the registration the context fails to load before any of them writes a byte.",
       "sees": [
         "sweep.entity",
         "sweep.block",
@@ -1122,9 +1127,10 @@
         "pin.fluid-crc",
         "pin.player-crc",
         "pin.portal-crc",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
-      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/; and by taking the registration off the runtime classpath: the menu, tooltip, glint, armour and player sweeps and the fluid, portal, visual and player-sheet drivers each failed decoding what it loads and wrote no report or render, and the four CRC pin tests failed in their setup; and the hypixel-skyblock tooltip sweep, run without the registration, failed decoding what its context loads and wrote no report",
+      "source": "measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/; and by taking the registration off the runtime classpath: the menu, tooltip, glint, armour and player sweeps and the fluid, portal, visual and player-sheet drivers each failed decoding what it loads and wrote no report or render, and the four CRC pin tests failed in their setup; and the hypixel-skyblock tooltip sweep, run without the registration, failed decoding what its context loads and wrote no report; and the book sweep, run without the registration, failed decoding what its context loads and wrote no report",
       "trigger_paths": [
         "src/main/resources/META-INF/services/**"
       ]
@@ -1324,7 +1330,7 @@
       "id": "B47",
       "mode": "select",
       "probe": "bump one strictly() pin to a sha jitpack serves, capture the bundle this rule plans, and read which rows move; an artifact that holds under every pin is a narrowing to measure, never one to assume",
-      "reason": "These two files are where this project's dependency versions are written down - the strictly() pins in the build file and the third-party versions in the catalog, Gson's and JOML's among them - and a version is a statement about which code a producer runs, not about which producer runs. So an edit here can move a stored byte without a line of this repo's source changing, which is the opposite of what B31 says about the wiring it still speaks for. Every producer this store captures but the pack-tooltip run runs code these pins choose. The renders, the pins taken over them and the sweeps draw through the image and text libraries, the menu and both tooltip sweeps among them: a menu's titles and the anvil's field, and every line of a tooltip, are drawn by minecraft-text and compared pixel for pixel against the client's. The dump decodes the pack stack through Gson and gson-extras and writes each compound through nbt-factory's SNBT writer. The generator flows run in the tooling subproject, which takes this project on its implementation classpath and every pin declared here with it, beside the ASM version its own build file declares, which B43 speaks for. The harness is a build of its own whose versions B29 speaks for, but its posed sub-trees are rendered at the schedule entityScheduleRoster writes, a task of this build run on the visual runtime classpath. The pack-tooltip run boots the harness after one task of this build, packTooltipPacks, which derives the pack folder it hands the client with Gradle's own file copy - the roster read from the file, the pack from that folder - so no pin here chooses a line of what draws manifest.pack-tooltips, which is listed blind, B29 speaking for its versions. The sees list is the mechanism's consequence rather than one perturbation's: a single pin was measured and the rest follow from a version swapping code, so narrowing it is a measurement somebody can take.",
+      "reason": "These two files are where this project's dependency versions are written down - the strictly() pins in the build file and the third-party versions in the catalog, Gson's and JOML's among them - and a version is a statement about which code a producer runs, not about which producer runs. So an edit here can move a stored byte without a line of this repo's source changing, which is the opposite of what B31 says about the wiring it still speaks for. Every producer this store captures but the pack-tooltip run runs code these pins choose. The renders, the pins taken over them and the sweeps draw through the image and text libraries, the menu, both tooltip sweeps and the book sweep among them: a menu's titles and the anvil's field, every line of a tooltip, and every line of a book page, which the same library wraps, are drawn by minecraft-text and compared pixel for pixel against the client's. The dump decodes the pack stack through Gson and gson-extras and writes each compound through nbt-factory's SNBT writer. The generator flows run in the tooling subproject, which takes this project on its implementation classpath and every pin declared here with it, beside the ASM version its own build file declares, which B43 speaks for. The harness is a build of its own: the versions its client run boots on, written in harness/gradle.properties and harness/build.gradle.kts, are B29's, and the JUnit versions it reads from the catalog reach only its unit suite, which check runs through harnessTest as B74's gate and which writes no stored byte. Its posed sub-trees, though, are rendered at the schedule entityScheduleRoster writes, a task of this build run on the visual runtime classpath. The pack-tooltip run boots the harness after one task of this build, packTooltipPacks, which derives the pack folder it hands the client with Gradle's own file copy - the roster read from the file, the pack from that folder - so no pin here chooses a line of what draws manifest.pack-tooltips, which is listed blind, B29 speaking for the versions its client boots on. The sees list is the mechanism's consequence rather than one perturbation's: a single pin was measured and the rest follow from a version swapping code, so narrowing it is a measurement somebody can take.",
       "sees": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
@@ -1342,6 +1348,7 @@
         "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1352,7 +1359,7 @@
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
-      "source": "measured by bumping the minecraft-library:text pin from 117775e to 172ed90: 13 of 199 manifest.visual rows moved, every one of them a render that draws text, and the other thirteen artifacts captured beside it held; every other member is declared from what its producer runs - the libraries its code imports and the classpath its task is given; manifest.pack-tooltips declared blind from its producer: renderVanillaPackTooltipsHypixelSkyblock depends on one task of this build, packTooltipPacks, a Sync that runs no code these two files version, and the harness build reads no version these two files declare",
+      "source": "measured by bumping the minecraft-library:text pin from 117775e to 172ed90: 13 of 199 manifest.visual rows moved, every one of them a render that draws text, and the other thirteen artifacts captured beside it held; every other member is declared from what its producer runs - the libraries its code imports and the classpath its task is given; manifest.pack-tooltips declared blind from its producer: renderVanillaPackTooltipsHypixelSkyblock depends on one task of this build, packTooltipPacks, a Sync that runs no code these two files version, and the harness build takes from the catalog only its unit suite's JUnit coordinates, on testImplementation and testRuntimeOnly, which no client run puts on its classpath, so no catalog version chooses a line the pack-tooltip run executes; ParityTaskWiringTest fails on a catalog read in the harness build outside a test configuration, through the libs accessor or the API that looks a catalog up by name, on a name of the unit suite outside its own dependency lines and the blocks configuring its source set and its task, and on a statement of that source-set block other than one adding to the set's own classpath",
       "trigger_paths": [
         "build.gradle.kts",
         "gradle/libs.versions.toml"
@@ -1380,14 +1387,15 @@
         "sweep.entity-animation",
         "sweep.entity-walk",
         "sweep.tooltip",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "A menu reaches the visual manifest and nothing else this store holds",
       "claim_key": "menu-closure",
       "id": "B48",
       "mode": "demote",
       "probe": "perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does",
-      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, the glint sweep an overlay over an item and the two tooltip sweeps a text render over its box; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the call.slot package holds nine other slot enums, and the call.request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
+      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, the glint sweep an overlay over an item, the two tooltip sweeps a text render over its box and the book sweep a page over the book's texture; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the call.slot package holds nine other slot enums, and the call.request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
       "sees": [
         "manifest.visual",
         "sweep.menu"
@@ -1456,7 +1464,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The menu sweep reaches the menu references and no other sub-tree",
       "claim_key": "harness-menu-sweep",
@@ -1487,7 +1496,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The block sweep and the types only it reaches write blocks/ and nothing else",
       "claim_key": "harness-block-sweep",
@@ -1524,7 +1534,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The item sweep enumerates the non-block items and writes items/ alone",
       "claim_key": "harness-item-sweep",
@@ -1554,14 +1565,15 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The GUI item frame renderer draws for the item sweep and for the foil half of the glint one",
       "claim_key": "harness-gui-item-frame",
       "id": "B54",
       "mode": "demote",
       "probe": "perturb the icon draw and re-render: items/ and glint/ both move, and blocks/, entities/, players/, armor/ and menus/ hash identically",
-      "reason": "ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and reaches the other five through nothing. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
+      "reason": "ItemFrameRenderer is constructed by ItemSweep and by GlintSweep, which uses it for the always-foil GUI items and EntityFrameRenderer for the worn-armour diagnostics. So it reaches two sub-trees rather than one, and no other sub-tree through anything. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.item",
         "sweep.glint",
@@ -1584,7 +1596,8 @@
         "manifest.player-raw",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The entity sweep enumerates the entity roster and writes entities/ alone",
       "claim_key": "harness-entity-sweep",
@@ -1613,7 +1626,8 @@
         "manifest.player-raw",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The entity frame renderer and its bounds walker draw every mob any sweep renders",
       "claim_key": "harness-entity-frame",
@@ -1649,7 +1663,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The armour sweep names its own subjects and writes armor/ alone",
       "claim_key": "harness-armor-sweep",
@@ -1679,14 +1694,15 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The glint sweep writes glint/ alone and hands the shared glint clock back as it found it",
       "claim_key": "harness-glint-sweep",
       "id": "B58",
       "mode": "demote",
       "probe": "change the frame count and re-render: glint/ changes population and items/ keeps its count, even though the two draw overlapping subjects through one renderer",
-      "reason": "GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it, which it writes itself, outside SweepRunner, into this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. The clock is not a write, and it is shared: GlintClock.overrideT is one static field every foil draw in the boot reads, and this sweep stores it in prepare and hands it back in afterSweep as it found it - the 0 RefHarnessRenderer pins in a whole-tree boot, or the -1 of the wall clock in a boot that runs this sweep alone. Every sweep that runs after it in a whole-tree boot draws its foil subjects at that value. The menu sweep draws one, the enchanted golden apple in anvil_apple's first input, so a change to what this sweep hands back moves menus/ and the sweep.menu row measured against it. The armour, tooltip, idle and walk sweeps also run after it and draw no foil subject, the block, item, entity and player sweeps run before it, and a pack-tooltip run is a boot that does not run it, so the artifacts measured against the other directories cannot see it.",
+      "reason": "GlintSweep renders each foil subject over a fixed frame count, stepping the harness glint clock, and writes glint/ plus the atlas-UV sidecar beside it, which it writes itself, outside SweepRunner, into this sweep's own directory. The two renderers it drives carry wider claims; nothing reads the sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. The clock is not a write, and it is shared: GlintClock.overrideT is one static field every foil draw in the boot reads, and this sweep stores it in prepare and hands it back in afterSweep as it found it - the 0 RefHarnessRenderer pins in a whole-tree boot, or the -1 of the wall clock in a boot that runs this sweep alone. Every sweep that runs after it in a whole-tree boot draws its foil subjects at that value. The menu sweep draws one, the enchanted golden apple in anvil_apple's first input, so a change to what this sweep hands back moves menus/ and the sweep.menu row measured against it. The armour, tooltip, book, idle and walk sweeps also run after it and draw no foil subject, the block, item, entity and player sweeps run before it, and a pack-tooltip run is a boot that does not run it, so the artifacts measured against the other directories cannot see it.",
       "sees": [
         "sweep.glint",
         "sweep.menu",
@@ -1711,7 +1727,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The player sweep and its frame renderer write players/ and no other sub-tree",
       "claim_key": "harness-player-sweep",
@@ -1745,7 +1762,8 @@
         "sweep.entity-walk",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "A probe writes outside the reference tree, so nothing this store holds can see one",
       "claim_key": "harness-probe-sweep",
@@ -1773,7 +1791,8 @@
         "sweep.player",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
       "claim": "The posed sweep renders every subject at its own schedule and writes idle/ and walk/ alone",
       "claim_key": "harness-animation-sweep",
@@ -1836,6 +1855,7 @@
         "manifest.visual",
         "pin.player-crc",
         "sweep.armor",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1846,14 +1866,14 @@
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
-      "claim": "The CIT grammar reaches the item, armour, entity, menu, player and the two tooltip producers through a match none of them asks, because none of them stacks a pack carrying a CIT rule",
+      "claim": "The CIT grammar reaches the item, armour, entity, menu, player, the two tooltip and the book producers through a match none of them asks, because none of them stacks a pack carrying a CIT rule",
       "claim_key": "cit-grammar",
       "id": "B64",
       "mode": "demote",
       "probe": "invert the answer ItemContext.matches gives, capture the artifacts listed blind and compare them against the store: every one holds and none gains or loses a row, while the fast suite's CIT match cases fail under the same edit",
-      "reason": "CitRule and the value predicates under asset/rule/filter are the CIT grammar: the parser builds them out of a cit/ tree, and they are matched in one place - ItemContext.matches(CitRule), which the item override, the armour override and the glint lookup each call for every rule of the type they walk in the stack's RuleSet. That method is why the reference graph answers the renders for every grammar type: every item, armour, entity, menu and player producer reaches ItemContext, the tooltip producers reach it through the tooltip chrome's item-style lookup, which they never call, and the asset-layer claim selects whatever the graph answers. RuleScanner returns an empty rule set for a pack carrying no optifine/ tree and the client jar carries none, and the producers listed blind render with the client jar alone but one - of them only the hypixel-skyblock tooltip sweep stacks a texture pack, and that pack ships no optifine/ tree, so RuleScanner answers it an empty rule set too. So no CIT rule is parsed or matched in any of them, and a change to the grammar cannot reach a byte they write. The three the graph still answers - both dumps and the block sweep - stay selected by B2 and B25 on these same paths, and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim types rather than a glob: the rule package holds the CTM grammar and the colour overrides beside the CIT types, and ItemContext is built by every item render whether or not a rule exists, so a glob over the package or a trigger on the context would hide a sweep from a change that moves it. The grammar's own gate is ./gradlew test, where CitParserTest, CitRuleMatchTest, NbtRuleMatchTest and IntRangeTest run. CitOutput, CitType, DamageSpec, EnchantmentSpec and Hand are the values a parsed rule carries, and what holds for the grammar holds for them on the parse side as on the match: CitParser builds each one out of a cit/ tree, and they are read only where a rule is - the type tests of the item, armour and glint walks, the hand, damage and enchantment checks of ItemContext.matches, the glint lookup's texture and CitResult.of, which carries a matched output into the render. Every one of those reads sits inside a walk over the stack's CIT rules, which holds none in the producers listed blind, and CitTypes.of, the one call on those paths outside a walk, picks the subject an armour walk then compares against no rule. Their own gate is the same suite, with IndexedRendererContextItemOverrideTest, IndexedRendererContextArmorOverrideTest and RuleLookupGlintTest beside the four above.",
+      "reason": "CitRule and the value predicates under asset/rule/filter are the CIT grammar: the parser builds them out of a cit/ tree, and they are matched in one place - ItemContext.matches(CitRule), which the item override, the armour override and the glint lookup each call for every rule of the type they walk in the stack's RuleSet. That method is why the reference graph answers the renders for every grammar type: every item, armour, entity, menu and player producer reaches ItemContext, the tooltip and book producers reach it through the tooltip chrome's item-style lookup, which none of them calls, and the asset-layer claim selects whatever the graph answers. RuleScanner returns an empty rule set for a pack carrying no optifine/ tree and the client jar carries none, and the producers listed blind render with the client jar alone but one - of them only the hypixel-skyblock tooltip sweep stacks a texture pack, and that pack ships no optifine/ tree, so RuleScanner answers it an empty rule set too. So no CIT rule is parsed or matched in any of them, and a change to the grammar cannot reach a byte they write. The three the graph still answers - both dumps and the block sweep - stay selected by B2 and B25 on these same paths, and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim types rather than a glob: the rule package holds the CTM grammar and the colour overrides beside the CIT types, and ItemContext is built by every item render whether or not a rule exists, so a glob over the package or a trigger on the context would hide a sweep from a change that moves it. The grammar's own gate is ./gradlew test, where CitParserTest, CitRuleMatchTest, NbtRuleMatchTest and IntRangeTest run. CitOutput, CitType, DamageSpec, EnchantmentSpec and Hand are the values a parsed rule carries, and what holds for the grammar holds for them on the parse side as on the match: CitParser builds each one out of a cit/ tree, and they are read only where a rule is - the type tests of the item, armour and glint walks, the hand, damage and enchantment checks of ItemContext.matches, the glint lookup's texture and CitResult.of, which carries a matched output into the render. Every one of those reads sits inside a walk over the stack's CIT rules, which holds none in the producers listed blind, and CitTypes.of, the one call on those paths outside a walk, picks the subject an armour walk then compares against no rule. Their own gate is the same suite, with IndexedRendererContextItemOverrideTest, IndexedRendererContextArmorOverrideTest and RuleLookupGlintTest beside the four above.",
       "sees": [],
-      "source": "measured by perturbing ItemContext.java so its CIT match answered the inverse of every rule: 0 of 0 declared sees moved, and 11 declared blind held, none of them gaining or losing a row; the 18 fast-suite cases that walk a CIT rule through the armour override, the glint lookup or the match itself failed under the same edit, so the perturbation was live on every path a CIT rule is read through; then by perturbing, together, how CitParser, CitType.parse and Hand.parse build the five value types CitRule carries and every place a rule's values are read - the type tests of the item and glint walks, the armour walk's subject, the hand, damage and enchantment checks of ItemContext.matches and CitResult.of: the eleven declared blind held against an unperturbed capture of the same eleven, none of them gaining or losing a row; each of the twelve edits alone turned at least one fast-suite case red, 43 in all, the item walk's through a probe case outside the committed suite; IndexedRendererContextItemOverrideTest holds the committed cases that walk that loop with a rule, and each of five edits to the walk alone - its type test inverted or removed, the last match kept for the first, the glint dropped from the winning output or from the no-match result - turned at least one of its seven cases red; and sweep.entity-walk, the stride row, by the first perturbation alone: under the inverted match the same 18 fast-suite cases failed and its capture held against the store, none of its rows gaining or losing; sweep.tooltip declared from the call site: the tooltip sweep builds no ItemContext and stacks no pack, so the lookup that carries its edge never runs; sweep.tooltip-hypixel-skyblock declared from the call site and the pack: it builds no ItemContext, and hypixel-skyblock ships no optifine/ tree",
+      "source": "measured by perturbing ItemContext.java so its CIT match answered the inverse of every rule: 0 of 0 declared sees moved, and 11 declared blind held, none of them gaining or losing a row; the 18 fast-suite cases that walk a CIT rule through the armour override, the glint lookup or the match itself failed under the same edit, so the perturbation was live on every path a CIT rule is read through; then by perturbing, together, how CitParser, CitType.parse and Hand.parse build the five value types CitRule carries and every place a rule's values are read - the type tests of the item and glint walks, the armour walk's subject, the hand, damage and enchantment checks of ItemContext.matches and CitResult.of: the eleven declared blind held against an unperturbed capture of the same eleven, none of them gaining or losing a row; each of the twelve edits alone turned at least one fast-suite case red, 43 in all, the item walk's through a probe case outside the committed suite; IndexedRendererContextItemOverrideTest holds the committed cases that walk that loop with a rule, and each of five edits to the walk alone - its type test inverted or removed, the last match kept for the first, the glint dropped from the winning output or from the no-match result - turned at least one of its seven cases red; and sweep.entity-walk, the stride row, by the first perturbation alone: under the inverted match the same 18 fast-suite cases failed and its capture held against the store, none of its rows gaining or losing; sweep.tooltip declared from the call site: the tooltip sweep builds no ItemContext and stacks no pack, so the lookup that carries its edge never runs; sweep.tooltip-hypixel-skyblock declared from the call site and the pack: it builds no ItemContext, and hypixel-skyblock ships no optifine/ tree; sweep.book declared from the call site: the book sweep builds no ItemContext and stacks no pack, and a book request builds no tooltip chrome, so the lookup that carries its edge never runs",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/CitOutput.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java",
@@ -1903,7 +1923,8 @@
         "sweep.player",
         "manifest.player-raw",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.book"
       ],
       "claim": "The tooltip sweep reaches the tooltip references and the pack-tooltip drawings, and no other sub-tree",
       "claim_key": "harness-tooltip-sweep",
@@ -1956,20 +1977,21 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
-      "claim": "The shared GUI capture reaches the menu and tooltip references and the pack-tooltip drawings, and no other sub-tree",
+      "claim": "The shared GUI capture reaches the menu, tooltip and book references and the pack-tooltip drawings, and no other sub-tree",
       "claim_key": "harness-gui-capture",
       "id": "B68",
       "mode": "demote",
-      "probe": "change the capture's clear colour and re-render the whole tree: menus/ and tooltips/ move and every other sub-tree hashes identically",
-      "reason": "GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep and TooltipSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu and tooltip references are what sweep.menu and sweep.tooltip diff against, and manifest.references hashes the whole tree; the pack-tooltip drawings are what sweep.tooltip-hypixel-skyblock diffs against, and manifest.pack-tooltips hashes them; so those five are the whole answer.",
+      "probe": "change the capture's clear colour and re-render the whole tree: menus/, tooltips/ and books/ move and every other sub-tree hashes identically",
+      "reason": "GuiFrameRenderer is the one capture that draws through the client's own GUI pipeline - the target redirect, the clear, the draw and the read-back - and MenuSweep, TooltipSweep and BookSweep are the only sweeps that construct one, each handing it the extract step its subject needs. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The menu, tooltip and book references are what sweep.menu, sweep.tooltip and sweep.book diff against, and manifest.references hashes the whole tree; the pack-tooltip drawings are what sweep.tooltip-hypixel-skyblock diffs against, and manifest.pack-tooltips hashes them; so those six are the whole answer.",
       "sees": [
         "sweep.menu",
         "manifest.references",
         "sweep.tooltip",
         "manifest.pack-tooltips",
-        "sweep.tooltip-hypixel-skyblock"
+        "sweep.tooltip-hypixel-skyblock",
+        "sweep.book"
       ],
-      "source": "measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held",
+      "source": "measured by factoring the capture out of the menu sweep's renderer and re-rendering the WHOLE tree: menus/ held byte-identical, 10 of 10, tooltips/ was added and every other path held; the book sweep constructs its own capture and hands it the book screen's extract, and a render of every frozen sweep into a scratch root, the book sweep last, held every sub-tree but books/ byte-identical to the stored tree",
       "trigger_paths": [
         "harness/src/client/java/lib/minecraft/refharness/frame/GuiFrameRenderer.java"
       ]
@@ -2002,18 +2024,19 @@
         "sweep.menu",
         "sweep.player"
       ],
-      "claim": "A text render reaches the visual manifest and the tooltip sweeps, and nothing else this store holds",
+      "claim": "A text render reaches the visual manifest, the tooltip sweeps and the book sweep, and nothing else this store holds",
       "claim_key": "text-closure",
       "id": "B69",
       "mode": "demote",
-      "probe": "perturb a chrome number - the sprite padding, a border - re-run the render bundle and read which artifacts move: the lore-tooltip members of manifest.visual and the tooltip sweeps' rows move, and nothing else does",
-      "reason": "TextRenderer draws a tooltip or a run of chat text over the chrome TooltipChrome contributes. No other renderer calls either - a menu draws its labels through TextKit and its GUI sprites through NineSliceKit, which is why TextKit, GradientKit and NineSliceKit are not carriers - and of the producers this store captures only two construct a TextRenderer: the lore-tooltip driver, whose files manifest.visual hashes, and the tooltip sweep in each of its two configurations. On these paths the reference graph answers through the engine claim and the visual mains select through B32, so the demote is what states the closure, and with an empty held ledger reach check refuses any new edge from a carrier into what it lists blind. The trigger list is verbatim paths and never a glob: bake.gui holds the text kits the menu, item, block and glint producers reach, and a glob over it would hide those sweeps from a change that moves them.",
+      "probe": "perturb a chrome number - the sprite padding, a border - and the book's line pitch, re-run the render bundle and read which artifacts move: the chrome number moves the lore-tooltip members of manifest.visual and the tooltip sweeps' rows, the line pitch moves the book sweep's rows of more than one line, and nothing else moves",
+      "reason": "TextRenderer draws a tooltip or a run of chat text over the chrome TooltipChrome contributes, or a book page on the book texture. No other renderer calls either - a menu draws its labels through TextKit and its GUI sprites through NineSliceKit, which is why TextKit, GradientKit and NineSliceKit are not carriers - and of the producers this store captures only three construct a TextRenderer: the lore-tooltip driver, whose files manifest.visual hashes, the tooltip sweep in each of its two configurations, and the book sweep. On these paths the reference graph answers through the engine claim and the visual mains select through B32, so the demote is what states the closure, and with an empty held ledger reach check refuses any new edge from a carrier into what it lists blind. The trigger list is verbatim paths and never a glob: bake.gui holds the text kits the menu, item, block and glint producers reach, and a glob over it would hide those sweeps from a change that moves them.",
       "sees": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
-      "source": "declared from the reference graph: TextRenderer and TooltipChrome are reached from LoreTooltipDriver and TooltipParitySweep, which roots both tooltip sweeps, and from no other root, and the held demote's empty ledger holds that on every rebuild of the graph",
+      "source": "declared from the reference graph: TextRenderer and TooltipChrome are reached from LoreTooltipDriver, from TooltipParitySweep, which roots both tooltip sweeps, and from BookParitySweep, and from no other root, and the held demote's empty ledger holds that on every rebuild of the graph",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/TextRenderer.java",
         "src/main/java/lib/minecraft/renderer/bake/gui/TooltipChrome.java",
@@ -2034,7 +2057,8 @@
         "manifest.references",
         "sweep.entity-animation",
         "sweep.entity-walk",
-        "sweep.tooltip"
+        "sweep.tooltip",
+        "sweep.book"
       ],
       "claim": "The pack selection the pack-source probe records is the pack-tooltip handshake's too, so it reaches the hypixel-skyblock tooltip drawings and their sweep and no reference sub-tree",
       "claim_key": "harness-pack-selection",
@@ -2068,6 +2092,73 @@
       "source": "declared from the call sites: renderVanillaPackTooltipsHypixelSkyblock passes the folder packTooltipPacks writes as -PrefharnessPackDir, the harness hands it to the client as --resourcePackDir and records it as the handshake's pack_directory, and TooltipParitySweep loads its packs from that member; correction to B31's claim that the build wiring renders nothing - this script decides the content of the pack the pack-tooltip run draws",
       "trigger_paths": [
         "gradle/parity.gradle.kts"
+      ]
+    },
+    {
+      "authored_paths": [],
+      "blind": [
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "manifest.player-raw",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.tooltip",
+        "manifest.pack-tooltips",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "claim": "The book sweep reaches the book references and no other sub-tree",
+      "claim_key": "harness-book-sweep",
+      "id": "B72",
+      "mode": "demote",
+      "probe": "lay the book screen out two GUI pixels wider, which moves the book one GUI pixel right, and re-render the whole tree: every books/ file moves and every other sub-tree hashes identically; and leave the text visit out of every page's step: every books/ file but background and empty moves, and so does each of those pages' sweep.book row",
+      "reason": "BookSweep draws every page of the tracked book roster through the client's own book screen - the book's background, then the page's text through the screen's own text visit with the page-number line left out by its own flag - into the shared GUI capture, and writes books/. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir(), and the only writes made outside it - GlintSweep's atlas sidecar into glint/, PackSourceSweep's dump beside the path the runner resolved for it, TooltipSweep's stack.json beside a pack run's references, and EntityAnimationSweep's schedule sidecar and its clearing of the frames a shorter strip leaves - each resolve under the writing sweep's own directory. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. The book references are what sweep.book diffs against, and manifest.references hashes the whole tree, so those two are the whole answer. The pack-tooltip run, whose drawings manifest.pack-tooltips hashes and sweep.tooltip-hypixel-skyblock diffs against, runs the tooltip sweep alone.",
+      "sees": [
+        "manifest.references",
+        "sweep.book"
+      ],
+      "source": "declared from the write site, the B61 shape: SweepRunner resolves every path this sweep writes as outputRoot / sweep.outputDir(), and it makes no write outside that resolution; a render of every frozen sweep into a scratch root, this one last, wrote its 18 files under books/ and held every other sub-tree it wrote byte-identical to the stored tree",
+      "trigger_paths": [
+        "harness/src/client/java/lib/minecraft/refharness/sweep/BookSweep.java"
+      ]
+    },
+    {
+      "authored_paths": [
+        "src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json"
+      ],
+      "blind": [],
+      "claim": "The book roster is what the book references and the book sweep are drawn from, so an edit to it reaches both",
+      "id": "B73",
+      "mode": "select",
+      "probe": "change one page's text, run renderVanillaBookReferences and then bookParityVanilla: that page's reference and its row move, and every other file under books/ and every other row hold",
+      "reason": "The harness reads this file by path - the harness build defaults refharness.bookRoster to it - and draws every page it names through the client's own book screen into books/, so an edit to it re-renders that sub-tree, and manifest.references hashes the whole tree. It is a resource, which no declaration can reach, so the rule is authored. The harness's own sources reach the same sub-tree through B29 and B72. BookParitySweep reads the same file off the visual classpath and renders every page it names, so an edit moves the measurement with the ground truth it is measured against. Nothing else in the harness or the build reads it.",
+      "sees": [
+        "manifest.references",
+        "sweep.book"
+      ],
+      "source": "declared from the two read sites: BookSweep enumerates the file refharness.bookRoster names and nothing else, the harness build sets that property on every run, and BookParitySweep reads the same file as the classpath resource beside it; with a page added to the roster, a render of the book references alone added that page's one file under books/ and drew the other 18 byte-identical to the stored tree",
+      "trigger_paths": [
+        "src/visual/resources/lib/minecraft/renderer/sweep/book-roster.json"
+      ]
+    },
+    {
+      "authored_paths": [
+        "harness/src/test/java/**"
+      ],
+      "blind": [],
+      "claim": "The harness's own unit suite asserts over the refusals the harness makes with no running client, and emits nothing",
+      "id": "B74",
+      "mode": "select",
+      "probe": "run ./gradlew harnessTest, then capture any artifact and confirm it is byte-identical",
+      "reason": "Every case here calls a harness refusal that needs no running client - the run's check of the client's pack selection and text options, and the book roster's own reads - over values the case builds, or reads a harness source as text, and none starts a client, so none writes a reference, a drawing beside the tree or any other byte a stored artifact holds. The gate for a change here is the suite itself, the harness build's own test task, which check schedules through harnessTest by shelling into the harness's wrapper as harnessClasses does. The classes it exercises reach the reference tree through B29 and their own rules. This is the harness half of what B33 says for src/test/java.",
+      "sees": [],
+      "source": "declares no store artifact, so its reason names the gate that answers instead",
+      "trigger_paths": [
+        "harness/src/test/java/**"
       ]
     }
   ]

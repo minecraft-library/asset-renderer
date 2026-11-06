@@ -6,6 +6,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -125,8 +126,9 @@ class RasterizerDepthReuseTest {
      * @return the square's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> square(int argb) {
-        PixelBuffer texture = PixelBuffer.straight(2, 2);
-        texture.fill(argb);
+        PixelBuffer pixels = PixelBuffer.straight(2, 2);
+        pixels.fill(argb);
+        SampledTexture texture = SampledTexture.of(pixels);
         SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false);
         Vector3f normal = new Vector3f(0f, 0f, 1f);
         Vector3f topLeft = new Vector3f(-0.2f, 0.2f, 0f);

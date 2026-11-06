@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * tooltip subjects whole and as their box alone and the vanilla configuration's plain lines - the keys
  * and drawings they are compared under and the folder and drawing a row's comparison takes from them,
  * the resolution check that holds the renderer's chrome to the sprites the client drew with, the scaling
- * form both sides write, the roster's pack sections, and the pack run's handshake.
+ * form both sides write, the roster's format and its pack sections, and the pack run's handshake.
  */
 @DisplayName("TooltipParitySweep resolution check and roster")
 class TooltipParitySweepTest {
@@ -514,10 +514,20 @@ class TooltipParitySweepTest {
     @DisplayName("a plain line that breaks into two lines is refused - a plain subject is one line")
     void aPlainLineOfTwoLinesIsRefused() {
         JsonObject roster = JsonParser.parseString(
-            "{\"subjects\": [], \"plain\": {\"subjects\": [{\"key\": \"two\", \"line\": {\"text\": \"a\\nb\"}}]}}").getAsJsonObject();
+            "{\"format\": 1, \"subjects\": [], \"plain\": {\"subjects\": [{\"key\": \"two\", \"line\": {\"text\": \"a\\nb\"}}]}}").getAsJsonObject();
 
         IllegalStateException refusal = assertThrows(IllegalStateException.class, () -> TooltipParitySweep.subjects(roster, "vanilla"));
         assertThat(refusal.getMessage(), containsString("'two'"));
+    }
+
+    @Test
+    @DisplayName("a book page is no subject of the tooltip sweep, which draws tooltips and plain lines alone")
+    void aBookPageIsNoSubjectOfTheTooltipSweep() {
+        TooltipParitySweep.Subject page = new TooltipParitySweep.Subject("page", Optional.empty(),
+            TextOptions.builder().style(TextOptions.Style.BOOK).build());
+
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, page::hasBox);
+        assertThat(thrown.getMessage(), is("Subject 'page' is a book page, which the tooltip sweep does not draw"));
     }
 
     @Test
@@ -581,6 +591,24 @@ class TooltipParitySweepTest {
         JsonObject roster = TooltipParitySweep.roster();
 
         assertThrows(IllegalArgumentException.class, () -> TooltipParitySweep.subjects(roster, "no-such-pack"));
+    }
+
+    @Test
+    @DisplayName("a roster of another format, of none, or of one that is no single value is refused, naming what it read")
+    void aRosterOfAnotherFormatIsRefused() {
+        JsonObject roster = JsonParser.parseString(
+            "{\"format\": 2, \"subjects\": [], \"plain\": {\"subjects\": []}}").getAsJsonObject();
+        JsonObject unversioned = JsonParser.parseString(
+            "{\"subjects\": [], \"plain\": {\"subjects\": []}}").getAsJsonObject();
+        JsonObject listed = JsonParser.parseString(
+            "{\"format\": [1], \"subjects\": [], \"plain\": {\"subjects\": []}}").getAsJsonObject();
+
+        IllegalStateException refusal = assertThrows(IllegalStateException.class, () -> TooltipParitySweep.subjects(roster, "vanilla"));
+        assertThat(refusal.getMessage(), containsString("format '2'"));
+        IllegalStateException none = assertThrows(IllegalStateException.class, () -> TooltipParitySweep.subjects(unversioned, "vanilla"));
+        assertThat(none.getMessage(), containsString("format 'null'"));
+        IllegalStateException list = assertThrows(IllegalStateException.class, () -> TooltipParitySweep.subjects(listed, "vanilla"));
+        assertThat(list.getMessage(), containsString("format '[1]'"));
     }
 
     @Test

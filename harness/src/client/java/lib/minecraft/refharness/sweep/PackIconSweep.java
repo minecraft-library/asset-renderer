@@ -97,7 +97,7 @@ public final class PackIconSweep implements Sweep<PackIconSweep.Subject> {
         }
 
         List<String> named = new ArrayList<>();
-        for (JsonElement pack : roster.getAsJsonArray("packs")) named.add("file/" + pack.getAsString());
+        for (JsonElement pack : roster.getAsJsonArray("packs")) named.add(HarnessConfig.FOLDER_PACK_PREFIX + pack.getAsString());
         Collection<String> selected = ctx.client().getResourcePackRepository().getSelectedIds();
         if (!named.equals(HarnessConfig.packIds()) || !selected.containsAll(named))
             throw new IllegalStateException(String.format(

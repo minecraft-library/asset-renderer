@@ -1,6 +1,7 @@
 package lib.minecraft.refharness;
 
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.refharness.sweep.BookSweep;
 import lib.minecraft.refharness.sweep.TooltipSweep;
 
 import java.nio.file.Path;
@@ -12,10 +13,11 @@ import java.util.List;
  * System-property-driven configuration for the reference-render harness.
  *
  * <p>Read once at JVM start; the values mirror Loom-run-config properties
- * declared in {@code build.gradle}. Pass overrides on the command line as
- * {@code -Drefharness.<key>=<value>}. The two canvas-sizing constants are the
- * exception - they are frozen literals rather than properties, for the reason
- * given on each.
+ * declared in {@code build.gradle.kts}. Pass overrides on the command line as
+ * {@code -Drefharness.<key>=<value>}. The two canvas-sizing constants and
+ * {@link #FOLDER_PACK_PREFIX}, the client's own naming of a folder pack, are the
+ * exceptions - frozen literals rather than properties, for the reason given on
+ * each.
  */
 @UtilityClass
 public final class HarnessConfig {
@@ -106,6 +108,14 @@ public final class HarnessConfig {
     public static final String TOOLTIP_ROSTER = System.getProperty("refharness.tooltipRoster", "");
 
     /**
+     * The roster the {@link BookSweep} draws, by absolute path. The harness build defaults it to the
+     * tracked roster under asset-renderer's {@code src/visual/resources},
+     * {@code lib/minecraft/renderer/sweep/book-roster.json}, so only a launch outside that build leaves it
+     * empty - which the sweep refuses before it draws anything.
+     */
+    public static final String BOOK_ROSTER = System.getProperty("refharness.bookRoster", "");
+
+    /**
      * How many subjects one client tick renders, {@code 8} by default.
      *
      * <p>A client ticks twenty times a second whatever the machine can draw, so the tick clock prices
@@ -147,13 +157,20 @@ public final class HarnessConfig {
      *
      * <p>Only the {@linkplain HarnessMode#loadsPacks() pack modes} run with any: a reference rendered
      * through a pack is no longer vanilla's ground truth, so {@link HarnessMode#resolve} refuses a run
-     * that names packs beside any other mode.
+     * that names packs beside any other mode, and every run is refused before its first sweep when its
+     * client selected a folder pack this does not name.
      */
     public static final String PACKS = System.getProperty("refharness.packs", "");
 
     /**
-     * Returns the pack-repository ids of {@link #PACKS}, in the order given - the {@code file/}
-     * prefix being how the client's folder source names each pack it discovers.
+     * The prefix the client's folder source gives the id of every pack it discovers - a literal, because
+     * the client builds each id by concatenation and keeps no constant to read.
+     */
+    public static final String FOLDER_PACK_PREFIX = "file/";
+
+    /**
+     * Returns the pack-repository ids of {@link #PACKS}, in the order given - {@link #FOLDER_PACK_PREFIX}
+     * being how the client's folder source names each pack it discovers.
      *
      * @return the requested pack ids, empty when no pack is named
      */
@@ -161,7 +178,7 @@ public final class HarnessConfig {
         List<String> ids = new ArrayList<>();
         for (String name : PACKS.split(",")) {
             String trimmed = name.trim();
-            if (!trimmed.isEmpty()) ids.add("file/" + trimmed);
+            if (!trimmed.isEmpty()) ids.add(FOLDER_PACK_PREFIX + trimmed);
         }
         return List.copyOf(ids);
     }

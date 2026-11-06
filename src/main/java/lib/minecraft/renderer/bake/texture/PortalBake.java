@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.call.request.PortalOptions;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.PortalPalette;
@@ -117,7 +118,8 @@ public class PortalBake {
      * <p>
      * The shader samples {@code Sampler0} (end_sky) scaled by {@code COLORS[0]}, then accumulates
      * {@code PORTAL_LAYERS} further samples of {@code Sampler1} (end_portal noise) through
-     * per-layer transforms composed in {@code end_portal_layer(float layer)}. Fog and alpha are
+     * per-layer transforms composed in {@code end_portal_layer(float layer)}, each through its own
+     * sampler. Fog and alpha are
      * dropped; the atlas tile is opaque.
      * <p>
      * The {@code gameTick} argument is converted internally to vanilla's {@code GameTime}
@@ -127,16 +129,17 @@ public class PortalBake {
      * @param portal the portal variant - drives layer count
      * @param gameTick the vanilla game tick; converted to the shader's {@code [0, 1)}
      *                 {@code GameTime} uniform value internally
-     * @param endSky Sampler0 - {@code environment/end_sky}
-     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}
+     * @param endSky Sampler0 - {@code environment/end_sky}, and the sampler it is read through
+     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}, and the sampler it is read
+     *                       through
      * @param size output sprite edge length in pixels
      * @return a freshly allocated {@code size x size} ARGB buffer with the baked face
      */
     public static @NotNull PixelBuffer bakeFace(
         @NotNull PortalOptions.Portal portal,
         float gameTick,
-        @NotNull PixelBuffer endSky,
-        @NotNull PixelBuffer endPortalNoise,
+        @NotNull SampledTexture endSky,
+        @NotNull SampledTexture endPortalNoise,
         int size
     ) {
         return bake(portal, gameTick, endSky, endPortalNoise, size, null);
@@ -152,8 +155,9 @@ public class PortalBake {
      * @param portal the portal variant - drives layer count
      * @param gameTick the vanilla game tick; converted to the shader's {@code [0, 1)}
      *                 {@code GameTime} uniform value internally
-     * @param endSky Sampler0 - {@code environment/end_sky}
-     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}
+     * @param endSky Sampler0 - {@code environment/end_sky}, and the sampler it is read through
+     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}, and the sampler it is read
+     *                       through
      * @param coverage the square buffer whose pixels of non-zero alpha are the ones baked; its edge
      *                 is the sprite's
      * @return a freshly allocated ARGB buffer the size of {@code coverage}, baked where it is covered
@@ -162,8 +166,8 @@ public class PortalBake {
     public static @NotNull PixelBuffer bakeCovered(
         @NotNull PortalOptions.Portal portal,
         float gameTick,
-        @NotNull PixelBuffer endSky,
-        @NotNull PixelBuffer endPortalNoise,
+        @NotNull SampledTexture endSky,
+        @NotNull SampledTexture endPortalNoise,
         @NotNull PixelBuffer coverage
     ) {
         if (coverage.width() != coverage.height())
@@ -177,8 +181,9 @@ public class PortalBake {
      *
      * @param portal the portal variant - drives layer count
      * @param gameTick the vanilla game tick
-     * @param endSky Sampler0 - {@code environment/end_sky}
-     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}
+     * @param endSky Sampler0 - {@code environment/end_sky}, and the sampler it is read through
+     * @param endPortalNoise Sampler1 - {@code entity/end_portal/end_portal}, and the sampler it is read
+     *                       through
      * @param size output sprite edge length in pixels
      * @param coverage the {@code size x size} buffer whose pixels of non-zero alpha are the ones
      *                 baked, or {@code null} to bake every pixel
@@ -187,8 +192,8 @@ public class PortalBake {
     private static @NotNull PixelBuffer bake(
         @NotNull PortalOptions.Portal portal,
         float gameTick,
-        @NotNull PixelBuffer endSky,
-        @NotNull PixelBuffer endPortalNoise,
+        @NotNull SampledTexture endSky,
+        @NotNull SampledTexture endPortalNoise,
         int size,
         @Nullable PixelBuffer coverage
     ) {
@@ -278,7 +283,7 @@ public class PortalBake {
                         float v = (py * finalSsaa + sy + 0.5f) * finalInvSsaaGrid;
 
                         // Base layer: Sampler0 * COLORS[0].
-                        int baseArgb = sampleRepeat(endSky, u, v);
+                        int baseArgb = endSky.sample(u, v);
                         rAcc += ColorMath.red(baseArgb)   * base0R;
                         gAcc += ColorMath.green(baseArgb) * base0G;
                         bAcc += ColorMath.blue(baseArgb)  * base0B;
@@ -287,7 +292,7 @@ public class PortalBake {
                         for (int i = 0; i < finalLayers; i++) {
                             float outU = layerSxc[i] * u - layerSxs[i] * v + layerBx[i];
                             float outV = layerSxs[i] * u + layerSxc[i] * v + layerBy[i];
-                            int sampled = sampleRepeat(endPortalNoise, outU, outV);
+                            int sampled = endPortalNoise.sample(outU, outV);
                             rAcc += ColorMath.red(sampled)   * cR[i];
                             gAcc += ColorMath.green(sampled) * cG[i];
                             bAcc += ColorMath.blue(sampled)  * cB[i];
@@ -303,27 +308,6 @@ public class PortalBake {
         });
 
         return buffer;
-    }
-
-    /**
-     * Samples a texture with GL_REPEAT semantics. UV values outside {@code [0, 1]} wrap modulo 1
-     * so the parallax scan always hits a valid texel regardless of how far the per-layer transform
-     * has drifted.
-     *
-     * @param buffer the source texture
-     * @param u the u coordinate (no clamp - any real value is valid)
-     * @param v the v coordinate (no clamp - any real value is valid)
-     * @return the ARGB texel at the wrapped coordinates
-     */
-    private static int sampleRepeat(@NotNull PixelBuffer buffer, float u, float v) {
-        int w = buffer.width();
-        int h = buffer.height();
-        // Wrap into [0, 1) using IEEE-safe modulo; negative inputs are valid.
-        float uw = u - (float) Math.floor(u);
-        float vw = v - (float) Math.floor(v);
-        int tx = Math.clamp((int) (uw * w), 0, w - 1);
-        int ty = Math.clamp((int) (vw * h), 0, h - 1);
-        return buffer.getPixel(tx, ty);
     }
 
 }

@@ -6,8 +6,12 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
+import lib.minecraft.renderer.fixture.TooltipFixtures;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -16,19 +20,25 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of {@link EquipmentKit}'s dye handling on the two shapes the vanilla corpus ships: a dyeable
  * base with an undyed fallback colour (leather body armor) and a dyeable overlay with none (the wolf's
  * armadillo scute). The second is the load-bearing one - undyed it resolves to colour 0 and must be
  * skipped, so the overlay draws only once the wearer supplies a dye.
+ * <p>
+ * A single flat layer is its own texture, so it keeps the sampler its sidecar selects; layers pasted or
+ * tinted into one are this kit's own picture, read nearest and repeating whatever their sidecars select.
  */
 class EquipmentKitTest {
 
@@ -42,7 +52,7 @@ class EquipmentKitTest {
     void undyedSkipsTheFallbackLessLayer() {
         RecordingContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
+            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).map(SampledTexture::pixels);
 
         assertThat("the base still draws", composited.isPresent(), is(true));
         assertThat("the composite carries the untinted base alone - the overlay contributed nothing",
@@ -55,7 +65,7 @@ class EquipmentKitTest {
         RecordingContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.WOLF_BODY,
-            Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty());
+            Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty()).map(SampledTexture::pixels);
 
         assertThat("both layer textures were resolved", context.getResolved(), equalTo(List.of(
             "minecraft:entity/equipment/wolf_body/armadillo_scute",
@@ -70,7 +80,7 @@ class EquipmentKitTest {
         int fallback = 0xFFA06540;
         RecordingContext context = greyContext(List.of(dyeable(Optional.of(fallback))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
-            context, ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
+            context, ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).map(SampledTexture::pixels);
 
         assertThat(composited.orElseThrow().getPixel(0, 0), is(grey().tint(fallback).getPixel(0, 0)));
     }
@@ -81,7 +91,7 @@ class EquipmentKitTest {
         RecordingContext context = greyContext(List.of(dyeable(Optional.of(0xFFA06540))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.HORSE_BODY,
-            Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty());
+            Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty()).map(SampledTexture::pixels);
 
         assertThat(composited.orElseThrow().getPixel(0, 0),
             is(grey().tint(DyeColor.Vanilla.CYAN.argb()).getPixel(0, 0)));
@@ -97,7 +107,7 @@ class EquipmentKitTest {
                 new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute"), Optional.empty(), false),
                 new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute_overlay"), Optional.empty(), false)));
         PixelBuffer combined = EquipmentKit.composite(
-            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).orElseThrow();
+            context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).orElseThrow().pixels();
 
         // Half red over half red by the straight formula keeps the red and lays alpha C0. Laid as
         // premultiplied colour onto a sheet the rasterizer then reads straight, the red would halve to C0.
@@ -113,6 +123,56 @@ class EquipmentKitTest {
         RecordingContext context = greyContext(List.of());
         assertThat(EquipmentKit.composite(context, ASSET, LayerType.WOLF_BODY,
             Optional.empty(), CitResult.NONE, OptionalInt.empty()).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("a single flat layer is its own texture, read by the sampler its sidecar selects")
+    void aSingleFlatLayerIsReadByItsOwnSampler() {
+        PixelBuffer served = PixelBuffer.ofStraight(new int[]{ 0xFF336699, 0xFF996633 }, 2, 1);
+        List<EquipmentModel.Layer> layers = List.of(
+            new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute"), Optional.empty(), false));
+        SampledTexture composited = EquipmentKit.composite(blurredContext(layers, served), ASSET, LayerType.WOLF_BODY,
+            Optional.empty(), CitResult.NONE, OptionalInt.empty()).orElseThrow();
+
+        assertThat("the layer's own sampler", composited.sampler(), is(Sampler.of(true, false)));
+        assertThat("the layer's own pixels", composited.pixels(), is(sameInstance(served)));
+    }
+
+    @Test
+    @DisplayName("layers pasted or tinted into one are read nearest and repeating, whatever their sidecars select")
+    void pastedLayersAreReadNearestWhateverTheirSidecars() {
+        PixelBuffer half = PixelBuffer.ofStraight(new int[]{ 0x80FF0000 }, 1, 1);
+        SampledTexture pasted = EquipmentKit.composite(blurredContext(List.of(
+                new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute"), Optional.empty(), false),
+                new EquipmentModel.Layer(new ResourceId("minecraft", "armadillo_scute_overlay"), Optional.empty(), false)), half),
+            ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty()).orElseThrow();
+        SampledTexture dyed = EquipmentKit.composite(blurredContext(scuteLayers(), grey()), ASSET, LayerType.WOLF_BODY,
+            Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty()).orElseThrow();
+
+        assertThat("two flat layers pasted", pasted.sampler(), is(Sampler.NEAREST_REPEAT));
+        assertThat("their pixels, the second over the first", pasted.pixels().getPixel(0, 0), is(0xC0FF0000));
+        assertThat("a base and a dyed overlay", dyed.sampler(), is(Sampler.NEAREST_REPEAT));
+    }
+
+    /**
+     * Serves the declared layers, every layer texture the given pixels beside a sidecar whose texture section
+     * blurs.
+     *
+     * @param layers the layers the asset declares
+     * @param pixels the pixels every layer texture holds
+     * @return the context
+     */
+    private static @NotNull RecordingContext blurredContext(@NotNull List<EquipmentModel.Layer> layers, @NotNull PixelBuffer pixels) {
+        Map<String, PixelBuffer> textures = new HashMap<>();
+        Map<String, MCMeta> metas = new HashMap<>();
+        for (EquipmentModel.Layer layer : layers) {
+            String id = layer.textureLocation(LayerType.WOLF_BODY).id();
+            textures.put(id, pixels);
+            metas.put(id, new MCMeta(ResourceId.parse(id), Optional.empty(), Possible.absent(),
+                Possible.of(new MCMeta.TextureSampling(true, false, MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f)),
+                Possible.absent(), Optional.empty()));
+        }
+        return RecordingContext.over(TooltipFixtures.stubContext(textures, metas)).answeringEquipment(layers);
     }
 
     /** The wolf-armor shape: an opaque base plus a dyeable overlay with no undyed fallback. */

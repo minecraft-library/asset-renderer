@@ -51,6 +51,35 @@ such pair: it joins that rule's `sees` only if a measured perturbation of a tabl
 table and what it moved go in `BlindnessMapTest`'s record of the measured table reads, while one no
 table perturbation moves goes on neither of B35's lists.
 
+**Coining a sweep owes five lists more, and a guard holds each.** The vanilla sweeps run in one JVM:
+`vanillaSweeps` in `gradle/visual.gradle.kts` names the producer task and the writer class it hands
+that JVM, and `SweepBundle`'s table names the writer class it runs, which `SweepSortDirectionTest`
+holds to the build's rows. The same test's `WRITERS` names the writer's file, held to the writers the
+sweep producers run and to the `*ParitySweep.java` files the sweep directory holds. The toolkit's
+`sweep.SWEEPS` names the sweep as its artifact id and its output directory carry it, the one way a
+capture finds its table, and the toolkit's suite holds it to the index's sweep tables. And the build's
+artifact row names the producer task and the ground truth the sweep diffs against, which
+`ParityTaskWiringTest` holds to the rows whose producer is a `*ParityVanilla` task. The same row names
+the directory the capture reads the table from and the property whose presence suppresses the
+capture, and each is typed again where the sweep acts on it - the directory in the writer, the
+property in the `vanillaSweeps` row or the producer's own registration - so `SweepSortDirectionTest`
+holds the property to the producer's, and the directory to `cache/visual/<name>-parity-vanilla`, the
+name the toolkit attributes a table by, and to the writer's own output directory where it declares
+one.
+
+**A sweep owes the map three places more, and a guard holds each.** B29 and B32 see every sweep
+table - the harness draws every sweep's ground truth, and every sweep is a visual main - so the new
+table joins the `sees` of both. A claim-keyed demote that fires on a path either of them fires on
+subtracts its `blind` from that whole selection, so a table such a demote names neither as seen nor
+as blind has its place on that path left to whichever rule happens to fire there, which no rule has
+decided: the table joins the `sees` of every such demote, measured, or its `blind` with the
+mechanism. `BlindnessMapTest`'s sweep-wide closure guard holds both, naming each demote and the path
+it fires on. And a sweep whose writer reads a roster the harness draws its references from reads it
+as the classpath resource beside the writer, which no declaration reaches, so the rule over the
+roster's path is the only thing an edit to the roster plans the table through: the table joins that
+rule's `sees`, as the references do, and `BlindnessMapTest` holds every table whose producer runs a
+writer reading a roster to the plan an edit to that roster resolves to.
+
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.
 

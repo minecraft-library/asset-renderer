@@ -8,8 +8,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Resolves one split id in one pass - the {@link #resolve()} put-chain IS the on-disk
  * key order, declared once, here: {@code renderer} (provenance scalar) FIRST, then
- * {@code geometry}, {@code y_axis}, {@code tinted}, {@code inventory}, {@code icon},
- * {@code parts}, {@code blocks}.
+ * {@code geometry}, {@code y_axis}, {@code tinted}, {@code plain_texture}, {@code inventory},
+ * {@code icon}, {@code parts}, {@code blocks}.
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public final class BlockEntityRendererResolver {
@@ -32,6 +32,7 @@ public final class BlockEntityRendererResolver {
             .put("geometry", this.split.geometryKey())              // -> block_geometry manifest key
             .put("y_axis", this.split.yAxis().name())               // pivot-band heuristic
             .put("tinted", this.tint.isTinted(this.subject.rendererClass(), this.split.factoryClass()))
+            .put("plain_texture", this.catalog.bindsTextureFile(this.split.splitId()))  // the client's read of the texture, as each row's reader read it
             .put("inventory", inventory())                          // { y_rotation, flip, transform? }
             .putIf("icon", this.gui.icon(this.split.splitId()))     // { rotation?, additive? }
             .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()))  // sub-model composition

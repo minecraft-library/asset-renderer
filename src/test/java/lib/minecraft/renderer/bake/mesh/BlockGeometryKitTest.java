@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
@@ -65,7 +66,7 @@ class BlockGeometryKitTest {
 
         assertThat(triangles.size(), equalTo(12));
         for (VisibleTriangle triangle : triangles) {
-            assertThat(triangle.texture(), sameInstance(texture));
+            assertThat(triangle.texture().pixels(), sameInstance(texture));
             assertThat(triangle.tintArgb(), equalTo(TINT_ARGB));
         }
     }
@@ -131,7 +132,7 @@ class BlockGeometryKitTest {
         assertThat(triangles.size(), equalTo(12));
         for (VisibleTriangle t : triangles) {
             boolean up = cardinal(t.normal()).equals("+y");
-            assertThat(t.texture(), sameInstance(up ? substitute : base));
+            assertThat(t.texture().pixels(), sameInstance(up ? substitute : base));
         }
     }
 
@@ -185,7 +186,7 @@ class BlockGeometryKitTest {
         // A cube spanning bone-local [-8,+8] under a bone pivot of (8,8,8) composes to entity-pixel
         // [0,16], which the /16 - 0.5 block-frame normalization maps to the [-0.5,+0.5] unit cube.
         ConcurrentList<VisibleTriangle> triangles =
-            BlockGeometryKit.buildFromBones(fullBlockCubeModel(), solid(16, 16), TINT_ARGB);
+            BlockGeometryKit.buildFromBones(fullBlockCubeModel(), SampledTexture.of(solid(16, 16)), TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(12));
         Set<String> faces = new HashSet<>();

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -23,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class LightingFrameTest {
 
     private static final float EPS = 1.0e-5f;
-    private static final PixelBuffer WHITE_1X1 = PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1);
+    private static final SampledTexture WHITE_1X1 = SampledTexture.of(PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1));
 
     @Test
     @DisplayName("factories carry the right mirror and preserve the rotation")

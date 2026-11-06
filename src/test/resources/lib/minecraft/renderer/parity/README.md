@@ -16,15 +16,15 @@ Values this store holds, one file each.
 
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `72dc3d6238acfe81ac9d3134c246914bcfba8082` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `ddf501fd7368b826e7c8718e16d41c2b2a96ac62` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `ddf501fd7368b826e7c8718e16d41c2b2a96ac62` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.pack-tooltips` | `manifests/pack-tooltips.json` | 44 | 44 entries | `5f2174f3c4e0f23707ff31931da0659c7b298b4e` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 97 | 97 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.portal` | `manifests/portal.json` | 6 | 6 entries | `d99fbb39861a7ecb8af36502129de262820a7977` | yes |
-| `manifest.references` | `manifests/references.json` | 9827 | 9827 entries | `7ceea5b9302a0279d78a2369c6cac23b676ad9e6` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `40befed4310d346ac870f99f049f1576ac401274` | yes |
+| `manifest.references` | `manifests/references.json` | 9846 | 9846 entries | `f3a33d46ce971755f1ab77d932a28f65a527ecdb` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `ddf501fd7368b826e7c8718e16d41c2b2a96ac62` | yes |
 | `manifest.visual` | `manifests/visual.json` | 169 | 169 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
@@ -35,6 +35,7 @@ Values this store holds, one file each.
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.7355 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.block` | `sweeps/block.json` | 1063 | sum 7.6024 | `addedec7a23b08d02a4f18bc83d435010e342988` | yes |
+| `sweep.book` | `sweeps/book.json` | 19 | sum 0.0000 | `7d5af558e13726ff73f2f588a98217b8f4134a6a` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 10.9966 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 1.8479 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 1.8886 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |

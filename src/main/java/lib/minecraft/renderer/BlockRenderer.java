@@ -33,6 +33,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.RasterPass;
@@ -609,7 +610,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (this.entity.isPresent() && this.options.isMergeParts()) {
                     Block.BlockEntity be = this.entity.get();
                     if (be.additive())
-                        stack.append(BlockSlot.ADDITIVE_ENTITY, sink -> sink.addAll(bonesAt(be.boneModel(), be.textureId(), tick)));
+                        stack.append(BlockSlot.ADDITIVE_ENTITY, sink -> sink.addAll(bonesAt(be.boneModel(), be, tick)));
                     if (!be.parts().isEmpty())
                         stack.append(BlockSlot.PARTS, sink -> sink.addAll(partsAt(be, tick)));
                 }
@@ -667,7 +668,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     Block.BlockEntity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.BlockEntity.BoneModel boneModel)
                         ? boneModel
                         : be.boneModel();
-                    ConcurrentList<VisibleTriangle> boneTriangles = bonesAt(boneToUse, be.textureId(), tick);
+                    ConcurrentList<VisibleTriangle> boneTriangles = bonesAt(boneToUse, be, tick);
                     if (boneVariant != null && boneVariant.hasRotation())
                         boneTriangles = BlockGeometryKit.applyRotation(boneTriangles, BlockGeometryKit.buildVariantRotation(boneVariant));
                     return boneTriangles;
@@ -802,19 +803,36 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             /**
-             * Builds triangles from a specific bone-format geometry + presentation, sampling the given
-             * entity texture. Shared by the primary bone entity, its state-conditional bone variant
+             * Reads the frame a block entity's mesh texture displays at a tick as the client's renderer binds
+             * it: as a plain texture - the file, of its sidecar the texture section alone - where the renderer
+             * binds the file, and as a sheet sprite otherwise. Either read plays the texture's flipbook.
+             *
+             * @param entity the block entity whose renderer decides the read
+             * @param textureId the texture the mesh samples
+             * @param tick the animation tick the texture is sampled at
+             * @return the frame and the sampler it is read through - a plain texture's own, a sheet sprite
+             *     nearest and repeating, as its atlas reads it - the checkerboard where no pack supplies the
+             *     texture or it cannot be read
+             */
+            private @NotNull SampledTexture entityTexture(@NotNull Block.BlockEntity entity, @NotNull String textureId, int tick) {
+                if (!entity.plainTexture()) return SampledTexture.of(frame(this.textures, textureId, tick));
+                return Flipbook.atTick(this.textures.resolvePlainTexture(textureId).get(), this.textures.findFlipbook(textureId), tick);
+            }
+
+            /**
+             * Builds triangles from a specific bone-format geometry + presentation, sampling the block
+             * entity's texture. Shared by the primary bone entity, its state-conditional bone variant
              * (the ceiling hanging sign's straight-chain mesh), the bone parts, and the additive bone
              * body.
              *
              * @param boneModel the bone geometry + presentation metadata to build
-             * @param textureId the entity texture id the cube UVs sample
+             * @param entity the block entity whose texture the cube UVs sample
              * @param tick the animation tick the entity texture is sampled at
              * @return the composed block-frame triangle list
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
-                @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull String textureId, int tick) {
-                PixelBuffer texture = frame(this.textures, textureId, tick);
+                @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull Block.BlockEntity entity, int tick) {
+                SampledTexture texture = entityTexture(entity, entity.textureId(), tick);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -852,7 +870,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                     Block.BlockEntity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = frame(this.textures, part.texture(), tick);
+                    SampledTexture texture = entityTexture(entity, part.texture(), tick);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());

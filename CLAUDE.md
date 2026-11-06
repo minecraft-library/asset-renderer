@@ -25,7 +25,7 @@ check it against source before honouring one.
 | A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
 | `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
 | `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |
-| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's and chat text's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
+| `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's, chat text's and a book page's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |
 | Depth in `engine/raster` - `DepthMath`, the snapped depth plane, coplanar ties, draw order, the sort, the fill rule | [Depth](docs/renderer/Depth.md) |
 | The texel fetch - `RasterMath.texelOf`, `faceTexel`, `lastTexel`, a pass's wrap; the corner snap's grid and tie rule; the GPU's own coordinate | [TexelFetch](docs/renderer/TexelFetch.md), [TexCoordProbe](docs/renderer/TexCoordProbe.md) |
 | `bake/armor` - `Shell`, `ShellIndex`, the armour kits, `WornBox`, the wings; `ArmorSlot` and `ArmorForm` | [Armour](docs/renderer/Armour.md) |
@@ -104,14 +104,15 @@ A `--tests` filter applies to EVERY `Test` task, so an unqualified one that name
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when
 filtering.
 
-`./gradlew check` is `test` plus four gates `test` does not reach: `paritySelfTest`, the parity
+`./gradlew check` is `test` plus five gates `test` does not reach: `paritySelfTest`, the parity
 toolkit's own suite, which otherwise runs only inside a capture; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
-name; `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
-build of their own; and `parityReachCheck`, which holds the committed reach graph,
-`parity/reach.json`, to the compiled tree. The harness is a separate Gradle build, so `test` passes
-over one that does not compile and the next thing that would catch it is a client boot; the four
-gates together cost seconds.
+name; `harnessTest`, the harness's own suite through the same wrapper - the refusals it makes with
+no running client, which no boot reaches; `toolingTest`, which is `:tooling:test` under the name it
+had when the generators were a build of their own; and `parityReachCheck`, which holds the
+committed reach graph, `parity/reach.json`, to the compiled tree. The harness is a separate Gradle
+build, so `test` passes over one that does not compile and the next thing that would catch it is a
+client boot; the five gates together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`

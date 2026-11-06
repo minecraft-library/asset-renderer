@@ -45,16 +45,17 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 26531 ms | yes |
 | `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 2095 ms | yes |
 | `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 3940 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9827 | 127322 ms | yes |
+| `sweep.book` | sweep-table | STORE | `bookParityVanilla` | 2 | 2 | 19 | 4319 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9846 | 106359 ms | yes |
 | `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 22698 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 169 | 9788 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 9 | 3103 ms | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 7236 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 7236 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6260 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 9 | 3014 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 20261 ms | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 11857 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 24190 ms | yes |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 3041 ms | yes |
 | `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |
 | `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |

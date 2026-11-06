@@ -125,6 +125,7 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "sweep.tooltip": ("TooltipParitySweep",),
     # the same main over the pack's section, measured against the pack's drawings
     "sweep.tooltip-hypixel-skyblock": ("TooltipParitySweep",),
+    "sweep.book": ("BookParitySweep",),
     # --- render manifests. player-raw aggregates both rescaling sweeps rather than either one.
     "manifest.player-raw": ("PlayerParitySweep", "ArmorParitySweep"),
     "manifest.player-sheets": ("PlayerRenderDriver",),
@@ -187,14 +188,14 @@ UNROOTED: dict[str, str] = {
 #: of ``TableEnvelope`` would put the sweeps it reaches in the envelope's reach and the demote would
 #: subtract them from every plan selecting it. ``menu-closure`` is true only while a menu type
 #: reaches nothing but the visual manifest and the menu sweep, and ``text-closure`` only while a
-#: text type reaches nothing but the visual manifest and the two tooltip sweeps.
+#: text type reaches nothing but the visual manifest, the two tooltip sweeps and the book sweep.
 #:
 #: The other four subtract what the graph reaches, by decision. The three derived ones -
 #: ``engine-renders``, ``tensor-math`` and ``face-vocabulary`` - take the two dumps off a type the
 #: dump reads or serialises and never renders; ``cit-grammar`` takes the item, armour, entity, menu,
-#: player and tooltip renders off a grammar type those producers reach through a match none of them
-#: exercises, since none stacks a pack carrying a CIT rule. The ``harness-*`` claims fire on no
-#: scanned source path, so the graph has nothing to check for them and none is held.
+#: player, tooltip and book renders off a grammar type those producers reach through a match none
+#: of them exercises, since none stacks a pack carrying a CIT rule. The ``harness-*`` claims fire on
+#: no scanned source path, so the graph has nothing to check for them and none is held.
 HELD_DEMOTES: dict[str, frozenset[str]] = {
     "tooling-blindness": frozenset(),
     "menu-closure": frozenset(),
@@ -202,6 +203,8 @@ HELD_DEMOTES: dict[str, frozenset[str]] = {
     "engine-renders": frozenset({
         "src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java",
         "src/main/java/lib/minecraft/renderer/engine/draw/PassDeclaration.java",
+        "src/main/java/lib/minecraft/renderer/engine/draw/SampledTexture.java",
+        "src/main/java/lib/minecraft/renderer/engine/draw/Sampler.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/FrameLoan.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/RasterPass.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/Timeline.java",

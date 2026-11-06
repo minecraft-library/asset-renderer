@@ -2,8 +2,8 @@
 
 Load when touching `Projection`, `engine/light` - `LightingFrame`, `Shading` - the entity and player
 lighting fold, a renderer's `Placement`, `Rasterizer.rasterizeFitted` and `prepareFit`, the entity
-canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's
-and chat text's included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
+canvas pass and its family-fit pre-pass, a bounds walk, or a canvas sized to its subject, a tooltip's,
+chat text's and a book page's included. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
@@ -56,14 +56,23 @@ entry rather than the entity's.
   outline runs on the diagonal, so an adult winged canvas carries 32 blank columns beside the wing at
   256 px/block, and a baby or a small stand 16. The strip is a canvas convention both sides share, as
   the even width is, and it is kept: the renderer's `EntityGeometryKit.contributeFaceAlphaTight` and
-  the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
+  the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all. Under a
+  linear sampler both measure a face by the filter's reach - the texels whose reach, half a texel past
+  their own edges, meets its UV box, read as the sampler addresses them, the opaque sub-rectangle grown
+  by half a texel a side and clipped to the box - the harness reading the sampler off the texture's own
+  `texture` section, as the client's loader does. The renderer measures a face through the sampler it
+  draws it with, so a worn shell's composite and an equipment composite of pasted layers measure nearest
+  there, where the harness measures the client's filtered draw, and on a texture whose section blurs the
+  two canvases part by the filter's half texel.
 - **A canvas sized to its subject ends at the subject's first pixel**, with no fixed transparent
   margin even where the client reserves one: an entity's `UNION_BOUNDS` canvas at its silhouette,
   which the bounds walk measures, and a tooltip's at what its chrome draws - the sprite pair over the
   client's sprite rect, which `NineSliceKit.extent` answers before the draw, or the code-drawn box
   round the text at the request's padding, less any part the request's alpha clears. Chat text's
   canvas is what its lines draw over every frame, which `TextKit.inkBounds` answers before the draw,
-  and it ends inside a Minecraft pixel where the first or last output pixel drawn does.
+  and it ends inside a Minecraft pixel where the first or last output pixel drawn does. A book page's
+  canvas is what its texture's quad draws, which `NineSliceKit.extent` answers, joined with what its
+  lines draw, rounded out to whole Minecraft pixels because the quad is laid at a whole one.
   `GROUP_BOUNDS`, the family fit, sizes a member to its group instead, and a fixed-scale or
   caller-sized canvas is neither.
 

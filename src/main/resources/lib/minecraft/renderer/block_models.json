@@ -8,6 +8,7 @@
       "geometry": "StandingSignRenderer#createSignLayer@iparam=0:1",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -77,6 +78,7 @@
       "geometry": "StandingSignRenderer#createSignLayer@iparam=0:0",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -146,6 +148,7 @@
       "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -214,6 +217,7 @@
       "geometry": "HangingSignRenderer#createHangingSignLayer@ref=CEILING_MIDDLE",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -294,6 +298,7 @@
       "geometry": "HangingSignRenderer#createHangingSignLayer@ref=WALL",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -362,6 +367,7 @@
       "geometry": "ChestModel#createSingleBodyLayer",
       "y_axis": "UP",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 180.0,
         "flip": false
@@ -418,6 +424,7 @@
       "geometry": "BookModel#createBodyLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": false
@@ -428,6 +435,7 @@
       "geometry": "BookModel#createBodyLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": false
@@ -438,6 +446,7 @@
       "geometry": "SkullModel#createMobHeadLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": true,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -482,6 +491,7 @@
       "geometry": "SkullModel#createHumanoidHeadLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": true,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -518,6 +528,7 @@
       "geometry": "DragonHeadModel#createHeadLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": true,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -546,6 +557,7 @@
       "geometry": "PiglinHeadModel#createHeadModel",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": true,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -574,6 +586,7 @@
       "geometry": "BannerModel#createBodyLayer@iparam=0:1",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -680,6 +693,7 @@
       "geometry": "BannerModel#createBodyLayer@iparam=0:0",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -786,6 +800,7 @@
       "geometry": "BannerFlagModel#createFlagLayer@iparam=0:1",
       "y_axis": "DOWN",
       "tinted": true,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -805,6 +820,7 @@
       "geometry": "BannerFlagModel#createFlagLayer@iparam=0:0",
       "y_axis": "DOWN",
       "tinted": true,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 180.0,
         "flip": true,
@@ -824,6 +840,7 @@
       "geometry": "ShulkerModel#createBoxLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -912,6 +929,7 @@
       "geometry": "BedRenderer#createHeadLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -1009,6 +1027,7 @@
       "geometry": "BedRenderer#createFootLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -1027,6 +1046,7 @@
       "geometry": "ConduitRenderer#createShellLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -1051,6 +1071,7 @@
       "geometry": "BellModel#createBodyLayer",
       "y_axis": "UP",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": false
@@ -1070,6 +1091,7 @@
       "geometry": "DecoratedPotRenderer#createBaseLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -1105,6 +1127,7 @@
       "geometry": "DecoratedPotRenderer#createSidesLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": false,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true,
@@ -1123,6 +1146,7 @@
       "geometry": "CopperGolemModel#createBodyLayer",
       "y_axis": "DOWN",
       "tinted": false,
+      "plain_texture": true,
       "inventory": {
         "y_rotation": 0.0,
         "flip": true

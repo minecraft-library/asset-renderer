@@ -80,12 +80,15 @@ public class Substitutions {
     }
 
     /**
-     * Reports a texture id that is served and yields no pixels - a file a pack ships that is empty or
-     * does not decode, whose sidecar does not parse or carries an animation or texture section the
-     * client's codec refuses, or whose animation's frame size does not divide it, a registered
-     * permutation that cannot be produced, or a GUI sprite whose {@code gui} section the client's codec
-     * refuses - the first time it is seen, as vanilla reports an unreadable texture apart from a missing
-     * one.
+     * Reports a texture id that is served and yields no pixels, the first time it is seen, as vanilla reports
+     * an unreadable texture apart from a missing one.
+     * <p>
+     * Each of the client's reads refuses its own. Read as an atlas sprite, a texture yields none where the
+     * file a pack ships is empty or does not decode, where its sidecar does not parse or carries an animation
+     * or texture section the client's codec refuses, or where its animation's frame size does not divide it;
+     * read as a plain texture, only where the file is empty or does not decode or its sidecar does not parse
+     * or carries a texture section the codec refuses. A registered permutation that cannot be produced, and a
+     * GUI sprite whose {@code gui} section the codec refuses, yield none too.
      *
      * @param textureId the texture id that yields no pixels
      */

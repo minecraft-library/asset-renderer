@@ -43,9 +43,10 @@ import java.util.function.Consumer;
 public final class GuiFrameRenderer implements AutoCloseable {
 
     /**
-     * Output pixels one Minecraft pixel occupies on a side. It is asset-renderer's
-     * {@code MinecraftFont.MC_PIXEL_SCALE}, and the two must move together: a GUI is laid out in
-     * Minecraft pixels on both sides and this is the only thing that turns them into a canvas.
+     * Output pixels one Minecraft pixel occupies on a side. It is minecraft-text's
+     * {@code MinecraftFont.MC_PIXEL_SCALE}, the scale asset-renderer draws every GUI at, and the two
+     * must move together: a GUI is laid out in Minecraft pixels on both sides and this is the only
+     * thing that turns them into a canvas.
      */
     public static final int GUI_SCALE = 2;
 

@@ -292,7 +292,7 @@ ImageData gateway = new PortalRenderer(context).render(options).image();
 
 ### TextRenderer
 
-Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. A renderer built over a context draws the pack's own tooltip sprites, nine-sliced, unless the request names `ChromeStyle.PROCEDURAL` - vanilla's box drawn from its colours, which a renderer built with no context draws. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip. The canvas ends at the first pixel the tooltip's box draws - both sprites are nine-sliced over the rect the client hands them, so a pack's box drawn wider than vanilla's comes out whole, and over vanilla's own sprites the image is vanilla's box with nothing round it. A chat render (`Style.CHAT`) ends at the first pixel its text draws, over every frame of an animation.
+Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, measuring the canvas from the glyphs rather than taking a size. A renderer built over a context draws the pack's own tooltip sprites, nine-sliced, unless the request names `ChromeStyle.PROCEDURAL` - vanilla's box drawn from its colours, which a renderer built with no context draws. It is the one renderer whose animation is a property of the content: an obfuscated (`&k`) run or a scrolling gradient is what promotes the output to a strip. The canvas ends at the first pixel the tooltip's box draws - both sprites are nine-sliced over the rect the client hands them, so a pack's box drawn wider than vanilla's comes out whole, and over vanilla's own sprites the image is vanilla's box with nothing round it. A chat render (`Style.CHAT`) ends at the first pixel its text draws, over every frame of an animation. A book page (`Style.BOOK`) is one page of a written book on the game's book texture: the page handed in whole on `page(...)` as one text component, wrapped and cut at fourteen lines as the game wraps a page, the image ending at the first pixel the texture or the text draws, rounded out to whole Minecraft pixels - which needs a renderer built over a context. A page's codes are section-sign (`§`) codes, which the wrap reads as the game reads them; an `&`, like any other character, draws as written.
 
 <div align="center">
 <img src="docs/images/text-lore-tooltip.gif" width="332" alt="Minecraft lore tooltip with a shimmering obfuscated rarity footer">
@@ -300,7 +300,7 @@ Lays out legacy `&`-coded text under vanilla's real nine-sliced tooltip chrome, 
 
 ```java
 TextOptions options = TextOptions.builder()
-    .style(TextOptions.Style.LORE)                 // or CHAT
+    .style(TextOptions.Style.LORE)                 // or CHAT, or BOOK with .page(...)
     .lines(LineSegment.fromLegacy(String.join("\n",
         "&5Ender Reaver",
         "&7Damage: &c+210",
@@ -423,12 +423,12 @@ ImageData menu = new MenuRenderer(context).render(MenuOptions.builder()
 ```bash
 ./gradlew build       # assemble the jar plus everything check runs
 ./gradlew test        # fast unit tests
-./gradlew check       # test plus paritySelfTest, harnessClasses, toolingTest and parityReachCheck
+./gradlew check       # test plus paritySelfTest, harnessClasses, harnessTest, toolingTest and parityReachCheck
 ./gradlew slowTest    # the four tagged slow - one downloads, three read a gitignored tree
 ```
 
 > [!TIP]
-> `check` is what catches a break in the two builds `test` cannot see, plus the subproject it does not schedule and one derivation nothing else re-runs: the parity toolkit's own Python suite, the harness compiling through its own wrapper, the generators' suite as `toolingTest`, and `parityReachCheck`, which re-derives every Java type's parity reach and fails where it differs from `parity/reach.json`. The first three are seconds; `test` passes straight over a sibling build that does not compile.
+> `check` is what catches a break in the two builds `test` cannot see, plus the subproject it does not schedule and one derivation nothing else re-runs: the parity toolkit's own Python suite, the harness compiling through its own wrapper and running its own suite there as `harnessTest`, the generators' suite as `toolingTest`, and `parityReachCheck`, which re-derives every Java type's parity reach and fails where it differs from `parity/reach.json`. The first four are seconds; `test` passes straight over a sibling build that does not compile.
 
 > [!TIP]
 > **The tag means the NETWORK, not the cache.** `slowTest` selects `@Tag("slow")` and `test` excludes it. Only one of the four can reach Mojang - the acquisition's own end-to-end test; the other three carry the tag for what they need beyond the cached client jar, two reading the gitignored pack cache at `cache/asset-renderer/packs/` and one reading the harness reference tree. Reading the client jar's vanilla pack, which the fast suite holds in memory, is ordinary work it does constantly.
@@ -461,7 +461,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 > [!TIP]
 > `entityRender3D` selects per-entity `AppearanceOptions` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens and the tracked tooltip roster, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java renders, with a diff and a panel where the two differ, to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
+**Parity** - diff the pipeline against the ground truth the [vanilla-reference-harness] in `harness/` produces: a headless Fabric mod that drives the actual MC client over a set of sweeps - every block as true 3D geometry and every non-block item as vanilla's own GUI inventory icon, every living entity at a locked iso pose, plus the player, armoured mobs, animated glint, the shipped container screens, the tracked tooltip roster and the tracked book roster's pages, and the entity roster twice more with vanilla's `setupAnim` running, posed at idle and at a walk. Reference PNGs live under `cache/asset-renderer/vanilla/<mc>/references/`, `<mc>` being the client's first two version components (`26.1` for MC 26.1.2), one sub-tree per sweep (`blocks`, `items`, `entities`, `players`, `glint`, `armor`, `menus`, `tooltips`, `books`, `idle`, `walk`). The tooltips the client draws under the hypixel-skyblock pack live beside that tree, under `cache/asset-renderer/vanilla/<mc>/pack-tooltips/hypixel-skyblock/`. Each `*ParityVanilla` task writes per-subject vanilla/java renders, with a diff and a panel where the two differ, to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla          -PentityId=minecraft:zombie      # omit -P for the full sweep
@@ -475,6 +475,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
 ./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone, and the plain lines
 ./gradlew tooltipHypixelSkyblockParityVanilla -PtooltipId=one_line      # the same under the hypixel-skyblock pack
+./gradlew bookParityVanilla            -PbookId=one_line                # book pages on the book texture, and the texture alone
 ```
 
 > [!NOTE]
@@ -490,6 +491,7 @@ Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`
 ./gradlew renderVanillaArmorReferences      # worn-armor shells (then run armorParityVanilla)
 ./gradlew renderVanillaMenuReferences       # container screens (then run menuParityVanilla)
 ./gradlew renderVanillaTooltipReferences    # tooltips (then run tooltipParityVanilla)
+./gradlew renderVanillaBookReferences       # book pages, each through the client's book screen (then run bookParityVanilla)
 ./gradlew renderVanillaAnimationReferences  # idle/ frames (then run entityAnimationParityVanilla)
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
 ./gradlew renderVanillaPackTooltipsHypixelSkyblock  # tooltips under hypixel-skyblock, beside the tree (then run tooltipHypixelSkyblockParityVanilla)

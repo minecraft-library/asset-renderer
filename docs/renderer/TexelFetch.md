@@ -46,7 +46,9 @@ coordinate sitting exactly on a texel boundary.
 4. The divide by `w` that perspective correction applies is the identity under the harness's
    orthographic lens.
 5. The point sampler takes the floor of the coordinate times the sheet's size, exactly, and repeats
-   outside the sheet.
+   outside the sheet. No plain texture the stored sweeps' faces draw sets a texture section, and an
+   atlas sprite is read by its atlas's point sampler whatever its section sets, so this is the only
+   sampler their faces show; the glint, whose section blurs, is filtered outside the raster's fetch.
 
 **Every rounding that lands a plane term or the per-pixel sum in a float cuts toward zero** - only the
 corner snap, the attribute differences and the gradients' 25-bit grid round to nearest, and none of
@@ -75,8 +77,9 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
   re-weights by `1/w`, which the screen-linear edge values do not carry.
 - At a face's first texel the texel below is outside the face - padding, or a neighbouring part of
   the skin - and that is what vanilla draws.
-- **The fetch wraps below the sheet's first texel, as vanilla's repeating sampler does, and holds at the
-  face's last texel above** - both in `Rasterizer.faceTexel`. The upper bound is the renderer's guard
+- **The fetch reads below the sheet's first texel as the triangle's sampler addresses it - wrapped, as
+  vanilla's repeating sampler does, or held at the first texel where the texture's sidecar clamps - and
+  holds at the face's last texel above** - both in `Rasterizer.faceTexel`. The upper bound is the renderer's guard
   rather than the sampler's: `Rasterizer.lastTexel`, `clamp(ceil(cMax * size) - 1, 0, size - 1)` over
   the face's highest corner coordinate `cMax` and the sheet's `size` on that axis, which the exact
   coordinate never passes and the float fallback can by a step. Rounding up and stepping back keeps a
@@ -85,13 +88,28 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
 - **Every pass takes its texel by the one rule; a scrolled pass differs only in its bound.** It samples
   where its render type translated it to, which the authored rectangle does not name, so the face's
   bound has nothing to say and the sheet wraps on both sides instead (`floorMod`); a clamp at the
-  sheet's edge would smear the scrolled texture's last column. It is told apart by the PASS rather than
+  sheet's edge would smear the scrolled texture's last column. Its wrap is the triangle's sampler's
+  address mode: `floorMod` for every texture but one whose sidecar clamps, which clamps there as the
+  card does. It is told apart by the PASS rather than
   by the coordinate - `PassDeclaration.wrapsTexture`, true exactly when the pass declares a
   `texture_scroll`. Inferring it from "the coordinate ran past `1`" is what does not work: a block's own
   geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle whose
   upper corner rounds a texel beyond, and wrapping those reads from the opposite edge. The offset
   itself arrives already wrapped, taken into the render type's argument as vanilla takes it -
   [Entity model form](EntityModelForm.md) has why.
+- **A texture its sidecar blurs is read through the linear filter**, `Sampler.sample`: the coordinate less
+  half a texel, the four texels about it addressed by the sampler and blended on straight colour, every
+  channel alike, rounded to a byte. It reads the float coordinate - the exact coordinate is a
+  nearest-boundary device, and a filter runs continuously through a boundary - and no face guard holds
+  it, the card blending a face's last texel with the sheet's next. No stored sweep draws a filtered
+  raster texture, so nothing measures it against the card, and the card's filter precision is not
+  modelled, as its interpolation setup is not (below).
+- **A texture a reader prepares before the draw is read nearest and repeating**, whatever its sheet's
+  section sets: a box face's crop of a skin, cape or worn armour sheet, and an equipment composite whose
+  layers are pasted or tinted into one, each a buffer of the renderer's own, so a filter or a clamp at its
+  edge would read the buffer where the client reads the sheet. An entity's own texture, a single flat
+  equipment layer, the wings, a skull and the statue reach the raster whole and are read by their own
+  sampler.
 - A perspective lens interpolates the coordinate perspective-correctly - each corner's weight
   re-weighted by its inverse clip-`w`, then normalized - and turns the exact read off. Those two are
   everything the `perspectiveCorrect` flag forks; depth reads one plane under every lens.

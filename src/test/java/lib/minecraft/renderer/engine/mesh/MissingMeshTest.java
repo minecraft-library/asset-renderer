@@ -50,7 +50,7 @@ class MissingMeshTest {
         // Identity, not equality: the cube handing each face its own copy would render the same and
         // allocate six buffers per call.
         for (VisibleTriangle triangle : MissingMesh.cube())
-            assertThat(triangle.texture() == MissingSprite.sprite(), is(true));
+            assertThat(triangle.texture().pixels() == MissingSprite.sprite(), is(true));
     }
 
     @Test

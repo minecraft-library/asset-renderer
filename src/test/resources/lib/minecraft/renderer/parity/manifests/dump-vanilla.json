@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "block-entities.json",
-      "sha256": "d653b8de070648bba65978731d9baa439a1d1492c8552651821a339eb17f7c7f"
+      "sha256": "9514a18abe7140b0b208b8616a56e4d21142441091d4ee4423a3f5681f3afb43"
     },
     {
       "path": "block-models.json",
@@ -12,7 +12,7 @@
     },
     {
       "path": "blocks.json",
-      "sha256": "a57b910852b6618763c767671c4e572332ca54d81b7718f382eb4fea815c1270"
+      "sha256": "a8d034bd040e020efe7295d67a8ae4bdecfb70115637a47a67ec433e47b54968"
     },
     {
       "path": "entities.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "00268124eaf61eb9d630403f5383ac0708b2c8028f0dd3dca748a1cd2c54ef73",
+    "asset_content_digest": "68bd48dc039c6e6a78209f8c8b2db49abf07840ce0151dd3f2e5f31d0b1a71d1",
     "asset_dirty": true,
-    "asset_sha": "72dc3d6238acfe81ac9d3134c246914bcfba8082",
+    "asset_sha": "ddf501fd7368b826e7c8718e16d41c2b2a96ac62",
     "counts": {
       "files": 14
     },
@@ -75,22 +75,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "ae0e33a2 reads a texture sidecar's sections as the client's codecs read them, so an undeclared animation width, height, frame list or frame time is absent from the model and the dump omits it where it wrote -1 or []. textures.json and probes.json move by that encoding alone (62 animation rows in each vanilla file, 110 in each pack-stack file), every value equal, to digests predicted from the stored files before the capture; the other 25 planned artifacts held.",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 10,
-      "players": 2,
-      "tooltips": 28,
-      "walk": 4896
-    },
+    "reason": "The plain-texture read: block_models.json gains plain_texture, true on the four skull models and the copper golem statue, and both pipeline dumps' blocks.json and block-entities.json carry it on every block-entity object; each digest equals the one the tooling flow and dump A/Bs predicted before the capture",
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-10-29T03:23:39Z",
+    "timestamp": "2026-11-06T19:46:43Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 8691
+    "wall_time_ms": 16113
   }
 }

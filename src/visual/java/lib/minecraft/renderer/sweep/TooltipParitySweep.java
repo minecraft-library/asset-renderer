@@ -17,7 +17,6 @@ import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
-import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -61,7 +60,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -156,6 +154,9 @@ public final class TooltipParitySweep {
     /** The roster the harness draws the references from, a resource beside this class. */
     private static final @NotNull String ROSTER = "tooltip-roster.json";
 
+    /** The roster format this reader reads. */
+    private static final int ROSTER_FORMAT = 1;
+
     /**
      * Minecraft pixels between the content origin and the reference's edge on every side - the margin
      * the client's tooltip box blits its sprites over, which is the reference's own format.
@@ -185,11 +186,14 @@ public final class TooltipParitySweep {
          * measures, rather than a plain line, which the client draws on nothing.
          *
          * @return whether the subject is a tooltip
+         * @throws IllegalStateException if the subject is a book page, which the tooltip roster holds none of
          */
         boolean hasBox() {
             return switch (this.options.getStyle()) {
                 case LORE -> true;
                 case CHAT -> false;
+                case BOOK -> throw new IllegalStateException(String.format(
+                    "Subject '%s' is a book page, which the tooltip sweep does not draw", this.key));
             };
         }
 
@@ -266,6 +270,8 @@ public final class TooltipParitySweep {
          *
          * @param roster the roster
          * @return the configuration
+         * @throws IllegalStateException if the roster is of another format, or a plain line is more than
+         *     one line
          */
         static @NotNull Configuration vanilla(@NotNull JsonObject roster) {
             return new Configuration(VANILLA, ParityPaths.references("tooltips"), Path.of("cache/visual/tooltip-parity-vanilla"),
@@ -280,7 +286,10 @@ public final class TooltipParitySweep {
          * @param label the label the roster's {@code packs} section keys
          * @return the configuration
          * @throws IOException if the handshake cannot be read
-         * @throws IllegalStateException if the pack run has written no handshake
+         * @throws IllegalArgumentException if the roster has no pack configuration of that label
+         * @throws IllegalStateException if the roster is of another format, a pack subject's key names no
+         *     unstyled roster subject, the pack run has written no handshake, or the handshake is of
+         *     another format or requests a pack that is not a folder-source id
          */
         static @NotNull Configuration overPacks(@NotNull JsonObject roster, @NotNull String label) throws IOException {
             List<Subject> subjects = TooltipParitySweep.subjects(roster, label);
@@ -313,6 +322,7 @@ public final class TooltipParitySweep {
      *
      * @return the roster
      * @throws IOException if the roster cannot be read
+     * @throws IllegalStateException if the roster is not on the classpath beside this class
      */
     static @NotNull JsonObject roster() throws IOException {
         try (InputStream in = TooltipParitySweep.class.getResourceAsStream(ROSTER)) {
@@ -337,10 +347,16 @@ public final class TooltipParitySweep {
      * @return the subjects, in roster order, and for {@code vanilla} its code-drawn ones after its
      *     sprite ones and its plain lines last
      * @throws IllegalArgumentException if the label is neither
-     * @throws IllegalStateException if a pack subject's key names no unstyled roster subject, or a plain
-     *     line is more than one line
+     * @throws IllegalStateException if the roster is of another format, a pack subject's key names no
+     *     unstyled roster subject, or a plain line is more than one line
      */
     static @NotNull List<Subject> subjects(@NotNull JsonObject roster, @NotNull String label) {
+        JsonElement format = roster.get("format");
+        if (format == null || !format.isJsonPrimitive() || !String.valueOf(ROSTER_FORMAT).equals(format.getAsString())) {
+            throw new IllegalStateException(String.format(
+                "The tooltip roster is format '%s', and this sweep reads format '%s'", format, ROSTER_FORMAT));
+        }
+
         List<JsonObject> listed = new ArrayList<>();
         roster.getAsJsonArray("subjects").forEach(element -> listed.add(element.getAsJsonObject()));
         if (label.equals(VANILLA)) {
@@ -567,8 +583,11 @@ public final class TooltipParitySweep {
      *     keys - then an optional roster key to scope the run to
      * @throws IOException if the roster or the handshake cannot be read, or the report cannot be written
      * @throws IllegalArgumentException if no configuration is given, or the roster has none of that label
-     * @throws IllegalStateException if a pack configuration has no handshake, or its chrome or text
-     *     shader resolves differently from the client's
+     * @throws IllegalStateException if the roster is not on the classpath beside this class or is of
+     *     another format, a pack subject's key names no unstyled roster subject, a plain line is more
+     *     than one line, a pack configuration has no handshake or one of another format or requesting a
+     *     pack that is not a folder-source id, or the renderer resolves that configuration's packs,
+     *     chrome or shaders differently from the client's
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (args.length == 0) {
@@ -593,6 +612,8 @@ public final class TooltipParitySweep {
      * @throws IOException if the roster cannot be read or the report cannot be written
      * @throws IllegalArgumentException if the configuration is not {@code vanilla} - a pack
      *     configuration renders over a context loaded over its own packs, which {@link #main} loads
+     * @throws IllegalStateException if the roster is not on the classpath beside this class or is of
+     *     another format, or a plain line is more than one line
      */
     static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         if (args.length == 0 || !args[0].equals(VANILLA)) {
@@ -665,8 +686,9 @@ public final class TooltipParitySweep {
      * @param configuration the pack configuration, carrying its handshake
      * @param assets the client assets the renderer was loaded from
      * @param context the context the renderer resolves its chrome through
-     * @throws IllegalStateException if the two sides resolve any chrome sprite, the text shader or any
-     *     pack-shipped shader file differently
+     * @throws IllegalStateException if the renderer stacks another number of packs than the handshake
+     *     names, its chrome resolves a sprite the stack does not supply, or the two sides resolve any
+     *     chrome sprite, the text shader or any pack-shipped shader file differently
      */
     private static void checkResolution(@NotNull Configuration configuration, @NotNull ClientAssets assets,
                                         @NotNull RendererContext context) {
@@ -912,11 +934,11 @@ public final class TooltipParitySweep {
                 SubstitutionCollector collector = new SubstitutionCollector();
                 held = drawBoxAlone(context.collecting(collector), subject.options(),
                     reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX);
-                standIns = standIns(collector.snapshot());
+                standIns = SweepReport.standIns(collector.snapshot());
             } else {
                 RenderResult result = javaRenderer.render(subject.options());
                 held = result.image().toPixelBuffer();
-                standIns = standIns(result.substitutions());
+                standIns = SweepReport.standIns(result.substitutions());
             }
             // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
             PixelBuffer javaPB = PixelBuffer.ofStraight(held.data(), held.width(), held.height());
@@ -943,21 +965,6 @@ public final class TooltipParitySweep {
             System.err.printf("       %-50s FAILED: %s%n", key, ex.getMessage());
             return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
         }
-    }
-
-    /**
-     * Spells the stand-ins a row's render drew as its {@code stand_ins} cell: each one's kind, state and
-     * id, then the item that named it where there is one, space-separated, the stand-ins joined by
-     * {@code "; "} in the order they arrive.
-     *
-     * @param substitutions the stand-ins the render drew, distinct and in their natural order
-     * @return the cell, empty where the render drew none
-     */
-    private static @NotNull String standIns(@NotNull List<Substitution> substitutions) {
-        return substitutions.stream()
-            .map(substitution -> substitution.kind() + " " + substitution.state() + " " + substitution.id()
-                + substitution.namedBy().map(item -> " " + item).orElse(""))
-            .collect(Collectors.joining("; "));
     }
 
     /**

@@ -60,7 +60,7 @@ Thank you for your interest in contributing! This document explains how to get s
    ./gradlew build
    ```
 
-   This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), assembles the jar, and runs the four gates `check` adds on top of `test` - `paritySelfTest`, `harnessClasses`, `toolingTest` and `parityReachCheck`.
+   This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), assembles the jar, and runs the five gates `check` adds on top of `test` - `paritySelfTest`, `harnessClasses`, `harnessTest`, `toolingTest` and `parityReachCheck`.
 
    The fast suite reads the cached client jar, so on a fresh clone run step 4 FIRST - or expect
    `ClientJarGuardTest` to fail and name the command that caches one.

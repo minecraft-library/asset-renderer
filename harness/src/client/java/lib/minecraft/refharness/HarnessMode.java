@@ -3,6 +3,7 @@ package lib.minecraft.refharness;
 import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.sweep.ArmorSweep;
 import lib.minecraft.refharness.sweep.BlockSweep;
+import lib.minecraft.refharness.sweep.BookSweep;
 import lib.minecraft.refharness.sweep.EntityAnimationSweep;
 import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
@@ -40,8 +41,8 @@ public enum HarnessMode {
      */
     FULL,
     /**
-     * Every frozen reference sweep, in one run - {@link #FULL}'s four plus glint, armor, menus and
-     * tooltips.
+     * Every frozen reference sweep, in one run - {@link #FULL}'s four plus glint, armor, menus, tooltips
+     * and books.
      */
     EVERY,
     /** Only the animated-glint frame sequences. */
@@ -58,6 +59,12 @@ public enum HarnessMode {
      * client's hotbar-name call.
      */
     TOOLTIPS,
+    /**
+     * Only the book references - every page of asset-renderer's book roster drawn through the client's
+     * own book screen, the book's background and then the page's text, with the page-number line left
+     * out by the screen's own flag.
+     */
+    BOOKS,
     /**
      * Only the animated entity references, with vanilla's own animation running, written to
      * {@code idle/}.
@@ -203,12 +210,13 @@ public enum HarnessMode {
         return switch (this) {
             case FULL -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep());
             case EVERY -> List.of(new BlockSweep(), new ItemSweep(), new EntitySweep(), new PlayerSweep(),
-                new GlintSweep(), new ArmorSweep(), new MenuSweep(), new TooltipSweep());
+                new GlintSweep(), new ArmorSweep(), new MenuSweep(), new TooltipSweep(), new BookSweep());
             case GLINT -> List.of(new GlintSweep());
             case PLAYERS -> List.of(new PlayerSweep());
             case ARMOR -> List.of(new ArmorSweep());
             case MENUS -> List.of(new MenuSweep());
             case TOOLTIPS -> List.of(new TooltipSweep());
+            case BOOKS -> List.of(new BookSweep());
             case ANIMATION -> List.of(new EntityAnimationSweep(Gait.IDLE, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case WALK -> List.of(new EntityAnimationSweep(Gait.WALK, ScheduleRoster.load(HarnessConfig.OUTPUT_DIR)));
             case PITCH_ROLL -> List.of(new PitchRollSweep());

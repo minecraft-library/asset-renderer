@@ -45,6 +45,7 @@ import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.RasterPass;
@@ -83,9 +84,10 @@ import java.util.function.IntFunction;
  * Renders mob entities as 3D icons from the Java-derived entity pipeline
  * ({@code entity_models.json} + {@code entity_geometry.json}, produced by
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
- * Y-down engine path. Texture resolution flows through the vanilla pack via
- * {@link RendererContext#resolveTexture}, and a texture the subject names that no pack supplies, or
- * that cannot be read, draws the generated checkerboard - never a cache fallback.
+ * Y-down engine path. An entity's own textures are read through the vanilla pack as the client reads
+ * them, as plain textures by {@link RendererContext#resolvePlainTexture}, and a carried block's as a
+ * block sprite; a texture the subject names that no pack supplies, or that cannot be read, draws the
+ * generated checkerboard - never a cache fallback.
  *
  * <p>The entity is a plain projection subject: the camera is the caller's
  * {@link OutputOptions#getProjection() projection} display pose directly (default
@@ -236,7 +238,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // rebuilds.
         Timeline.TickTimeline timeline = anim.timeline();
         int startTick = timeline.tickAt(0);
-        Optional<PixelBuffer> texture = resolveEntityTexture(textures, resolved, options, startTick);
+        Optional<SampledTexture> texture = resolveEntityTexture(textures, resolved, options, startTick);
         if (texture.isEmpty())
             return Timeline.empty();
 
@@ -256,7 +258,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Resolve the wing texture on the same terms as the equipment overlays above: it decides whether
         // the wings bound the canvas at all, and the silhouette they contribute below. Wings nothing
         // names a texture for render nothing, so they are empty here rather than bounding the canvas.
-        Optional<PixelBuffer> wingTexture = wings
+        Optional<SampledTexture> wingTexture = wings
             ? ElytraKit.wingsTexture(textures, Optional.empty(), startTick)
             : Optional.empty();
         // The age the wings are drawn at, which the canvas folds and the wings feature share. Asked of
@@ -431,7 +433,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // The whole subject at this tick, body and every overlay pass, so a pass drawing geometry
             // of its own moves with the body rather than staying where it was authored.
             Entity posedSubject = posed.at(tick);
-            PixelBuffer frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(texture.get());
+            SampledTexture frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(texture.get());
             // One table per frame build, keyed by mesh reference, so a frame baking on another worker
             // never reads it: a model overlay drawing the very mesh instance the body drew reuses the
             // body's corners, normals and tags, and its UVs where it resolves them at the same width and
@@ -498,30 +500,33 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>} at a
-     * specific animation tick. Centralises the {@code minecraft:entity/} prefix idiom the base /
-     * overlay / collar / equipment / family-member paths all share. A sidecar-less entity texture
-     * (every vanilla entity) answers its buffer unchanged, so {@code tick 0} is byte-identical to the
-     * raw lookup; a sidecar-carrying texture samples the frame for {@code tick}.
+     * Reads an entity texture ref at {@code minecraft:entity/<ref>} at a specific animation tick, as the
+     * client reads an entity's texture, a plain texture. Centralises the {@code minecraft:entity/} prefix
+     * idiom the base / overlay / collar / equipment / family-member paths all share. A sidecar-less entity
+     * texture (every vanilla entity) answers its buffer unchanged, so {@code tick 0} is byte-identical to
+     * the raw lookup; a texture whose sidecar plays an animation samples the frame for {@code tick}, read
+     * through the sampler its texture section selects, and
+     * one whose animation section is refused, or whose frame size does not divide it, plays no table, so
+     * its whole file is drawn.
      *
      * @param textures the render's texture context, which answers a texture no pack supplies, or one
      *     that cannot be read, with the checkerboard
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
      * @param tick the current animation tick (free-running, signed)
-     * @return the resolved frame - never empty, since the render's texture context answers every
-     *     texture with pixels
+     * @return the resolved frame, with the sampler its sidecar's texture section selects - never empty,
+     *     since the render's texture context answers every texture with pixels
      */
-    private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
+    private static @NotNull Optional<SampledTexture> resolveEntityTextureAtTick(
         @NotNull RendererContext textures, @NotNull String ref, int tick) {
         String textureId = ENTITY_TEXTURE_PREFIX + ref;
-        return Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get());
+        return Optional.of(Flipbook.atTick(textures.resolvePlainTexture(textureId).get(), textures.findFlipbook(textureId), tick));
     }
 
     /**
      * Resolves the entity texture as the first source of an ordered precedence that names one: an
      * explicit {@link EntityOptions#getTextureId() texture id on options} (user override, authoritative
-     * when present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
+     * when present - read as the plain texture it names) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; the copper golem's weathered
      * base when a weathering state is chosen &gt; an {@link AppearanceOptions#getState() state}
      * selection the definition carries (wolf {@code tame} / {@code angry}) &gt; the state the
@@ -539,9 +544,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param definition the age / carried-resolved definition whose candidates are walked
      * @param options the render options supplying the override and the appearance
      * @param tick the animation tick the texture is sampled at
-     * @return the texture, or empty when no source names one
+     * @return the texture, with the sampler its sidecar's texture section selects, or empty when no
+     *     source names one
      */
-    private @NotNull Optional<PixelBuffer> resolveEntityTexture(
+    private @NotNull Optional<SampledTexture> resolveEntityTexture(
         @NotNull RendererContext textures,
         @NotNull Entity definition,
         @NotNull EntityOptions options,
@@ -549,7 +555,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (options.getTextureId().isPresent())
             return options.getTextureId().map(id ->
-                Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), tick).get());
+                Flipbook.atTick(textures.resolvePlainTexture(id).get(), textures.findFlipbook(id), tick));
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();
@@ -615,7 +621,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         if (overlayMesh.getBones().isEmpty()) return;
                         // A ref the pass names is read through the render's texture context, which
                         // answers it with pixels; only a row naming none borrows the base.
-                        PixelBuffer overlayTex = overlayRef.isAbsent()
+                        SampledTexture overlayTex = overlayRef.isAbsent()
                             ? ctx.baseTexture()
                             : resolveEntityTextureAtTick(ctx.context(), overlayRef.get(), ctx.tick()).orElseThrow();
                         // The overlay's declared pipeline state rides onto every emitted triangle via
@@ -640,7 +646,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * rendered on the body only when the {@code equipment} axis selects its slot. The axis-selected
          * material (or the layer default - horse leather armor / the saddle - when the slot is selected
          * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
-         * same way worn humanoid armor does; a material naming no asset of the layer draws nothing, and a
+         * same way worn humanoid armor does - a single flat layer drawn by its own sampler, layers pasted
+         * or tinted into one read nearest; a material naming no asset of the layer draws nothing, and a
          * layer texture the asset names that no pack supplies, or that cannot be read, draws the
          * checkerboard. The {@link TintAxis#EQUIPMENT} dye is the wearer's, tinting whichever of the
          * asset's layers declare
@@ -658,7 +665,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (assetId.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
-                        Optional<PixelBuffer> equipmentTex = EquipmentKit.composite(
+                        Optional<SampledTexture> equipmentTex = EquipmentKit.composite(
                             ctx.context(), assetId.get(), equipment.layerType(),
                             dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
                         if (equipmentTex.isEmpty()) return;
@@ -759,7 +766,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param baby whether the subject renders at the age vanilla calls a baby, the age its wings are
      *     drawn at
      * @param model the primary mesh being rendered (adult or baby)
-     * @param baseTexture the resolved base entity texture the layers sample from
+     * @param baseTexture the resolved base entity texture the layers sample from, with its sampler
      * @param frame the render frame the base body was built through, which every feature building in the
      *     body's own frame passes straight on
      * @param context the render's texture context, which answers a texture no pack supplies, or one
@@ -775,7 +782,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         boolean wings,
         boolean baby,
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer baseTexture,
+        @NotNull SampledTexture baseTexture,
         @NotNull FitFrame frame,
         @NotNull RendererContext context,
         int tick,
@@ -1224,7 +1231,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Timeline.TickTimeline timeline,
         @NotNull Matrix4f transform,
         float modelScale,
-        @NotNull PixelBuffer startTexture
+        @NotNull SampledTexture startTexture
     ) {
         Entity base = this.context.findEntity(entityId).orElse(null);
         int startTick = timeline.tickAt(0);
@@ -1233,7 +1240,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             boundsBlockOverlays(startSubject, base));
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
-            PixelBuffer frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(startTexture);
+            SampledTexture frameTexture = resolveEntityTexture(textures, resolved, options, tick).orElse(startTexture);
             Entity posedSubject = posed.at(tick);
             bounds = bounds.union(computeUnionScreenBounds(textures, posedSubject, transform, modelScale, frameTexture,
                 tick, boundsBlockOverlays(posedSubject, base)));
@@ -1277,7 +1284,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Entity definition,
         @NotNull Matrix4f transform,
         float modelScale,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         int tick,
         @NotNull List<Entity.BlockOverlayLayer> blockOverlays
     ) {
@@ -1391,7 +1398,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Possible<Entity> member = this.context.findEntity(memberId);
             if (member.isEmpty()) continue;
             Entity memberDef = member.get();
-            Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(textures, memberDef);
+            Optional<SampledTexture> memberTexture = resolveGroupMemberTexture(textures, memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
             List<Entity.BlockOverlayLayer> blockOverlays = fixedBlockOverlays(memberDef.blockOverlays());
@@ -1428,7 +1435,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (definition == null) return bounds;
         for (Entity coat : definition.axes().variant().options().values()) {
             if (coat.model().getBones().isEmpty()) continue;
-            Optional<PixelBuffer> coatTexture = resolveGroupMemberTexture(textures, coat);
+            Optional<SampledTexture> coatTexture = resolveGroupMemberTexture(textures, coat);
             if (coatTexture.isEmpty()) continue;
             List<Entity.BlockOverlayLayer> blockOverlays = fixedBlockOverlays(boundsBlockOverlays(coat, definition));
             // Posed through the shared memo over its own strip - a canvas is a union, so every
@@ -1498,7 +1505,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param definition the member's definition
      * @return the member's texture, or empty when its row names none
      */
-    private static @NotNull Optional<PixelBuffer> resolveGroupMemberTexture(
+    private static @NotNull Optional<SampledTexture> resolveGroupMemberTexture(
         @NotNull RendererContext textures, @NotNull Entity definition) {
         return definition.textureRef().flatMap(ref -> resolveEntityTextureAtTick(textures, ref, 0));
     }
@@ -1539,11 +1546,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * the canvas-bounds walk and the render agree on both membership and silhouette.
      *
      * @param overlay the equipment overlay
-     * @param texture the composited texture the overlay draws
+     * @param texture the composited texture the overlay draws, with the sampler it is read through
      */
     private record EquippedOverlay(
         @NotNull Entity.EquipmentOverlay overlay,
-        @NotNull PixelBuffer texture
+        @NotNull SampledTexture texture
     ) {
 
         /**

@@ -97,9 +97,9 @@ class CapeFrameTest {
                 if (!triangle.normal().equals(face.normal()))
                     continue;
 
-                compare(misses, face, box, triangle.position0(), triangle.uv0(), triangle.texture());
-                compare(misses, face, box, triangle.position1(), triangle.uv1(), triangle.texture());
-                compare(misses, face, box, triangle.position2(), triangle.uv2(), triangle.texture());
+                compare(misses, face, box, triangle.position0(), triangle.uv0(), triangle.texture().pixels());
+                compare(misses, face, box, triangle.position1(), triangle.uv1(), triangle.texture().pixels());
+                compare(misses, face, box, triangle.position2(), triangle.uv2(), triangle.texture().pixels());
                 checked += 3;
             }
 

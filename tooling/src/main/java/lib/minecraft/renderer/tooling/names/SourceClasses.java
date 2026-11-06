@@ -369,6 +369,12 @@ public final class SourceClasses {
         /** {@code SkullBlock$Types} - the enum keying the skull skin map. */
         public static final @NotNull String SKULL_BLOCK_TYPES = "net/minecraft/world/level/block/SkullBlock$Types";
 
+        /** {@code DefaultPlayerSkin} - its {@code create} factory builds each default skin, the PLAYER skull's among them. */
+        public static final @NotNull String DEFAULT_PLAYER_SKIN = "net/minecraft/client/resources/DefaultPlayerSkin";
+
+        /** {@code ClientAsset$ResourceTexture} - a texture file the client's texture manager loads by its identifier. */
+        public static final @NotNull String CLIENT_ASSET_RESOURCE_TEXTURE = "net/minecraft/core/ClientAsset$ResourceTexture";
+
         /** {@code Direction} - the block-facing enum whose {@code toYRot} / {@code getRotation} the transform walk reads as a reference yaw. */
         public static final @NotNull String DIRECTION = "net/minecraft/core/Direction";
 
@@ -492,11 +498,12 @@ public final class SourceClasses {
         public static final @NotNull String CREATE_ROOTS = "createRoots";
 
         /**
-         * The method name {@code create}, shared by the readers of three owners:
-         * {@code LayerDefinition.create(MeshDefinition, W, H)}, the mesh-wrapping factory, and the two brain
+         * The method name {@code create}, shared by the readers of four owners:
+         * {@code LayerDefinition.create(MeshDefinition, W, H)}, the mesh-wrapping factory, the two brain
          * factories taking a speed - {@code VillageBoundRandomStroll.create(F)} and
-         * {@code SetWalkTargetFromAttackTargetIfTargetOutOfReach.create(F)}. Each site pairs it with the owner
-         * it means.
+         * {@code SetWalkTargetFromAttackTargetIfTargetOutOfReach.create(F)} - and
+         * {@code DefaultPlayerSkin.create(String, PlayerModelType)}, the default-skin factory. Each site pairs
+         * it with the owner it means.
          */
         public static final @NotNull String CREATE = "create";
 

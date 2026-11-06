@@ -21,6 +21,7 @@ import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -192,7 +193,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
      * included, that no pack supplies or that cannot be read is the checkerboard, laid across the
      * whole skin sheet so every part and overlay crops it where vanilla's normalised UVs land on its
-     * own.
+     * own. Every part reads the skin through a crop of its rectangle, read nearest whatever its
+     * sidecar's texture section selects.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
@@ -211,7 +213,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         String skinId = options.getSkin().getSkin().getId().orElse(STEVE_SKIN_ID);
-        PixelBuffer skin = textures(parent).resolveTexture(skinId).get();
+        PixelBuffer skin = textures(parent).resolvePlainTexture(skinId).get().pixels();
         return MissingSprite.stretchedTo(skin, SKIN_SHEET_SIZE, SKIN_SHEET_SIZE);
     }
 
@@ -222,25 +224,27 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
-     * @return the cape texture, or empty when the player wears no cape
+     * @return the cape texture, with the sampler it is read through - its sidecar's for one read by id,
+     *     nearest and repeating for one from bytes or a URL, which carries no sidecar - or empty when the
+     *     player wears no cape
      */
-    static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+    static @NotNull Optional<SampledTexture> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (!options.getSkin().isRenderCape()) return Optional.empty();
 
         if (options.getSkin().getCape().getBytes().isPresent())
-            return Optional.of(ImageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer());
+            return Optional.of(SampledTexture.of(ImageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer()));
 
         if (options.getSkin().getCape().getUrl().isPresent()) {
             String url = options.getSkin().getCape().getUrl().get();
-            return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
+            return Optional.of(SampledTexture.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
                 byte[] bytes = SkinFetch.fetchTexture(url);
                 return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            }));
+            })));
         }
 
         if (options.getSkin().getCape().getId().isPresent()) {
             String capeId = options.getSkin().getCape().getId().get();
-            return Optional.of(textures(parent).resolveTexture(capeId).get());
+            return Optional.of(textures(parent).resolvePlainTexture(capeId).get());
         }
 
         return Optional.empty();
@@ -254,23 +258,25 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
-     * @return the elytra source texture, or empty when the skin options supply none
+     * @return the elytra source texture, with the sampler it is read through - its sidecar's for one read
+     *     by id, nearest and repeating for one from bytes or a URL, which carries no sidecar - or empty when
+     *     the skin options supply none
      */
-    static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+    static @NotNull Optional<SampledTexture> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getElytra().getBytes().isPresent())
-            return Optional.of(ImageFactory.fromByteArray(options.getSkin().getElytra().getBytes().get()).toPixelBuffer());
+            return Optional.of(SampledTexture.of(ImageFactory.fromByteArray(options.getSkin().getElytra().getBytes().get()).toPixelBuffer()));
 
         if (options.getSkin().getElytra().getUrl().isPresent()) {
             String url = options.getSkin().getElytra().getUrl().get();
-            return Optional.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
+            return Optional.of(SampledTexture.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
                 byte[] bytes = SkinFetch.fetchTexture(url);
                 return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            }));
+            })));
         }
 
         if (options.getSkin().getElytra().getId().isPresent()) {
             String elytraId = options.getSkin().getElytra().getId().get();
-            return Optional.of(textures(parent).resolveTexture(elytraId).get());
+            return Optional.of(textures(parent).resolvePlainTexture(elytraId).get());
         }
 
         return Optional.empty();
@@ -291,13 +297,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f torsoMin = new Vector3f(torso.minX(), torso.minY(), torso.minZ());
         Vector3f torsoMax = new Vector3f(torso.maxX(), torso.maxY(), torso.maxZ());
         if (options.getSkin().isRenderElytra()) {
-            Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
+            Optional<SampledTexture> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
                 sink.addAll(ElytraKit.buildPlayerWings3D(textures, torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
-            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape, torsoMin, torsoMax)));
+            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape.pixels(), torsoMin, torsoMax)));
     }
 
     // ---------------------------------------------------------------------------------------

@@ -9,6 +9,9 @@ import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.NineSliceKit;
 import lib.minecraft.renderer.bake.gui.TextKit;
@@ -18,12 +21,21 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
+import lib.minecraft.renderer.call.slot.TextSlot;
+import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.content.index.IndexedRendererContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
+import lib.minecraft.renderer.content.pack.TextureIndexer;
+import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.LineSegment;
@@ -33,28 +45,38 @@ import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static lib.minecraft.renderer.fixture.TooltipFixtures.BG_META;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.guiMeta;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
 import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.withPalette;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -107,6 +129,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * text drawing nothing, a code-drawn box padding a line that advances nothing by 0, a code-drawn box
  * whose alphas clear both its parts round one, and a sprite box whose alphas clear both sprites round
  * one.
+ * <p>
+ * The {@link TextOptions.Style#BOOK} style is pinned in {@link Book}: the refusal of a renderer holding no
+ * context, the book texture laid as the client's one quad at every texture size, the canvas ending at the
+ * first pixel the texture or the text draws over every frame, the lines' origin, spacing, cap and wrap,
+ * their colours, the palette, a layer decorator's place between the texture and the text, a fresh scramble
+ * on every frame and every line, and the premultiplied image.
+ * <p>
+ * The page indicator a book render leaves uncalled, {@link TextRenderer#drawPageIndicator}, is pinned in
+ * {@link PageIndicator}, which calls it directly: its ink's place from the book's corner, its right alignment,
+ * its black with no shadow under a text palette, the width it answers, and its text the client's - a count
+ * below one shown as one, a page past the count shown as given, its numbers written as the client writes
+ * them whatever the default locale.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -898,6 +932,965 @@ class TextRendererTest {
         }
 
         assertThat("renders whose canvas holds no pixel that are not the empty image", mismatched, is(empty()));
+    }
+
+    /**
+     * Pins for the {@link TextOptions.Style#BOOK} style. A book texture is a straight seed served by a
+     * context that resolves only what it is seeded with, but for six cases that stage it as a file in a
+     * one-pack stack read by the production context - beside a sidecar, or cut short - so the texture is
+     * read as the client's book screen reads it, a plain texture: an animation section, refused or with a
+     * frame size that does not divide the image, leaves it drawn, and a sidecar that does not parse, a
+     * refused texture section or an image that does not decode draws the missing texture. A sidecar the
+     * seeding context serves beside the texture selects its sampler: a texture section that blurs draws the
+     * quad linearly and widens the canvas by the fringe, one that also clamps holds the quad's first texels
+     * to the texture's edge, and the missing texture standing in for one is drawn hard. No client jar is
+     * needed but for the two cases that read vanilla's own texture, which skip without one. Over an opaque
+     * texture the quad lies at the canvas's corner on a 384 x 384 canvas, so a line's band - the 18 output
+     * rows from its cell's top - sits at a fixed place: line {@code i}'s from row {@code 60 + 18 i}, its
+     * first column 72.
+     */
+    @Nested
+    @DisplayName("a book page")
+    class Book {
+
+        /** The book texture's id */
+        private static final String TEXTURE = "minecraft:gui/book";
+
+        /** The one colour of the synthetic paper */
+        private static final int PAPER = 0xFFC8B48C;
+
+        /** The one colour of a book texture staged in a pack */
+        private static final int STAGED = 0xFF3366CC;
+
+        /** The side of the canvas a book over an opaque texture draws on, in output pixels - the quad's 192 Minecraft pixels */
+        private static final int QUAD_PX = 384;
+
+        /** The output row the first line's band starts at - its cell's top, 30 Minecraft pixels below the quad's corner */
+        private static final int FIRST_BAND_ROW = 60;
+
+        /** The output rows one line's band spans - the 9 Minecraft pixels from one line's cell top to the next */
+        private static final int BAND_PX = 18;
+
+        /** The message a renderer holding no context refuses a book with */
+        private static final String NO_CONTEXT = "The BOOK text style draws its page from the texture 'minecraft:gui/book'; "
+            + "the text renderer needs a RendererContext to read it";
+
+        /**
+         * Builds BOOK options drawing the given page, left unbuilt so a case can set its own fields.
+         *
+         * @param page the page drawn
+         * @return the partly built text options
+         */
+        private static TextOptions.Builder book(TextSegment page) {
+            return TextOptions.builder().style(TextOptions.Style.BOOK).page(page);
+        }
+
+        /**
+         * Seeds a context serving the given pixels as the book texture and nothing else.
+         *
+         * @param texture the book texture's pixels
+         * @return the seeded context
+         */
+        private static RendererContext serving(PixelBuffer texture) {
+            return stubContext(Map.of(TEXTURE, texture), Map.of());
+        }
+
+        /**
+         * Builds the synthetic paper, a 256 x 256 texture every texel of which is {@link #PAPER}.
+         *
+         * @return the paper
+         */
+        private static PixelBuffer paper() {
+            PixelBuffer paper = PixelBuffer.straight(256, 256);
+            paper.fill(PAPER);
+            return paper;
+        }
+
+        /**
+         * Builds an opaque texture every texel of which names its own place - its column above the low twelve
+         * bits and its row in them - so a drawn pixel says which texel it read.
+         *
+         * @param width the texture's width in texels
+         * @param height the texture's height in texels
+         * @return the texture
+         */
+        private static PixelBuffer coded(int width, int height) {
+            PixelBuffer coded = PixelBuffer.straight(width, height);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    coded.setPixel(x, y, 0xFF000000 | (x << 12) | y);
+            return coded;
+        }
+
+        /**
+         * Draws a request through a renderer holding the given context and takes its first frame.
+         *
+         * @param context the context the renderer holds
+         * @param options the text options to render
+         * @return the first frame drawn
+         */
+        private static PixelBuffer draw(RendererContext context, TextOptions options) {
+            return new TextRenderer(context).render(options).image().getFrames().getFirst().pixels();
+        }
+
+        /**
+         * Answers the texel the client's book quad reads under an output pixel's centre along one axis - the
+         * quad's 384 output pixels reading 192 / 256 of the texture's size, whatever that size.
+         *
+         * @param size the texture's size along the axis, in texels
+         * @param outPx the output pixel along the axis, from the quad's corner
+         * @return the texel read
+         */
+        private static int clientTexel(int size, int outPx) {
+            return (int) ((long) size * (2L * outPx + 1) / 1024);
+        }
+
+        /**
+         * Counts the pixels of a canvas whose quad sits at its corner that are not the texel the client's quad
+         * reads under them.
+         *
+         * @param canvas the drawn page
+         * @param texture the opaque texture the page was drawn on
+         * @return how many pixels hold another colour
+         */
+        private static int missedTexels(PixelBuffer canvas, PixelBuffer texture) {
+            int missed = 0;
+            for (int m = 0; m < canvas.height(); m++)
+                for (int l = 0; l < canvas.width(); l++)
+                    if (canvas.getPixel(l, m) != texture.getPixel(clientTexel(texture.width(), l), clientTexel(texture.height(), m))) missed++;
+            return missed;
+        }
+
+        /**
+         * Gathers every colour but the paper's in a line's band of a canvas whose quad sits at its corner.
+         *
+         * @param canvas the drawn page
+         * @param line the line's number, from 0
+         * @return the colours drawn in the band
+         */
+        private static Set<Integer> bandColours(PixelBuffer canvas, int line) {
+            Set<Integer> colours = new TreeSet<>();
+            for (int y = FIRST_BAND_ROW + BAND_PX * line; y < FIRST_BAND_ROW + BAND_PX * (line + 1); y++)
+                for (int x = 0; x < canvas.width(); x++)
+                    if (canvas.getPixel(x, y) != PAPER) colours.add(canvas.getPixel(x, y));
+            return colours;
+        }
+
+        /**
+         * Answers the bounds of the pixels other than the paper's in a line's band of a canvas whose quad sits
+         * at its corner.
+         *
+         * @param canvas the drawn page
+         * @param line the line's number, from 0
+         * @return the bounds of what the band holds in output pixels, empty where it holds only paper
+         */
+        private static Optional<Rectangle> bandInk(PixelBuffer canvas, int line) {
+            Rectangle ink = null;
+            for (int y = FIRST_BAND_ROW + BAND_PX * line; y < FIRST_BAND_ROW + BAND_PX * (line + 1); y++) {
+                for (int x = 0; x < canvas.width(); x++) {
+                    if (canvas.getPixel(x, y) == PAPER) continue;
+                    Rectangle pixel = new Rectangle(x, y, 1, 1);
+                    ink = ink == null ? pixel : ink.union(pixel);
+                }
+            }
+            return Optional.ofNullable(ink);
+        }
+
+        /**
+         * Answers a canvas's size as a pair, for a size assertion that names both sides.
+         *
+         * @param canvas the drawn page
+         * @return its width and height in output pixels
+         */
+        private static List<Integer> size(PixelBuffer canvas) {
+            return List.of(canvas.width(), canvas.height());
+        }
+
+        /**
+         * Answers the last output row a rectangle holds.
+         *
+         * @param bounds the rectangle
+         * @return its last row
+         */
+        private static int lastRow(Rectangle bounds) {
+            return bounds.y + bounds.height - 1;
+        }
+
+        @Test
+        @DisplayName("a book on a renderer holding no context throws the book's own refusal, whatever its page and chrome style")
+        void aBookWithoutAContextThrows() {
+            TextRenderer renderer = new TextRenderer();
+            List<TextOptions> requests = new ArrayList<>();
+            for (TextSegment page : List.of(TextSegment.literal(""), TextSegment.literal("Text"))) {
+                requests.add(book(page).build());
+                requests.add(book(page).chromeStyle(ChromeStyle.SPRITE).build());
+                requests.add(book(page).chromeStyle(ChromeStyle.PROCEDURAL).build());
+            }
+
+            for (TextOptions options : requests) {
+                RenderException thrown = assertThrows(RenderException.class, () -> renderer.render(options));
+                assertThat(thrown.getMessage(), is(NO_CONTEXT));
+            }
+        }
+
+        @Test
+        @DisplayName("a book with no page, an empty page, or a page of codes alone draws the texture alone")
+        void anEmptyPageIsTheTextureAlone() {
+            PixelBuffer seed = coded(256, 256);
+            RendererContext context = serving(seed);
+            PixelBuffer noPage = draw(context, TextOptions.builder().style(TextOptions.Style.BOOK).build());
+            PixelBuffer emptyPage = draw(context, book(TextSegment.fromJson("{\"text\": \"\"}")).build());
+            PixelBuffer codesAlone = draw(context, book(TextSegment.literal("§l")).build());
+
+            for (PixelBuffer canvas : List.of(noPage, emptyPage, codesAlone)) {
+                assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+                assertThat("pixels that are not the texel under them", missedTexels(canvas, seed), is(0));
+            }
+            assertThat("pixels no page and an empty page differ on", differing(noPage, emptyPage), is(0));
+            assertThat("pixels no page and a page of codes differ on", differing(noPage, codesAlone), is(0));
+            assertThat("pixels an empty page and a page of codes differ on", differing(emptyPage, codesAlone), is(0));
+        }
+
+        @Test
+        @DisplayName("a book draws its page and never the request's lines")
+        void aBookReadsItsPageAndNeverItsLines() {
+            RendererContext context = serving(paper());
+            for (TextSegment page : List.of(TextSegment.literal("Page"), TextSegment.literal(""))) {
+                PixelBuffer without = draw(context, book(page).build());
+                PixelBuffer with = draw(context, book(page).lines(LineSegment.fromLegacy("Lines", '&')).build());
+
+                assertThat("'" + page.getText() + "': the canvas holding lines", size(with), is(size(without)));
+                assertThat("'" + page.getText() + "': pixels the lines change", differing(with, without), is(0));
+            }
+        }
+
+        @Test
+        @DisplayName("the book texture is drawn as the client's one quad, three quarters of it across and down at any size")
+        void theTextureIsSampledAsTheClientsQuadSamplesIt() {
+            for (int textureSize : List.of(256, 512, 768)) {
+                PixelBuffer seed = coded(textureSize, textureSize);
+                PixelBuffer canvas = draw(serving(seed), book(TextSegment.literal("")).build());
+
+                assertThat(textureSize + ": canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+                assertThat(textureSize + ": pixels that are not the texel the client's quad reads under them",
+                    missedTexels(canvas, seed), is(0));
+            }
+        }
+
+        @Test
+        @DisplayName("a book texture no pack ships draws the missing texture as the client's quad draws it, and is a stand-in")
+        void aBookTextureNoPackShipsIsTheMissingTextureAndAStandIn() {
+            RenderResult result = new TextRenderer(stubContext(Map.of(), Map.of())).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture named as a stand-in", result.substitutions(),
+                contains(Substitution.texture(TEXTURE, Possible.State.ABSENT)));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the missing texture's texel the client's quad reads under them",
+                missedTexels(canvas, MissingSprite.sprite()), is(0));
+            // The quad reads twelve of the sixteen texels a side: the black check whole, then the magenta one
+            // beside it from output column 256.
+            assertThat("the corner and the first magenta column", List.of(canvas.getPixel(0, 0), canvas.getPixel(256, 0)),
+                is(List.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        }
+
+        @Test
+        @DisplayName("a book texture beside an animation section the client's codec refuses draws the book")
+        void aRefusedAnimationSidecarDrawsTheBook(@TempDir Path dir) throws IOException {
+            assertDrawsTheBook(bookContext(dir, solidPng(256, 256), Optional.of("{\"animation\":{\"frametime\":0}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture whose declared frame width does not divide it draws the book")
+        void aWidthThatDoesNotDivideDrawsTheBook(@TempDir Path dir) throws IOException {
+            assertDrawsTheBook(bookContext(dir, solidPng(256, 256), Optional.of("{\"animation\":{\"width\":100}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture taller than wide by less than a frame, beside an animation section, draws the book on the square's canvas")
+        void aNonSquareStripDrawsTheBook(@TempDir Path dir) throws IOException {
+            PixelBuffer canvas = assertDrawsTheBook(bookContext(dir, solidPng(256, 384), Optional.of("{\"animation\":{}}")));
+
+            assertThat("the canvas a square book draws on", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+        }
+
+        @Test
+        @DisplayName("a book texture beside a sidecar that is not JSON draws the missing texture, and is a stand-in")
+        void aSidecarThatIsNotJsonDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            assertDrawsTheMissingTexture(bookContext(dir, solidPng(256, 256), Optional.of("{ \"animation\": ")));
+        }
+
+        @Test
+        @DisplayName("a book texture beside a texture section the client's codec refuses draws the missing texture, and is a stand-in")
+        void aRefusedTextureSectionDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            assertDrawsTheMissingTexture(bookContext(dir, solidPng(256, 256), Optional.of("{\"texture\":{\"blur\":1}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture whose image does not decode draws the missing texture, and is a stand-in")
+        void anImageThatDoesNotDecodeDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            byte[] png = solidPng(256, 256);
+            assertDrawsTheMissingTexture(bookContext(dir, Arrays.copyOf(png, png.length / 2), Optional.empty()));
+        }
+
+        /**
+         * Asserts an empty page over a staged book texture draws the texture's one colour at the quad's
+         * first texel and names no stand-in.
+         *
+         * @param context the context the staged texture is read through
+         * @return the drawn page
+         */
+        private static PixelBuffer assertDrawsTheBook(RendererContext context) {
+            RenderResult result = new TextRenderer(context).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture's colour at the quad's first texel", canvas.getPixel(0, 0), is(STAGED));
+            assertThat("stand-ins", result.substitutions(), is(empty()));
+            return canvas;
+        }
+
+        /**
+         * Asserts an empty page over a staged book texture draws the missing texture as the client's quad
+         * draws it and names the texture as a stand-in that is served and yields no pixels.
+         *
+         * @param context the context the staged texture is read through
+         */
+        private static void assertDrawsTheMissingTexture(RendererContext context) {
+            RenderResult result = new TextRenderer(context).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture named as a stand-in", result.substitutions(),
+                contains(Substitution.texture(TEXTURE, Possible.State.EMPTY)));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the missing texture's texel the client's quad reads under them",
+                missedTexels(canvas, MissingSprite.sprite()), is(0));
+        }
+
+        /**
+         * Stages one pack holding the book texture, and its sidecar where one is given, indexes it and
+         * builds the production context over it.
+         *
+         * @param dir the directory the pack is staged in
+         * @param png the book texture's bytes
+         * @param sidecar the sidecar's text, which need not parse, or empty for none
+         * @return the production context over the staged pack
+         * @throws IOException if writing the pack fails
+         */
+        private static RendererContext bookContext(Path dir, byte[] png, Optional<String> sidecar) throws IOException {
+            Path gui = dir.resolve("assets/minecraft/textures/gui");
+            Files.createDirectories(gui);
+            Files.write(gui.resolve("book.png"), png);
+            if (sidecar.isPresent()) Files.writeString(gui.resolve("book.png.mcmeta"), sidecar.get());
+
+            ResourcePack pack = new ResourcePack(
+                PackId.VANILLA, new PackContainer.Directory(dir), MCMeta.EMPTY,
+                Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
+                Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
+            PackStack bare = PackStack.of(Concurrent.newList(pack));
+            PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
+            return new IndexedRendererContext(
+                stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
+                new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+                Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+                Concurrent.newMap(), TextureSynthesizer.EMPTY, Concurrent.newMap(),
+                Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+                SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
+        }
+
+        /**
+         * Encodes an image every texel of which is {@link #STAGED}.
+         *
+         * @param width the image width
+         * @param height the image height
+         * @return the PNG bytes
+         * @throws IOException if encoding fails
+         */
+        private static byte[] solidPng(int width, int height) throws IOException {
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    image.setRGB(x, y, STAGED);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "PNG", out);
+            return out.toByteArray();
+        }
+
+        @Test
+        @DisplayName("a texture whose drawn edge falls inside a Minecraft pixel puts the canvas's edge at the whole one outside it")
+        void aTexturesFirstPixelOnAnOddColumnIsWhereTheCanvasRoundsOut() {
+            PixelBuffer seed = PixelBuffer.straight(512, 512);
+            for (int y = 10; y <= 200; y++)
+                for (int x = 41; x <= 300; x++)
+                    seed.setPixel(x, y, PAPER);
+            PixelBuffer canvas = draw(serving(seed), book(TextSegment.literal("")).build());
+
+            // Over 512 texels the quad reads one texel to an output pixel, so the drawn output bounds are x 41
+            // to 300 and y 10 to 200 - Minecraft x 20.5 to 150.5 and y 5 to 100.5, rounded out to 20 to 151 and
+            // 5 to 101.
+            int drawnAtTheSides = 0;
+            for (int y = 0; y < canvas.height(); y++)
+                if (ColorMath.alpha(canvas.getPixel(0, y)) != 0 || ColorMath.alpha(canvas.getPixel(canvas.width() - 1, y)) != 0) drawnAtTheSides++;
+
+            assertThat("canvas", size(canvas), is(List.of(262, 192)));
+            assertThat("rows drawn in the first or last column", drawnAtTheSides, is(0));
+            assertThat("the second column's first row and last row",
+                List.of(canvas.getPixel(1, 0), canvas.getPixel(1, canvas.height() - 1)), is(List.of(PAPER, 0)));
+        }
+
+        @Test
+        @DisplayName("vanilla's book texture draws a page 292 x 360 from its first drawn texel")
+        void vanillasBookEndsAtItsFirstDrawnPixel() throws IOException {
+            assumeSprites();
+            PixelBuffer texture = PixelBuffer.wrap(ImageIO.read(new ByteArrayInputStream(
+                ClientAssetsExtension.vanilla().bytes("assets/minecraft/textures/gui/book.png").orElseThrow())));
+            PixelBuffer canvas = draw(serving(texture), book(TextSegment.literal("")).build());
+
+            // The first texel drawn is column 20 and row 1, so the canvas starts at Minecraft (20, 1) and its
+            // pixel (l, m) reads texel (20 + l / 2, 1 + m / 2).
+            int missed = 0;
+            for (int m = 0; m < Math.min(canvas.height(), 360); m++) {
+                for (int l = 0; l < Math.min(canvas.width(), 292); l++) {
+                    int texel = texture.getPixel(20 + l / 2, 1 + m / 2);
+                    if (canvas.getPixel(l, m) != (ColorMath.alpha(texel) == 0 ? 0 : texel)) missed++;
+                }
+            }
+
+            assertThat("canvas", size(canvas), is(List.of(292, 360)));
+            assertThat("pixels that are not the texel under them", missed, is(0));
+        }
+
+        @Test
+        @DisplayName("a book texture whose sidecar blurs is drawn linearly, an edge pixel blended, and its canvas holds the fringe")
+        void aBlurredBookIsDrawnLinearAndItsCanvasHoldsTheFringe() {
+            PixelBuffer blurred = draw(stubContext(Map.of(TEXTURE, patch()), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+
+            // The patch draws output 19 to 60 blurred, Minecraft 9 to 31 rounded out, so the canvas starts at quad 18.
+            assertThat("the blurred canvas", size(blurred), is(List.of(44, 44)));
+            assertThat("the corner of the fringe, a sixteenth of one texel", hex(blurred.getPixel(1, 1)), is(hex(0x10010101)));
+            assertThat("the left fringe, a quarter of the patch", hex(blurred.getPixel(1, 12)), is(hex(0x400D0B09)));
+            assertThat("the patch's first column, three quarters of it", hex(blurred.getPixel(2, 12)), is(hex(0xBF70654F)));
+            assertThat("the right fringe, a quarter of the patch", hex(blurred.getPixel(42, 12)), is(hex(0x400D0B09)));
+            assertThat("past the fringe", hex(blurred.getPixel(43, 12)), is(hex(0x00000000)));
+
+            PixelBuffer hard = draw(serving(patch()), book(TextSegment.literal("")).build());
+            int partial = 0;
+            for (int y = 0; y < hard.height(); y++)
+                for (int x = 0; x < hard.width(); x++)
+                    if (ColorMath.alpha(hard.getPixel(x, y)) != 0 && ColorMath.alpha(hard.getPixel(x, y)) != 255) partial++;
+            assertThat("the hard canvas", size(hard), is(List.of(40, 40)));
+            assertThat("the hard patch", hex(hard.getPixel(0, 10)), is(hex(PAPER)));
+            assertThat("pixels of the hard patch partly transparent", partial, is(0));
+        }
+
+        @Test
+        @DisplayName("a blurred book texture repeats at the quad's edge, and holds the edge texel where its sidecar also clamps")
+        void aBlurredBookRepeatsOrClampsAtTheQuadsEdge() {
+            PixelBuffer repeat = draw(stubContext(Map.of(TEXTURE, edged()), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+            PixelBuffer clamp = draw(stubContext(Map.of(TEXTURE, edged()), Map.of(TEXTURE, blur(true))), book(TextSegment.literal("")).build());
+            PixelBuffer hard = draw(serving(edged()), book(TextSegment.literal("")).build());
+
+            // The first output column reads texel 0 three quarters and the texel before it a quarter: the last
+            // column repeating, the first held where the sidecar clamps.
+            assertThat("the first column, repeating", hex(repeat.getPixel(0, 100)), is(hex(0xFFBF0040)));
+            assertThat("the first column, clamped", hex(clamp.getPixel(0, 100)), is(hex(0xFFFF0000)));
+            assertThat("the first column, hard", hex(hard.getPixel(0, 100)), is(hex(0xFFFF0000)));
+            assertThat("the second column, repeating", hex(repeat.getPixel(1, 100)), is(hex(0xFFF12D23)));
+            assertThat("the second column, clamped", hex(clamp.getPixel(1, 100)), is(hex(0xFFF12D23)));
+            assertThat("the second column, hard", hex(hard.getPixel(1, 100)), is(hex(0xFFFF0000)));
+            for (PixelBuffer canvas : List.of(repeat, clamp, hard))
+                assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+        }
+
+        @Test
+        @DisplayName("a book texture no pack ships draws the hard missing texture, whatever the sidecar beside its id says")
+        void aBlurredBookThatIsMissingDrawsTheHardCheckerboard() {
+            RenderResult result = new TextRenderer(stubContext(Map.of(), Map.of(TEXTURE, blur(true)))).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture named as a stand-in", result.substitutions(),
+                contains(Substitution.texture(TEXTURE, Possible.State.ABSENT)));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the missing texture's texel the client's quad reads under them",
+                missedTexels(canvas, MissingSprite.sprite()), is(0));
+        }
+
+        @Test
+        @DisplayName("vanilla's book texture blurred draws a page one Minecraft pixel larger every way")
+        void vanillasBookBlurredIsAPageOneMinecraftPixelLargerEveryWay() throws IOException {
+            assumeSprites();
+            PixelBuffer texture = PixelBuffer.wrap(ImageIO.read(new ByteArrayInputStream(
+                ClientAssetsExtension.vanilla().bytes("assets/minecraft/textures/gui/book.png").orElseThrow())));
+            PixelBuffer canvas = draw(stubContext(Map.of(TEXTURE, texture), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+
+            // Minecraft 19 to 167 across and 0 to 182 down, where the hard page is 20 to 166 and 1 to 181.
+            assertThat("canvas", size(canvas), is(List.of(296, 364)));
+            assertThat("a fringe pixel the hard page leaves clear", hex(canvas.getPixel(1, 182)), is(hex(0x40020100)));
+        }
+
+        /**
+         * Builds the sidecar of a book texture whose texture section blurs.
+         *
+         * @param clamp whether the section also clamps
+         * @return the sidecar
+         */
+        private static MCMeta blur(boolean clamp) {
+            return new MCMeta(ResourceId.parse(TEXTURE), Optional.empty(), Possible.absent(),
+                Possible.of(new MCMeta.TextureSampling(true, clamp, MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f)),
+                Possible.absent(), Optional.empty());
+        }
+
+        /**
+         * Builds a 256 x 256 clear texture holding a {@link #PAPER} block over texels 10 to 29 on both axes.
+         *
+         * @return the texture
+         */
+        private static PixelBuffer patch() {
+            PixelBuffer patch = PixelBuffer.straight(256, 256);
+            for (int y = 10; y <= 29; y++)
+                for (int x = 10; x <= 29; x++)
+                    patch.setPixel(x, y, PAPER);
+            return patch;
+        }
+
+        /**
+         * Builds an opaque 256 x 256 texture whose first column is red, whose last column is blue and whose rest
+         * is {@link #PAPER}, every row alike.
+         *
+         * @return the texture
+         */
+        private static PixelBuffer edged() {
+            PixelBuffer edged = PixelBuffer.straight(256, 256);
+            edged.fill(PAPER);
+            for (int y = 0; y < 256; y++) {
+                edged.setPixel(0, y, 0xFFFF0000);
+                edged.setPixel(255, y, 0xFF0000FF);
+            }
+            return edged;
+        }
+
+        /**
+         * Spells a colour as eight hex digits, for an assertion that names the bytes.
+         *
+         * @param argb the colour
+         * @return its hex spelling
+         */
+        private static String hex(int argb) {
+            return String.format("%08X", argb);
+        }
+
+        @Test
+        @DisplayName("the canvas ends at the first pixel the texture or the text draws, and is the empty image where neither draws")
+        void theCanvasIsTheUnionOfTheTexturesAndTheTextsInk() {
+            PixelBuffer clear = PixelBuffer.straight(256, 256);
+            PixelBuffer patch = PixelBuffer.straight(256, 256);
+            for (int y = 0; y < 10; y++)
+                for (int x = 0; x < 10; x++)
+                    patch.setPixel(x, y, PAPER);
+
+            PixelBuffer textAlone = draw(serving(clear), book(TextSegment.literal("Hi")).build());
+            Set<Integer> textColours = new TreeSet<>();
+            for (int y = 0; y < textAlone.height(); y++)
+                for (int x = 0; x < textAlone.width(); x++)
+                    if (ColorMath.alpha(textAlone.getPixel(x, y)) != 0) textColours.add(textAlone.getPixel(x, y));
+            assertThat("the text alone: canvas", size(textAlone), is(List.of(14, 14)));
+            assertThat("the text alone: colours drawn", textColours, is(Set.of(0xFF000000)));
+
+            // Two lines are 9 apart, so the second's ink is 39 to 46 down and the pair's 30 to 46.
+            PixelBuffer twoLines = draw(serving(clear), book(TextSegment.literal("Hi\nHi")).build());
+            assertThat("two lines alone: canvas", size(twoLines), is(List.of(14, 32)));
+            assertThat("two lines alone: the bounds of what they draw", twoLines.opaqueBounds(), is(new Rectangle(0, 0, 14, 32)));
+
+            // The patch is Minecraft 0 to 10 a side, the text's ink 36 to 43 across and 30 to 37 down.
+            PixelBuffer joined = draw(serving(patch), book(TextSegment.literal("Hi")).build());
+            assertThat("the patch and the text: canvas", size(joined), is(List.of(86, 74)));
+            assertThat("the patch's corners and the pixel past it",
+                List.of(joined.getPixel(0, 0), joined.getPixel(19, 19), joined.getPixel(20, 20)), is(List.of(PAPER, PAPER, 0)));
+
+            ImageData nothing = new TextRenderer(serving(clear)).render(book(TextSegment.literal("")).build()).image();
+            PixelBuffer empty = nothing.getFrames().getFirst().pixels();
+            assertThat("nothing drawn: animated, size and alpha",
+                List.of(nothing.isAnimated(), empty.width(), empty.height(), ColorMath.alpha(empty.getPixel(0, 0))),
+                is(List.of(false, 1, 1, 0)));
+        }
+
+        @Test
+        @DisplayName("an obfuscated page's canvas ends at the first pixel its text draws over every frame, each frame's glyphs uncut")
+        void anObfuscatedPagesCanvasHoldsEveryFramesInk() {
+            TextOptions options = book(TextSegment.literal("§kHello")).frameCount(20).build();
+            ConcurrentList<ImageFrame> onPaper = new TextRenderer(serving(paper())).render(options).image().getFrames();
+            ConcurrentList<ImageFrame> alone = new TextRenderer(serving(PixelBuffer.straight(256, 256))).render(options).image().getFrames();
+
+            // Over the paper the quad is the whole canvas, so every frame's glyphs lie uncut where the page puts
+            // them; their bounds over every frame, rounded out to whole Minecraft pixels, are the canvas the page
+            // draws on over a clear texture, each frame's glyphs at their place on it.
+            Rectangle ink = null;
+            for (ImageFrame frame : onPaper) {
+                PixelBuffer canvas = frame.pixels();
+                for (int y = 0; y < canvas.height(); y++) {
+                    for (int x = 0; x < canvas.width(); x++) {
+                        if (canvas.getPixel(x, y) == PAPER) continue;
+                        Rectangle pixel = new Rectangle(x, y, 1, 1);
+                        ink = ink == null ? pixel : ink.union(pixel);
+                    }
+                }
+            }
+            assertThat("the page drew ink over the paper", ink == null, is(false));
+            int left = ink.x / 2 * 2;
+            int top = ink.y / 2 * 2;
+            int right = (ink.x + ink.width + 1) / 2 * 2;
+            int bottom = (ink.y + ink.height + 1) / 2 * 2;
+
+            assertThat("frames over the clear texture", alone.size(), is(onPaper.size()));
+            assertThat("canvas", size(alone.getFirst().pixels()), is(List.of(right - left, bottom - top)));
+            int missed = 0;
+            for (int f = 0; f < alone.size(); f++) {
+                PixelBuffer canvas = alone.get(f).pixels();
+                PixelBuffer under = onPaper.get(f).pixels();
+                for (int m = 0; m < canvas.height(); m++) {
+                    for (int l = 0; l < canvas.width(); l++) {
+                        int drawn = under.getPixel(left + l, top + m);
+                        if (canvas.getPixel(l, m) != (drawn == PAPER ? 0 : drawn)) missed++;
+                    }
+                }
+            }
+            assertThat("pixels that are not the frame's own glyphs", missed, is(0));
+        }
+
+        @Test
+        @DisplayName("a book texture's animation section neither animates the page nor crops the texture to a frame")
+        void aTexturesAnimationNeitherAnimatesNorCropsTheBook() {
+            PixelBuffer strip = coded(256, 512);
+            RendererContext context = stubContext(Map.of(TEXTURE, strip), Map.of(),
+                Map.of(TEXTURE, new MCMeta.Animation(1, false, Optional.empty(), Optional.empty(), Optional.empty())));
+            ImageData image = new TextRenderer(context).render(book(TextSegment.literal("")).build()).image();
+            PixelBuffer canvas = image.getFrames().getFirst().pixels();
+
+            assertThat("animated", image.isAnimated(), is(false));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the strip's texel the client's quad reads under them",
+                missedTexels(canvas, strip), is(0));
+        }
+
+        @Test
+        @DisplayName("a book reads no chrome style: every one draws the same page")
+        void everyChromeStyleDrawsTheSamePage() {
+            RendererContext context = serving(paper());
+            PixelBuffer namingNone = draw(context, book(TextSegment.literal("Same page")).build());
+            PixelBuffer sprite = draw(context, book(TextSegment.literal("Same page")).chromeStyle(ChromeStyle.SPRITE).build());
+            PixelBuffer procedural = draw(context, book(TextSegment.literal("Same page")).chromeStyle(ChromeStyle.PROCEDURAL).build());
+
+            assertThat("the sprite chrome's canvas", size(sprite), is(size(namingNone)));
+            assertThat("the procedural chrome's canvas", size(procedural), is(size(namingNone)));
+            assertThat("pixels naming none and the sprite chrome differ on", differing(namingNone, sprite), is(0));
+            assertThat("pixels naming none and the procedural chrome differ on", differing(namingNone, procedural), is(0));
+            assertThat("pixels the sprite and procedural chromes differ on", differing(sprite, procedural), is(0));
+        }
+
+        @Test
+        @DisplayName("a page's lines start at the client's text origin, nine Minecraft pixels apart, and stop at fourteen")
+        void linesStartAtTheClientsOriginNineApartAndStopAtFourteen() {
+            StringBuilder page = new StringBuilder("Line 1");
+            for (int line = 2; line <= 16; line++)
+                page.append("\nLine ").append(line);
+            PixelBuffer canvas = draw(serving(paper()), book(TextSegment.literal(page.toString())).build());
+
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            for (int i = 0; i < 14; i++) {
+                Optional<Rectangle> ink = bandInk(canvas, i);
+                assertThat("line " + (i + 1) + " drawn", ink.isPresent(), is(true));
+                assertThat("line " + (i + 1) + ": its first ink row and column", List.of(ink.get().y, ink.get().x),
+                    is(List.of(FIRST_BAND_ROW + BAND_PX * i, 72)));
+            }
+            assertThat("the ink of lines 15 and 16, which the page drops", List.of(bandInk(canvas, 14), bandInk(canvas, 15)),
+                is(List.of(Optional.empty(), Optional.empty())));
+        }
+
+        @Test
+        @DisplayName("a page wraps at the client's width of 114 Minecraft pixels, a line exactly that wide kept whole")
+        void aPageWrapsAtTheClientsWidth() {
+            RendererContext context = serving(paper());
+            PixelBuffer exact = draw(context, book(TextSegment.literal("a".repeat(19))).build());
+            PixelBuffer over = draw(context, book(TextSegment.literal("a".repeat(18) + "lii")).build());
+
+            assertThat("nineteen a's, 114 wide: lines 1 and 2 drawn",
+                List.of(bandInk(exact, 0).isPresent(), bandInk(exact, 1).isPresent()), is(List.of(true, false)));
+            assertThat("eighteen a's and lii, 115 wide: lines 1 and 2 drawn",
+                List.of(bandInk(over, 0).isPresent(), bandInk(over, 1).isPresent()), is(List.of(true, true)));
+        }
+
+        @Test
+        @DisplayName("every line the library wraps a mixed page into measures within the page's width by the kit's measure")
+        void everyWrappedLineMeasuresWithinThePageWidth() {
+            ConcurrentList<LineSegment> lines = TextSegment.fromJson("[\"\", \"The quick brown fox jumps over the lazy dog and \", "
+                + "{\"text\": \"keeps running in bold \", \"bold\": true}, {\"text\": \"through italic words \", \"italic\": true}, "
+                + "{\"text\": \"and alt font letters \", \"font\": \"minecraft:alt\"}, "
+                + "\"until the page has wrapped several times over its width\"]").wrap(114);
+            List<Integer> overWide = lines.stream().map(TextKit::measureLineMcPixels).filter(width -> width > 114).toList();
+
+            assertThat("lines", lines.size(), is(greaterThan(1)));
+            assertThat("widths over the page's 114", overWide, is(empty()));
+        }
+
+        @Test
+        @DisplayName("a page's text is black with no shadow, and a span's own colour and shadow colour win")
+        void aPagesTextIsBlackWithNoShadowAndASpanKeepsItsOwn() {
+            PixelBuffer canvas = draw(serving(paper()), book(TextSegment.fromJson("[\"\", \"Black\\n\", "
+                + "{\"text\": \"Red\\n\", \"color\": \"red\"}, {\"text\": \"Shade\", \"shadow_color\": -16776961}]")).build());
+
+            assertThat("line 1's colours", bandColours(canvas, 0), is(Set.of(0xFF000000)));
+            assertThat("line 1's last ink row, which no shadow row follows", lastRow(bandInk(canvas, 0).orElseThrow()), is(73));
+            assertThat("line 2's colours", bandColours(canvas, 1), is(Set.of(0xFFFF5555)));
+            assertThat("line 3's colours, its own shadow among them", bandColours(canvas, 2), is(Set.of(0xFF000000, 0xFF0000FF)));
+            assertThat("line 3's last ink row, its shadow's", lastRow(bandInk(canvas, 2).orElseThrow()), is(111));
+        }
+
+        @Test
+        @DisplayName("a line the wrap opens after a reset draws white with a drop shadow, as the client draws it, and the lines before it black with none")
+        void aLineAResetBreaksIntoDrawsWhiteWithAShadow() {
+            PixelBuffer canvas = draw(serving(paper()), book(TextSegment.literal("§lTitle§r\nBody")).build());
+
+            assertThat("line 1's colours", bandColours(canvas, 0), is(Set.of(0xFF000000)));
+            assertThat("line 2's colours, white over its derived shadow", bandColours(canvas, 1), is(Set.of(0xFFFFFFFF, 0xFF3F3F3F)));
+        }
+
+        @Test
+        @DisplayName("the context's text palette recolours the page's text and not the texture")
+        void theContextsTextPaletteReachesThePage() {
+            TextPalette palette = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"), new PackId("pack"),
+                Concurrent.newUnmodifiableMap(Map.of(0x000000, 0x2B5D8A)));
+            PixelBuffer swapped = draw(withPalette(serving(paper()), palette), book(TextSegment.literal("Black")).build());
+            PixelBuffer plain = draw(serving(paper()), book(TextSegment.literal("Black")).build());
+
+            assertThat("line 1's colours under the palette", bandColours(swapped, 0), is(Set.of(0xFF2B5D8A)));
+            assertThat("line 1's colours without it", bandColours(plain, 0), is(Set.of(0xFF000000)));
+            assertThat("the paper's corner under the palette and without it",
+                List.of(swapped.getPixel(0, 0), plain.getPixel(0, 0)), is(List.of(PAPER, PAPER)));
+        }
+
+        @Test
+        @DisplayName("a layer decorator splices into the book's stack, after the texture and before the text")
+        void aLayerDecoratorSplicesBetweenTheTextureAndTheText() {
+            int fill = 0xFF00FF00;
+            PixelBuffer canvas = draw(serving(paper()), book(TextSegment.literal("Hi"))
+                .layerDecorator(stack -> stack.addAfter(TextSlot.BACKGROUND, frame -> frame.fill(fill)))
+                .build());
+            Set<Integer> colours = new TreeSet<>();
+            for (int y = 0; y < canvas.height(); y++)
+                for (int x = 0; x < canvas.width(); x++)
+                    colours.add(canvas.getPixel(x, y));
+
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("the corner, the fill over the paper", canvas.getPixel(0, 0), is(fill));
+            assertThat("colours drawn, the text over the fill", colours, is(Set.of(0xFF000000, fill)));
+        }
+
+        @Test
+        @DisplayName("a book page is marked premultiplied, still and animated")
+        void aBookIsMarkedPremultiplied() {
+            PixelBuffer translucent = PixelBuffer.straight(256, 256);
+            translucent.fill(0x80C8B48C);
+            TextRenderer renderer = new TextRenderer(serving(translucent));
+            ImageData still = renderer.render(book(TextSegment.literal("Mark")).build()).image();
+            ImageData animated = renderer.render(book(TextSegment.fromJson("{\"text\": \"ab\", \"obfuscated\": true}")).build()).image();
+
+            assertPremultiplied(still);
+            assertThat("the obfuscated page animates", animated.isAnimated(), is(true));
+            assertPremultiplied(animated);
+        }
+
+        @Test
+        @DisplayName("an obfuscated page draws a fresh scramble on every frame")
+        void anObfuscatedPageDrawsAFreshScrambleOnEveryFrame() {
+            ConcurrentList<ImageFrame> frames = new TextRenderer(serving(paper()))
+                .render(book(TextSegment.literal("§kHello")).build()).image().getFrames();
+            ConcurrentList<Integer> alike = Concurrent.newList();
+            for (int f = 1; f < frames.size(); f++)
+                if (differing(frames.getFirst().pixels(), frames.get(f).pixels()) == 0) alike.add(f);
+
+            assertThat("frames", frames.size(), is(20));
+            assertThat("frames drawing the first frame's scramble", alike, is(empty()));
+        }
+
+        @Test
+        @DisplayName("two lines of the same obfuscated text draw two scrambles")
+        void twoObfuscatedLinesScrambleApart() {
+            ConcurrentList<ImageFrame> frames = new TextRenderer(serving(paper()))
+                .render(book(TextSegment.literal("§kHello\n§kHello")).build()).image().getFrames();
+            ConcurrentList<Integer> alike = Concurrent.newList();
+            for (int f = 0; f < frames.size(); f++) {
+                PixelBuffer canvas = frames.get(f).pixels();
+                PixelBuffer first = canvas.crop(0, FIRST_BAND_ROW, canvas.width(), BAND_PX);
+                PixelBuffer second = canvas.crop(0, FIRST_BAND_ROW + BAND_PX, canvas.width(), BAND_PX);
+                if (differing(first, second) == 0) alike.add(f);
+            }
+
+            assertThat("the obfuscated lines animate", frames.size(), is(greaterThan(1)));
+            assertThat("frames whose two lines draw one scramble", alike, is(empty()));
+        }
+
+    }
+
+    /**
+     * Pins for the page indicator a book render leaves uncalled, {@link TextRenderer#drawPageIndicator}, each case
+     * calling it directly on a clear {@link PixelBuffer#canvas canvas}. With the book quad's corner at the canvas's
+     * own, {@code Page 1 of 1} inks output columns 178 to 293 and rows 32 to 47 - the client's 89 to 146 and 16 to
+     * 23 Minecraft pixels from the corner, the {@code g}'s descender its last row - and every indicator's ink ends
+     * at column 293, whatever its numbers. A shadow of black text is black too, so it is told apart by the column
+     * and the row it adds past the glyphs.
+     */
+    @Nested
+    @DisplayName("the book's page indicator")
+    class PageIndicator {
+
+        /** The ink of {@code Page 1 of 1} with the book quad's corner at the canvas's, in output pixels */
+        private static final Rectangle ONE_OF_ONE = new Rectangle(178, 32, 116, 16);
+
+        /** A text palette swapping the page's black for one other colour */
+        private static final TextPalette SWAPS_BLACK = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"),
+            new PackId("pack"), Concurrent.newUnmodifiableMap(Map.of(0x000000, 0x2B5D8A)));
+
+        /**
+         * Draws the indicator on a clear canvas the size of the book quad, the quad's corner at the canvas's.
+         *
+         * @param palette the text palette drawn through
+         * @param page the page number shown
+         * @param pageCount the page count shown
+         * @return the canvas drawn on
+         */
+        private static PixelBuffer drawn(TextPalette palette, int page, int pageCount) {
+            PixelBuffer canvas = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            TextRenderer.drawPageIndicator(new MinecraftGraphics(canvas), palette, 0, 0, page, pageCount);
+            return canvas;
+        }
+
+        /**
+         * Answers the width the indicator answers, drawn on a canvas of its own.
+         *
+         * @param page the page number shown
+         * @param pageCount the page count shown
+         * @return the width in whole Minecraft pixels
+         */
+        private static int width(int page, int pageCount) {
+            return TextRenderer.drawPageIndicator(new MinecraftGraphics(PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX)),
+                TextPalette.VANILLA, 0, 0, page, pageCount);
+        }
+
+        /**
+         * Answers the bounds of every pixel drawn on a clear canvas.
+         *
+         * @param canvas the canvas drawn on
+         * @return the bounds in output pixels, empty where nothing is drawn
+         */
+        private static Optional<Rectangle> ink(PixelBuffer canvas) {
+            Rectangle ink = null;
+            for (int y = 0; y < canvas.height(); y++) {
+                for (int x = 0; x < canvas.width(); x++) {
+                    if (canvas.getPixel(x, y) == 0) continue;
+                    Rectangle pixel = new Rectangle(x, y, 1, 1);
+                    ink = ink == null ? pixel : ink.union(pixel);
+                }
+            }
+            return Optional.ofNullable(ink);
+        }
+
+        /**
+         * Gathers every colour drawn on a clear canvas.
+         *
+         * @param canvas the canvas drawn on
+         * @return the colours drawn
+         */
+        private static Set<Integer> colours(PixelBuffer canvas) {
+            Set<Integer> colours = new TreeSet<>();
+            for (int y = 0; y < canvas.height(); y++)
+                for (int x = 0; x < canvas.width(); x++)
+                    if (canvas.getPixel(x, y) != 0) colours.add(canvas.getPixel(x, y));
+            return colours;
+        }
+
+        /**
+         * Draws the client's indicator line on a clear canvas the size of the book quad, the quad's corner at the
+         * canvas's: the text in the page's text style, spelled as JSON - black, with a shadow colour of no alpha -
+         * drawn in white with the shadow asked for, its left the given width short of 148 Minecraft pixels from
+         * the corner and the top of its glyph cell 16 below it.
+         *
+         * @param text the indicator's text as the client writes it
+         * @param widthMcPx the text's width as the client's font measures it, in mcPixels
+         * @return the canvas drawn on
+         */
+        private static PixelBuffer clientsLine(String text, int widthMcPx) {
+            PixelBuffer canvas = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            LineSegment line = LineSegment.builder().segments(Concurrent.newList(TextSegment.fromJson(
+                "{\"text\": \"" + text + "\", \"color\": \"#000000\", \"shadow_color\": 0}"))).build();
+            int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+            TextKit.drawLine(new MinecraftGraphics(canvas), line, 148 - widthMcPx, 16 + ascentMcPx, ColorMath.WHITE,
+                TextPalette.VANILLA, 0, 0L, 0L, true);
+            return canvas;
+        }
+
+        @Test
+        @DisplayName("'Page 1 of 1' inks where the client draws it from the book's corner, the corner at the canvas's and at the one the commented-out call passes on vanilla's page")
+        void theIndicatorInksWhereTheClientDrawsItFromTheCorner() {
+            PixelBuffer pageCanvas = PixelBuffer.canvas(292, 360);
+            TextRenderer.drawPageIndicator(new MinecraftGraphics(pageCanvas), TextPalette.VANILLA, -20, -1, 1, 1);
+
+            assertThat("ink, the corner at the canvas's", ink(drawn(TextPalette.VANILLA, 1, 1)), is(Optional.of(ONE_OF_ONE)));
+            assertThat("ink on the 292 x 360 canvas vanilla's page draws on, the corner at (-20, -1)", ink(pageCanvas),
+                is(Optional.of(new Rectangle(138, 30, 116, 16))));
+        }
+
+        @Test
+        @DisplayName("a wider number starts the indicator further left and ends it at the same edge, its text the client's")
+        void aWiderNumberEndsAtTheSameEdge() {
+            PixelBuffer threeOfTwelve = drawn(TextPalette.VANILLA, 3, 12);
+
+            assertThat("'Page 3 of 12' ink", ink(threeOfTwelve), is(Optional.of(new Rectangle(166, 32, 128, 16))));
+            assertThat("'Page 100 of 100' ink", ink(drawn(TextPalette.VANILLA, 100, 100)),
+                is(Optional.of(new Rectangle(130, 32, 164, 16))));
+            assertThat("pixels 'Page 3 of 12' differs on from the client's text in the page style, 65 left of the edge",
+                differing(threeOfTwelve, clientsLine("Page 3 of 12", 65)), is(0));
+        }
+
+        @Test
+        @DisplayName("the indicator is the page's black with no shadow, in the colour a text palette swaps black for")
+        void theIndicatorIsBlackWithNoShadowInThePalettesColour() {
+            PixelBuffer vanilla = drawn(TextPalette.VANILLA, 1, 1);
+            PixelBuffer swapped = drawn(SWAPS_BLACK, 1, 1);
+
+            assertThat("colours drawn", colours(vanilla), is(Set.of(0xFF000000)));
+            assertThat("ink, no shadow column or row past the glyphs'", ink(vanilla), is(Optional.of(ONE_OF_ONE)));
+            assertThat("colours drawn under a palette swapping black", colours(swapped), is(Set.of(0xFF2B5D8A)));
+            assertThat("ink under that palette", ink(swapped), is(Optional.of(ONE_OF_ONE)));
+        }
+
+        @Test
+        @DisplayName("the indicator answers its width as the client's font measures it, shows a count below one as one and a page past the count as given, and writes its numbers in ASCII digits whatever the default locale")
+        void theIndicatorAnswersItsWidthAndWritesItsNumbersAsTheClientDoes() {
+            PixelBuffer asWritten = drawn(TextPalette.VANILLA, 1234, 5678);
+            PixelBuffer underThaiDigits = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            Locale format = Locale.getDefault(Locale.Category.FORMAT);
+            int underThaiDigitsWidth;
+            try {
+                Locale.setDefault(Locale.Category.FORMAT, Locale.forLanguageTag("th-TH-u-nu-thai"));
+                underThaiDigitsWidth = TextRenderer.drawPageIndicator(new MinecraftGraphics(underThaiDigits),
+                    TextPalette.VANILLA, 0, 0, 1234, 5678);
+            } finally {
+                Locale.setDefault(Locale.Category.FORMAT, format);
+            }
+
+            assertThat("'Page 1 of 1'", width(1, 1), is(59));
+            assertThat("'Page 3 of 12'", width(3, 12), is(65));
+            assertThat("'Page 1234 of 5678'", width(1234, 5678), is(95));
+            assertThat("'Page 1234 of 5678' where the default locale writes Thai digits", underThaiDigitsWidth, is(95));
+            assertThat("pixels the Thai-digit locale changes", differing(underThaiDigits, asWritten), is(0));
+            assertThat("a count of 0", width(1, 0), is(59));
+            assertThat("pixels 'Page 1 of 1' differs on from the client's text",
+                differing(drawn(TextPalette.VANILLA, 1, 1), clientsLine("Page 1 of 1", 59)), is(0));
+            assertThat("pixels page 1 of a count of 0 differs on from the client's 'Page 1 of 1'",
+                differing(drawn(TextPalette.VANILLA, 1, 0), clientsLine("Page 1 of 1", 59)), is(0));
+            assertThat("pixels page 3 of a count of 2 differs on from the client's 'Page 3 of 2'",
+                differing(drawn(TextPalette.VANILLA, 3, 2), clientsLine("Page 3 of 2", 59)), is(0));
+        }
+
     }
 
     /**

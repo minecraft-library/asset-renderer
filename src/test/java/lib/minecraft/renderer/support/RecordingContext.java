@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -22,10 +23,10 @@ import java.util.Optional;
  * recording on the way; it sees only what reaches it, so a lookup the wrapped context answers by calling
  * itself goes unrecorded.
  * <p>
- * Every {@link #resolveTexture} call is recorded in order on {@link #getResolved()}, which is what makes a
- * kit's resolution order and per-layer id selection observable, and {@link #isArmorOverrideConsulted()}
- * separates an armour override lookup that answered {@link CitResult#NONE} from one that was never made at
- * all.
+ * Every texture read - {@link #resolveTexture} and {@link #resolvePlainTexture} alike - is recorded in
+ * order on {@link #getResolved()}, which is what makes a kit's resolution order and per-layer id selection
+ * observable, and {@link #isArmorOverrideConsulted()} separates an armour override lookup that answered
+ * {@link CitResult#NONE} from one that was never made at all.
  * <p>
  * The equipment and armour-override answers are for a kit test that needs a lookup the builder does not
  * serve: {@link #answeringEquipment} fixes what every equipment lookup answers and
@@ -37,7 +38,7 @@ public final class RecordingContext implements RendererContext.Forwarding {
     /** the context every lookup forwards to */
     private final @NotNull RendererContext delegate;
 
-    /** every texture id {@link #resolveTexture} has been asked for, in call order */
+    /** every texture id either read has been asked for, in call order */
     @Getter private final @NotNull List<String> resolved = new ArrayList<>();
 
     /** whether {@link #resolveArmorTextureOverride} has been reached, however it answered */
@@ -112,6 +113,13 @@ public final class RecordingContext implements RendererContext.Forwarding {
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
         this.resolved.add(textureId);
         return this.delegate.resolveTexture(textureId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+        this.resolved.add(textureId);
+        return this.delegate.resolvePlainTexture(textureId);
     }
 
 }

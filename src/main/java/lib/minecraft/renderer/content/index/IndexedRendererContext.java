@@ -46,6 +46,7 @@ import lib.minecraft.renderer.content.table.BlockItemsLoader;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Parity;
@@ -70,10 +71,11 @@ import java.util.stream.Stream;
  * eagerly-materialised index, built once at bootstrap from the extracted {@link ClientAssets} by
  * {@link #load(ClientAssets)}.
  * <p>
- * Warm-path lookups are pure map accesses; texture pixels stay on disk until the first
- * {@link #resolveTexture(String)} call, which decodes and memoises them through the
- * {@link PackStack#pixels(ResourceId) pack stack}'s own cache. This type only wraps the finished,
- * unmodifiable indexes and the resolved {@link PackStack}, and serves lookups.
+ * Warm-path lookups are pure map accesses; texture pixels stay on disk until a texture is first read, as
+ * an atlas sprite by {@link #resolveTexture(String)} or as a plain texture by
+ * {@link #resolvePlainTexture(String)}, which decodes and memoises them through the
+ * {@link PackStack pack stack}'s own caches, one a read. This type only wraps the finished, unmodifiable
+ * indexes and the resolved {@link PackStack}, and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by the colormap and
  * block-tint tables; the decoded-pixel cache lives on the {@link PackStack}, so this holds only
@@ -126,7 +128,8 @@ public final class IndexedRendererContext implements RendererContext {
      * point, which {@link RendererContext#load(ClientAssets)} opens. Compiles the pack stack
      * ({@link PackAcquisition#acquire}), loads its colormaps, resolves every model, runs every domain
      * loader, and materialises the block / item / entity indexes eagerly so each {@code findX} lookup is
-     * a pure map access. Textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * a pure map access. Textures stay on disk until each is first read, as an atlas sprite by
+     * {@link #resolveTexture(String)} or as a plain texture by {@link #resolvePlainTexture(String)}.
      * <p>
      * The colormaps load first, because a stack that cannot supply one is not built at all. Where the
      * assets select packs above vanilla, the failure is logged once - naming the colormap, its cause and
@@ -244,13 +247,13 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, and an id an atlas stitches as a sprite
-     * reads the texture the sprite was stitched from. Returns the memoised buffer on a cache hit;
-     * otherwise resolves the texture through the pack stack (namespace-first dispatch then the winning
-     * pack's root walk), decodes it once, and caches it - a file that does not decode, whose sidecar does
-     * not parse or carries an animation or texture section the client's codec refuses, or whose
-     * animation's frame size does not divide it is remembered as empty. Only an id the stack does not
-     * serve consults the paletted-permutation registry, so a file a pack ships shadows a permutation under
-     * the same id even when the texture cannot be read.
+     * reads the texture the sprite was stitched from, as the client's sprite loader reads it. Returns the
+     * memoised buffer on a cache hit; otherwise resolves the texture through the pack stack
+     * (namespace-first dispatch then the winning pack's root walk), decodes it once, and caches it - a
+     * file that does not decode, whose sidecar does not parse or carries an animation or texture section
+     * the client's codec refuses, or whose animation's frame size does not divide it is remembered as
+     * empty. Only an id the stack does not serve consults the paletted-permutation registry, so a file a
+     * pack ships shadows a permutation under the same id even when the texture cannot be read.
      */
     @Override
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
@@ -260,6 +263,20 @@ public final class IndexedRendererContext implements RendererContext {
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
         // this orAbsent never fires - byte-neutral.
         return this.stack.pixels(id).orAbsent(() -> this.synthesizer.synthesize(id, this::resolveTexture));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first, and the id is read as the file it names:
+     * no atlas sprite redirects it and no paletted permutation answers it, the client's texture manager
+     * consulting neither. The pack stack resolves the file as {@link #resolveTexture(String)} resolves it,
+     * decodes it once into the plain read's own cache, and reads its sampler off the same file's texture
+     * section.
+     */
+    @Override
+    public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+        return this.stack.plainTexture(ResourceId.parse(textureId));
     }
 
     /** {@inheritDoc} */

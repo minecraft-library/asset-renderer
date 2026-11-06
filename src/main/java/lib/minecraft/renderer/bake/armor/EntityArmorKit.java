@@ -12,6 +12,7 @@ import lib.minecraft.renderer.call.request.ArmorPiece;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -100,7 +101,8 @@ public class EntityArmorKit {
      * orthographic fit sizes from measured bounds rather than from the rendered triangles, so a shell
      * nobody measured crops at the canvas edge.
      *
-     * <p>Measured per equipped slot through that slot's own composited sheet, the same alpha-tight
+     * <p>Measured per equipped slot through that slot's own composited sheet, read nearest as the
+     * shell's crops read it, the same alpha-tight
      * walk an equipment overlay gets, over the very parts and deformations
      * {@link #buildEntityArmor3D} will draw. Empty when nothing is equipped, so an unarmored render
      * is untouched.
@@ -131,7 +133,7 @@ public class EntityArmorKit {
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, walk, slot),
-                screenTransform, modelScale, sheet.get());
+                screenTransform, modelScale, SampledTexture.of(sheet.get()));
             union = union == null ? slotBounds : union.union(slotBounds);
         }
         return Optional.ofNullable(union);

@@ -72,6 +72,9 @@
     "sweep.block": [
       "lib/minecraft/renderer/sweep/BlockParitySweep"
     ],
+    "sweep.book": [
+      "lib/minecraft/renderer/sweep/BookParitySweep"
+    ],
     "sweep.entity": [
       "lib/minecraft/renderer/sweep/EntityParitySweep"
     ],
@@ -340,6 +343,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PlainBlockEntityTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlainItemIconTest": {
       "artifacts": [],
       "source": "derived"
@@ -398,6 +405,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -421,6 +429,7 @@
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -754,6 +763,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -787,6 +797,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -816,6 +827,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -868,6 +880,7 @@
         "manifest.dump.vanilla",
         "manifest.visual",
         "sweep.block",
+        "sweep.book",
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
@@ -1006,6 +1019,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1029,6 +1043,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1052,6 +1067,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1120,6 +1136,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1143,6 +1160,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1166,6 +1184,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1207,6 +1226,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1234,6 +1254,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1257,6 +1278,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1280,6 +1302,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1303,6 +1326,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1330,6 +1354,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -1753,6 +1778,7 @@
       "artifacts": [
         "manifest.visual",
         "sweep.block",
+        "sweep.book",
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
@@ -1800,6 +1826,7 @@
     "lib/minecraft/renderer/bake/gui/NineSliceKit": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.menu",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
@@ -1836,6 +1863,7 @@
       "artifacts": [
         "manifest.visual",
         "sweep.block",
+        "sweep.book",
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
@@ -1851,6 +1879,7 @@
     "lib/minecraft/renderer/bake/gui/TooltipChrome": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -2347,6 +2376,7 @@
     "lib/minecraft/renderer/call/request/ChromeStyle": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -2403,6 +2433,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2529,6 +2560,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2554,6 +2586,7 @@
     "lib/minecraft/renderer/call/request/TextOptions": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -2608,6 +2641,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2633,6 +2667,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2662,6 +2697,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2760,6 +2796,7 @@
     "lib/minecraft/renderer/call/slot/TextSlot": {
       "artifacts": [
         "manifest.visual",
+        "sweep.book",
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
@@ -2781,6 +2818,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2809,6 +2847,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2837,6 +2876,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2875,6 +2915,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2903,6 +2944,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2931,6 +2973,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -2963,6 +3006,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -3176,6 +3220,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -3193,6 +3238,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/IndexedRendererContextItemOverrideTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextPlainLoadTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -3239,6 +3288,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -3266,6 +3316,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4006,6 +4057,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4430,6 +4482,66 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/draw/SampledTexture": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.book",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/draw/Sampler": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.book",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/draw/SamplerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/draw/SurfaceTraits": {
       "artifacts": [
         "manifest.fluid",
@@ -4518,6 +4630,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4550,6 +4663,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4578,6 +4692,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4660,6 +4775,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4903,6 +5019,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4926,6 +5043,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4949,6 +5067,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -4976,6 +5095,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -5635,6 +5755,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -5693,6 +5814,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -5728,6 +5850,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -5757,6 +5880,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -5786,6 +5910,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -6000,6 +6125,7 @@
         "manifest.player-raw",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -6091,6 +6217,16 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/BookParitySweep": {
+      "artifacts": [
+        "sweep.book"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/BookParitySweepTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/EntityAnimationParitySweep": {
       "artifacts": [
         "sweep.entity-animation",
@@ -6146,6 +6282,7 @@
         "manifest.player-raw",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -6178,6 +6315,7 @@
         "manifest.player-raw",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -6199,6 +6337,7 @@
         "manifest.player-raw",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -7361,6 +7500,7 @@
         "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -7698,6 +7838,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",
@@ -7728,6 +7869,7 @@
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
+        "sweep.book",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.entity-walk",

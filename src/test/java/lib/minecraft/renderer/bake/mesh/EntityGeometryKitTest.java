@@ -22,6 +22,8 @@ import lib.minecraft.renderer.content.index.StripMemo;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.StripFit;
@@ -56,6 +58,7 @@ import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -144,6 +147,9 @@ class EntityGeometryKitTest {
 
     /** A child turn on all three axes, under which the two readings of a normal round apart. */
     private static final EulerRotation ANY_TURN = new EulerRotation(30f, 20f, 10f);
+
+    /** A linear sampler that repeats. */
+    private static final Sampler LINEAR_REPEAT = new Sampler(Sampler.FilterMode.LINEAR, Sampler.AddressMode.REPEAT);
 
     /** The default pass through one frame instance, so every build a shared table sees can hit it. */
     private static final EntityGeometryKit.EntityBuildParams DEFAULT_PASS = new EntityGeometryKit.EntityBuildParams(
@@ -309,11 +315,11 @@ class EntityGeometryKitTest {
         PixelBuffer shallow = uvTexture(32);
         PixelBuffer deep = uvTexture(64);
 
-        List<VisibleTriangle> first = collect(EntityGeometryKit.buildTriangles(mesh, shallow));
-        List<VisibleTriangle> second = collect(EntityGeometryKit.buildTriangles(mesh, deep));
+        List<VisibleTriangle> first = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(shallow)));
+        List<VisibleTriangle> second = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(deep)));
 
-        assertThat("the 64x32 draw", first, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), shallow))));
-        assertThat("the 64x64 draw", second, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), deep))));
+        assertThat("the 64x32 draw", first, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), SampledTexture.of(shallow)))));
+        assertThat("the 64x64 draw", second, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), SampledTexture.of(deep)))));
         assertPolygonUvs(mesh, first, 64f, 32f);
         assertPolygonUvs(mesh, second, 64f, 64f);
         assertThat("the two sheets sample different coordinates", uvs(first), not(equalTo(uvs(second))));
@@ -335,7 +341,7 @@ class EntityGeometryKitTest {
         bones.put("limb", uvBone(Vector3f.ZERO, cube));
         EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
 
-        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()));
+        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite())));
 
         assertPolygonUvs(mesh, triangles, 64f, 64f);
         Unwrap.Atlas atlas = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror());
@@ -547,9 +553,123 @@ class EntityGeometryKitTest {
         PixelBuffer diagonal = PixelBuffer.ofStraight(pixels, 64, 64);
         Matrix4f onItsCorner = Matrix4f.IDENTITY.rotateZ((float) Math.toRadians(45d));
 
-        Box textured = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, diagonal);
+        Box textured = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, SampledTexture.of(diagonal));
         Box corners = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, null);
         assertBoxEquals("the sub-rectangle walk against the full corners", textured, corners, 1e-4f);
+    }
+
+    /**
+     * Pins that a face read linearly is measured by the filter's reach. The fixture is the 8x8 plane whose
+     * front face holds one opaque texel, at {@code (3, 3)} of its box: read nearest it measures that texel, one
+     * model unit a side; read linearly the filter spills half a texel past each of its edges, so the bounds grow
+     * by half a unit every way.
+     */
+    @Test
+    @DisplayName("a face read linearly is measured by the filter's reach, half a texel past its opaque texels")
+    void aLinearFaceIsMeasuredByTheFiltersReach() {
+        EntityMesh mesh = plane();
+        int[] pixels = new int[64 * 64];
+        pixels[3 * 64 + 3] = 0xFFFFFFFF;
+        PixelBuffer one = PixelBuffer.ofStraight(pixels, 64, 64);
+
+        Box nearest = EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, SampledTexture.of(one));
+        Box linear = EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, new SampledTexture(one, LINEAR_REPEAT));
+        assertThat("the nearest bounds, one texel", (double) (nearest.maxX() - nearest.minX()), closeTo(1.0, 1e-4));
+        assertBoxEquals("the linear bounds against the nearest grown by half a texel", linear,
+            new Box(nearest.minX() - 0.5f, nearest.minY() - 0.5f, nearest.minZ(),
+                nearest.maxX() + 0.5f, nearest.maxY() + 0.5f, nearest.maxZ()), 1e-4f);
+    }
+
+    /**
+     * Pins that a face read linearly draws where a texel one past its UV box is opaque. The fixture is the 8x8
+     * plane, clear under both faces' boxes, with one opaque texel just below the front face's box, at
+     * {@code (3, 8)}: read nearest nothing is measured; read linearly the front face draws a sliver half a texel
+     * tall along that edge, two texels wide.
+     */
+    @Test
+    @DisplayName("a clear face beside an opaque texel past its UV box draws a sliver under a linear sampler and nothing under a nearest one")
+    void aClearFaceBesideAnOpaqueTexelDrawsUnderALinearSampler() {
+        EntityMesh mesh = plane();
+        int[] pixels = new int[64 * 64];
+        pixels[8 * 64 + 3] = 0xFFFFFFFF;
+        PixelBuffer beside = PixelBuffer.ofStraight(pixels, 64, 64);
+
+        Box nearest = EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, SampledTexture.of(beside));
+        Box linear = EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, new SampledTexture(beside, LINEAR_REPEAT));
+        assertBoxEquals("nothing measured nearest", nearest, new Box(0f, 0f, 0f, 0f, 0f, 0f), 1e-6f);
+        assertThat("the sliver's width", (double) (linear.maxX() - linear.minX()), closeTo(2.0, 1e-4));
+        assertThat("the sliver's height", (double) (linear.maxY() - linear.minY()), closeTo(0.5, 1e-4));
+    }
+
+    /**
+     * Pins that a face read linearly is measured only by the texels whose reach meets its UV box. The fixture is
+     * a 7x7 plane, declared on a 64-texel sheet and handed a 48-texel texture, so both faces' boxes end at texel
+     * 5.25 on the vertical axis, and one opaque texel at {@code (2, 6)}: the filter reads texel 6 over
+     * {@code (5.5, 7.5)}, which never meets the box, so neither face measures it under either sampler.
+     */
+    @Test
+    @DisplayName("a face read linearly on an edge that is not a whole texel measures no texel whose reach falls short of its UV box")
+    void aLinearFaceMeasuresNoTexelWhoseReachFallsShortOfItsBox() {
+        EntityMesh mesh = plane(7);
+        int[] pixels = new int[48 * 48];
+        pixels[6 * 48 + 2] = 0xFFFFFFFF;
+        PixelBuffer beyond = PixelBuffer.ofStraight(pixels, 48, 48);
+
+        Box nothing = new Box(0f, 0f, 0f, 0f, 0f, 0f);
+        assertBoxEquals("nothing measured nearest",
+            EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, SampledTexture.of(beyond)), nothing, 1e-6f);
+        assertBoxEquals("nothing measured linearly",
+            EntityGeometryKit.computeScreenBounds(mesh, Matrix4f.IDENTITY, 1f, new SampledTexture(beyond, LINEAR_REPEAT)),
+            nothing, 1e-6f);
+    }
+
+    /**
+     * Pins that a sampler leaves a cube's pass as its texels decide it. The fixture is the 8x8 plane, opaque but for
+     * one clear texel inside its front face's box: a linear filter blends the two into partial alpha between them,
+     * but the client picks a pass by its render type, and a cutout one writes that fringe in submission order,
+     * unsorted - so the plane is no translucent shell under either sampler.
+     */
+    @Test
+    @DisplayName("a cutout cube read linearly is no translucent shell: a filter's fringe leaves its pass unsorted")
+    void aCutoutCubeReadLinearlyIsNoTranslucentShell() {
+        PixelBuffer holed = filled(0xFFFFFFFF, 64);
+        holed.setPixel(3, 3, 0x00000000);
+
+        for (SampledTexture texture : List.of(SampledTexture.of(holed), new SampledTexture(holed, LINEAR_REPEAT))) {
+            List<VisibleTriangle> built = collect(EntityGeometryKit.buildTriangles(plane(), texture));
+            assertThat(texture.sampler() + ": the plane draws", built.isEmpty(), equalTo(false));
+            for (VisibleTriangle triangle : built)
+                assertThat(texture.sampler() + ": " + triangle.debugTag() + " is no translucent shell",
+                    triangle.traits().translucent(), equalTo(false));
+        }
+    }
+
+    /**
+     * Builds the 8x8 plane the linear bounds cases measure: one cube of no depth about the origin, its front
+     * face's box texels 0 to 7 on both axes and its back face's 8 to 15 across.
+     *
+     * @return the mesh
+     */
+    private static EntityMesh plane() {
+        return plane(8);
+    }
+
+    /**
+     * Builds a square plane of no depth about the origin on the default 64-texel sheet, its front face's box texels
+     * 0 to {@code size} on both axes and its back face's {@code size} to {@code 2 * size} across.
+     *
+     * @param size the plane's width and height
+     * @return the mesh
+     */
+    private static EntityMesh plane(int size) {
+        EntityMesh.Cube plane = new EntityMesh.Cube(
+            new Vector3f(-size / 2f, -size / 2f, 0f), new Vector3f(size, size, 0f), Vector2f.ZERO,
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+        ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
+        cubes.add(plane);
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null));
+        return new EntityMesh(TextureSize.DEFAULT, bones, false);
     }
 
     // --- the carried-block anchor ---
@@ -717,7 +837,7 @@ class EntityGeometryKitTest {
                     expected.add(bone + ":" + direction);
                 }
 
-        assertThat(tags(collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()))), equalTo(expected));
+        assertThat(tags(collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite())))), equalTo(expected));
     }
 
     /**
@@ -745,7 +865,7 @@ class EntityGeometryKitTest {
             for (Map.Entry<String, PixelBuffer> sheet : sheets.entrySet()) {
                 String where = (cull ? "a mesh declaring cull" : "a mesh declaring none") + " over " + sheet.getKey();
                 List<VisibleTriangle> alone = freshPass(mesh, sheet.getValue(), DEFAULT_PASS);
-                List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, sheet.getValue(), DEFAULT_PASS, table));
+                List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(sheet.getValue()), DEFAULT_PASS, table));
                 for (List<VisibleTriangle> built : List.of(alone, shared)) {
                     assertThat(where + ": every face the bone owes", built.size(), equalTo(12 + 12 + 4));
                     for (VisibleTriangle triangle : built) {
@@ -794,7 +914,7 @@ class EntityGeometryKitTest {
         FitFrame frame = new FitFrame(Vector3f.ZERO, 1f, 1f);
         PixelBuffer texture = halves(0xFFFFFFFF, 0x80FFFFFF);
         for (PassDeclaration pass : List.of(PassDeclaration.DEFAULT, emissive, PassDeclaration.DEFAULT)) {
-            List<VisibleTriangle> built = collect(EntityGeometryKit.buildTriangles(mesh, texture,
+            List<VisibleTriangle> built = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(texture),
                 new EntityGeometryKit.EntityBuildParams(frame, pass, ColorMath.WHITE)));
             assertThat("both cubes draw all six faces", built.size(), equalTo(24));
             for (VisibleTriangle triangle : built)
@@ -845,7 +965,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(8f)));
         ConcurrentList<VisibleTriangle> second = EntityGeometryKit.buildTriangles(
-            new EntityMesh(TextureSize.DEFAULT, bones, false), solidWhite()).triangles();
+            new EntityMesh(TextureSize.DEFAULT, bones, false), SampledTexture.of(solidWhite())).triangles();
 
         assertThat("the second build's list", second, not(sameInstance(first)));
         assertThat("the second build draws another mesh", second.size(), not(equalTo(size)));
@@ -854,9 +974,9 @@ class EntityGeometryKitTest {
 
         EntityMesh mesh = carrier(true);
         Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
-        ConcurrentList<VisibleTriangle> recorded = EntityGeometryKit.buildTriangles(mesh, solidWhite(), DEFAULT_PASS, table)
+        ConcurrentList<VisibleTriangle> recorded = EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite()), DEFAULT_PASS, table)
             .triangles();
-        ConcurrentList<VisibleTriangle> replayed = EntityGeometryKit.buildTriangles(mesh, solidWhite(), DEFAULT_PASS, table)
+        ConcurrentList<VisibleTriangle> replayed = EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite()), DEFAULT_PASS, table)
             .triangles();
         assertThat("the replay reads the held corners",
             replayed.getFirst().position0(), sameInstance(recorded.getFirst().position0()));
@@ -901,7 +1021,7 @@ class EntityGeometryKitTest {
             for (Map.Entry<String, PixelBuffer> texture : textures.entrySet()) {
                 String where = mesh.getKey() + " through the " + texture.getKey() + " texture";
                 ConcurrentList<VisibleTriangle> kit = EntityGeometryKit.buildTriangles(
-                    mesh.getValue(), texture.getValue(), WALK_PARAMS).triangles();
+                    mesh.getValue(), SampledTexture.of(texture.getValue()), WALK_PARAMS).triangles();
                 assertEqualTriangles(where, kit, lockedWalk(mesh.getValue(), texture.getValue(), WALK_PARAMS));
                 compared += kit.size();
             }
@@ -1151,7 +1271,7 @@ class EntityGeometryKitTest {
     }
 
     /**
-     * A frozen copy of {@link EntityGeometryKit#buildTriangles(EntityMesh, PixelBuffer, EntityGeometryKit.EntityBuildParams)}
+     * A frozen copy of {@link EntityGeometryKit#buildTriangles(EntityMesh, SampledTexture, EntityGeometryKit.EntityBuildParams)}
      * filling a locked {@link Concurrent#newList() concurrent list} one add at a time, with the quad split
      * and the cull and translucency choices copied beside it - the reference the kit's own build is held
      * to.
@@ -1204,9 +1324,9 @@ class EntityGeometryKitTest {
                     String debugTag = boneName + ":" + face.direction();
                     SurfaceTraits traits = new SurfaceTraits(cull, translucent, false, true, pass);
                     triangles.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2],
-                        texture, tintArgb, normal, Shading.UNLIT, traits, debugTag));
+                        SampledTexture.of(texture), tintArgb, normal, Shading.UNLIT, traits, debugTag));
                     triangles.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3],
-                        texture, tintArgb, normal, Shading.UNLIT, traits, debugTag));
+                        SampledTexture.of(texture), tintArgb, normal, Shading.UNLIT, traits, debugTag));
                 });
             }
         }
@@ -1271,7 +1391,7 @@ class EntityGeometryKitTest {
      * triangles carrying {@code first} and the second's carrying {@code second}.
      */
     private static void assertTraitsPerCube(EntityMesh mesh, PixelBuffer texture, SurfaceTraits first, SurfaceTraits second) {
-        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, texture));
+        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(texture)));
         assertThat("both cubes draw all six faces", triangles.size(), equalTo(24));
         for (int i = 0; i < triangles.size(); i++)
             assertThat("traits of triangle " + i, triangles.get(i).traits(), equalTo(i < 12 ? first : second));
@@ -1381,7 +1501,7 @@ class EntityGeometryKitTest {
      */
     private static Map<String, Vector3f> storedNormals(EntityMesh mesh) {
         Map<String, Vector3f> normals = new HashMap<>();
-        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, solidWhite())))
+        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite()))))
             normals.put(tri.debugTag(), tri.normal());
         return normals;
     }
@@ -1394,7 +1514,7 @@ class EntityGeometryKitTest {
     private static void assertChainTurnBitForBit(EntityMesh mesh) {
         Matrix4f chain = BoneKit.buildChainTransform(mesh.getBones(), "mouth");
         int checked = 0;
-        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()))) {
+        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(solidWhite())))) {
             Face face = Face.fromName(tri.debugTag().substring("mouth:".length()));
             assertSameBits(tri.debugTag(), tri.normal(), face.normal().transformNormal(chain).normalize());
             checked++;
@@ -1466,7 +1586,7 @@ class EntityGeometryKitTest {
     private static EntityGeometryKit.BuildResult buildSingleCube() {
         ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", cubeBone(cube(new Vector3f(-1f, -1f, -1f), new Vector3f(2f, 2f, 2f), Vector2f.ZERO)));
-        return EntityGeometryKit.buildTriangles(new EntityMesh(TextureSize.DEFAULT, bones, false), solidWhite());
+        return EntityGeometryKit.buildTriangles(new EntityMesh(TextureSize.DEFAULT, bones, false), SampledTexture.of(solidWhite()));
     }
 
     /**
@@ -1672,7 +1792,7 @@ class EntityGeometryKitTest {
     /** The triangles one pass builds alone, sharing nothing. */
     private static List<VisibleTriangle> freshPass(
         EntityMesh mesh, PixelBuffer texture, EntityGeometryKit.EntityBuildParams params) {
-        return collect(EntityGeometryKit.buildTriangles(mesh, texture, params));
+        return collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(texture), params));
     }
 
     /**
@@ -1682,7 +1802,7 @@ class EntityGeometryKitTest {
     private static List<VisibleTriangle> assertSharedMatchesFresh(
         String label, EntityMesh mesh, PixelBuffer texture, EntityGeometryKit.EntityBuildParams params,
         Map<EntityMesh, Object> table) {
-        List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, texture, params, table));
+        List<VisibleTriangle> shared = collect(EntityGeometryKit.buildTriangles(mesh, SampledTexture.of(texture), params, table));
         assertSameTriangles(label, shared, freshPass(mesh, texture, params));
         return shared;
     }
@@ -1705,7 +1825,7 @@ class EntityGeometryKitTest {
             assertSameBits(at + " uv1", a.uv1(), e.uv1());
             assertSameBits(at + " uv2", a.uv2(), e.uv2());
             assertSameBits(at + " normal", a.normal(), e.normal());
-            assertThat(at + " texture", a.texture(), sameInstance(e.texture()));
+            assertThat(at + " texture", a.texture().pixels(), sameInstance(e.texture().pixels()));
             assertThat(at + " tint", a.tintArgb(), equalTo(e.tintArgb()));
             assertThat(at + " shading", Float.floatToIntBits(a.shading()), equalTo(Float.floatToIntBits(e.shading())));
             assertThat(at + " traits", a.traits(), equalTo(e.traits()));
@@ -1790,10 +1910,10 @@ class EntityGeometryKitTest {
         bones.put("body", cubeBone(unitCubeAt(0f)));
         EntityMesh culling = new EntityMesh(TextureSize.DEFAULT, bones, true);
         ConcurrentList<VisibleTriangle> asFolded = Shading.relightForEntityInUi(
-            EntityGeometryKit.buildTriangles(culling, solidWhite()).triangles(),
+            EntityGeometryKit.buildTriangles(culling, SampledTexture.of(solidWhite())).triangles(),
             LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Y);
         ConcurrentList<VisibleTriangle> asPlayer = Shading.relightForEntityInUi(
-            EntityGeometryKit.buildTriangles(culling, solidWhite()).triangles(),
+            EntityGeometryKit.buildTriangles(culling, SampledTexture.of(solidWhite())).triangles(),
             LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Z);
 
         // The two turns are one HALF_X apart, so a cube lit through the wrong one shades its Y and Z

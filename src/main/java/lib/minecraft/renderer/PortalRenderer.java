@@ -12,6 +12,7 @@ import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
@@ -247,16 +248,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * One of the shader's source textures, read through the context's
-     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies or
-     * one that cannot be read is the checkerboard the shader samples in its place.
+     * One of the shader's source textures, read as the client's end portal binds it, a plain texture,
+     * through the context's {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no
+     * pack supplies or one that cannot be read is the checkerboard the shader samples in its place.
      *
      * @param context the context the texture resolves through
      * @param textureId the namespaced texture id
-     * @return the texture
+     * @return the texture and the sampler the shader reads it through
      */
-    private static @NotNull PixelBuffer sourceTexture(@NotNull RendererContext context, @NotNull String textureId) {
-        return context.withMissingTexture().resolveTexture(textureId).get();
+    private static @NotNull SampledTexture sourceTexture(@NotNull RendererContext context, @NotNull String textureId) {
+        return context.withMissingTexture().resolvePlainTexture(textureId).get();
     }
 
     /**
@@ -291,15 +292,15 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * per-frame callback, leaving that callback holding only the parallax bake - the sole reader
          * of the tick.
          *
-         * @param endSky {@code Sampler0} - {@code environment/end_sky}
-         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}
+         * @param endSky {@code Sampler0} - {@code environment/end_sky}, with its sampler
+         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}, with its sampler
          * @param shadingMask the cube or slab rasterized from a uniform-white texture at the
          *     resolution each frame is drawn at, whose red channel is the per-face shading
          *     coefficient {@code * 255} and whose alpha marks the pixels the portal covers
          */
         private record Scene(
-            @NotNull PixelBuffer endSky,
-            @NotNull PixelBuffer endPortalNoise,
+            @NotNull SampledTexture endSky,
+            @NotNull SampledTexture endPortalNoise,
             @NotNull PixelBuffer shadingMask
         ) {
 
@@ -326,8 +327,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 PixelBuffer white = PixelBuffer.straight(1, 1);
                 white.setPixel(0, 0, ColorMath.WHITE);
 
-                PixelBuffer endSky = sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID);
-                PixelBuffer endPortalNoise = sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID);
+                SampledTexture endSky = sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID);
+                SampledTexture endPortalNoise = sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID);
                 ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), FaceTextures.uniform(white));
 
                 int raster = options.getOutput().getCanvasSize() * Math.max(1, options.getOutput().getSupersample());
@@ -445,10 +446,10 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          * source textures, neither a function of the tick. Resolved once in {@link #draw} and
          * captured by the per-frame callback, leaving that callback holding only the parallax bake.
          *
-         * @param endSky {@code Sampler0} - {@code environment/end_sky}
-         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}
+         * @param endSky {@code Sampler0} - {@code environment/end_sky}, with its sampler
+         * @param endPortalNoise {@code Sampler1} - {@code entity/end_portal/end_portal}, with its sampler
          */
-        private record Scene(@NotNull PixelBuffer endSky, @NotNull PixelBuffer endPortalNoise) {
+        private record Scene(@NotNull SampledTexture endSky, @NotNull SampledTexture endPortalNoise) {
 
             /**
              * Resolves the scene every frame of one render draws from.

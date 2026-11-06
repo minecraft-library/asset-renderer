@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity sweeps diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. The sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, **container screens**, **tooltips**, **animated entities**, and **walking entities**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
+Single-purpose headless Fabric mod that drives the real MC client to produce the byte-stable ground-truth PNGs [asset-renderer]'s parity sweeps diff against - this mod lives inside that repo, at `harness/`, and stays its own Gradle build. The sweeps: **blocks** (true 3D, not item icons), **entities**, **non-block items** (GUI icons), the **player**, **armored mobs**, **animated glint**, **container screens**, **tooltips**, **books**, **animated entities**, and **walking entities**. **README is the user-facing reference** (architecture, mixin catalog, family map, configuration); this file is the session-refresh / contributor's quick reference.
 
 **The last two lift the freeze every other sweep is defined by, and all of them share one boot.** **The
 order is load-bearing**: `HarnessMode.resolve` sorts `BIND` before `IDLE` before `WALK`, because a
@@ -18,8 +18,8 @@ before you touch it. The renderer's side of every contract below is routed from
 |---|---|
 | A run mode - full, glint, animated, walk, armour - and the output tree; a run that hangs with no output or halts with exit 4 | [Running](../docs/harness/Running.md) |
 | The probes and the pack-tooltip run - `TexCoordProbeMixin`, `TexCoordProbeBlendMixin`, `SelectHarnessPacksMixin`, `PackSourceSweep`, `PackIconSweep` and `TooltipRenderUtilAccessor` | [Probes](../docs/harness/Probes.md) |
-| `HarnessMode`, `api.Sweep` and `SweepRunner`, `PipTarget`, the pacing, the posed sub-trees | [SweepArchitecture](../docs/harness/SweepArchitecture.md) |
-| `GuiFrameRenderer`, `MenuSweep`, `TooltipSweep`, the capture's three mixins, and capturing a GUI | [GuiCapture](../docs/harness/GuiCapture.md) |
+| `HarnessMode`, `RefHarnessRenderer`, `api.Sweep` and `SweepRunner`, `PipTarget`, the pacing, the posed sub-trees, what a run refuses before its first sweep | [SweepArchitecture](../docs/harness/SweepArchitecture.md) |
+| `GuiFrameRenderer`, `MenuSweep`, `TooltipSweep`, `BookSweep` and `BookViewScreenAccessor`, the capture's three mixins, and capturing a GUI | [GuiCapture](../docs/harness/GuiCapture.md) |
 | `BlockSweep`, `ItemSweep`, `GlintSweep`; the block-render mixins and when one may be deleted | [BlockPipeline](../docs/harness/BlockPipeline.md) |
 | Writing or gating an entity pin or freeze mixin - the extraction call chain, the randomization sources | [EntityPins](../docs/harness/EntityPins.md) |
 | What each existing entity pin, freeze and `*IdleMixin` does, and when one may be deleted | [PinCatalog](../docs/harness/PinCatalog.md) |
@@ -28,21 +28,21 @@ before you touch it. The renderer's side of every contract below is routed from
 ## Build / run
 
 - JDK 25 (Loom toolchain; `JAVA_25` mixin compat), Gradle 9.4.1, Fabric Loom 1.16.3, Fabric Loader 0.19.2, Fabric API 0.147.0+26.1.2, MC 26.1.2.
-- Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew renderVanillaAllReferences` from asset-renderer, which passes `-PrefharnessModes=EVERY,ANIMATION,WALK`. The narrow modes stay for scoped iteration; relying on them is what left stale ground truth on disk twice. `renderVanillaReferences` - mode `FULL` - is one of them: it leaves `glint/`, `armor/`, `menus/`, `tooltips/`, `idle/` and `walk/` alone. Every mode, what each writes and what the whole-tree boot was measured at are [Running](../docs/harness/Running.md).
+- Whole tree in one boot - **run this after any change to a frame renderer**: `./gradlew renderVanillaAllReferences` from asset-renderer, which passes `-PrefharnessModes=EVERY,ANIMATION,WALK`. The narrow modes stay for scoped iteration; relying on them is what left stale ground truth on disk twice. `renderVanillaReferences` - mode `FULL` - is one of them: it leaves `glint/`, `armor/`, `menus/`, `tooltips/`, `books/`, `idle/` and `walk/` alone. Every mode, what each writes and what the whole-tree boot was measured at are [Running](../docs/harness/Running.md).
 - World corruption from a hard JVM exit: `./gradlew resetRefharnessWorld`.
-- **Nothing in this build is under a test** - it has `main` and `client` source sets and no test one, so a change here is caught by the compiler or by an actual run and by nothing in between.
+- **Only what needs no running client is under a test.** The `test` source set compiles against the `client` one and holds the refusals the harness makes before a client draws - the run's check of the client's packs and text options, and the book roster's own reads; asset-renderer's `check` runs it through `harnessTest`, beside `harnessClasses`. Everything else - a sweep's drawing, a mixin, the world bootstrap and the watchdog - is caught by the compiler or by an actual run and by nothing in between.
 
 ## Adding a sweep
 
 Adding a subject is one `Sweep` in `sweep/`, optionally one `FrameRenderer` in `frame/`, and one row in `HarnessMode` - **including the `EVERY` arm**, which is the one that renders the whole tree. A narrowing mode is named through `-PrefharnessModes`, which `build.gradle.kts` already forwards, so it needs no line of its own there - **and a new mode takes no boolean property of its own**: a `-P` the build does not forward never becomes the system property `HarnessConfig` reads, so the task named for one sub-tree re-renders every other one instead and reports success.
 
-The `api.Sweep` contract it implements, the per-tick pacing, and why a frame renderer retires a
-replaced texture rather than closing it are
-[SweepArchitecture](../docs/harness/SweepArchitecture.md).
+The `api.Sweep` contract it implements, the per-tick pacing and why `PipTarget` retires a replaced
+texture rather than closing it are [SweepArchitecture](../docs/harness/SweepArchitecture.md); why the
+GUI capture destroys its own on the spot is [GuiCapture](../docs/harness/GuiCapture.md).
 
 ## Mixin convention
 
-Every mixin gates on `Boolean.getBoolean("refharness.headless")`. Loom run config sets the property to `true`; non-harness consumers of the jar get vanilla behaviour when it's unset.
+Every mixin that changes the client's behaviour gates on `Boolean.getBoolean("refharness.headless")`; an accessor or invoker interface opens a private member, changes nothing until the harness calls it, and has no body to gate. Loom run config sets the property to `true`; non-harness consumers of the jar get vanilla behaviour when it's unset.
 
 Pattern:
 ```java

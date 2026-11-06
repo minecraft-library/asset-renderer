@@ -28,10 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * at the frame's tick, so a walk that decides otherwise lists corners the frame never draws, and both
  * walks are held to the one switch that decides it.
  *
- * <p>Read out of the harness SOURCE as text. The harness is a separate Gradle build with no test
- * source set and nothing on this classpath, so its methods cannot be called from here. Comments and
- * string literals are blanked before anything is matched, so neither can supply a call the code
- * does not make.
+ * <p>Read out of the harness SOURCE as text. The harness is a separate Gradle build with nothing on
+ * this classpath, so its methods cannot be called from here; its own suite holds none of this
+ * contract. Comments and string literals are blanked before anything is matched, so neither can
+ * supply a call the code does not make.
  */
 @DisplayName("the harness triangle dump and bounds walk")
 class HarnessLayerLoopTest {

@@ -82,13 +82,13 @@ It does not judge pixels, re-derive a sum, or decide whether a mover is acceptab
 **The fast suite is a step of its own, before the commit.** A capture runs the test classes that
 write the self-captured rows - `parityPinTest`, the fast suite filtered to them - and no other test,
 so a green verdict says nothing about the rest of `src/test`. Once the verdict is in, run `test`, or
-`check`, which adds the toolkit's suite, the harness compile, the tooling suite and the reach check,
-and commit only on green; `references/procedures.md` spells the command, and `gradle-verify-gate`
-runs it. **A re-based pin is the one red a commit is taken over.** A pin writer asserts against the
-stored value, which only the promotion moves, so a pin the verdict found GREEN as a registered mover
-keeps its writer red until then - and the promotion needs the content committed first. Where that
-is every failure, commit, promote, run the suite again, and amend the promotion into the commit;
-`references/procedures.md` spells that too.
+`check`, which adds the toolkit's suite, the harness compile and the harness's own suite, the
+tooling suite and the reach check, and commit only on green; `references/procedures.md` spells the
+command, and `gradle-verify-gate` runs it. **A re-based pin is the one red a commit is taken
+over.** A pin writer asserts against the stored value, which only the promotion moves, so a pin the
+verdict found GREEN as a registered mover keeps its writer red until then - and the promotion needs
+the content committed first. Where that is every failure, commit, promote, run the suite again, and
+amend the promotion into the commit; `references/procedures.md` spells that too.
 
 The toolkit's own suite needs no step of its own in a gate that captures: `parityCapture` runs it
 behind its producers, and `parityCompare` and `parityPromote` refuse a capture another toolkit
@@ -204,7 +204,8 @@ whole cost. In the first two states, read the producer list instead.
 
 **A plan holding `manifest.references` says on its `REFERENCES` line what the capture does to the
 tree.** `boot` re-renders the whole tree in one client boot before hashing it, and is the answer
-whenever a harness rule or the tooltip roster selected the row. `roster` is the answer when every rule
+whenever a harness rule or one of the rosters the harness reads by path - the tooltip roster and the
+book roster - selected the row. `roster` is the answer when every rule
 that selected it reaches the tree through the entity schedule roster alone - the version pins, the
 roster's own inputs, or a derived rule's graph answer: the capture regenerates the roster, runs
 `parityScheduleCheck`, and boots the client wherever the check disagrees. It resolves the tree again

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -195,7 +196,8 @@ public class ArmorKit {
      *     {@link LayerType#HUMANOID_LEGGINGS})
      * @param item the equipped item identity, for the pack-rule override; empty leaves the layers on
      *     the equipment model
-     * @return the composited texture, or empty when the asset declares no layer that draws for the slot
+     * @return the composited texture's pixels, which every box crops its faces from, so no sampler of its
+     *     own is read; empty when the asset declares no layer that draws for the slot
      */
     static @NotNull Optional<PixelBuffer> resolveArmorTexture(
         @NotNull RendererContext context,
@@ -207,7 +209,7 @@ public class ArmorKit {
             .map(itemContext -> context.resolveArmorTextureOverride(piece.material(), layerType, itemContext))
             .orElse(CitResult.NONE);
         return EquipmentKit.composite(context, piece.material().assetId(), layerType,
-            piece.dyeColor(), cit, OptionalInt.empty());
+            piece.dyeColor(), cit, OptionalInt.empty()).map(SampledTexture::pixels);
     }
 
     /**

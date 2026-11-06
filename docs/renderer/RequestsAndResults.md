@@ -53,6 +53,14 @@ drawn and the child's own result. `Renderer` and the renderers sit in the root.
   and the grid's static sheet add it to what lies under it with `BlendMode.ADD`.
 - **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
   beside the `RendererContext` that carries it.
+- **A bag one renderer reads in several styles says which style reads what.** `TextOptions` carries a
+  tooltip's and chat text's `lines` and a book's `page`, and each style reads its own and ignores the
+  other's, as chat text ignores the tooltip's chrome, padding and alphas; each `TextOptions.Style`
+  constant's javadoc names what it reads and what it does not, and the `lines` and `page` fields name the
+  styles that read them. A book's page goes in whole, one text component with its section-sign codes
+  still in its text, because the client wraps a page before it reads its codes: lines read before the
+  wrap - `toLines`, `fromLegacy` - cannot be wrapped as the client wraps them, so the page is never
+  handed in as lines.
 
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
 side supplies it, and the pipeline reads it too, so it lives below `call/request` - a vanilla fact

@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;
 
@@ -120,6 +121,21 @@ public record Flipbook(
     public static @NotNull Possible<PixelBuffer> atTick(
         @NotNull Possible<PixelBuffer> strip, @NotNull Possible<Flipbook> flipbook, int tick) {
         return strip.map(pixels -> flipbook.map(table -> table.frameAt(pixels, tick)).orElse(pixels));
+    }
+
+    /**
+     * Answers the frame a texture read through a sampler displays at a tick: the frame
+     * {@link #atTick(Possible, Possible, int)} answers for its pixels, read through the same sampler.
+     * A texture with no playback table answers itself.
+     *
+     * @param texture the texture and the sampler it is read through
+     * @param flipbook the texture's playback table - empty when it plays nothing, absent when the
+     *     texture is not served; either reads as a still texture
+     * @param tick the animation tick (free-running, signed)
+     * @return the frame to draw at the tick, read through the texture's sampler
+     */
+    public static @NotNull SampledTexture atTick(@NotNull SampledTexture texture, @NotNull Possible<Flipbook> flipbook, int tick) {
+        return flipbook.map(table -> new SampledTexture(table.frameAt(texture.pixels(), tick), texture.sampler())).orElse(texture);
     }
 
     /**

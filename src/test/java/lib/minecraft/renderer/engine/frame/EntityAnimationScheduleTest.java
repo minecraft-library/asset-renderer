@@ -35,9 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the roster resolves through the one type a render resolves through, which is the type the reach graph
  * roots the reference tree at.
  *
- * <p>Read out of SOURCES as text. The harness is a separate Gradle build with no test source set and
- * nothing on this classpath, so its types cannot be referenced; and a mis-edit on either side shows
- * otherwise only as a refusal at a client boot or an exit of the visual sweep.
+ * <p>Read out of SOURCES as text. The harness is a separate Gradle build with nothing on this
+ * classpath, so its types cannot be referenced; its own suite holds none of this contract; and a
+ * mis-edit on either side shows otherwise only as a refusal at a client boot or an exit of the visual
+ * sweep.
  */
 @DisplayName("the animated sweep's schedule contract")
 class EntityAnimationScheduleTest {

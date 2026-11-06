@@ -8,16 +8,23 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelMask;
+import dev.simplified.util.Possible;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.fixture.TooltipFixtures;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -40,8 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * per frame, a static subject swaps to the glint's own {@link Timeline.FpsLoop}.
  * <p>
  * The stamp each frame takes is held byte for byte to a frozen copy of its per-pixel loop, which wraps
- * the sampler's four texels with {@code Math.floorMod} and rounds the fade inline. The shipped stamp
- * masks a power-of-two axis and reads its fade from a table, so the copy is compared over glint
+ * the sampler's four texels with {@code Math.floorMod} and rounds the fade inline. The shipped stamp's
+ * sampler masks a power-of-two axis, and the stamp reads its fade from a table, so the copy is compared
+ * over glint
  * textures of power-of-two, non-power-of-two and mixed sizes, at coordinates that wrap negative and
  * at a scale whose texel coordinate saturates. The copy also computes the rotated coordinate whole at
  * each pixel, where the shipped stamp tables its column products per call and its row products per
@@ -51,6 +59,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @DisplayName("GlintKit schedule bridge")
 class GlintKitScheduleTest {
+
+    /** Vanilla's glint sidecar, {@code {"texture":{"blur":true}}}. */
+    private static final @NotNull MCMeta GLINT_SIDECAR = new MCMeta(ResourceId.parse(GlintKit.ITEM_GLINT_TEXTURE_ID),
+        Optional.empty(), Possible.absent(), Possible.of(new MCMeta.TextureSampling(true, false,
+        MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f)), Possible.absent(), Optional.empty());
 
     /** Vanilla's default Glint Strength, as the frozen stamp fades by it. */
     private static final float FROZEN_GLINT_ALPHA = 0.75f;
@@ -159,7 +172,7 @@ class GlintKitScheduleTest {
     void nonAnimatingFoilStampsTheBakedFrame() {
         for (boolean masked : new boolean[]{ false, true }) {
             PixelBuffer frame = halfMasked(base(), masked);
-            PixelBuffer copied = GlintKit.applyGlintAtTimes(halfMasked(base(), masked), glintTexture(),
+            PixelBuffer copied = GlintKit.applyGlintAtTimes(halfMasked(base(), masked), vanillaGlint(glintTexture()),
                 new long[]{ 0L }, GlintKit.GlintOptions.itemDefault(30), null).getFirst();
 
             RasterPass.Finish.Result result = GlintKit.Foil.item(context(), true, false, 30)
@@ -184,7 +197,7 @@ class GlintKitScheduleTest {
         assertThat(frames.getFirst(), is(sameInstance(first)));
         assertThat(frames.getLast(), is(sameInstance(second)));
         for (int f = 0; f < 2; f++) {
-            PixelBuffer copied = GlintKit.applyGlintAtTimes(f == 0 ? halfMasked(base(), true) : base(), glintTexture(),
+            PixelBuffer copied = GlintKit.applyGlintAtTimes(f == 0 ? halfMasked(base(), true) : base(), vanillaGlint(glintTexture()),
                 new long[]{ GlintKit.glintTimeAt(timeline.millisAt(f)) }, GlintKit.GlintOptions.itemDefault(30), null).getFirst();
             assertThat("frame " + f, frames.get(f).data(), is(copied.data()));
             assertThat(frames.get(f).mask().isPresent(), is(false));
@@ -230,7 +243,7 @@ class GlintKitScheduleTest {
                     for (GlintKit.SpriteUv rect : rects) {
                         for (boolean masked : new boolean[]{ false, true }) {
                             PixelBuffer base = halfMasked(noisyBase(baseSize[0], baseSize[1]), masked);
-                            ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(base, glint, times, options, rect);
+                            ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(base, vanillaGlint(glint), times, options, rect);
                             assertThat(frames.size(), is(times.length));
 
                             for (int f = 0; f < times.length; f++) {
@@ -251,7 +264,7 @@ class GlintKitScheduleTest {
     @DisplayName("an empty glint texture fails in floorMod rather than masking as a power of two")
     void emptyGlintIsNoPowerOfTwo() {
         PixelBuffer empty = PixelBuffer.ofStraight(new int[0], 0, 4);
-        assertThrows(ArithmeticException.class, () -> GlintKit.applyGlintAtTimes(noisyBase(), empty,
+        assertThrows(ArithmeticException.class, () -> GlintKit.applyGlintAtTimes(noisyBase(), vanillaGlint(empty),
             new long[]{ 0L }, GlintKit.GlintOptions.itemDefault(30), null));
     }
 
@@ -424,11 +437,21 @@ class GlintKitScheduleTest {
         return buffer;
     }
 
-    /** A context serving a small non-uniform texture as the item glint. */
+    /** A context serving a small non-uniform texture as the item glint, beside vanilla's glint sidecar. */
     private static @NotNull RendererContext context() {
-        return RendererContext.builder()
-            .textures(Map.of(GlintKit.ITEM_GLINT_TEXTURE_ID, glintTexture()))
-            .build();
+        return TooltipFixtures.stubContext(Map.of(GlintKit.ITEM_GLINT_TEXTURE_ID, glintTexture()),
+            Map.of(GlintKit.ITEM_GLINT_TEXTURE_ID, GLINT_SIDECAR));
+    }
+
+    /**
+     * Pairs a glint texture with the sampler vanilla's glint sidecar selects, so the stamp samples it as
+     * the client samples the glint.
+     *
+     * @param glint the glint texture
+     * @return the glint, read linearly and repeating
+     */
+    private static @NotNull SampledTexture vanillaGlint(@NotNull PixelBuffer glint) {
+        return new SampledTexture(glint, Sampler.of(true, false));
     }
 
     /** A small non-uniform glint texture so a scrolled sample visibly changes across phases. */

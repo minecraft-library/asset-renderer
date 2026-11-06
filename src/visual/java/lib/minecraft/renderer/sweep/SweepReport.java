@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.sweep;
 
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.call.result.Substitution;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 
 /**
  * The one shape every sweep's {@code parity-report.tsv} shares.
@@ -104,6 +106,20 @@ public final class SweepReport {
      */
     public static @NotNull String pixels(double meanDelta, long differingPixels) {
         return failed(meanDelta) ? "" : Long.toString(differingPixels);
+    }
+
+    /**
+     * Returns the stand-ins cell: each stand-in's kind, state and id, then the item that named it where there
+     * is one, space-separated, the stand-ins joined by {@code "; "} in the order they arrive.
+     *
+     * @param substitutions the stand-ins a row's render drew, distinct and in their natural order
+     * @return the cell text, empty where the render drew none
+     */
+    public static @NotNull String standIns(@NotNull List<Substitution> substitutions) {
+        return substitutions.stream()
+            .map(substitution -> substitution.kind() + " " + substitution.state() + " " + substitution.id()
+                + substitution.namedBy().map(item -> " " + item).orElse(""))
+            .collect(Collectors.joining("; "));
     }
 
     /**
