@@ -5,8 +5,12 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.IntArrayTag;
 import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
@@ -33,10 +37,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * One item-definition tint calculated against the caller's overrides and the pack stack: a grass tint
  * samples the stack's own grass colormap at the definition's climate point, and a map-colour tint takes
  * the caller's colour else its default, opaque either way. A dye tint reads the stack's
- * {@code minecraft:dyed_color} behind the caller's explicit leather colour. The colours a model's faces
- * pick by tintindex fill slot 0 with the caller's colour only where the definition lists no tint. A flat
- * item's tinted layers compose onto a straight sheet, so a translucent texel keeps the colour its texture
- * holds.
+ * {@code minecraft:dyed_color} behind the caller's explicit leather colour, and a custom-model-data tint
+ * reads the stack's {@code minecraft:custom_model_data} colour at its index ahead of its default. The
+ * colours a model's faces pick by tintindex fill slot 0 with the caller's colour only where the
+ * definition lists no tint. A flat item's tinted layers compose onto a straight sheet, so a translucent
+ * texel keeps the colour its texture holds.
  */
 @DisplayName("An item-definition tint resolves against the options and the pack stack")
 class ItemTintResolveTest {
@@ -118,6 +123,47 @@ class ItemTintResolveTest {
         removed.put("!minecraft:dyed_color", new CompoundTag());
         assertThat("a removed colour takes the default", ItemTint.resolve(context, dye,
             leather().context(ItemContext.ofStack(stack(removed))).build()), is(0xFFA06540));
+    }
+
+    /**
+     * Pins the custom-model-data source as vanilla's {@code CustomModelDataSource.calculate} answers it:
+     * the stack's {@code custom_model_data} {@code colors} entry at the tint's index, made opaque, else
+     * the default made opaque - so a stack carrying no colours draws a {@code "default":0} face black.
+     * The list reads in either form a 26.1 stack writes an int list in, an entry reads as
+     * {@code RGB_COLOR_CODEC} reads one, and the caller's custom colour stands behind the stack as it
+     * does for a dye.
+     */
+    @Test
+    @DisplayName("a custom_model_data tint reads the stack's colour at its index, else its opaque default")
+    void customModelDataReadsTheStacksColourAtItsIndex() {
+        RendererContext context = RendererContext.builder().build();
+        LayerTint second = new LayerTint.CustomModelData(1, 0xFF000000);
+        ListTag<IntTag> two = new ListTag<>();
+        two.add(new IntTag(0xFF0000));
+        two.add(new IntTag(0x00FF00));
+
+        assertThat("no stack takes the opaque default", ItemTint.resolve(context, second, options()), is(0xFF000000));
+        assertThat("the stack's colour at the index, opaque", ItemTint.resolve(context, second,
+            stackOf(colours(two))), is(0xFF00FF00));
+        assertThat("an int array reads as the list", ItemTint.resolve(context, second,
+            stackOf(colours(new IntArrayTag(0xFF0000, 0x00FF00)))), is(0xFF00FF00));
+        assertThat("an index past the list takes the default", ItemTint.resolve(context,
+            new LayerTint.CustomModelData(2, 0xFF000000), stackOf(colours(two))), is(0xFF000000));
+
+        ListTag<FloatTag> blue = new ListTag<>();
+        blue.add(new FloatTag(0f));
+        blue.add(new FloatTag(0f));
+        blue.add(new FloatTag(1f));
+        ListTag<ListTag<FloatTag>> floats = new ListTag<>();
+        floats.add(blue);
+        assertThat("an entry of three floats reads as a colour", ItemTint.resolve(context,
+            new LayerTint.CustomModelData(0, 0xFF000000), stackOf(colours(floats))), is(0xFF0000FF));
+
+        assertThat("the caller's colour stands before the default", ItemTint.resolve(context, second,
+            tinted(0xFF3060C0)), is(0xFF3060C0));
+        assertThat("the stack outranks the caller's colour", ItemTint.resolve(context, second,
+            ItemOptions.builder().itemId("minecraft:paper").context(ItemContext.ofStack(stack(colours(two))))
+                .decoration(DecorationOptions.builder().tintColor(0xFF3060C0).build()).build()), is(0xFF00FF00));
     }
 
     /**
@@ -216,6 +262,30 @@ class ItemTintResolveTest {
         CompoundTag components = new CompoundTag();
         components.put("minecraft:dyed_color", new IntTag(rgb));
         return components;
+    }
+
+    /**
+     * Builds a component patch whose custom model data carries one colour list.
+     *
+     * @param colours the {@code colors} list
+     * @return the patch
+     */
+    private static @NotNull CompoundTag colours(@NotNull Tag<?> colours) {
+        CompoundTag data = new CompoundTag();
+        data.put("colors", colours);
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:custom_model_data", data);
+        return components;
+    }
+
+    /**
+     * Options for a stack around a component patch.
+     *
+     * @param components the patch
+     * @return the options
+     */
+    private static @NotNull ItemOptions stackOf(@NotNull CompoundTag components) {
+        return ItemOptions.builder().itemId("minecraft:paper").context(ItemContext.ofStack(stack(components))).build();
     }
 
     /**

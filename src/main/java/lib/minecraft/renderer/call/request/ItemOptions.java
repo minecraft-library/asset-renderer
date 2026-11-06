@@ -176,8 +176,9 @@ public class ItemOptions implements RenderOptions {
      * The item stack's component patch this render reads: the {@link #itemModel} context's own where it
      * carries one, else the {@link #context} stack's.
      * <p>
-     * The dispatch walk and the {@code minecraft:dye} tint source read this one patch, so a caller
-     * supplying a stack only through an item-model context's components tints from it as well.
+     * The dispatch walk and the {@code minecraft:dye} and {@code minecraft:custom_model_data} tint
+     * sources read this one patch, so a caller supplying a stack only through an item-model context's
+     * components tints from it as well.
      *
      * @return the component patch, empty where neither input carries one
      */

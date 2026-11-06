@@ -13,8 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * One {@code tints[]} entry read into its {@link LayerTint} variant: the grass and map-colour sources
- * carry what the definition declares rather than degrading to white, a grass entry without its climate
- * point is refused, and a source this renderer does not model still reads as untinted.
+ * carry what the definition declares rather than degrading to white, a custom-model-data entry carries
+ * its index and default, a grass entry without its climate point and a custom-model-data entry with a
+ * bad index are refused, and a source this renderer does not model still reads as untinted.
  */
 @DisplayName("An item-definition tint reads into the variant its type names")
 class LayerTintDeserializerTest {
@@ -50,10 +51,36 @@ class LayerTintDeserializerTest {
             () -> read("{\"type\":\"minecraft:grass\",\"temperature\":1.5,\"downfall\":1.0}"));
     }
 
+    /**
+     * Pins the {@code custom_model_data} source as vanilla's codec reads it: an optional non-negative
+     * {@code index} defaulting to {@code 0}, a {@code null} one absent, and the {@code default} an RGB
+     * colour, carried opaque - so the {@code "default":0} an ItemsAdder export writes is opaque black,
+     * not white.
+     */
+    @Test
+    @DisplayName("a custom_model_data tint carries its index and its default, forced opaque")
+    void customModelDataCarriesItsIndexAndDefault() {
+        assertThat(read("{\"type\":\"minecraft:custom_model_data\",\"index\":192,\"default\":0}"),
+            is(new LayerTint.CustomModelData(192, 0xFF000000)));
+        assertThat(read("{\"type\":\"custom_model_data\",\"default\":16711680}"),
+            is(new LayerTint.CustomModelData(0, 0xFFFF0000)));
+        assertThat(read("{\"type\":\"custom_model_data\",\"index\":null,\"default\":255}"),
+            is(new LayerTint.CustomModelData(0, 0xFF0000FF)));
+    }
+
+    @Test
+    @DisplayName("a custom_model_data tint whose index is negative or not a number is refused")
+    void customModelDataWithABadIndexIsRefused() {
+        assertThrows(JsonParseException.class,
+            () -> read("{\"type\":\"minecraft:custom_model_data\",\"index\":-1,\"default\":0}"));
+        assertThrows(JsonParseException.class,
+            () -> read("{\"type\":\"minecraft:custom_model_data\",\"index\":\"one\",\"default\":0}"));
+    }
+
     @Test
     @DisplayName("a source this renderer does not model reads as an untinted constant")
     void anUnmodelledSourceReadsAsWhite() {
-        assertThat(read("{\"type\":\"minecraft:custom_model_data\",\"default\":16711680}"),
+        assertThat(read("{\"type\":\"minecraft:team\",\"default\":16711680}"),
             is(new LayerTint.Constant(0xFFFFFFFF)));
     }
 

@@ -113,6 +113,10 @@ public class ItemTint {
      * point, else the source's {@link TintSource#defaultArgb() default} on a context built without it.</li>
      * <li>{@link LayerTint.MapColor} - {@link DecorationOptions#getTintColor()} → default, forced
      * opaque.</li>
+     * <li>{@link LayerTint.CustomModelData} - the stack's {@code minecraft:custom_model_data}
+     * {@code colors} entry at the tint's index, read from the same component patch and made opaque as
+     * vanilla's {@code CustomModelDataSource} makes it → {@link DecorationOptions#getTintColor()} →
+     * default.</li>
      * <li>{@link LayerTint.Constant} - the fixed value.</li>
      * </ul>
      *
@@ -138,8 +142,24 @@ public class ItemTint {
                 .orElse(TintSource.GRASS.defaultArgb());
             case LayerTint.MapColor mapColor ->
                 0xFF000000 | options.getDecoration().getTintColor().orElse(mapColor.defaultColor());
+            case LayerTint.CustomModelData data -> stackColour(options, data.index())
+                .or(options.getDecoration()::getTintColor)
+                .orElse(data.defaultColor());
             case LayerTint.Constant constant -> constant.argb();
         };
+    }
+
+    /**
+     * Reads the colour the stack's {@code minecraft:custom_model_data} carries at an index, opaque as
+     * vanilla's {@code CustomModelDataSource} answers it.
+     *
+     * @param options the caller's options, supplying the stack's component patch
+     * @param index the position in the component's {@code colors} list
+     * @return the ARGB colour, or empty where the patch carries no colour at the index
+     */
+    private static @NotNull Optional<Integer> stackColour(@NotNull ItemOptions options, int index) {
+        OptionalInt rgb = DecodedComponent.customModelDataColor(options.components(), index);
+        return rgb.isPresent() ? Optional.of(0xFF000000 | rgb.getAsInt()) : Optional.empty();
     }
 
     /**

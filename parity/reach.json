@@ -155,6 +155,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/CustomModelDataTintTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/DrawsNothingTest": {
       "artifacts": [],
       "source": "derived"
