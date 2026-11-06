@@ -4459,6 +4459,10 @@
       "sha256": "91fdf4e81f0e502d7bdd109e8d522178d8beda04223eb1fce4814def7807bfe1"
     },
     {
+      "path": "books/reset_across_break.png",
+      "sha256": "3ae645e415f2bc8af51f18369a2e3daff86033052188eae54f7bb4277b934bd8"
+    },
+    {
       "path": "books/section_codes.png",
       "sha256": "5daad6957fb35963fad777f3f3283aaf53a6c8f25f62ac9b275cbbc77410628c"
     },
@@ -39388,11 +39392,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "57ce22e97936e82f0c32ddbd456193cd7273b8b2f825e580c5aaec67f8460afb",
+    "asset_content_digest": "3ad8d8c4a0a48e5e3f913ff59409c84c1c1cc7b365a3de51a749e0fa812a6c24",
     "asset_dirty": true,
-    "asset_sha": "a3bb78c08cfc4e255bbd2bf81f019f091a629685",
+    "asset_sha": "f3a33d46ce971755f1ab77d932a28f65a527ecdb",
     "counts": {
-      "files": 9845
+      "files": 9846
     },
     "determinism_runs": 2,
     "flags": {},
@@ -39401,10 +39405,10 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "The book references: 18 pages drawn through the client's book screen, added under books/; every other member held",
+    "reason": "The reset page joins the book roster: books/ gains its one file, 18 pages to 19, 9845 members to 9846; a render of the book references alone and the whole-tree boot drew it byte for byte the same, and every other member held",
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-11-05T17:01:32Z",
+    "timestamp": "2026-11-06T02:38:10Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 89746
+    "wall_time_ms": 106359
   }
 }

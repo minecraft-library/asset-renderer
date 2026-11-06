@@ -75,12 +75,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 9845,
+      "entries": 9846,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 89746,
-      "promoted_at": "a3bb78c08cfc4e255bbd2bf81f019f091a629685",
-      "sha256": "d8a9cfd8ce2474a325fb6b7596ceecfc235b07c5a9badf71bc72b473c4a0c5b6"
+      "last_duration_ms": 106359,
+      "promoted_at": "f3a33d46ce971755f1ab77d932a28f65a527ecdb",
+      "sha256": "9c1f4603f54b70706749d374b440e084cd19d0d47f37c966b4918227f680cf56"
     },
     "manifest.tooling-tables": {
       "baselined": true,
