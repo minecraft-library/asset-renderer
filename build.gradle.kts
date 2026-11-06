@@ -128,9 +128,12 @@ tasks.named<Javadoc>("javadoc") {
 // one was also forwarded from the command line. The working root on the Test hook is what lets the
 // self-capturing pin rows write their observed value into it from inside the test JVM; the
 // references path is the single owner of the reference tree, which the Java side reads instead of
-// holding one VANILLA_DIR literal per sweep main.
+// holding one VANILLA_DIR literal per sweep main. The heap is sized for the suite's workload, which
+// loads whole client contexts - vanilla and the cached packs - into one JVM; Gradle's default test
+// heap holds the fast suite at its edge, where one added class tips it into an OutOfMemoryError.
 tasks.withType<Test>().configureEach {
     jvmArgs(addVectorModuleArg)
+    maxHeapSize = "2g"
     forwardAssetProperties()
 }
 tasks.withType<JavaExec>().configureEach {
