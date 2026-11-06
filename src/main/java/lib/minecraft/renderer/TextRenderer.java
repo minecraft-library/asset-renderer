@@ -170,6 +170,24 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static final int BOOK_LINE_HEIGHT_MCPX = 9;
 
     /**
+     * The page indicator's right edge from the book's corner, in mcPixels - the client right-aligns the
+     * indicator to end here.
+     */
+    private static final int BOOK_PAGE_INDICATOR_RIGHT_MCPX = 148;
+
+    /**
+     * The top of the page indicator's glyph cell from the book's corner, in mcPixels.
+     */
+    private static final int BOOK_PAGE_INDICATOR_TOP_MCPX = 16;
+
+    /**
+     * The page indicator's text, the client's English {@code book.pageIndicator} - the page number, then the
+     * page count, each written as {@link Integer#toString()} writes it, as the client writes a translation's
+     * number.
+     */
+    private static final @NotNull String BOOK_PAGE_INDICATOR_FORMAT = "Page %1$s of %2$s";
+
+    /**
      * The style a book page's text takes wherever it sets none of its own - black, and a shadow colour of no
      * alpha, which draws no shadow - as the client merges its page text style under every page.
      */
@@ -415,6 +433,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
             NineSliceKit.draw(frame, sheet, BOOK_SCALING, x0, y0, BOOK_SIZE_MCPX, BOOK_SIZE_MCPX, 1f));
         stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
+            // Unused on purpose while the book's page support is not decided - see drawPageIndicator.
+            // drawPageIndicator(g, palette, x0, y0, 1, 1);
             for (int i = 0; i < lines.size(); i++) {
                 TextKit.drawLine(g, lines.get(i), x0 + BOOK_TEXT_LEFT_MCPX,
                     y0 + BOOK_TEXT_TOP_MCPX + i * BOOK_LINE_HEIGHT_MCPX + ascentMcPx,
@@ -424,6 +444,42 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         Layers.foldInto(stack, options.getLayerDecorator(), buffer);
         return buffer;
+    }
+
+    /**
+     * Draws the client's page indicator, {@code Page <page> of <pageCount>}, where the client's book screen
+     * draws it above every page: right-aligned to end 148 Minecraft pixels right of the book quad's corner, the
+     * top of its glyph cell 16 below it. It is the client's text in the page's text style - black, with a
+     * shadow colour of no alpha - measured as the client's font measures it and drawn as a page's line is
+     * drawn, so the text palette it is given recolours it as it recolours the page.
+     * <p>
+     * Unused on purpose. A book render draws one page and its page support is not decided, so the one call to
+     * this method, first in the book's text layer, is a commented-out line. Its tests call it directly, which
+     * holds it working while the call stays commented out. The page's canvas is measured from what the texture
+     * and the lines draw, and from nothing this draws.
+     *
+     * @param g the graphics over the frame the page is drawn on, its origin the frame's corner
+     * @param palette the colours a pack's text shader draws in place of the ones the indicator is given
+     * @param x0 the book quad's left edge on the frame, in mcPixels
+     * @param y0 the book quad's top edge on the frame, in mcPixels
+     * @param page the page number shown, counted from one
+     * @param pageCount the page count shown, raised to one where it is lower
+     * @return the indicator's width in whole mcPixels, which it is right-aligned by
+     */
+    static int drawPageIndicator(
+        @NotNull MinecraftGraphics g,
+        @NotNull TextPalette palette,
+        int x0, int y0,
+        int page, int pageCount
+    ) {
+        TextSegment text = TextSegment.literal(String.format(BOOK_PAGE_INDICATOR_FORMAT, page, Math.max(pageCount, 1)))
+            .inherit(BOOK_TEXT_STYLE);
+        LineSegment line = LineSegment.builder().segments(Concurrent.newList(text)).build();
+        int widthMcPx = TextKit.measureLineMcPixels(line);
+        int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+        TextKit.drawLine(g, line, x0 + BOOK_PAGE_INDICATOR_RIGHT_MCPX - widthMcPx,
+            y0 + BOOK_PAGE_INDICATOR_TOP_MCPX + ascentMcPx, DEFAULT_COLOR_ARGB, palette, 0, 0L, 0L, true);
+        return widthMcPx;
     }
 
     /**

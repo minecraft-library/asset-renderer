@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -119,6 +120,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * first pixel the texture or the text draws over every frame, the lines' origin, spacing, cap and wrap,
  * their colours, the palette, a layer decorator's place between the texture and the text, a fresh scramble
  * on every frame and every line, and the premultiplied image.
+ * <p>
+ * The page indicator a book render leaves uncalled, {@link TextRenderer#drawPageIndicator}, is pinned in
+ * {@link PageIndicator}, which calls it directly: its ink's place from the book's corner, its right alignment,
+ * its black with no shadow under a text palette, the width it answers, and its text the client's - a count
+ * below one shown as one, a page past the count shown as given, its numbers written as the client writes
+ * them whatever the default locale.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -1453,6 +1460,169 @@ class TextRendererTest {
 
             assertThat("the obfuscated lines animate", frames.size(), is(greaterThan(1)));
             assertThat("frames whose two lines draw one scramble", alike, is(empty()));
+        }
+
+    }
+
+    /**
+     * Pins for the page indicator a book render leaves uncalled, {@link TextRenderer#drawPageIndicator}, each case
+     * calling it directly on a clear {@link PixelBuffer#canvas canvas}. With the book quad's corner at the canvas's
+     * own, {@code Page 1 of 1} inks output columns 178 to 293 and rows 32 to 47 - the client's 89 to 146 and 16 to
+     * 23 Minecraft pixels from the corner, the {@code g}'s descender its last row - and every indicator's ink ends
+     * at column 293, whatever its numbers. A shadow of black text is black too, so it is told apart by the column
+     * and the row it adds past the glyphs.
+     */
+    @Nested
+    @DisplayName("the book's page indicator")
+    class PageIndicator {
+
+        /** The ink of {@code Page 1 of 1} with the book quad's corner at the canvas's, in output pixels */
+        private static final Rectangle ONE_OF_ONE = new Rectangle(178, 32, 116, 16);
+
+        /** A text palette swapping the page's black for one other colour */
+        private static final TextPalette SWAPS_BLACK = new TextPalette(new ResourceId("minecraft", "shaders/core/rendertype_text.vsh"),
+            new PackId("pack"), Concurrent.newUnmodifiableMap(Map.of(0x000000, 0x2B5D8A)));
+
+        /**
+         * Draws the indicator on a clear canvas the size of the book quad, the quad's corner at the canvas's.
+         *
+         * @param palette the text palette drawn through
+         * @param page the page number shown
+         * @param pageCount the page count shown
+         * @return the canvas drawn on
+         */
+        private static PixelBuffer drawn(TextPalette palette, int page, int pageCount) {
+            PixelBuffer canvas = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            TextRenderer.drawPageIndicator(new MinecraftGraphics(canvas), palette, 0, 0, page, pageCount);
+            return canvas;
+        }
+
+        /**
+         * Answers the width the indicator answers, drawn on a canvas of its own.
+         *
+         * @param page the page number shown
+         * @param pageCount the page count shown
+         * @return the width in whole Minecraft pixels
+         */
+        private static int width(int page, int pageCount) {
+            return TextRenderer.drawPageIndicator(new MinecraftGraphics(PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX)),
+                TextPalette.VANILLA, 0, 0, page, pageCount);
+        }
+
+        /**
+         * Answers the bounds of every pixel drawn on a clear canvas.
+         *
+         * @param canvas the canvas drawn on
+         * @return the bounds in output pixels, empty where nothing is drawn
+         */
+        private static Optional<Rectangle> ink(PixelBuffer canvas) {
+            Rectangle ink = null;
+            for (int y = 0; y < canvas.height(); y++) {
+                for (int x = 0; x < canvas.width(); x++) {
+                    if (canvas.getPixel(x, y) == 0) continue;
+                    Rectangle pixel = new Rectangle(x, y, 1, 1);
+                    ink = ink == null ? pixel : ink.union(pixel);
+                }
+            }
+            return Optional.ofNullable(ink);
+        }
+
+        /**
+         * Gathers every colour drawn on a clear canvas.
+         *
+         * @param canvas the canvas drawn on
+         * @return the colours drawn
+         */
+        private static Set<Integer> colours(PixelBuffer canvas) {
+            Set<Integer> colours = new TreeSet<>();
+            for (int y = 0; y < canvas.height(); y++)
+                for (int x = 0; x < canvas.width(); x++)
+                    if (canvas.getPixel(x, y) != 0) colours.add(canvas.getPixel(x, y));
+            return colours;
+        }
+
+        /**
+         * Draws the client's indicator line on a clear canvas the size of the book quad, the quad's corner at the
+         * canvas's: the text in the page's text style, spelled as JSON - black, with a shadow colour of no alpha -
+         * drawn in white with the shadow asked for, its left the given width short of 148 Minecraft pixels from
+         * the corner and the top of its glyph cell 16 below it.
+         *
+         * @param text the indicator's text as the client writes it
+         * @param widthMcPx the text's width as the client's font measures it, in mcPixels
+         * @return the canvas drawn on
+         */
+        private static PixelBuffer clientsLine(String text, int widthMcPx) {
+            PixelBuffer canvas = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            LineSegment line = LineSegment.builder().segments(Concurrent.newList(TextSegment.fromJson(
+                "{\"text\": \"" + text + "\", \"color\": \"#000000\", \"shadow_color\": 0}"))).build();
+            int ascentMcPx = MinecraftFont.Vanilla.REGULAR.metrics().getAscentMcPixels();
+            TextKit.drawLine(new MinecraftGraphics(canvas), line, 148 - widthMcPx, 16 + ascentMcPx, ColorMath.WHITE,
+                TextPalette.VANILLA, 0, 0L, 0L, true);
+            return canvas;
+        }
+
+        @Test
+        @DisplayName("'Page 1 of 1' inks where the client draws it from the book's corner, the corner at the canvas's and at the one the commented-out call passes on vanilla's page")
+        void theIndicatorInksWhereTheClientDrawsItFromTheCorner() {
+            PixelBuffer pageCanvas = PixelBuffer.canvas(292, 360);
+            TextRenderer.drawPageIndicator(new MinecraftGraphics(pageCanvas), TextPalette.VANILLA, -20, -1, 1, 1);
+
+            assertThat("ink, the corner at the canvas's", ink(drawn(TextPalette.VANILLA, 1, 1)), is(Optional.of(ONE_OF_ONE)));
+            assertThat("ink on the 292 x 360 canvas vanilla's page draws on, the corner at (-20, -1)", ink(pageCanvas),
+                is(Optional.of(new Rectangle(138, 30, 116, 16))));
+        }
+
+        @Test
+        @DisplayName("a wider number starts the indicator further left and ends it at the same edge, its text the client's")
+        void aWiderNumberEndsAtTheSameEdge() {
+            PixelBuffer threeOfTwelve = drawn(TextPalette.VANILLA, 3, 12);
+
+            assertThat("'Page 3 of 12' ink", ink(threeOfTwelve), is(Optional.of(new Rectangle(166, 32, 128, 16))));
+            assertThat("'Page 100 of 100' ink", ink(drawn(TextPalette.VANILLA, 100, 100)),
+                is(Optional.of(new Rectangle(130, 32, 164, 16))));
+            assertThat("pixels 'Page 3 of 12' differs on from the client's text in the page style, 65 left of the edge",
+                differing(threeOfTwelve, clientsLine("Page 3 of 12", 65)), is(0));
+        }
+
+        @Test
+        @DisplayName("the indicator is the page's black with no shadow, in the colour a text palette swaps black for")
+        void theIndicatorIsBlackWithNoShadowInThePalettesColour() {
+            PixelBuffer vanilla = drawn(TextPalette.VANILLA, 1, 1);
+            PixelBuffer swapped = drawn(SWAPS_BLACK, 1, 1);
+
+            assertThat("colours drawn", colours(vanilla), is(Set.of(0xFF000000)));
+            assertThat("ink, no shadow column or row past the glyphs'", ink(vanilla), is(Optional.of(ONE_OF_ONE)));
+            assertThat("colours drawn under a palette swapping black", colours(swapped), is(Set.of(0xFF2B5D8A)));
+            assertThat("ink under that palette", ink(swapped), is(Optional.of(ONE_OF_ONE)));
+        }
+
+        @Test
+        @DisplayName("the indicator answers its width as the client's font measures it, shows a count below one as one and a page past the count as given, and writes its numbers in ASCII digits whatever the default locale")
+        void theIndicatorAnswersItsWidthAndWritesItsNumbersAsTheClientDoes() {
+            PixelBuffer asWritten = drawn(TextPalette.VANILLA, 1234, 5678);
+            PixelBuffer underThaiDigits = PixelBuffer.canvas(Book.QUAD_PX, Book.QUAD_PX);
+            Locale format = Locale.getDefault(Locale.Category.FORMAT);
+            int underThaiDigitsWidth;
+            try {
+                Locale.setDefault(Locale.Category.FORMAT, Locale.forLanguageTag("th-TH-u-nu-thai"));
+                underThaiDigitsWidth = TextRenderer.drawPageIndicator(new MinecraftGraphics(underThaiDigits),
+                    TextPalette.VANILLA, 0, 0, 1234, 5678);
+            } finally {
+                Locale.setDefault(Locale.Category.FORMAT, format);
+            }
+
+            assertThat("'Page 1 of 1'", width(1, 1), is(59));
+            assertThat("'Page 3 of 12'", width(3, 12), is(65));
+            assertThat("'Page 1234 of 5678'", width(1234, 5678), is(95));
+            assertThat("'Page 1234 of 5678' where the default locale writes Thai digits", underThaiDigitsWidth, is(95));
+            assertThat("pixels the Thai-digit locale changes", differing(underThaiDigits, asWritten), is(0));
+            assertThat("a count of 0", width(1, 0), is(59));
+            assertThat("pixels 'Page 1 of 1' differs on from the client's text",
+                differing(drawn(TextPalette.VANILLA, 1, 1), clientsLine("Page 1 of 1", 59)), is(0));
+            assertThat("pixels page 1 of a count of 0 differs on from the client's 'Page 1 of 1'",
+                differing(drawn(TextPalette.VANILLA, 1, 0), clientsLine("Page 1 of 1", 59)), is(0));
+            assertThat("pixels page 3 of a count of 2 differs on from the client's 'Page 3 of 2'",
+                differing(drawn(TextPalette.VANILLA, 3, 2), clientsLine("Page 3 of 2", 59)), is(0));
         }
 
     }

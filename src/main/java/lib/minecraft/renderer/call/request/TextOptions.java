@@ -201,7 +201,9 @@ public class TextOptions implements RenderOptions {
          * from the client's text origin; the rest are dropped unmarked. Its text is black where it names no
          * colour and has no shadow where it names no shadow colour, and text the wrap opens in no style at all,
          * after a reset code a break follows, draws white with a drop shadow, as the client draws it. The canvas
-         * ends at the first pixel the texture or the text draws, rounded out to whole Minecraft pixels.
+         * ends at the first pixel the texture or the text draws, rounded out to whole Minecraft pixels. The page
+         * indicator the client's screen writes above every page, {@code Page 1 of 1} on a one-page book, is not
+         * drawn.
          * <p>
          * A page's codes are section-sign ({@code §}) codes, which the wrap reads; any other character,
          * {@code &} among them, draws as written. A page of plain or section-sign-coded text is
