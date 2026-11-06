@@ -81,9 +81,10 @@ import java.util.stream.Stream;
  * <p>
  * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
  * vanilla's model reader reads every member behind a presence test, and {@link #find(String)} answers it
- * empty, as it answers every model that declares nothing to draw. A non-vanilla {@code block/} or
- * {@code item/} winner that trips {@link ModelData#rendersNothing} is reported as well, because the
- * indexes drop it; no index iterates the other models, so a blank one among them is not reported.
+ * empty, as it answers every model that declares nothing to draw. A model that draws nothing of its
+ * own - a template whose references its children bind, or a special model's base - loads and is reported
+ * by nothing, as vanilla lists every model file and warns only of one it cannot read, cannot resolve or
+ * cannot bake.
  *
  * @param blocks resolved {@code block/} models keyed by model id ({@code "minecraft:block/grass_block"})
  * @param items resolved {@code item/} models keyed by model id ({@code "minecraft:item/diamond_sword"})
@@ -182,9 +183,9 @@ public record ResolvedModels(
             .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().json()));
         reportAbsentParents(Stream.of(blocks, items, others).flatMap(part -> part.entrySet().stream()), raw);
 
-        ConcurrentMap<String, ModelData> resolvedBlocks = resolveModels(blocks, raw, Kind.BLOCK);
-        ConcurrentMap<String, ModelData> resolvedItems = resolveModels(items, raw, Kind.ITEM);
-        ConcurrentMap<String, ModelData> resolvedOthers = resolveModels(others, raw, Kind.OTHER);
+        ConcurrentMap<String, ModelData> resolvedBlocks = resolveModels(blocks, raw);
+        ConcurrentMap<String, ModelData> resolvedItems = resolveModels(items, raw);
+        ConcurrentMap<String, ModelData> resolvedOthers = resolveModels(others, raw);
         ConcurrentMap<String, ModelData> all = Stream.of(resolvedBlocks, resolvedItems, resolvedOthers)
             .flatMap(part -> part.entrySet().stream())
             .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -283,15 +284,14 @@ public record ResolvedModels(
      *
      * @param models the part's attributed raw models, keyed by model id
      * @param raw every raw model, keyed by model id
-     * @param kind the part, which decides whether a blank model is reported
      * @return the resolved model map, unmodifiable
      */
     private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
-        @NotNull ConcurrentMap<String, Attributed> models, @NotNull Map<String, JsonObject> raw, @NotNull Kind kind
+        @NotNull ConcurrentMap<String, Attributed> models, @NotNull Map<String, JsonObject> raw
     ) {
         return models.entrySet()
             .parallelStream()
-            .flatMap(entry -> resolveModel(entry.getKey(), entry.getValue(), raw, kind)
+            .flatMap(entry -> resolveModel(entry.getKey(), entry.getValue(), raw)
                 .map(model -> Map.entry(entry.getKey(), model))
                 .stream())
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue))
@@ -300,19 +300,17 @@ public record ResolvedModels(
 
     /**
      * Resolves one raw entry into a {@link ModelData}: walks its parent chain against the merged raw
-     * map, Gson-reparses the merged JSON (the {@link ModelTexture} adapter reads both the string and
-     * the 26.1 object texture forms), and warns when a non-vanilla {@code block/} or {@code item/}
-     * winner renders nothing (the drop itself stays downstream in the index loaders).
+     * map and Gson-reparses the merged JSON (the {@link ModelTexture} adapter reads both the string and
+     * the 26.1 object texture forms).
      *
      * @param id the model's id
      * @param attributed the model's raw file and the pack it came from
      * @param raw every raw model, keyed by model id
-     * @param kind the part of the tree the model sits in
      * @return the resolved model, or empty when its chain reaches a cycle, names a light vanilla does
      *     not, or the merged chain fails the typed read
      */
     private static @NotNull Optional<ModelData> resolveModel(
-        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> raw, @NotNull Kind kind
+        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> raw
     ) {
         Optional<ConcurrentList<JsonObject>> chain = chainOf(id, attributed.json(), raw);
         if (chain.isEmpty()) {
@@ -330,14 +328,6 @@ public record ResolvedModels(
             System.err.printf("Failed to load model '%s' from pack '%s': %s%n", id, attributed.origin(), ex.getMessage());
             return Optional.empty();
         }
-
-        if (kind != Kind.OTHER
-            && !attributed.origin().equals(PackId.VANILLA)
-            && model.rendersNothing(kind == Kind.ITEM))
-            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); the index drops a block or "
-                + "item drawn from it, a block entity and the shield excepted, and answers one the game registers "
-                + "as drawing nothing where the model declares nothing to draw%n",
-                id, attributed.origin());
 
         return Optional.of(model);
     }
