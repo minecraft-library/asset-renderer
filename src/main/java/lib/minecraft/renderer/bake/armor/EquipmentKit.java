@@ -99,9 +99,9 @@ public class EquipmentKit {
     }
 
     /**
-     * Resolves one layer texture through the context's missing-texture wrapper, sampling its animation
-     * frame when the caller supplies a tick - never empty, since the wrapper answers every texture with
-     * pixels.
+     * Reads one layer texture as the client reads an equipment layer, a plain texture, through the
+     * context's missing-texture wrapper, sampling its animation frame when the caller supplies a tick -
+     * never empty, since the wrapper answers every texture with pixels.
      *
      * @param context the texture context the layer texture is read through
      * @param textureId the layer texture's namespaced id
@@ -115,8 +115,8 @@ public class EquipmentKit {
     ) {
         RendererContext textures = context.withMissingTexture();
         Possible<PixelBuffer> texture = tick.isEmpty()
-            ? textures.resolveTexture(textureId)
-            : Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick.getAsInt());
+            ? textures.resolvePlainTexture(textureId)
+            : Flipbook.atTick(textures.resolvePlainTexture(textureId), textures.findFlipbook(textureId), tick.getAsInt());
         return Optional.of(texture.get());
     }
 

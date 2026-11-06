@@ -87,8 +87,10 @@ section. A document that is not JSON, or is blank, is held as there and yielding
 of its texture loses it. A section the codec refuses is held as there and refused - its `Possible`
 empty - and the document's other sections stand, because each of the client's reads parses only the
 sections it asks for: an atlas sprite reads the animation and texture sections, the GUI atlas the `gui`
-section beside them, and the villager hat its own. So a refused animation or texture section loses the
-texture on every read, and leaves a villager hat declared beside it standing.
+section beside them, a plain texture - one the client's texture manager loads by its file, such as the
+book, a container sheet or an entity's - the texture section alone, and the villager hat its own. So a
+refused texture section loses the texture on every read, a refused animation section only where it is
+read as an atlas sprite, and either leaves a villager hat declared beside it standing.
 
 The texture section, `MCMeta.TextureSampling`, holds `blur` and `clamp`, each a JSON boolean defaulting
 to false; `mipmap_strategy`, one of `auto`, `mean`, `cutout`, `strict_cutout` and `dark_cutout` spelled

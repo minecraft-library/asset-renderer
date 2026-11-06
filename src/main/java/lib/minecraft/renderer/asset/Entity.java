@@ -45,8 +45,8 @@ import java.util.Set;
  * {@code skinTextureId} fields.
  * <p>
  * A {@code texture_ref} is the vanilla {@code textures/entity/} sub-path (e.g. {@code "cow/cow"},
- * {@code "wither/wither"}); resolved at render time against the active pack stack via
- * {@link RendererContext#resolveTexture(String) resolveTexture} as {@code minecraft:entity/<ref>}.
+ * {@code "wither/wither"}); read at render time as a plain texture through
+ * {@link RendererContext#resolvePlainTexture(String) resolvePlainTexture} at {@code minecraft:entity/<ref>}.
  * <p>
  * Many Java {@code EntityType} registry rows share one geometry (e.g. {@code horse}, {@code donkey},
  * {@code mule}, {@code skeleton_horse}, {@code zombie_horse} all reference the same bone tree). Splitting
@@ -134,8 +134,8 @@ public record Entity(
 
     /**
      * The vanilla {@code textures/entity/} sub-path this definition draws with by default (without the
-     * {@code .png} suffix), resolved at render time via
-     * {@link RendererContext#resolveTexture(String) resolveTexture} as {@code minecraft:entity/<ref>}.
+     * {@code .png} suffix), read at render time as a plain texture through
+     * {@link RendererContext#resolvePlainTexture(String) resolvePlainTexture} at {@code minecraft:entity/<ref>}.
      *
      * <p>A derived view over the state axis rather than a component of its own: the base texture is the
      * option that axis {@link Variation#declared() declares}, so it is one of the states rather than a

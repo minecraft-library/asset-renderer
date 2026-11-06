@@ -190,19 +190,41 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Constructs a new {@code AtlasRenderer} bound to the given context, eagerly instantiating the
-     * per-source sub-renderers (item, fluid, portal) over a view of it whose texture source samples
-     * tick 0, and the grid compositor, so a batch run reuses one set across every tile.
+     * per-source sub-renderers (item, fluid, portal) over a view of it whose two texture reads both
+     * sample tick 0, and the grid compositor, so a batch run reuses one set across every tile.
      *
      * @param context the render context supplying block / item indices and texture lookups
      */
     public AtlasRenderer(@NotNull RendererContext context) {
-        RendererContext staticContext = context.withTextures(textureId ->
-            Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), 0));
+        RendererContext staticContext = staticView(context);
         this.context = context;
         this.itemRenderer = new ItemRenderer(staticContext);
         this.fluidRenderer = new FluidRenderer(staticContext);
         this.portalRenderer = new PortalRenderer(staticContext);
         this.gridRenderer = new GridRenderer();
+    }
+
+    /**
+     * Builds the view every tile renders through: the context with both of its reads frozen at tick 0 -
+     * each atlas sprite and each plain texture its first frame - so a tile is one still frame, and draws a
+     * skull's texture, the glint and the portal's two as a single render of its subject draws them at rest.
+     *
+     * @param context the render context
+     * @return the static view
+     */
+    private static @NotNull RendererContext staticView(@NotNull RendererContext context) {
+        RendererContext frozen = context.withTextures(textureId ->
+            Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), 0));
+        return new RendererContext.Forwarding() {
+
+            @Override public @NotNull RendererContext delegate() {
+                return frozen;
+            }
+
+            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+                return Flipbook.atTick(context.resolvePlainTexture(textureId), context.findFlipbook(textureId), 0);
+            }
+        };
     }
 
     /**

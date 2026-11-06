@@ -365,6 +365,9 @@ public record Block(
      *     posts in {@code block/bell_floor.json} but its bell-cup body comes from
      *     {@code BellModel.createBodyLayer}. Default {@code false} preserves the original
      *     replace-the-model semantics used by chests / beds / banners / shulkers / signs / skulls.
+     * @param plainTexture whether the client's renderer binds the texture file itself, as a plain texture -
+     *     the skulls' and the copper golem statue's - rather than as a sprite of a block-entity sheet atlas; a
+     *     plain texture is read with its sidecar's texture section alone
      */
     public record BlockEntity(
         @NotNull BoneModel boneModel,
@@ -372,7 +375,8 @@ public record Block(
         int tintArgb,
         int iconRotation,
         @NotNull ConcurrentList<Part> parts,
-        boolean additive
+        boolean additive,
+        boolean plainTexture
     ) {
 
         /**

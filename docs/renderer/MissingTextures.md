@@ -8,36 +8,48 @@ A **block or item face** whose texture no pack supplies draws the generated chec
 the id once. A face whose texture a pack ships but which cannot be read - zero bytes, a body the image
 reader refuses, a `.png.mcmeta` sidecar that does not parse or carries an animation or texture section
 the client's codec refuses, or an animation whose frame size does not divide the strip on both axes -
-draws it the same way, and is reported as unreadable rather than missing, because vanilla draws its
-missing sprite for all of them and a texture has no lower pack to show through. A sidecar that does not
-parse loses only its own texture: the index captures it as there and yielding nothing rather than
-failing the context load; a refused section loses the texture too, its sidecar's other sections
-standing. A sidecar whose `gui` section the client's codec refuses loses its texture only where a GUI
-sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name field or
-cross or the recipe-book button - as the client's GUI atlas alone reads that section; read as a block
-or item texture it draws.
-The same holds for every texture an entity, a player or an item names beyond its own faces - an
-entity's base, overlay, carried-block and group-member textures, the equipment and armour layers and
-their pack-rule tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the
-glint - and for the textures that are no block's or item's: a fluid's still and flow faces, the two
-textures the portal shader samples, a menu's named chrome art, which is the checkerboard read across
-the sheet the client composes a shipped screen's panel from, and resized like any other art for a
-screen it ships no sheet for, rather than falling back to the vanilla panel, and a tooltip's
-background and frame, a menu's cell sprite and the anvil's name field or cross or the recipe-book
-button, each stretched over the client's whole sprite rect rather than falling back to a default, and a
-book's page texture, drawn as the client draws its missing texture through the book's one quad - the
-checkerboard's top-left three quarters, twelve of its sixteen texels a side, so one whole check and
-half the next along each edge. No option turns it off: a broken asset is drawn as broken, so a viewer
-can see it, rather than leaving a hole or dropping the subject - and that holds for a batch as well, so
-an atlas tile shows the checkerboard where a single render would.
+draws it the same way, and is reported as unreadable rather than missing, because vanilla's sprite
+loader draws its missing sprite for all of them and a texture has no lower pack to show through. A
+sidecar that does not parse loses only its own texture: the index captures it as there and yielding
+nothing rather than failing the context load; a refused section loses the texture too, its sidecar's
+other sections standing. A sidecar whose `gui` section the client's codec refuses loses its texture only
+where a GUI sprite is read - a tooltip's background or frame, a menu's cell sprite or the anvil's name
+field or cross or the recipe-book button - as the client's GUI atlas alone reads that section; read as a
+block or item texture it draws.
+The same holds for the textures that are atlas sprites but no block's or item's face: an entity's
+carried block, the banner patterns, a fluid's still and flow faces, and a tooltip's background and
+frame, a menu's cell sprite and the anvil's name field or cross or the recipe-book button, each of the
+last stretched over the client's whole sprite rect rather than falling back to a default. A trim's
+pattern and palettes are read by the same rules, where the client reads a paletted permutation's inputs
+with no sidecar at all, so an animation section there loses a trim here that the client draws.
+
+A **plain texture** - one the client's texture manager loads by its file rather than stitching it into
+an atlas: an entity's base, overlay and group-member textures, the equipment and armour layers and their
+pack-rule tiles, the elytra wings, the cape and the skin, the glint, the two textures the portal shader
+samples, a skull's and the copper golem statue's, a menu's container sheet and the book's page texture -
+is read with its sidecar's texture section alone. One no pack ships draws the checkerboard and is
+reported missing; one a pack ships draws it and is reported unreadable for zero bytes, a body the image
+reader refuses, a sidecar that does not parse, or a texture section the client's codec refuses, which
+are the failures on which the client's texture loader answers its missing texture. An animation section,
+refused or with a frame size that does not divide, costs it nothing: it plays no table, and the whole
+file draws. A menu's named chrome art is the checkerboard read across the sheet the client composes a
+shipped screen's panel from, and resized like any other art for a screen it ships no sheet for, rather
+than falling back to the vanilla panel; a book's page texture is drawn as the client draws its missing
+texture through the book's one quad - the checkerboard's top-left three quarters, twelve of its sixteen
+texels a side, so one whole check and half the next along each edge. No option turns any of it off: a
+broken asset is drawn as broken, so a viewer can see it, rather than leaving a hole or dropping the
+subject - and that holds for a batch as well, so an atlas tile shows the checkerboard where a single
+render would, and only there, its frame-0 view freezing each of the two reads at frame 0 rather than
+standing the sprite read in for the plain one.
 
 - **The seam is each texture read.** Each reads through the context's `withMissingTexture()`
-  wrapper, which draws the checkerboard and reports the id, while the context's own `resolveTexture`
-  keeps its three states - absent for a texture no pack ships, empty for one a pack ships that cannot
-  be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
-  never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
-  and elytra kits, and the nine-slice kit's GUI-sprite read - wrap whatever they are handed, so a kit
-  draws the checkerboard whoever calls it.
+  wrapper, which draws the checkerboard and reports the id, while the context's own two reads,
+  `resolveTexture` for an atlas sprite and `resolvePlainTexture` for a plain texture, keep their three
+  states - absent for a texture no pack ships, empty for one a pack ships that cannot be read - for
+  whoever reads them bare. The wrapper answers every id with pixels, so a reader behind it never meets a
+  value-less answer. The kits that take a context - the trim, banner, glint, equipment and elytra kits,
+  and the nine-slice kit's GUI-sprite read - wrap whatever they are handed, so a kit draws the
+  checkerboard whoever calls it.
 - **A GUI sprite's stand-in stretches.** The client's missing sprite carries no `gui.scaling`, so it
   stretches over the rect whatever the sprite it stands for would have been sliced as, and a file that
   cannot be read never reaches its atlas, sidecar and all. The context keeps such a file's sidecar, so
@@ -85,13 +97,17 @@ an atlas tile shows the checkerboard where a single render would.
 - **A model names a sprite, which reads the texture its atlas stitched it from.** A pack's
   `atlases/items.json` or `atlases/blocks.json` can stitch a texture under a sprite id of its own -
   ItemsAdder packs stitch `omc_foods:items/seeds/salad_seed` as `_omc_foods:items/seeds/salad_seed` -
-  and its models then name the sprite, which is no texture file. `IndexedRendererContext` reads every
-  texture id as a sprite of the items atlas first and the blocks atlas second, as the client looks a
-  model texture up, and reads the texture a `single` or `directory` source stitched it from, its
-  sidecar included; an id neither atlas holds reads as itself. An `unstitch` region and a paletted
-  permutation read their own id too, as neither is a whole texture file. Every vanilla sprite is
-  stitched from the texture of its own id, so on a vanilla stack every id reads itself and no gate can
-  see this: `AtlasSpriteResolutionTest` is the gate.
+  and its models then name the sprite, which is no texture file. `IndexedRendererContext`'s sprite
+  read, `resolveTexture`, reads every texture id as a sprite of the items atlas first and the blocks
+  atlas second, as the client looks a model texture up, and reads the texture a `single` or `directory`
+  source stitched it from, its sidecar included; an id neither atlas holds reads as itself. An
+  `unstitch` region and a paletted permutation read their own id too, as neither is a whole texture
+  file. A plain texture is read at the file its id names: no atlas sprite redirects
+  `resolvePlainTexture`, while its sidecar lookups - `findMeta`, `findAnimation` and `findFlipbook` -
+  still follow the atlas to the file a sprite was stitched from. Every vanilla sprite is stitched from
+  the texture of its own id, so on a vanilla stack every id reads itself and no gate can see this:
+  `AtlasSpriteResolutionTest` is the gate for the sprite read, and `IndexedRendererContextPlainLoadTest`
+  for the plain read.
 - **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
   entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
   source before the static wings, a pack-rule wing tile before the equipment wing - the first

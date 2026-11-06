@@ -247,16 +247,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * One of the shader's source textures, read through the context's
-     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies or
-     * one that cannot be read is the checkerboard the shader samples in its place.
+     * One of the shader's source textures, read as the client's end portal binds it, a plain texture,
+     * through the context's {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no
+     * pack supplies or one that cannot be read is the checkerboard the shader samples in its place.
      *
      * @param context the context the texture resolves through
      * @param textureId the namespaced texture id
      * @return the texture
      */
     private static @NotNull PixelBuffer sourceTexture(@NotNull RendererContext context, @NotNull String textureId) {
-        return context.withMissingTexture().resolveTexture(textureId).get();
+        return context.withMissingTexture().resolvePlainTexture(textureId).get();
     }
 
     /**

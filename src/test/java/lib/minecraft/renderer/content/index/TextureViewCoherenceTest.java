@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
@@ -48,22 +49,30 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * The contract the four texture lookups keep with one another, held over every context and every
- * wrapper. {@link RendererContext#resolveTexture}, {@link RendererContext#findMeta},
- * {@link RendererContext#findAnimation} and {@link RendererContext#findFlipbook} describe one texture,
- * so for every id:
+ * The contract the five texture lookups keep with one another, held over every context and every
+ * wrapper. {@link RendererContext#resolveTexture}, {@link RendererContext#resolvePlainTexture},
+ * {@link RendererContext#findMeta}, {@link RendererContext#findAnimation} and
+ * {@link RendererContext#findFlipbook} describe one texture, so for every id:
  * <ul>
  *     <li>each metadata view is absent exactly when the texture is - a view is not there only for a
  *     texture that is not there;</li>
  *     <li>the animation is in the state the sidecar's animation section is in;</li>
  *     <li>a playback table plays only under an animation that is there, over a strip that decoded;</li>
  *     <li>a texture served with no pixels plays nothing, while keeping the sidecar it ships - which is
- *     itself empty where the sidecar is what does not parse.</li>
+ *     itself empty where the sidecar is what does not parse;</li>
+ *     <li>the plain read is absent exactly where the texture lookup is, but for an id only a paletted
+ *     permutation serves, which no file backs, and an id an items or blocks atlas stitches from another
+ *     file, which the texture lookup follows and the plain read does not; and where both answer a
+ *     file's pixels and no atlas redirects the id, the pixels are one file's.</li>
  * </ul>
+ * No relation sees a plain read that refuses what the client never reads, a sprite read refusing the
+ * same file, so the plain read is also held to the state the production fixture puts it in, through
+ * every wrapper, the fixture's atlases stitching no sprite from another file.
  * <p>
  * A wrong state is invisible to every render - a still frame is a still frame, whichever way it came to
  * be still - so these rows are the only witness. The production context is built over a pack holding an
@@ -87,7 +96,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * that collector in either layering order and reports through to it, and both are asserted, the
  * collector being the context's own. A measuring context records nothing.
  */
-@DisplayName("The four texture lookups describe one texture")
+@DisplayName("The five texture lookups describe one texture")
 class TextureViewCoherenceTest {
 
     @TempDir
@@ -219,6 +228,47 @@ class TextureViewCoherenceTest {
         PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MALFORMED, PACK_PREFIXED_RAGGED, PACK_PREFIXED_MISSING,
         UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
 
+    /** The ids only a paletted permutation serves, which no file backs, so no plain read answers them. */
+    private static final Set<String> PERMUTATION_ONLY = Set.of(PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING);
+
+    /** The ids the substituting source serves with pixels, on both reads. */
+    private static final Set<String> SOURCE_SERVED = Set.of(ANIMATED, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, SOURCE_ONLY);
+
+    /**
+     * The state the production context's plain read answers each id in: whole where only an animation
+     * section is refused or a frame size does not divide, empty where the image does not decode or the
+     * sidecar does not parse, and absent where no file is shipped - a permutation's id among them.
+     */
+    private static final Map<String, Possible.State> PLAIN_STATES = Map.ofEntries(
+        Map.entry(ANIMATED, Possible.State.PRESENT),
+        Map.entry(STATIC, Possible.State.PRESENT),
+        Map.entry(REFUSED_ANIMATION, Possible.State.PRESENT),
+        Map.entry(SECTIONLESS_SIDECAR, Possible.State.PRESENT),
+        Map.entry(RAGGED_HEIGHT, Possible.State.PRESENT),
+        Map.entry(RAGGED_WIDTH, Possible.State.PRESENT),
+        Map.entry(RAGGED_UNDECLARED, Possible.State.PRESENT),
+        Map.entry(SHORT_STRIP, Possible.State.PRESENT),
+        Map.entry(WIDE, Possible.State.PRESENT),
+        Map.entry(PACK_PREFIXED, Possible.State.PRESENT),
+        Map.entry(PACK_PREFIXED_RAGGED, Possible.State.PRESENT),
+        Map.entry(ZERO_BYTE, Possible.State.EMPTY),
+        Map.entry(BROKEN_ANIMATED, Possible.State.EMPTY),
+        Map.entry(BLANK_SIDECAR, Possible.State.EMPTY),
+        Map.entry(MALFORMED_SIDECAR, Possible.State.EMPTY),
+        Map.entry(PACK_PREFIXED_BROKEN, Possible.State.EMPTY),
+        Map.entry(PACK_PREFIXED_MALFORMED, Possible.State.EMPTY),
+        Map.entry(PERMUTED, Possible.State.ABSENT),
+        Map.entry(PERMUTED_OVER_BROKEN, Possible.State.ABSENT),
+        Map.entry(PERMUTED_OVER_MISSING, Possible.State.ABSENT),
+        Map.entry(PACK_PREFIXED_MISSING, Possible.State.ABSENT),
+        Map.entry(UNSERVED, Possible.State.ABSENT),
+        Map.entry(UNKNOWN_PREFIX, Possible.State.ABSENT),
+        Map.entry(MEMORY_PRESENT, Possible.State.ABSENT),
+        Map.entry(MEMORY_EMPTY, Possible.State.ABSENT),
+        Map.entry(SOURCE_ONLY, Possible.State.ABSENT),
+        Map.entry(SOURCE_EMPTY, Possible.State.ABSENT),
+        Map.entry(RESERVED, Possible.State.ABSENT));
+
     /** The bytes of every truncated fixture: a real PNG cut in half. */
     private static byte[] truncated;
 
@@ -335,6 +385,15 @@ class TextureViewCoherenceTest {
         assertStates(PACK_PREFIXED_MISSING, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNSERVED, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNKNOWN_PREFIX, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
+
+        // The ids whose plain read is in another state than the texture lookup's, so the plain rows can fail.
+        for (String id : List.of(REFUSED_ANIMATION, RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP,
+            PACK_PREFIXED_RAGGED, PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING)) {
+            Possible.State plain = production.resolvePlainTexture(id).getState();
+            assertThat(id + "'s plain read", plain, is(PLAIN_STATES.get(id)));
+            assertThat(id + "'s plain read is not in the texture lookup's state", plain,
+                is(not(production.resolveTexture(id).getState())));
+        }
     }
 
     @Test
@@ -347,20 +406,30 @@ class TextureViewCoherenceTest {
     }
 
     @TestFactory
-    @DisplayName("every context and every wrapper over it keeps the four lookups coherent for every id")
+    @DisplayName("every context and every wrapper over it keeps the five lookups coherent for every id")
     Stream<DynamicTest> everyContextKeepsTheLookupsCoherent() {
-        return bases.entrySet().stream().flatMap(base -> wrappers(base.getValue()).entrySet().stream()
-            .flatMap(context -> IDS.stream().map(id -> DynamicTest.dynamicTest(
-                base.getKey() + ", " + context.getKey() + ": " + id,
-                () -> assertCoherent(context.getValue(), id)))));
+        return bases.entrySet().stream().flatMap(base -> {
+            // A context holding no sidecar and no atlas answers one read for both.
+            Function<String, Possible.State> plainBeneath = base.getValue() == production
+                ? PLAIN_STATES::get
+                : id -> base.getValue().resolveTexture(id).getState();
+            return wrappers(base.getValue(), plainBeneath).entrySet().stream()
+                .flatMap(wrapped -> IDS.stream().map(id -> DynamicTest.dynamicTest(
+                    base.getKey() + ", " + wrapped.getKey() + ": " + id,
+                    () -> {
+                        assertCoherent(wrapped.getValue().context(), id);
+                        assertPlainState(wrapped.getValue(), id);
+                    })));
+        });
     }
 
     @Test
-    @DisplayName("a hidden texture is absent from all four lookups")
+    @DisplayName("a hidden texture is absent from all five lookups")
     void aHiddenTextureIsAbsentEverywhere() {
         RendererContext hiding = production.hiding(ANIMATED);
 
         assertThat(hiding.resolveTexture(ANIMATED).isAbsent(), is(true));
+        assertThat(hiding.resolvePlainTexture(ANIMATED).isAbsent(), is(true));
         assertThat(hiding.findMeta(ANIMATED).isAbsent(), is(true));
         assertThat(hiding.findAnimation(ANIMATED).isAbsent(), is(true));
         assertThat(hiding.findFlipbook(ANIMATED).isAbsent(), is(true));
@@ -506,7 +575,7 @@ class TextureViewCoherenceTest {
     }
 
     /**
-     * Asserts the four rules over one context's answers for one id.
+     * Asserts the five rules over one context's answers for one id.
      *
      * @param context the context asked
      * @param id the texture id asked about
@@ -534,6 +603,54 @@ class TextureViewCoherenceTest {
             assertThat("and keeps its sidecar", meta.isAbsent(), is(false));
             assertThat("and the sidecar's animation section", animation.isAbsent(), is(false));
         }
+
+        Possible<PixelBuffer> plain = context.resolvePlainTexture(id);
+        // A substituting wrapper answers a permutation's plain read with the checkerboard, which is there.
+        if (!PERMUTATION_ONLY.contains(id) || !plain.isPresent()) {
+            assertThat("the plain read is absent exactly when the texture is, but for a permutation",
+                plain.isAbsent(), is(texture.isAbsent() || PERMUTATION_ONLY.contains(id)));
+        }
+
+        // Where each read answers a file's pixels rather than the checkerboard, the file is one, the
+        // fixture's atlases stitching no sprite from another file.
+        if (plain.isPresent() && texture.isPresent()
+            && !MissingSprite.isSprite(plain.get()) && !MissingSprite.isSprite(texture.get()))
+            assertThat("both reads answer the one file's pixels", same(plain.get(), texture.get()), is(true));
+    }
+
+    /**
+     * Asserts the state a wrapper's plain read answers for one id: the state the fixture puts the read beneath
+     * it in, or, through a substituting wrapper, pixels always - the checkerboard exactly where the read
+     * beneath holds none.
+     *
+     * @param wrapped the wrapper and the state its plain read is in beneath any substitution
+     * @param id the texture id asked about
+     */
+    private static void assertPlainState(@NotNull Wrapped wrapped, @NotNull String id) {
+        Possible<PixelBuffer> plain = wrapped.context().resolvePlainTexture(id);
+        Possible.State beneath = wrapped.plain().apply(id);
+        if (!wrapped.substitutes())
+            assertThat("the plain read is in the state the fixture puts it in", plain.getState(), is(beneath));
+        else {
+            assertThat("a substituting plain read always answers pixels", plain.getState(), is(Possible.State.PRESENT));
+            assertThat("the checkerboard exactly where the read beneath holds none",
+                MissingSprite.isSprite(plain.get()), is(beneath != Possible.State.PRESENT));
+        }
+    }
+
+    /**
+     * Answers whether two buffers hold the same pixels at the same size.
+     *
+     * @param a one buffer
+     * @param b the other
+     * @return whether they are texel for texel equal
+     */
+    private static boolean same(@NotNull PixelBuffer a, @NotNull PixelBuffer b) {
+        if (a.width() != b.width() || a.height() != b.height()) return false;
+        for (int y = 0; y < a.height(); y++)
+            for (int x = 0; x < a.width(); x++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) return false;
+        return true;
     }
 
     /**
@@ -552,29 +669,47 @@ class TextureViewCoherenceTest {
     }
 
     /**
-     * Every wrapper over one context, by name, the context itself first.
+     * Every wrapper over one context, by name, the context itself first, each with the state its plain
+     * read is in beneath any substitution.
      *
      * @param base the context wrapped
+     * @param plainBeneath the state the base's own plain read answers each id in
      * @return the context and its wrappers
      */
-    private static @NotNull Map<String, RendererContext> wrappers(@NotNull RendererContext base) {
+    private static @NotNull Map<String, Wrapped> wrappers(@NotNull RendererContext base,
+                                                          @NotNull Function<String, Possible.State> plainBeneath) {
         PixelBuffer frame = PixelBuffer.straight(16, 16);
-        Map<String, RendererContext> contexts = new LinkedHashMap<>();
-        contexts.put("unwrapped", base);
-        contexts.put("withTextures", base.withTextures(id -> switch (id) {
-            case ANIMATED, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, SOURCE_ONLY -> Possible.of(frame);
-            case SOURCE_EMPTY -> Possible.empty();
-            default -> Possible.absent();
-        }));
-        contexts.put("withTexture", base.withTexture(RESERVED, frame));
-        contexts.put("withMissingTexture", base.withMissingTexture());
-        contexts.put("hiding", base.hiding(HIDDEN));
-        contexts.put("hiding then withMissingTexture", base.hiding(HIDDEN).withMissingTexture());
-        contexts.put("collecting", base.collecting(new SubstitutionCollector()));
-        contexts.put("measuring", base.measuring());
-        contexts.put("measuring then withMissingTexture", base.measuring().withMissingTexture());
+        Function<String, Possible.State> served = id -> SOURCE_SERVED.contains(id) ? Possible.State.PRESENT
+            : SOURCE_EMPTY.equals(id) ? Possible.State.EMPTY : plainBeneath.apply(id);
+        Function<String, Possible.State> reserved = id -> RESERVED.equals(id) ? Possible.State.PRESENT : plainBeneath.apply(id);
+        Function<String, Possible.State> hidden = id -> HIDDEN.contains(id) ? Possible.State.ABSENT : plainBeneath.apply(id);
+
+        Map<String, Wrapped> contexts = new LinkedHashMap<>();
+        contexts.put("unwrapped", new Wrapped(base, plainBeneath, false));
+        contexts.put("withTextures", new Wrapped(base.withTextures(id -> SOURCE_SERVED.contains(id) ? Possible.of(frame)
+            : SOURCE_EMPTY.equals(id) ? Possible.empty() : Possible.absent()), served, false));
+        contexts.put("withTexture", new Wrapped(base.withTexture(RESERVED, frame), reserved, false));
+        contexts.put("withMissingTexture", new Wrapped(base.withMissingTexture(), plainBeneath, true));
+        contexts.put("hiding", new Wrapped(base.hiding(HIDDEN), hidden, false));
+        contexts.put("hiding then withMissingTexture", new Wrapped(base.hiding(HIDDEN).withMissingTexture(), hidden, true));
+        contexts.put("collecting", new Wrapped(base.collecting(new SubstitutionCollector()), plainBeneath, false));
+        contexts.put("measuring", new Wrapped(base.measuring(), plainBeneath, false));
+        contexts.put("measuring then withMissingTexture", new Wrapped(base.measuring().withMissingTexture(), plainBeneath, true));
         return contexts;
     }
+
+    /**
+     * One wrapper over a base context, with the state its plain read is in.
+     *
+     * @param context the wrapper
+     * @param plain the state the wrapper's plain read answers each id in beneath any substitution
+     * @param substitutes whether a {@link RendererContext#withMissingTexture} sits on top of it
+     */
+    private record Wrapped(
+        @NotNull RendererContext context,
+        @NotNull Function<String, Possible.State> plain,
+        boolean substitutes
+    ) {}
 
     /**
      * Every wrapper that changes a lookup, by name, as the operator applying it over a context.

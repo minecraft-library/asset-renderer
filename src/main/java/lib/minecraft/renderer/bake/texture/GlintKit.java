@@ -326,6 +326,20 @@ public class GlintKit {
     }
 
     /**
+     * Reads a glint texture as the client's glint render types bind it, a plain texture, through the
+     * context's {@link RendererContext#withMissingTexture() missing-texture wrapper}: a texture no pack
+     * supplies, or that cannot be read, scrolls as the checkerboard, as vanilla scrolls a missing-sprite
+     * foil.
+     *
+     * @param context the renderer context the glint texture resolves through
+     * @param glintTextureId the glint texture id
+     * @return the glint scroll texture
+     */
+    public static @NotNull PixelBuffer readTexture(@NotNull RendererContext context, @NotNull String glintTextureId) {
+        return context.withMissingTexture().resolvePlainTexture(glintTextureId).get();
+    }
+
+    /**
      * The enchantment-glint finish applied to a baked schedule. An animated subject owns the frame
      * axis and each frame is post-stamped with the foil at its own sample instant; a static subject
      * yields the axis to the glint's own frame-rate loop, which multiplies the one baked frame into
@@ -389,10 +403,9 @@ public class GlintKit {
          * subject ({@code frames == 1}) yields the frame axis to the glint's own frame-rate loop, whose
          * delays wrap the multiplied frames.
          * <p>
-         * The glint texture is read through the context's
-         * {@link RendererContext#withMissingTexture() missing-texture wrapper}: a texture no pack
-         * supplies, or that cannot be read, scrolls as the checkerboard, as vanilla scrolls a
-         * missing-sprite foil.
+         * The glint texture is read by {@link GlintKit#readTexture(RendererContext, String) readTexture},
+         * as the client's glint render types bind it: a texture no pack supplies, or that cannot be read,
+         * scrolls as the checkerboard.
          *
          * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
@@ -404,7 +417,7 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(preset.glintTextureId()).get();
+            PixelBuffer glintTexture = readTexture(context, preset.glintTextureId());
             return timeline.frames() > 1
                 ? stampOver(this, frames, timeline, glintTexture)
                 : scroll(this, frames, glintTexture);

@@ -343,6 +343,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PlainBlockEntityTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlainItemIconTest": {
       "artifacts": [],
       "source": "derived"
@@ -3234,6 +3238,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/IndexedRendererContextItemOverrideTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextPlainLoadTest": {
       "artifacts": [],
       "source": "derived"
     },

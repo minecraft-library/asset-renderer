@@ -291,9 +291,9 @@ public class ElytraKit {
     }
 
     /**
-     * The frame a wing texture displays at a tick, read through the context's
-     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, whose answers always hold
-     * pixels.
+     * The frame a wing texture displays at a tick, read as the client reads the wings layer, a plain
+     * texture, through the context's {@link RendererContext#withMissingTexture() missing-texture wrapper},
+     * whose answers always hold pixels.
      *
      * @param context the texture context the texture is read through
      * @param textureId the namespaced texture id
@@ -302,7 +302,7 @@ public class ElytraKit {
      */
     private static @NotNull PixelBuffer frame(@NotNull RendererContext context, @NotNull String textureId, int tick) {
         RendererContext textures = context.withMissingTexture();
-        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get();
+        return Flipbook.atTick(textures.resolvePlainTexture(textureId), textures.findFlipbook(textureId), tick).get();
     }
 
 }

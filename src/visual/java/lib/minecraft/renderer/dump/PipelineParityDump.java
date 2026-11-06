@@ -1976,13 +1976,14 @@ public final class PipelineParityDump {
      * @param entity the block entity to emit
      * @return the block-entity object
      */
-    private static @NotNull JsonObject blockEntity(@NotNull Block.BlockEntity entity) {
+    static @NotNull JsonObject blockEntity(@NotNull Block.BlockEntity entity) {
         JsonObject root = new JsonObject();
         root.add("bone_model", boneModel(entity.boneModel()));
         root.addProperty("texture_id", entity.textureId());
         root.add("tint", CanonicalJson.argb(entity.tintArgb()));
         root.addProperty("icon_rotation", entity.iconRotation());
         root.addProperty("additive", entity.additive());
+        root.addProperty("plain_texture", entity.plainTexture());
         root.add("parts", CanonicalJson.ordered(entity.parts(), part -> {
             JsonObject item = new JsonObject();
             item.add("bone_model", boneModel(part.boneModel()));

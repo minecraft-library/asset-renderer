@@ -9,8 +9,9 @@ from [`CLAUDE.md`](../../CLAUDE.md).
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
 frame rectangle, the entry sequence with every deferred duration substituted, the cycle length and
 the interpolate flag. The same type owns the pixels: which entry a tick lands on, the crop and the
-blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the context's
-`resolveTexture` and `findFlipbook` answers at the call site.
+blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken at the call site over the
+context's `findFlipbook` answer and one of its two reads - `resolveTexture` for an atlas sprite,
+`resolvePlainTexture` for a plain texture.
 
 - **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle is
   vanilla's: a declared side as declared, an undeclared side the strip's own where the other is
@@ -24,17 +25,28 @@ blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken ove
   entries - an empty `frames` list among them - does not animate: it shows the strip's first frame, as
   vanilla's sprite shows its top-left frame. It is memoised on `PackStack` on the same `(pack, id)` key
   the decoded pixels take.
-- **A strip its frame size does not divide is no texture at all.** Vanilla's sprite loader refuses it
-  and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
-  keeps the pixels and serves one that fails as unreadable - `resolveTexture` answers empty and the
-  table empty with it. A strip handed to `Flipbook.of` directly still plays the whole frames it holds,
-  and one holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
-  unchanged.
-- **An animation section the client's codec refuses is no texture either.** Vanilla's sprite loader
+- **A strip its frame size does not divide is no atlas sprite at all.** Vanilla's sprite loader refuses
+  it and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
+  keeps the pixels of a sprite read and serves one that fails as unreadable - `resolveTexture` answers
+  empty and the table empty with it. A strip handed to `Flipbook.of` directly still plays the whole
+  frames it holds, and one holding no whole frame resolves to NO flipbook, which is what a caller
+  renders as the strip unchanged.
+- **An animation section the client's codec refuses is no atlas sprite either.** Vanilla's sprite loader
   reads the section for every atlas and draws its missing sprite for one it refuses, so `PackStack`
-  serves the texture as unreadable, as it does a strip it refuses; the sidecar's other sections stand.
-  Vanilla reads a texture outside an atlas (an entity's, an armour layer, the elytra) with its texture
-  section alone and never animates it; this renderer reads every texture as an atlas sprite.
+  serves the texture as unreadable, as it does a strip it refuses; the sidecar's other sections stand. A
+  plain texture - one the client's texture manager loads by its file: an entity's, an equipment or
+  armour layer, the elytra, a skin or cape, a skull's, the glint, the book, a container sheet, the
+  portal shader's two - is read by `resolvePlainTexture` with its texture section alone, so neither
+  refusal reaches it: the table is empty for both, so the whole file draws. Vanilla never animates a
+  plain texture. This renderer plays a plain texture's valid animation where the read site samples
+  `findFlipbook` over it - an entity's own textures, an equipment layer on an entity, the wings, a
+  skull's and the copper golem statue's - frame 0 at rest and the strip when a caller names frames,
+  where vanilla draws the whole strip; every other plain read samples no table and draws the whole file,
+  as vanilla does. A reader that spreads its UVs over the texture - an entity's mesh, the wings, a
+  skull, the glint, the book's quad, a container sheet, the portal shader - draws what it is handed
+  squeezed into the sheet its model declares, as the client draws it; one that crops by texel
+  coordinates - a skin, a cape, a worn armour or trim layer - draws the declared sheet's texels, where
+  the client draws a texture of another size whole.
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
   strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`
@@ -42,13 +54,16 @@ blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken ove
   because a forwarded table would pair the delegate's frame rectangle with the wrapper's pixels,
   which for `AtlasRenderer`'s static context, whose substituted strips are single frames,
   re-animates the atlas.
-- **The three metadata lookups are absent exactly where `resolveTexture` is.** A texture served with
-  no sidecar answers all three empty; a wrapper serving a texture its delegate does not answers its
-  metadata empty rather than absent; a texture served with no pixels keeps its sidecar and plays
-  nothing, its sidecar and animation answering empty themselves where the sidecar is what does not
-  parse. A wrong state is invisible to every render, since both value-less tables draw a still
-  frame, so `TextureViewCoherenceTest`, which holds the rule over every context and wrapper, is its
-  only witness.
+- **The three metadata lookups are absent exactly where `resolveTexture` is.** The plain read is absent
+  there too but for two ids: one only a paletted permutation serves, which no file backs, and one an
+  items or blocks atlas stitches from another file, which `resolveTexture` follows and the plain read
+  does not - it reads the file the id names, or answers absent. Where both reads answer pixels, they are
+  one file's only where no atlas redirects the id. A texture served with no sidecar answers all three
+  empty; a wrapper serving a texture its delegate does not answers its metadata empty rather than
+  absent; a texture served with no pixels keeps its sidecar and plays nothing, its sidecar and animation
+  answering empty themselves where the sidecar is what does not parse. A wrong state is invisible to
+  every render, since both value-less tables draw a still frame, so `TextureViewCoherenceTest`, which
+  holds the rule over every context and wrapper, is its only witness.
 - The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes
   nothing.
 - A block's own flipbooks ride `Block.flipbooks()`, resolved at index build over its model, its

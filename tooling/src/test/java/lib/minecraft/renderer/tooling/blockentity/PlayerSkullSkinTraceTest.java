@@ -25,6 +25,7 @@ import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,8 +35,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the PLAYER skull skin row, declared as a coordinate plus a trace and recovered by replaying it
@@ -43,10 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * convenient one: an eighteen-element array whose length is pushed before the allocation, {@code
  * bipush} ordinals past the {@code ICONST} range, and element expressions that carry a model-type
  * read and a factory call after the stem - each a place a looser walk would take the wrong literal.
- *
- * <p>The stems are vanilla's own, in vanilla's order, so the row is pinned at the answer the shipped
+ * <p>
+ * The stems are vanilla's own, in vanilla's order, so the row is pinned at the answer the shipped
  * table carries. The pair that matters is one accessor loading the default ordinal and one loading
  * another: the same trace answers a different stem, which is what the arm buys over a frozen string.
+ * <p>
+ * It also pins the binding the default-skin factory builds, which is what makes the PLAYER skull's
+ * texture a file.
  */
 @DisplayName("the PLAYER skull skin is replayed off the default-skin array, not declared")
 class PlayerSkullSkinTraceTest {
@@ -58,6 +64,8 @@ class PlayerSkullSkinTraceTest {
     private static final @NotNull String SKINS_DESC = "[L" + PLAYER_SKIN + ";";
     private static final @NotNull String ACCESSOR_DESC = "()L" + PLAYER_SKIN + ";";
     private static final @NotNull String CREATE_DESC = "(Ljava/lang/String;L" + MODEL_TYPE + ";)L" + PLAYER_SKIN + ";";
+    private static final @NotNull String RESOURCE_TEXTURE = "net/minecraft/core/ClientAsset$ResourceTexture";
+    private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
 
     /** The ordinal vanilla's accessor loads. */
     private static final int DEFAULT_ORDINAL = 6;
@@ -77,7 +85,7 @@ class PlayerSkullSkinTraceTest {
     @Test
     @DisplayName("the declared trace recovers the stem the accessor's ordinal binds")
     void traceRecoversTheDefaultStem() throws IOException {
-        try (ClassNodeCache cache = open("default", DEFAULT_ORDINAL)) {
+        try (ClassNodeCache cache = open("default", DEFAULT_ORDINAL, true)) {
             assertEquals("entity/player/slim/steve", new TraceReplay(cache).replay(coordinate(cache)));
         }
     }
@@ -85,7 +93,7 @@ class PlayerSkullSkinTraceTest {
     @Test
     @DisplayName("an accessor loading another ordinal recovers that ordinal's stem - the answer is derived")
     void traceFollowsTheAccessorOrdinal() throws IOException {
-        try (ClassNodeCache cache = open("moved", 15)) {
+        try (ClassNodeCache cache = open("moved", 15, true)) {
             assertEquals("entity/player/wide/steve", new TraceReplay(cache).replay(coordinate(cache)));
         }
     }
@@ -94,8 +102,24 @@ class PlayerSkullSkinTraceTest {
     @DisplayName("the array's own length is pushed before the allocation and never read as an ordinal")
     void arrayLengthIsNotAnOrdinal() throws IOException {
         // the length is 18 and no element binds ordinal 18, so a walk taking it would find nothing
-        try (ClassNodeCache cache = open("length", STEMS.size())) {
+        try (ClassNodeCache cache = open("length", STEMS.size(), true)) {
             assertThrows(ToolingException.class, () -> new TraceReplay(cache).replay(coordinate(cache)));
+        }
+    }
+
+    @Test
+    @DisplayName("the default-skin factory builds a resource texture over the stem, so a default skin is a texture file")
+    void theDefaultSkinIsATextureFile() throws IOException {
+        try (ClassNodeCache cache = open("file", DEFAULT_ORDINAL, true)) {
+            assertTrue(BlockCatalogResolver.defaultSkinBindsAFile(cache));
+        }
+    }
+
+    @Test
+    @DisplayName("a default-skin factory building no resource texture binds no file")
+    void aDefaultSkinBuiltFromNoTextureAssetIsNoFile() throws IOException {
+        try (ClassNodeCache cache = open("other", DEFAULT_ORDINAL, false)) {
+            assertFalse(BlockCatalogResolver.defaultSkinBindsAFile(cache));
         }
     }
 
@@ -111,10 +135,10 @@ class PlayerSkullSkinTraceTest {
         return assertInstanceOf(Navigation.Dataflow.class, BlockFamilyPolicies.PLAYER_SKULL_SKIN.navigate(frame));
     }
 
-    private @NotNull ClassNodeCache open(@NotNull String name, int ordinal) throws IOException {
+    private @NotNull ClassNodeCache open(@NotNull String name, int ordinal, boolean resourceTexture) throws IOException {
         Path jar = this.tempDir.resolve(name + ".jar");
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jar))) {
-            ClassNode fixture = defaultPlayerSkin(ordinal);
+            ClassNode fixture = defaultPlayerSkin(ordinal, resourceTexture);
             zip.putNextEntry(new ZipEntry(fixture.name + ".class"));
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             fixture.accept(writer);
@@ -124,8 +148,16 @@ class PlayerSkullSkinTraceTest {
         return ClassNodeCache.open(jar);
     }
 
-    /** The default-skin class: the filled array, and the accessor loading one ordinal out of it. */
-    private static @NotNull ClassNode defaultPlayerSkin(int ordinal) {
+    /**
+     * Builds the default-skin class: the filled array, the accessor loading one ordinal out of it, and
+     * the factory building a skin out of a stem.
+     *
+     * @param ordinal the ordinal the accessor loads
+     * @param resourceTexture whether the factory builds a resource texture over the stem, as 26.1's does,
+     *     or a bare {@code Object} in its place
+     * @return the class
+     */
+    private static @NotNull ClassNode defaultPlayerSkin(int ordinal, boolean resourceTexture) {
         ClassNode cn = new ClassNode();
         cn.version = Opcodes.V21;
         cn.access = Opcodes.ACC_PUBLIC;
@@ -158,6 +190,33 @@ class PlayerSkullSkinTraceTest {
         pushInt(body, ordinal);
         body.add(new InsnNode(Opcodes.AALOAD));
         body.add(new InsnNode(Opcodes.ARETURN));
+
+        // 26.1's opening: new ClientAsset$ResourceTexture over Identifier.withDefaultNamespace(stem).
+        MethodNode factory = new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, "create", CREATE_DESC, null, null);
+        cn.methods.add(factory);
+        InsnList create = factory.instructions;
+        create.add(new TypeInsnNode(Opcodes.NEW, PLAYER_SKIN));
+        create.add(new InsnNode(Opcodes.DUP));
+        if (resourceTexture) {
+            create.add(new TypeInsnNode(Opcodes.NEW, RESOURCE_TEXTURE));
+            create.add(new InsnNode(Opcodes.DUP));
+            create.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            create.add(new MethodInsnNode(Opcodes.INVOKESTATIC, IDENTIFIER, "withDefaultNamespace",
+                "(Ljava/lang/String;)L" + IDENTIFIER + ";"));
+            create.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, RESOURCE_TEXTURE, ClassKit.INIT, "(L" + IDENTIFIER + ";)V"));
+        } else {
+            create.add(new TypeInsnNode(Opcodes.NEW, ClassKit.OBJECT_INTERNAL));
+            create.add(new InsnNode(Opcodes.DUP));
+            create.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, ClassKit.OBJECT_INTERNAL, ClassKit.INIT, "()V"));
+        }
+        create.add(new InsnNode(Opcodes.ACONST_NULL));
+        create.add(new InsnNode(Opcodes.ACONST_NULL));
+        create.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        create.add(new InsnNode(Opcodes.ICONST_1));
+        create.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, PLAYER_SKIN, ClassKit.INIT,
+            "(Lnet/minecraft/core/ClientAsset$Texture;Lnet/minecraft/core/ClientAsset$Texture;"
+                + "Lnet/minecraft/core/ClientAsset$Texture;L" + MODEL_TYPE + ";Z)V"));
+        create.add(new InsnNode(Opcodes.ARETURN));
         return cn;
     }
 

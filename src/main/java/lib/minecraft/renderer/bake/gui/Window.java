@@ -356,21 +356,23 @@ public interface Window {
          * Resolves named art through the pack stack and composes the panel the client draws from it
          * for the screen.
          * <p>
-         * The sheet is read whole, as the client reads a container texture, which it never animates.
-         * For a screen the client ships, it is read in the {@link ScreenMetrics#SHEET}-texel space every
-         * container blit declares, so a sheet of another size is read at one texel per Minecraft pixel,
-         * and the panel is the regions of it the client blits, laid one under the other; without the
-         * player's section they are cut after the screen's own rows and closed by their last
-         * {@link ScreenMetrics#MARGIN margin}. Either is the size it is painted at, its cells the art's
-         * own, and no cell sprite is read unless the caller names one. For a screen the client ships no
-         * sheet for, the panel is the texture at its own size cut to what it draws, resized to the
-         * layout, and each cell is drawn with the named sprite or the client's slot.
+         * The sheet is read as the client reads a container texture, a plain texture: whole, never
+         * animated, and with its sidecar's texture section alone. For a screen the client ships, it is
+         * read in the {@link ScreenMetrics#SHEET}-texel space every container blit declares, so a sheet
+         * of another size is read at one texel per Minecraft pixel, and the panel is the regions of it
+         * the client blits, laid one under the other; without the player's section they are cut after
+         * the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Either is
+         * the size it is painted at, its cells the art's own, and no cell sprite is read unless the
+         * caller names one. For a screen the client ships no sheet for, the panel is the texture at its
+         * own size cut to what it draws, resized to the layout, and each cell is drawn with the named
+         * sprite or the client's slot.
          * <p>
          * A sheet no pack supplies, or that cannot be read, is the checkerboard read the same way, as
          * vanilla draws its missing texture for one it cannot load. It never falls back to the vanilla
          * panel, because a caller naming one has stated an intent a silently vanilla panel would not
          * honour - absence and failure are different states and only the first is expressible, by naming
-         * nothing. The panel's sidecar is not read, the client reading none for a container blit.
+         * nothing. Of the panel's sidecar only the texture section is read; its {@code gui} section is
+         * not, container art being blitted rather than nine-sliced.
          * <p>
          * The cell sprite, and the sprite of each mark the screen places that the client blits over the
          * art - the anvil's name field in the form its first input gives, its cross, and the crafting
@@ -391,7 +393,7 @@ public interface Window {
             @NotNull RendererContext context, @NotNull ResourceId panelId, @NotNull Optional<ResourceId> cellId,
             @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            PixelBuffer sheet = context.withMissingTexture().resolveTexture(panelId.id()).get();
+            PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(panelId.id()).get();
             PixelBuffer panel = compose(sheet, screen, layout);
             Optional<ResourceId> cell = cellId.or(() -> screen.regions().isEmpty()
                 ? Optional.of(SLOT_SPRITE)

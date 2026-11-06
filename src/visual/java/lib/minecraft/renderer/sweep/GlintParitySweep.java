@@ -285,7 +285,7 @@ public final class GlintParitySweep {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).image().toPixelBuffer().toBufferedImage());
 
-        PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).get();
+        PixelBuffer glintTexture = GlintKit.readTexture(context, GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -329,7 +329,7 @@ public final class GlintParitySweep {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).image().toPixelBuffer().toBufferedImage());
 
-        PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).get();
+        PixelBuffer glintTexture = GlintKit.readTexture(context, GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.itemDefault(30), spriteUv.orElse(null));
 

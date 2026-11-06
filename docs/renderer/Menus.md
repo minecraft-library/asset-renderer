@@ -36,9 +36,11 @@ laid by `NineSliceKit` at output-pixel resolution.
   screen the client ships no sheet for - a grid, a chest of other than one to six rows, the player's
   view - resizes the named texture, read at its own size and cut to the pixels it draws, and every
   cell is drawn with the named sprite or the client's `container/slot`; the 256-texel space is a
-  property of the client's blits, and such a screen has none. The panel's own sidecar is never read,
-  container art being blitted rather than nine-sliced. A sheet authored at another size for a shipped
-  screen is read at one texel per Minecraft pixel, where the client draws it at full resolution.
+  property of the client's blits, and such a screen has none. The panel is read as the client reads a
+  container texture, a plain texture: of its sidecar the texture section alone, so its `gui` section is
+  never read, container art being blitted rather than nine-sliced, and an animation section neither
+  plays nor loses it. A sheet authored at another size for a shipped screen is read at one texel per
+  Minecraft pixel, where the client draws it at full resolution.
 - **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite, the
   anvil's field and its cross, and the recipe-book button are read as the client's GUI atlas holds
   them - the missing texture for one no pack supplies, one that cannot be read and one whose `gui`

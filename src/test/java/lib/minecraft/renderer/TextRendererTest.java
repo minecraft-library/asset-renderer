@@ -9,6 +9,9 @@ import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.bake.gui.NineSliceKit;
 import lib.minecraft.renderer.bake.gui.TextKit;
@@ -19,8 +22,15 @@ import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.TextSlot;
+import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.content.index.IndexedRendererContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.SpriteAtlas;
+import lib.minecraft.renderer.content.pack.TextureIndexer;
+import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -38,15 +48,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -920,11 +935,16 @@ class TextRendererTest {
     }
 
     /**
-     * Pins for the {@link TextOptions.Style#BOOK} style. Every book texture is a straight seed served by a
-     * context that resolves only what it is seeded with, so no client jar is needed but for the one case
-     * that reads vanilla's own texture, which skips without one. Over an opaque texture the quad lies at the
-     * canvas's corner on a 384 x 384 canvas, so a line's band - the 18 output rows from its cell's top -
-     * sits at a fixed place: line {@code i}'s from row {@code 60 + 18 i}, its first column 72.
+     * Pins for the {@link TextOptions.Style#BOOK} style. A book texture is a straight seed served by a
+     * context that resolves only what it is seeded with, but for six cases that stage it as a file in a
+     * one-pack stack read by the production context - beside a sidecar, or cut short - so the texture is
+     * read as the client's book screen reads it, a plain texture: an animation section, refused or with a
+     * frame size that does not divide the image, leaves it drawn, and a sidecar that does not parse, a
+     * refused texture section or an image that does not decode draws the missing texture. No client jar is
+     * needed but for the one case that reads vanilla's own texture, which skips without one. Over an opaque
+     * texture the quad lies at the canvas's corner on a 384 x 384 canvas, so a line's band - the 18 output
+     * rows from its cell's top - sits at a fixed place: line {@code i}'s from row {@code 60 + 18 i}, its
+     * first column 72.
      */
     @Nested
     @DisplayName("a book page")
@@ -935,6 +955,9 @@ class TextRendererTest {
 
         /** The one colour of the synthetic paper */
         private static final int PAPER = 0xFFC8B48C;
+
+        /** The one colour of a book texture staged in a pack */
+        private static final int STAGED = 0xFF3366CC;
 
         /** The side of the canvas a book over an opaque texture draws on, in output pixels - the quad's 192 Minecraft pixels */
         private static final int QUAD_PX = 384;
@@ -1166,6 +1189,127 @@ class TextRendererTest {
             // beside it from output column 256.
             assertThat("the corner and the first magenta column", List.of(canvas.getPixel(0, 0), canvas.getPixel(256, 0)),
                 is(List.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        }
+
+        @Test
+        @DisplayName("a book texture beside an animation section the client's codec refuses draws the book")
+        void aRefusedAnimationSidecarDrawsTheBook(@TempDir Path dir) throws IOException {
+            assertDrawsTheBook(bookContext(dir, solidPng(256, 256), Optional.of("{\"animation\":{\"frametime\":0}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture whose declared frame width does not divide it draws the book")
+        void aWidthThatDoesNotDivideDrawsTheBook(@TempDir Path dir) throws IOException {
+            assertDrawsTheBook(bookContext(dir, solidPng(256, 256), Optional.of("{\"animation\":{\"width\":100}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture taller than wide by less than a frame, beside an animation section, draws the book on the square's canvas")
+        void aNonSquareStripDrawsTheBook(@TempDir Path dir) throws IOException {
+            PixelBuffer canvas = assertDrawsTheBook(bookContext(dir, solidPng(256, 384), Optional.of("{\"animation\":{}}")));
+
+            assertThat("the canvas a square book draws on", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+        }
+
+        @Test
+        @DisplayName("a book texture beside a sidecar that is not JSON draws the missing texture, and is a stand-in")
+        void aSidecarThatIsNotJsonDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            assertDrawsTheMissingTexture(bookContext(dir, solidPng(256, 256), Optional.of("{ \"animation\": ")));
+        }
+
+        @Test
+        @DisplayName("a book texture beside a texture section the client's codec refuses draws the missing texture, and is a stand-in")
+        void aRefusedTextureSectionDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            assertDrawsTheMissingTexture(bookContext(dir, solidPng(256, 256), Optional.of("{\"texture\":{\"blur\":1}}")));
+        }
+
+        @Test
+        @DisplayName("a book texture whose image does not decode draws the missing texture, and is a stand-in")
+        void anImageThatDoesNotDecodeDrawsTheMissingTexture(@TempDir Path dir) throws IOException {
+            byte[] png = solidPng(256, 256);
+            assertDrawsTheMissingTexture(bookContext(dir, Arrays.copyOf(png, png.length / 2), Optional.empty()));
+        }
+
+        /**
+         * Asserts an empty page over a staged book texture draws the texture's one colour at the quad's
+         * first texel and names no stand-in.
+         *
+         * @param context the context the staged texture is read through
+         * @return the drawn page
+         */
+        private static PixelBuffer assertDrawsTheBook(RendererContext context) {
+            RenderResult result = new TextRenderer(context).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture's colour at the quad's first texel", canvas.getPixel(0, 0), is(STAGED));
+            assertThat("stand-ins", result.substitutions(), is(empty()));
+            return canvas;
+        }
+
+        /**
+         * Asserts an empty page over a staged book texture draws the missing texture as the client's quad
+         * draws it and names the texture as a stand-in that is served and yields no pixels.
+         *
+         * @param context the context the staged texture is read through
+         */
+        private static void assertDrawsTheMissingTexture(RendererContext context) {
+            RenderResult result = new TextRenderer(context).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture named as a stand-in", result.substitutions(),
+                contains(Substitution.texture(TEXTURE, Possible.State.EMPTY)));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the missing texture's texel the client's quad reads under them",
+                missedTexels(canvas, MissingSprite.sprite()), is(0));
+        }
+
+        /**
+         * Stages one pack holding the book texture, and its sidecar where one is given, indexes it and
+         * builds the production context over it.
+         *
+         * @param dir the directory the pack is staged in
+         * @param png the book texture's bytes
+         * @param sidecar the sidecar's text, which need not parse, or empty for none
+         * @return the production context over the staged pack
+         * @throws IOException if writing the pack fails
+         */
+        private static RendererContext bookContext(Path dir, byte[] png, Optional<String> sidecar) throws IOException {
+            Path gui = dir.resolve("assets/minecraft/textures/gui");
+            Files.createDirectories(gui);
+            Files.write(gui.resolve("book.png"), png);
+            if (sidecar.isPresent()) Files.writeString(gui.resolve("book.png.mcmeta"), sidecar.get());
+
+            ResourcePack pack = new ResourcePack(
+                PackId.VANILLA, new PackContainer.Directory(dir), MCMeta.EMPTY,
+                Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
+                Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
+            PackStack bare = PackStack.of(Concurrent.newList(pack));
+            PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
+            return new IndexedRendererContext(
+                stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
+                new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+                Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+                Concurrent.newMap(), TextureSynthesizer.EMPTY, Concurrent.newMap(),
+                Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList(),
+                SpriteAtlas.load(stack, SpriteAtlas.ITEMS), SpriteAtlas.load(stack, SpriteAtlas.BLOCKS));
+        }
+
+        /**
+         * Encodes an image every texel of which is {@link #STAGED}.
+         *
+         * @param width the image width
+         * @param height the image height
+         * @return the PNG bytes
+         * @throws IOException if encoding fails
+         */
+        private static byte[] solidPng(int width, int height) throws IOException {
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    image.setRGB(x, y, STAGED);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "PNG", out);
+            return out.toByteArray();
         }
 
         @Test

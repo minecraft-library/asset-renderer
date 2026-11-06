@@ -72,10 +72,13 @@ import java.util.Optional;
  * at 114 Minecraft pixels as the client wraps a page ({@link TextSegment#wrap}), and its first 14 lines are
  * drawn 9 apart from the client's text origin, the rest dropped. So the page's text is black where it names
  * no colour and has no shadow where it names no shadow colour, and text the wrap opens in no style at all,
- * after a reset code a break follows, draws white with a shadow, as the client draws it. A book texture no
- * selected pack ships, or one that cannot be read, draws as the missing texture over the quad, as the
- * client draws its missing texture, and is named in the result as a stand-in. Only a context reads the
- * texture, so a renderer holding none raises a {@link RenderException} for a book.
+ * after a reset code a break follows, draws white with a shadow, as the client draws it. The texture is
+ * read as the client's book screen reads it, as a plain texture with its sidecar's texture section alone,
+ * so an animation section there neither loses it nor animates it. A book texture no selected pack ships,
+ * one that does not decode, or one whose sidecar does not parse or carries a texture section the client's
+ * codec refuses, draws as the missing texture over the quad, as the client draws its missing texture, and
+ * is named in the result as a stand-in. Only a context reads the texture, so a renderer holding none raises
+ * a {@link RenderException} for a book.
  * <p>
  * For a tooltip the renderer owns only the glyph rows and the text block's measure, the box being its
  * chrome's; a book's texture quad and its lines the renderer lays itself. A tooltip's canvas is the box
@@ -332,7 +335,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         RendererContext context = this.context.orElseThrow(() -> new RenderException(
             "The BOOK text style draws its page from the texture '%s'; the text renderer needs a RendererContext to read it",
             BOOK_TEXTURE_ID));
-        PixelBuffer sheet = context.withMissingTexture().resolveTexture(BOOK_TEXTURE_ID.id()).get();
+        PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(BOOK_TEXTURE_ID.id()).get();
         TextPalette palette = context.findTextPalette().orElse(TextPalette.VANILLA);
         ConcurrentList<LineSegment> lines = pageLines(options.getPage());
         boolean animated = hasObfuscation(lines) || hasAnimatedGradient(lines);

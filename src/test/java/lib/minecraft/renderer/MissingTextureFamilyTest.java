@@ -3,11 +3,13 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.frame.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -17,20 +19,24 @@ import lib.minecraft.renderer.bake.armor.ShellIndex;
 import lib.minecraft.renderer.bake.armor.WornBox;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.TrimKit;
+import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.ArmorOptions;
 import lib.minecraft.renderer.call.request.ArmorPiece;
 import lib.minecraft.renderer.call.request.ArmorTrim;
 import lib.minecraft.renderer.call.request.BannerLayer;
+import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
@@ -45,6 +51,7 @@ import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.DyeColor;
@@ -56,15 +63,18 @@ import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
+import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicContainer;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -73,11 +83,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
@@ -89,13 +102,28 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
  * Coverage of what every texture family draws for a texture it names that no pack supplies, or that a
  * pack ships as a file that cannot be decoded: an entity's base, overlay, carried-block and group-member
- * textures, the equipment and worn-armour layers and a pack rule's armour tile, the elytra wings and a
- * pack rule's wing tile, the cape, the player's skin, a banner pattern, a trim, the glint, a fluid's
- * still face and the portal shader's noise.
+ * textures and a texture named in its place, the equipment and worn-armour layers and a pack rule's
+ * armour tile, the elytra wings, a pack rule's wing tile and a wing source named by id, the cape, the
+ * player's skin and the default one, a banner pattern, a trim, the glint, a fluid's still face, the
+ * portal shader's noise and end sky, a skull's and the copper golem statue's texture, a menu's container
+ * sheet and the book's page texture.
+ * <p>
+ * Each family names the read the client makes of its texture: an atlas sprite, which the sprite loader
+ * refuses for an animation section the client's codec refuses; a plain texture, which the client's
+ * texture manager loads by its file with its sidecar's texture section alone, so such a section costs it
+ * nothing; or a paletted permutation's input, which the client reads with no sidecar. After its zero-byte
+ * break, each sprite and plain family is drawn once more with its texture beside a refused animation -
+ * the whole file on a plain read, the checkerboard on a sprite read - and each whose drawing can tell a
+ * whole strip from its first frame is drawn with a valid one: its first frame at rest where its read site
+ * plays a table, as an atlas sprite and the plain reads that sample a table do, and the whole strip where
+ * it never did. A plain read that plays a table is drawn over two frames a tick apart as well, its second
+ * frame the strip's second, so a site that stops stepping its tick shows. A staged texture is the
+ * family's own at rest, so a family that draws it is held to its intact picture.
  * <p>
  * Each render is exactly the one it draws where the texture IS the checkerboard. A render that draws the
  * texture prints the id once in the words of what was wrong with it, and names it in its result as the
@@ -113,6 +141,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * static and live as long as the process, so each id is broken in each state by one test alone.
  */
 @ExtendWith(ClientAssetsExtension.class)
+@ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A texture a family names that no pack can supply draws the checkerboard")
 class MissingTextureFamilyTest {
 
@@ -167,9 +196,57 @@ class MissingTextureFamilyTest {
     private static final String TRIM_PALETTE_KEY = "minecraft:trims/color_palettes/trim_palette";
 
     /**
+     * An elytra wing source no pack ships, named through the skin options.
+     */
+    private static final String ELYTRA_SOURCE = "minecraft:entity/missing_texture_family/elytra_source";
+
+    /**
+     * The book's page texture.
+     */
+    private static final String BOOK = "minecraft:gui/book";
+
+    /**
+     * The container sheet the hopper's window is composed from, which no other test class breaks.
+     */
+    private static final String HOPPER_SHEET = "minecraft:gui/container/hopper";
+
+    /**
      * The opaque colour a cape or pack-rule tile is drawn in where one is served.
      */
     private static final int SERVED = 0xFF3366CC;
+
+    /**
+     * The colour every two-frame strip the valid-animation stack ships gives its lower frame wherever its
+     * upper frame is opaque, the rest copied, so the two frames cover the same texels and a canvas fitted
+     * to what a render draws is one size over either.
+     */
+    private static final int LOWER_FRAME = 0xFF11AA22;
+
+    /**
+     * Two frames one tick apart.
+     */
+    private static final AnimationOptions TWO_TICKS = AnimationOptions.builder().frameCount(2).ticksPerFrame(1).build();
+
+    /**
+     * Both states a texture is broken in: missing, and served with no pixels.
+     */
+    private static final Set<Possible.State> BOTH = Set.of(Possible.State.ABSENT, Possible.State.EMPTY);
+
+    /**
+     * The families whose read site samples a playback table over a plain read, so a valid animation
+     * draws its first frame at rest and its strip a frame a tick; each family's render takes a timing.
+     */
+    private static final Set<String> FLIPBOOK_SITES = Set.of(
+        "entity base", "entity overlay", "entity texture override", "equipment layer", "elytra wings",
+        "skull", "copper golem statue");
+
+    /**
+     * The families whose read site samples no playback table and spreads its UVs over the whole texture,
+     * so a valid animation's strip draws whole, as the client draws a plain texture.
+     */
+    private static final Set<String> WHOLE_SITES = Set.of(
+        "book page", "container sheet", "armour glint", "item glint", "portal noise", "end sky",
+        "cape on the wings", "elytra source");
 
     /**
      * The canvas every render here is drawn at - large enough to tell two pictures apart.
@@ -178,6 +255,12 @@ class MissingTextureFamilyTest {
 
     @TempDir
     static Path brokenRoot;
+
+    @TempDir
+    static Path refusedRoot;
+
+    @TempDir
+    static Path animatedRoot;
 
     /**
      * The vanilla stack every family reads.
@@ -190,8 +273,32 @@ class MissingTextureFamilyTest {
     private static PackStack broken;
 
     /**
-     * Stages the zero-byte pack - one empty file under every id a family breaks - and indexes it with
-     * the real indexer, so a lookup it serves is decoded by the real pack reader.
+     * A pack holding every atlas-sprite and plain family's texture, as its intact render draws it at rest,
+     * beside an animation section the client's codec refuses.
+     */
+    private static PackStack refused;
+
+    /**
+     * A pack holding every atlas-sprite and plain family's texture, as its intact render draws it at rest,
+     * over a copy of it below recoloured where it is opaque, beside a valid animation of those two frames.
+     */
+    private static PackStack animated;
+
+    /**
+     * Each two-frame strip the valid-animation pack ships, decoded, by family texture id.
+     */
+    private static final Map<String, PixelBuffer> STRIPS = new HashMap<>();
+
+    /**
+     * The lower frame of each strip the valid-animation pack ships, by family texture id.
+     */
+    private static final Map<String, PixelBuffer> LOWER_FRAMES = new HashMap<>();
+
+    /**
+     * Stages the zero-byte pack - one empty file under every id a family breaks - and the two packs of
+     * sidecars, and indexes each with the real indexer, so a lookup each serves is decoded by the real
+     * pack reader. A staged texture is each family's own read of its intact context at rest, the first
+     * frame of one that animates, encoded losslessly, which this asserts by decoding it back.
      *
      * @throws IOException if writing a fixture fails
      */
@@ -201,22 +308,105 @@ class MissingTextureFamilyTest {
 
         List<String> ids = Stream.concat(
                 families().map(Family::textureId),
-                Stream.of(WING_TILE, PIG_BABY, STEVE, TRIM_PALETTE_KEY))
+                Stream.of(WING_TILE, PIG_BABY, TRIM_PALETTE_KEY))
             .toList();
-        for (String id : ids) {
-            ResourceId parsed = ResourceId.parse(id);
-            Path file = brokenRoot.resolve("assets").resolve(parsed.namespace()).resolve("textures")
-                .resolve(parsed.name() + ".png");
-            Files.createDirectories(file.getParent());
-            Files.write(file, new byte[0]);
-        }
+        for (String id : ids)
+            Files.write(textureFile(brokenRoot, id), new byte[0]);
+        broken = indexed(brokenRoot);
+        // Each zero-byte file is decoded here on both reads, so the pack reader's own line for it prints
+        // once now rather than inside whichever test reads it first.
+        errDuring(() -> ids.stream().map(ResourceId::parse).forEach(id -> {
+            broken.pixels(id);
+            broken.plainPixels(id);
+        }));
 
+        for (Family family : families().filter(family -> family.read() != Read.PERMUTATION_INPUT).toList()) {
+            RendererContext intact = family.intact().apply(vanilla);
+            String id = family.textureId();
+            Possible<PixelBuffer> read = family.read() == Read.PLAIN ? intact.resolvePlainTexture(id) : intact.resolveTexture(id);
+            PixelBuffer atRest = Flipbook.atTick(read, intact.findFlipbook(id), 0).orElseThrow();
+            byte[] still = png(atRest);
+            assertThat(family + "'s staged texture decodes back to its intact one",
+                RenderDigest.pixels(ImageFactory.fromByteArray(still).toPixelBuffer()), is(RenderDigest.pixels(atRest)));
+            Files.write(textureFile(refusedRoot, id), still);
+            Files.writeString(sidecarFile(refusedRoot, id), "{\"animation\":{\"frametime\":0}}");
+
+            PixelBuffer lower = PixelBuffer.straight(atRest.width(), atRest.height());
+            PixelBuffer strip = PixelBuffer.straight(atRest.width(), atRest.height() * 2);
+            for (int y = 0; y < atRest.height(); y++) {
+                for (int x = 0; x < atRest.width(); x++) {
+                    int argb = atRest.getPixel(x, y);
+                    lower.setPixel(x, y, argb >>> 24 == 0xFF ? LOWER_FRAME : argb);
+                    strip.setPixel(x, y, argb);
+                    strip.setPixel(x, y + atRest.height(), lower.getPixel(x, y));
+                }
+            }
+            byte[] strips = png(strip);
+            assertThat(family + "'s staged strip decodes back to the one built",
+                RenderDigest.pixels(ImageFactory.fromByteArray(strips).toPixelBuffer()), is(RenderDigest.pixels(strip)));
+            Files.write(textureFile(animatedRoot, id), strips);
+            Files.writeString(sidecarFile(animatedRoot, id), "{\"animation\":{\"height\":" + atRest.height() + "}}");
+            STRIPS.put(id, strip);
+            LOWER_FRAMES.put(id, lower);
+        }
+        refused = indexed(refusedRoot);
+        animated = indexed(animatedRoot);
+    }
+
+    /**
+     * Answers the file a texture id names under a pack root, making its directories.
+     *
+     * @param root the pack root
+     * @param textureId the texture id
+     * @return the PNG's path
+     * @throws IOException if making a directory fails
+     */
+    private static @NotNull Path textureFile(@NotNull Path root, @NotNull String textureId) throws IOException {
+        ResourceId parsed = ResourceId.parse(textureId);
+        Path file = root.resolve("assets").resolve(parsed.namespace()).resolve("textures").resolve(parsed.name() + ".png");
+        Files.createDirectories(file.getParent());
+        return file;
+    }
+
+    /**
+     * Answers the sidecar beside the file a texture id names under a pack root.
+     *
+     * @param root the pack root
+     * @param textureId the texture id
+     * @return the sidecar's path
+     * @throws IOException if making a directory fails
+     */
+    private static @NotNull Path sidecarFile(@NotNull Path root, @NotNull String textureId) throws IOException {
+        Path file = textureFile(root, textureId);
+        return file.resolveSibling(file.getFileName() + ".mcmeta");
+    }
+
+    /**
+     * Indexes a staged pack, taking vanilla's place at the bottom of a stack of its own.
+     *
+     * @param root the pack root
+     * @return the indexed stack
+     */
+    private static @NotNull PackStack indexed(@NotNull Path root) {
         ResourcePack pack = new ResourcePack(
-            PackId.VANILLA, PackFixtures.directory(brokenRoot), MCMeta.EMPTY,
+            PackId.VANILLA, PackFixtures.directory(root), MCMeta.EMPTY,
             Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
             Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
-        broken = PackStack.of(Concurrent.newList(pack))
+        return PackStack.of(Concurrent.newList(pack))
             .withTextureIndex(TextureIndexer.index(PackStack.of(Concurrent.newList(pack))));
+    }
+
+    /**
+     * Encodes a buffer as a PNG.
+     *
+     * @param buffer the pixels
+     * @return the PNG bytes
+     * @throws IOException if encoding fails
+     */
+    private static byte @NotNull [] png(@NotNull PixelBuffer buffer) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(buffer.toBufferedImage(), "PNG", out);
+        return out.toByteArray();
     }
 
     // ------------------------------------------------------------------------------------
@@ -230,110 +420,177 @@ class MissingTextureFamilyTest {
      */
     private static @NotNull Stream<Family> families() {
         return Stream.of(
-            new Family("entity base", "minecraft:entity/creeper/creeper", UnaryOperator.identity(),
-                context -> entity(context, entity("minecraft:creeper")), true),
-            new Family("entity overlay", "minecraft:entity/spider/spider_eyes", UnaryOperator.identity(),
-                context -> entity(context, entity("minecraft:spider")), true),
-            new Family("carried block", "minecraft:block/red_mushroom", UnaryOperator.identity(),
+            new Family("entity base", "minecraft:entity/creeper/creeper", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> entity(context, entity("minecraft:creeper").animation(animation)), true),
+            new Family("entity overlay", "minecraft:entity/spider/spider_eyes", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> entity(context, entity("minecraft:spider").animation(animation)), true),
+            new Family("carried block", "minecraft:block/red_mushroom", Read.SPRITE, BOTH, UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:mooshroom")), true),
             // Measured for the canvas and never drawn: the render reads it, and neither prints it nor
             // names it in the result, since the picture does not hold it.
-            new Family("group member", "minecraft:entity/camel/camel_husk", UnaryOperator.identity(),
+            new Family("group member", "minecraft:entity/camel/camel_husk", Read.PLAIN, BOTH, UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:camel")
                     .fitMode(EntityOptions.FitMode.GROUP_BOUNDS).pixelsPerBlock(16)), false),
-            new Family("equipment layer", "minecraft:entity/equipment/pig_saddle/saddle", UnaryOperator.identity(),
-                context -> entity(context, entity("minecraft:pig")
-                    .appearance(AppearanceOptions.builder().equipment(Map.of("saddle", "saddle")).build())), true),
-            new Family("worn armour layer", "minecraft:entity/equipment/humanoid/iron", UnaryOperator.identity(),
+            new Family("equipment layer", "minecraft:entity/equipment/pig_saddle/saddle", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> entity(context, entity("minecraft:pig")
+                    .appearance(AppearanceOptions.builder().equipment(Map.of("saddle", "saddle")).build())
+                    .animation(animation)), true),
+            new Family("worn armour layer", "minecraft:entity/equipment/humanoid/iron", Read.PLAIN, BOTH, UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder().chestplate(ArmorPiece.of(ArmorMaterial.IRON)).build())), true),
-            new Family("pack-rule armour tile", ARMOR_TILE, MissingTextureFamilyTest::armorTileServed,
+            new Family("pack-rule armour tile", ARMOR_TILE, Read.PLAIN, BOTH, MissingTextureFamilyTest::armorTileServed,
                 context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(ArmorPiece.of(ArmorMaterial.IRON))
                         .items(Map.of(ArmorSlot.CHESTPLATE, ItemContext.ofItem("minecraft:iron_chestplate")))
                         .build())), true),
-            new Family("worn trim", "minecraft:trims/entity/humanoid/sentry", UnaryOperator.identity(),
+            new Family("worn trim", "minecraft:trims/entity/humanoid/sentry", Read.PERMUTATION_INPUT, BOTH, UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(ArmorPiece.of(ArmorMaterial.IRON, ArmorTrim.Color.GOLD, ArmorTrim.Pattern.SENTRY))
                         .build())), true),
-            new Family("armour glint", "minecraft:misc/enchanted_glint_armor", UnaryOperator.identity(),
+            new Family("armour glint", "minecraft:misc/enchanted_glint_armor", Read.PLAIN, BOTH, UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true))
                         .build())), true),
-            new Family("elytra wings", "minecraft:entity/equipment/wings/elytra", UnaryOperator.identity(),
-                context -> entity(context, entity("minecraft:zombie")
-                    .appearance(AppearanceOptions.builder().elytra(true).build())), true),
-            new Family("cape", CAPE, context -> context.withTexture(CAPE, solid(64, 32)),
+            new Family("elytra wings", "minecraft:entity/equipment/wings/elytra", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> entity(context, entity("minecraft:zombie")
+                    .appearance(AppearanceOptions.builder().elytra(true).build())
+                    .animation(animation)), true),
+            new Family("cape", CAPE, Read.PLAIN, BOTH, context -> context.withTexture(CAPE, solid(64, 32)),
                 context -> player(context, player()
                     .skin(SkinOptions.builder().cape(TextureOptions.builder().id(CAPE).build()).renderCape(true).build())), true),
-            new Family("cape on the wings", WINGS_CAPE, context -> context.withTexture(WINGS_CAPE, solid(64, 32)),
+            new Family("cape on the wings", WINGS_CAPE, Read.PLAIN, BOTH, context -> context.withTexture(WINGS_CAPE, solid(64, 32)),
                 context -> player(context, player()
                     .skin(SkinOptions.builder()
                         .cape(TextureOptions.builder().id(WINGS_CAPE).build())
                         .renderCape(true)
                         .renderElytra(true)
                         .build())), true),
-            new Family("player skin", "minecraft:entity/player/wide/zuri", UnaryOperator.identity(),
+            new Family("player skin", "minecraft:entity/player/wide/zuri", Read.PLAIN, BOTH, UnaryOperator.identity(),
                 context -> player(context, player()
                     .type(PlayerOptions.Type.SKULL)
                     .skin(SkinOptions.builder()
                         .skin(TextureOptions.builder().id("minecraft:entity/player/wide/zuri").build())
                         .build())), true),
             // The held shield is where an item draws its pattern stack through the banner composite.
-            new Family("banner pattern", "minecraft:entity/shield/creeper", UnaryOperator.identity(),
+            new Family("banner pattern", "minecraft:entity/shield/creeper", Read.SPRITE, BOTH, UnaryOperator.identity(),
                 context -> item(context, item("minecraft:shield")
                     .type(ItemOptions.Type.HELD_3D)
                     .decoration(DecorationOptions.builder()
                         .bannerLayers(Concurrent.newList(new BannerLayer(
                             context.findBannerPattern("minecraft:creeper").orElseThrow(), DyeColor.Vanilla.RED)))
                         .build())), true),
-            new Family("item trim", CHESTPLATE_TRIM, UnaryOperator.identity(),
+            new Family("item trim", CHESTPLATE_TRIM, Read.PERMUTATION_INPUT, BOTH, UnaryOperator.identity(),
                 context -> item(context, trimmedChestplate()), true),
-            new Family("item glint", "minecraft:misc/enchanted_glint_item", UnaryOperator.identity(),
+            new Family("item glint", "minecraft:misc/enchanted_glint_item", Read.PLAIN, BOTH, UnaryOperator.identity(),
                 context -> item(context, item("minecraft:diamond_sword")
                     .enchanted(true).animateGlint(false)), true),
             // A full fluid cube draws its still texture on the top the pose shows.
-            new Family("fluid still", FluidTextures.WATER_STILL_TEXTURE_ID, UnaryOperator.identity(),
+            new Family("fluid still", FluidTextures.WATER_STILL_TEXTURE_ID, Read.SPRITE, BOTH, UnaryOperator.identity(),
                 context -> new FluidRenderer(context).render(FluidOptions.builder()
                     .fluid(FluidOptions.Fluid.WATER)
                     .output(OUTPUT)
                     .build()), true),
             // The portal shader samples its noise texture across every face it bakes.
-            new Family("portal noise", PortalPalette.END_PORTAL_NOISE_TEXTURE_ID, UnaryOperator.identity(),
-                context -> new PortalRenderer(context).render(PortalOptions.builder()
-                    .portal(PortalOptions.Portal.END_PORTAL)
-                    .output(OUTPUT)
-                    .build()), true)
+            new Family("portal noise", PortalPalette.END_PORTAL_NOISE_TEXTURE_ID, Read.PLAIN, BOTH, UnaryOperator.identity(),
+                MissingTextureFamilyTest::endPortal, true),
+            // TextRendererTest's book cases break the book texture in both states, so it is broken here in neither.
+            new Family("book page", BOOK, Read.PLAIN, Set.of(), UnaryOperator.identity(),
+                context -> new TextRenderer(context).render(TextOptions.builder()
+                    .style(TextOptions.Style.BOOK)
+                    .page(TextSegment.literal(""))
+                    .build()), true),
+            new Family("container sheet", HOPPER_SHEET, Read.PLAIN, BOTH, UnaryOperator.identity(),
+                context -> new MenuRenderer(context).render(MenuOptions.builder()
+                    .type(MenuOptions.Type.HOPPER)
+                    .chromeSprite(Optional.of(ResourceId.parse(HOPPER_SHEET)))
+                    .build()), true),
+            // AtlasRendererMissingTextureTest hides the end sky, so it is broken here unreadable alone.
+            new Family("end sky", PortalPalette.END_SKY_TEXTURE_ID, Read.PLAIN, Set.of(Possible.State.EMPTY), UnaryOperator.identity(),
+                MissingTextureFamilyTest::endPortal, true),
+            new Family("skull", "minecraft:entity/skeleton/skeleton", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> block(context, "minecraft:skeleton_skull", animation), true),
+            new Family("copper golem statue", "minecraft:entity/copper_golem/copper_golem", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> block(context, "minecraft:copper_golem_statue", animation), true),
+            new Family("entity texture override", "minecraft:entity/zombie/husk", Read.PLAIN, BOTH, UnaryOperator.identity(),
+                (Ticking) (context, animation) -> entity(context, entity("minecraft:zombie")
+                    .textureId("minecraft:entity/zombie/husk")
+                    .animation(animation)), true),
+            new Family("default skin", STEVE, Read.PLAIN, BOTH, UnaryOperator.identity(),
+                context -> player(context, player().type(PlayerOptions.Type.SKULL)), true),
+            new Family("elytra source", ELYTRA_SOURCE, Read.PLAIN, BOTH, context -> context.withTexture(ELYTRA_SOURCE, solid(64, 32)),
+                context -> player(context, player()
+                    .skin(SkinOptions.builder()
+                        .elytra(TextureOptions.builder().id(ELYTRA_SOURCE).build())
+                        .renderElytra(true)
+                        .build())), true)
         );
     }
 
     @TestFactory
     @DisplayName("each family's texture is one the vanilla stack serves and the zero-byte pack answers empty")
     @NotNull Stream<DynamicTest> eachFamilyBreaksAServedTexture() {
-        return perFamily(family -> {
+        return perFamily(family -> true, family -> {
             RendererContext intact = family.intact().apply(vanilla);
+            ResourceId id = ResourceId.parse(family.textureId());
+            boolean plain = family.read() == Read.PLAIN;
 
-            assertThat(family + " is served", intact.resolveTexture(family.textureId()).isPresent(), is(true));
+            assertThat(family + " is served", (plain ? intact.resolvePlainTexture(family.textureId())
+                : intact.resolveTexture(family.textureId())).isPresent(), is(true));
             assertThat(family + " decodes to nothing from the zero-byte pack",
-                broken.pixels(ResourceId.parse(family.textureId())).getState(), is(Possible.State.EMPTY));
+                (plain ? broken.plainPixels(id) : broken.pixels(id)).getState(), is(Possible.State.EMPTY));
         });
     }
 
     @TestFactory
     @DisplayName("a texture no pack supplies draws the checkerboard, reported once as missing")
     @NotNull Stream<DynamicTest> aMissingTextureDrawsTheCheckerboard() {
-        return perFamily(family -> assertDrawsTheCheckerboard(family, intact -> intact.hiding(family.textureId()),
-            Possible.State.ABSENT, "Missing texture '" + family.textureId() + "' - drawing the checkerboard"));
+        return perFamily(family -> family.breaks().contains(Possible.State.ABSENT),
+            family -> assertDrawsTheCheckerboard(family, intact -> intact.hiding(family.textureId()),
+                Possible.State.ABSENT, "Missing texture '" + family.textureId() + "' - drawing the checkerboard"));
     }
 
     @TestFactory
-    @DisplayName("a zero-byte texture draws the checkerboard, reported once as unreadable")
-    @NotNull Stream<DynamicTest> anUnreadableTextureDrawsTheCheckerboard() {
-        return perFamily(family -> assertDrawsTheCheckerboard(family, intact -> unreadable(intact, family.textureId()),
-            Possible.State.EMPTY, "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
+    @DisplayName("a zero-byte texture draws the checkerboard, reported once as unreadable, and a refused animation loses only an atlas sprite")
+    @NotNull Stream<DynamicContainer> anUnreadableTextureDrawsTheCheckerboard() {
+        // The refused animation runs after the zero-byte break, in one container, because a sprite read
+        // refusing it reports the id unreadable as the zero-byte break does, and only the first report prints.
+        return families().filter(family -> family.breaks().contains(Possible.State.EMPTY)).map(family -> {
+            DynamicTest zeroBytes = DynamicTest.dynamicTest("zero bytes", () -> assertDrawsTheCheckerboard(family,
+                intact -> unreadable(intact, family.textureId()),
+                Possible.State.EMPTY, "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
+            Stream<DynamicTest> tests = family.read() == Read.PERMUTATION_INPUT
+                ? Stream.of(zeroBytes)
+                : Stream.of(zeroBytes, DynamicTest.dynamicTest("a refused animation", () -> assertRefusedAnimation(family)));
+            return DynamicContainer.dynamicContainer(family.name(), tests);
+        });
+    }
+
+    @TestFactory
+    @DisplayName("a valid animation draws what its read site drew before: its first frame at rest and a frame a tick where the site plays a table, the whole strip where it never did")
+    @NotNull Stream<DynamicTest> aValidAnimationDrawsWhatItsReadSiteDrewBefore() {
+        return perFamily(family -> family.read() == Read.SPRITE || FLIPBOOK_SITES.contains(family.name())
+            || WHOLE_SITES.contains(family.name()), family -> {
+            RendererContext intact = family.intact().apply(vanilla);
+            String id = family.textureId();
+            List<Object> atRest = picture(family.render().draw(intact));
+            List<Object> wholeStrip = picture(family.render().draw(intact.withTexture(id, STRIPS.get(id))));
+            Staged staged = staged(intact, id, animated);
+            List<Object> drawn = picture(family.render().draw(staged));
+
+            if (WHOLE_SITES.contains(family.name())) {
+                assertThat(family + " draws the whole strip, as the client draws a plain texture", drawn, is(wholeStrip));
+                assertThat(family + "'s whole strip is not its first frame", drawn, is(not(atRest)));
+            } else {
+                assertThat(family + " draws the strip's first frame at rest", drawn, is(atRest));
+                if (family.read() == Read.PLAIN)
+                    assertThat(family + "'s first frame is not the whole strip", drawn, is(not(wholeStrip)));
+                if (FLIPBOOK_SITES.contains(family.name()))
+                    assertPlaysItsStrip(family, intact, staged);
+            }
+        });
     }
 
     @Test
@@ -378,22 +635,6 @@ class MissingTextureFamilyTest {
         assertThat("one pixel wide", frame.pixels().width(), is(1));
         assertThat("one pixel high", frame.pixels().height(), is(1));
         assertThat("and clear", RenderDigest.firstFramePixels(image), is(new int[] { 0 }));
-    }
-
-    @Test
-    @DisplayName("the default skin a player naming none wears draws the checkerboard where no pack supplies it or it cannot be read")
-    void theDefaultSkinDrawsTheCheckerboard() {
-        Render plain = context -> player(context, player().type(PlayerOptions.Type.SKULL));
-        List<Object> checkerboard = picture(plain.draw(vanilla.withTexture(STEVE, MissingSprite.sprite())));
-        RenderResult missing = plain.draw(vanilla.hiding(STEVE));
-        RenderResult zeroByte = plain.draw(unreadable(vanilla, STEVE));
-
-        assertThat("missing", picture(missing), is(checkerboard));
-        assertThat("unreadable", picture(zeroByte), is(checkerboard));
-        assertThat("the missing skin is named absent", missing.substitutions(),
-            contains(Substitution.texture(STEVE, Possible.State.ABSENT)));
-        assertThat("the unreadable skin is named empty", zeroByte.substitutions(),
-            contains(Substitution.texture(STEVE, Possible.State.EMPTY)));
     }
 
     @Test
@@ -532,13 +773,151 @@ class MissingTextureFamilyTest {
     // ------------------------------------------------------------------------------------
 
     /**
-     * One dynamic test per family, named for it.
+     * One dynamic test per family a filter admits, named for it.
      *
+     * @param which the families held
      * @param body what each family is held to
      * @return the tests
      */
-    private static @NotNull Stream<DynamicTest> perFamily(@NotNull Consumer<Family> body) {
-        return families().map(family -> DynamicTest.dynamicTest(family.name(), () -> body.accept(family)));
+    private static @NotNull Stream<DynamicTest> perFamily(@NotNull Predicate<Family> which, @NotNull Consumer<Family> body) {
+        return families().filter(which).map(family -> DynamicTest.dynamicTest(family.name(), () -> body.accept(family)));
+    }
+
+    /**
+     * Asserts a family whose texture ships beside an animation section the client's codec refuses draws
+     * as the read its site takes draws it: a plain texture's whole file, its intact picture, naming no
+     * stand-in - the refused section playing no table at a site that samples one - and an atlas sprite's
+     * checkerboard, named as served with no pixels. A family only measuring the texture reads it plainly,
+     * never as a sprite, draws its intact picture and prints nothing.
+     *
+     * @param family the family under test
+     */
+    private static void assertRefusedAnimation(@NotNull Family family) {
+        RendererContext intact = family.intact().apply(vanilla);
+        String id = family.textureId();
+        Staged staged = staged(intact, id, refused);
+        AtomicReference<RenderResult> drawn = new AtomicReference<>();
+
+        String reported = errDuring(() -> drawn.set(family.render().draw(staged)));
+
+        if (family.read() == Read.SPRITE) {
+            assertThat(family + " draws the checkerboard", picture(drawn.get()),
+                is(picture(family.render().draw(intact.withTexture(id, MissingSprite.sprite())))));
+            assertThat(family + " names its texture unreadable", drawn.get().substitutions(),
+                contains(Substitution.texture(id, Possible.State.EMPTY)));
+            return;
+        }
+
+        assertThat(family + " draws its texture", picture(drawn.get()), is(picture(family.render().draw(intact))));
+        assertThat(family + " names no stand-in", drawn.get().substitutions(), is(empty()));
+        if (!family.drawn()) {
+            assertThat(family + " reads the texture it measures plainly", staged.plainReads(), hasItem(id));
+            assertThat(family + " never reads it as a sprite", staged.spriteReads(), not(hasItem(id)));
+            assertThat(family + " prints nothing", reported, is(emptyString()));
+        }
+    }
+
+    /**
+     * Asserts a family whose read site plays a table over a plain read steps a valid strip with the tick
+     * each frame is drawn at: of two frames one tick apart, the first is the first of two intact frames,
+     * and the second the second of two frames over the strip's lower frame served whole. A site that
+     * drops its tick, or freezes it, draws the upper frame twice.
+     *
+     * @param family the family under test, whose render takes a timing
+     * @param intact the context serving the family's texture intact
+     * @param staged the context serving the family's texture as a valid two-frame strip
+     */
+    private static void assertPlaysItsStrip(@NotNull Family family, @NotNull RendererContext intact, @NotNull RendererContext staged) {
+        Ticking render = assertInstanceOf(Ticking.class, family.render(), family + " draws at a timing");
+        String id = family.textureId();
+        List<Long> drawn = RenderDigest.frameCrcs(render.draw(staged, TWO_TICKS).image());
+        List<Long> upper = RenderDigest.frameCrcs(render.draw(intact, TWO_TICKS).image());
+        List<Long> lower = RenderDigest.frameCrcs(render.draw(intact.withTexture(id, LOWER_FRAMES.get(id)), TWO_TICKS).image());
+
+        assertThat(family + " draws two frames", drawn.size(), is(2));
+        assertThat(family + "'s first frame is the strip's upper frame", drawn.getFirst(), is(upper.getFirst()));
+        assertThat(family + "'s second frame is the strip's lower frame", drawn.getLast(), is(lower.getLast()));
+        assertThat(family + "'s two frames differ", drawn.getLast(), is(not(drawn.getFirst())));
+    }
+
+    /**
+     * Wraps the given context so one texture is answered out of a staged stack on all five texture
+     * lookups - the sprite read, the plain read and the playback table as the stack answers them, and the
+     * sidecar and its animation off the stack's row - and every other id as the context beneath answers it.
+     *
+     * @param intact the context beneath
+     * @param textureId the texture the stack answers
+     * @param stack the staged stack
+     * @return the context, recording which read each id is asked of
+     */
+    private static @NotNull Staged staged(@NotNull RendererContext intact, @NotNull String textureId, @NotNull PackStack stack) {
+        return new Staged(intact, ResourceId.parse(textureId), stack, new ArrayList<>(), new ArrayList<>());
+    }
+
+    /**
+     * A context answering one texture out of a staged stack, as the production context answers a texture
+     * out of its own, and recording which read each id is asked of.
+     *
+     * @param delegate the context every other id is answered by
+     * @param staged the texture the stack answers
+     * @param stack the staged stack
+     * @param spriteReads every id the sprite read is asked for, in call order
+     * @param plainReads every id the plain read is asked for, in call order
+     */
+    private record Staged(
+        @NotNull RendererContext delegate,
+        @NotNull ResourceId staged,
+        @NotNull PackStack stack,
+        @NotNull List<String> spriteReads,
+        @NotNull List<String> plainReads
+    ) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
+            this.spriteReads.add(textureId);
+            return isStaged(textureId) ? this.stack.pixels(this.staged) : this.delegate.resolveTexture(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+            this.plainReads.add(textureId);
+            return isStaged(textureId) ? this.stack.plainPixels(this.staged) : this.delegate.resolvePlainTexture(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+            return isStaged(textureId) ? this.stack.flipbook(this.staged) : this.delegate.findFlipbook(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+            if (!isStaged(textureId)) return this.delegate.findMeta(textureId);
+            return this.stack.indexed(this.staged)
+                .map(row -> row.meta().orAbsent(Possible::empty))
+                .orElseGet(Possible::absent);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            if (!isStaged(textureId)) return this.delegate.findAnimation(textureId);
+            return findMeta(textureId).flatMap(meta -> meta.animation().orAbsent(Possible::empty));
+        }
+
+        /**
+         * Answers whether an id names the staged texture.
+         *
+         * @param textureId the id asked about
+         * @return whether the stack answers it
+         */
+        private boolean isStaged(@NotNull String textureId) {
+            return ResourceId.parse(textureId).equals(this.staged);
+        }
+
     }
 
     /**
@@ -677,6 +1056,17 @@ class MissingTextureFamilyTest {
         return new PlayerRenderer(context).render(options.build());
     }
 
+    private static @NotNull RenderResult block(@NotNull RendererContext context, @NotNull String id, @NotNull AnimationOptions animation) {
+        return new BlockRenderer(context).render(BlockOptions.builder().blockId(id).output(OUTPUT).animation(animation).build());
+    }
+
+    private static @NotNull RenderResult endPortal(@NotNull RendererContext context) {
+        return new PortalRenderer(context).render(PortalOptions.builder()
+            .portal(PortalOptions.Portal.END_PORTAL)
+            .output(OUTPUT)
+            .build());
+    }
+
     private static @NotNull ItemOptions.Builder item(@NotNull String id) {
         return ItemOptions.builder().itemId(id);
     }
@@ -763,10 +1153,54 @@ class MissingTextureFamilyTest {
     }
 
     /**
-     * One texture family: the texture it breaks, what serves it intact, and the render reading it.
+     * Draws one family's subject at an animation timing, for a family whose read site plays a table: its
+     * one render is the subject at the default timing, one frame at rest.
+     */
+    @FunctionalInterface
+    private interface Ticking extends Render {
+
+        /**
+         * Draws the subject through a context at an animation timing.
+         *
+         * @param context the context the render reads
+         * @param animation the timing the frames are drawn at
+         * @return the render
+         */
+        @NotNull RenderResult draw(@NotNull RendererContext context, @NotNull AnimationOptions animation);
+
+        /** {@inheritDoc} */
+        @Override
+        default @NotNull RenderResult draw(@NotNull RendererContext context) {
+            return this.draw(context, AnimationOptions.defaults());
+        }
+
+    }
+
+    /**
+     * Which of the client's reads takes a family's texture.
+     */
+    private enum Read {
+
+        /** An atlas sprite, read with the sprite loader's sidecar rules. */
+        SPRITE,
+
+        /** A plain texture, which the client's texture manager loads by its file, its sidecar's texture section alone. */
+        PLAIN,
+
+        /** An input of a paletted permutation, which the client reads with no sidecar and the renderer reads as an atlas sprite. */
+        PERMUTATION_INPUT
+
+    }
+
+    /**
+     * One texture family: the texture it breaks, the read that takes it, what serves it intact, and the
+     * render reading it.
      *
      * @param name the family's name, which the parameterised display reads
      * @param textureId the texture the family breaks
+     * @param read which of the client's reads takes the texture
+     * @param breaks the states the missing and unreadable factories break the texture in, which are the
+     *     states no other test class breaks it in, the reporting sets being static
      * @param intact what the vanilla stack is wrapped in for the texture to be served
      * @param render the render reading the texture
      * @param drawn whether the render draws the texture, rather than only measuring it
@@ -774,6 +1208,8 @@ class MissingTextureFamilyTest {
     private record Family(
         @NotNull String name,
         @NotNull String textureId,
+        @NotNull Read read,
+        @NotNull Set<Possible.State> breaks,
         @NotNull UnaryOperator<RendererContext> intact,
         @NotNull Render render,
         boolean drawn

@@ -62,6 +62,8 @@ public final class BlockModelReader {
      * @param geometry the geometry coordinate into {@code block_geometry.json}
      * @param yAxis the source Y-axis convention ({@code "UP"} or {@code "DOWN"})
      * @param tinted whether the model's faces sample the block tint
+     * @param plainTexture whether the model's renderer binds its texture file as a plain texture rather than
+     *     as a sheet sprite; false where the entry omits it, as a pack's renderer override may
      * @param inventory the inventory presentation object, or {@code null} when absent
      * @param icon the icon rotation / additive flags, or {@code null} when absent
      * @param parts the sub-model part references, or {@code null} for a leaf model
@@ -71,6 +73,7 @@ public final class BlockModelReader {
         @Nullable String geometry,
         @SerializedName("y_axis") @Nullable String yAxis,
         boolean tinted,
+        @SerializedName("plain_texture") boolean plainTexture,
         @Nullable InventoryDto inventory,
         @Nullable IconDto icon,
         @Nullable List<PartRef> parts,

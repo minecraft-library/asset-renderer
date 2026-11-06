@@ -211,7 +211,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         String skinId = options.getSkin().getSkin().getId().orElse(STEVE_SKIN_ID);
-        PixelBuffer skin = textures(parent).resolveTexture(skinId).get();
+        PixelBuffer skin = textures(parent).resolvePlainTexture(skinId).get();
         return MissingSprite.stretchedTo(skin, SKIN_SHEET_SIZE, SKIN_SHEET_SIZE);
     }
 
@@ -240,7 +240,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getCape().getId().isPresent()) {
             String capeId = options.getSkin().getCape().getId().get();
-            return Optional.of(textures(parent).resolveTexture(capeId).get());
+            return Optional.of(textures(parent).resolvePlainTexture(capeId).get());
         }
 
         return Optional.empty();
@@ -270,7 +270,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getElytra().getId().isPresent()) {
             String elytraId = options.getSkin().getElytra().getId().get();
-            return Optional.of(textures(parent).resolveTexture(elytraId).get());
+            return Optional.of(textures(parent).resolvePlainTexture(elytraId).get());
         }
 
         return Optional.empty();

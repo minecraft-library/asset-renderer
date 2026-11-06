@@ -83,9 +83,10 @@ import java.util.function.IntFunction;
  * Renders mob entities as 3D icons from the Java-derived entity pipeline
  * ({@code entity_models.json} + {@code entity_geometry.json}, produced by
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
- * Y-down engine path. Texture resolution flows through the vanilla pack via
- * {@link RendererContext#resolveTexture}, and a texture the subject names that no pack supplies, or
- * that cannot be read, draws the generated checkerboard - never a cache fallback.
+ * Y-down engine path. An entity's own textures are read through the vanilla pack as the client reads
+ * them, as plain textures by {@link RendererContext#resolvePlainTexture}, and a carried block's as a
+ * block sprite; a texture the subject names that no pack supplies, or that cannot be read, draws the
+ * generated checkerboard - never a cache fallback.
  *
  * <p>The entity is a plain projection subject: the camera is the caller's
  * {@link OutputOptions#getProjection() projection} display pose directly (default
@@ -498,11 +499,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Resolves an entity texture ref against the vanilla pack at {@code minecraft:entity/<ref>} at a
-     * specific animation tick. Centralises the {@code minecraft:entity/} prefix idiom the base /
-     * overlay / collar / equipment / family-member paths all share. A sidecar-less entity texture
-     * (every vanilla entity) answers its buffer unchanged, so {@code tick 0} is byte-identical to the
-     * raw lookup; a sidecar-carrying texture samples the frame for {@code tick}.
+     * Reads an entity texture ref at {@code minecraft:entity/<ref>} at a specific animation tick, as the
+     * client reads an entity's texture, a plain texture. Centralises the {@code minecraft:entity/} prefix
+     * idiom the base / overlay / collar / equipment / family-member paths all share. A sidecar-less entity
+     * texture (every vanilla entity) answers its buffer unchanged, so {@code tick 0} is byte-identical to
+     * the raw lookup; a texture whose sidecar plays an animation samples the frame for {@code tick}, and
+     * one whose animation section is refused, or whose frame size does not divide it, plays no table, so
+     * its whole file is drawn.
      *
      * @param textures the render's texture context, which answers a texture no pack supplies, or one
      *     that cannot be read, with the checkerboard
@@ -515,13 +518,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
         @NotNull RendererContext textures, @NotNull String ref, int tick) {
         String textureId = ENTITY_TEXTURE_PREFIX + ref;
-        return Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get());
+        return Optional.of(Flipbook.atTick(textures.resolvePlainTexture(textureId), textures.findFlipbook(textureId), tick).get());
     }
 
     /**
      * Resolves the entity texture as the first source of an ordered precedence that names one: an
      * explicit {@link EntityOptions#getTextureId() texture id on options} (user override, authoritative
-     * when present - looked up against the Java atlas via the pack stack) &gt; the {@code <variant>_baby}
+     * when present - read as the plain texture it names) &gt; the {@code <variant>_baby}
      * texture when the resolved definition renders the baby mesh &gt; the copper golem's weathered
      * base when a weathering state is chosen &gt; an {@link AppearanceOptions#getState() state}
      * selection the definition carries (wolf {@code tame} / {@code angry}) &gt; the state the
@@ -549,7 +552,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (options.getTextureId().isPresent())
             return options.getTextureId().map(id ->
-                Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), tick).get());
+                Flipbook.atTick(textures.resolvePlainTexture(id), textures.findFlipbook(id), tick).get());
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();

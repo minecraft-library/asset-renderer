@@ -76,7 +76,7 @@ public final class BlockEntityAssembler {
 
                 ConcurrentList<Block.BlockEntity.Part> parts = buildParts(models, model, geometries, textureId);
                 int tintArgb = block.tint() != null ? resolveTint(block.tint()) : ColorMath.WHITE;
-                result.put(blockId, new Block.BlockEntity(boneModel, textureId, tintArgb, iconRotation, parts, additive));
+                result.put(blockId, new Block.BlockEntity(boneModel, textureId, tintArgb, iconRotation, parts, additive, model.plainTexture()));
             }
         }
 

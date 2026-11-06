@@ -42,8 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Coverage of how the pipeline dump writes an id its key source lists but whose lookup holds no row,
  * of how it writes the forms that re-pose a wearer, of how it writes a style catalog and a worn shell,
- * and of how it writes a sidecar's {@code gui} and {@code animation} sections in each of their three
- * states, an animation's undeclared members omitted.
+ * of how it writes a sidecar's {@code gui} and {@code animation} sections in each of their three
+ * states, an animation's undeclared members omitted, and of how it writes the read a block entity's
+ * texture takes.
  * <p>
  * The context lists every block and item it knows, the ones that draw nothing included, so the dump's
  * blocks and items sections and its {@code icon_gui} probe each walk an id the lookup answers empty.
@@ -77,6 +78,20 @@ class PipelineParityDumpTest {
 
         assertThat(PipelineParityDump.blocks(context).toString(), is("{\"minecraft:air\":{\"state\":\"empty\"}}"));
         assertThat(PipelineParityDump.items(context).toString(), is("{\"minecraft:air\":{\"state\":\"empty\"}}"));
+    }
+
+    @Test
+    @DisplayName("a block entity is written with the read its texture takes, a plain texture or a sheet sprite")
+    void aBlockEntityIsWrittenWithTheReadItsTextureTakes() {
+        Block.BlockEntity.BoneModel bones = new Block.BlockEntity.BoneModel(new EntityMesh(), false, 0f, false, null, false);
+        for (boolean plain : List.of(true, false)) {
+            Block.BlockEntity entity = new Block.BlockEntity(bones, "minecraft:entity/skeleton/skeleton", 0xFFFFFFFF, 0,
+                Concurrent.newUnmodifiableList(), false, plain);
+
+            JsonObject written = PipelineParityDump.blockEntity(entity);
+            assertThat("plain_texture is written", written.has("plain_texture"), is(true));
+            assertThat("as the record holds it", written.get("plain_texture").getAsBoolean(), is(plain));
+        }
     }
 
     @Test
