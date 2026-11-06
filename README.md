@@ -476,6 +476,7 @@ Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual
 ./gradlew menuParityVanilla            -PmenuId=chest_3row              # shipped container screens
 ./gradlew tooltipParityVanilla         -PtooltipId=one_line             # tooltips, whole and as the box alone, and the plain lines
 ./gradlew tooltipHypixelSkyblockParityVanilla -PtooltipId=one_line      # the same under the hypixel-skyblock pack
+./gradlew bookParityVanilla            -PbookId=one_line                # book pages on the book texture, and the texture alone
 ```
 
 > [!NOTE]
@@ -491,7 +492,7 @@ Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`
 ./gradlew renderVanillaArmorReferences      # worn-armor shells (then run armorParityVanilla)
 ./gradlew renderVanillaMenuReferences       # container screens (then run menuParityVanilla)
 ./gradlew renderVanillaTooltipReferences    # tooltips (then run tooltipParityVanilla)
-./gradlew renderVanillaBookReferences       # book pages, each through the client's book screen
+./gradlew renderVanillaBookReferences       # book pages, each through the client's book screen (then run bookParityVanilla)
 ./gradlew renderVanillaAnimationReferences  # idle/ frames (then run entityAnimationParityVanilla)
 ./gradlew renderVanillaWalkReferences       # walk/ frames (then run entityWalkParityVanilla)
 ./gradlew renderVanillaPackTooltipsHypixelSkyblock  # tooltips under hypixel-skyblock, beside the tree (then run tooltipHypixelSkyblockParityVanilla)

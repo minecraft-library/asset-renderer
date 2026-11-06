@@ -7,10 +7,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from parity import sweep
+from parity import store, sweep
 from parity.norm import MissingInput
 
 DATA = Path(__file__).resolve().parent / "data"
+
+REPO = Path(__file__).resolve().parents[4]
 
 
 class ColumnShapes(unittest.TestCase):
@@ -284,6 +286,22 @@ class Discovery(unittest.TestCase):
         })
         home = source / "tooltip-hypixel-skyblock-parity-vanilla"
         self.assertEqual(sweep.discover(home), {"tooltip-hypixel-skyblock": home / "parity-report.tsv"})
+
+
+class TheShippedIndex(unittest.TestCase):
+    """The sweep list against the sweep tables the store registers.
+
+    A capture finds a sweep's table only through ``SWEEPS``, so a registered sweep the list leaves out runs
+    its producer and then fails its capture with ``MissingInput``, and a name no registered sweep carries is
+    one no producer writes.
+    """
+
+    def test_every_registered_sweep_table_is_one_the_toolkit_reads(self):
+        artifacts = store.production(None, REPO).read("report.oracle-index")["artifacts"]
+        registered = sorted(artifact.removeprefix("sweep.") for artifact, row in artifacts.items()
+                            if row["kind"] == "sweep-table")
+        self.assertTrue(registered, "the index registers no sweep table")
+        self.assertEqual(registered, sorted(sweep.SWEEPS))
 
 
 if __name__ == "__main__":

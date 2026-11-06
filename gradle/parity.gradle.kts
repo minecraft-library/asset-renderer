@@ -636,6 +636,8 @@ val parityArtifacts = listOf(
     ParityArtifact("sweep.tooltip-hypixel-skyblock", listOf("tooltipHypixelSkyblockParityVanilla"),
         "cache/visual/tooltip-hypixel-skyblock-parity-vanilla", listOf("tooltipId"),
         groundTruth = "manifest.pack-tooltips"),
+    ParityArtifact("sweep.book", listOf("bookParityVanilla"), "cache/visual/book-parity-vanilla",
+        listOf("bookId"), groundTruth = "manifest.references"),
     ParityArtifact("manifest.references", listOf("renderVanillaAllReferences"), parityReferenceRoot, listOf("refharnessTargets")),
     ParityArtifact("manifest.pack-tooltips", listOf("renderVanillaPackTooltipsHypixelSkyblock"), parityPackTooltipRoot),
     ParityArtifact("manifest.visual", listOf("visualSweepSet"), "cache/visual"),
@@ -1424,7 +1426,7 @@ tasks {
     registerHarnessRun("renderVanillaBookReferences", "refharnessModes=BOOKS", "BOOKS", false, listOf("books"),
         "Runs the harness in BOOKS mode: references/books/ only - every page of the tracked book roster " +
         "drawn through the client's own book screen, the book's background and then the page's text, " +
-        "with the page-number line left out by the screen's own flag.")
+        "with the page-number line left out by the screen's own flag. Then run bookParityVanilla.")
 
     registerHarnessRun("renderVanillaAnimationReferences", "refharnessModes=ANIMATION", "ANIMATION", true,
         listOf("idle"),

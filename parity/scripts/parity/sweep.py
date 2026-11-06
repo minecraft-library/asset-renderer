@@ -17,7 +17,7 @@ from parity.norm import MissingInput, fixed, fsum, posix, read_json, read_lines
 
 #: Every parity sweep, by the name its ``sweep.<name>`` artifact id and its output directory carry.
 SWEEPS = ("entity", "entity-animation", "entity-walk", "block", "item", "player", "armor", "glint",
-          "menu", "tooltip", "tooltip-hypixel-skyblock")
+          "menu", "tooltip", "tooltip-hypixel-skyblock", "book")
 
 DELTA = "mean_argb_delta"
 

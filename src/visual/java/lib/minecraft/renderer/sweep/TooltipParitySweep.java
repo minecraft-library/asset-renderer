@@ -17,7 +17,6 @@ import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
-import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -61,7 +60,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -155,6 +153,9 @@ public final class TooltipParitySweep {
 
     /** The roster the harness draws the references from, a resource beside this class. */
     private static final @NotNull String ROSTER = "tooltip-roster.json";
+
+    /** The roster format this reader reads. */
+    private static final int ROSTER_FORMAT = 1;
 
     /**
      * Minecraft pixels between the content origin and the reference's edge on every side - the margin
@@ -316,6 +317,7 @@ public final class TooltipParitySweep {
      *
      * @return the roster
      * @throws IOException if the roster cannot be read
+     * @throws IllegalStateException if the roster is not on the classpath beside this class
      */
     static @NotNull JsonObject roster() throws IOException {
         try (InputStream in = TooltipParitySweep.class.getResourceAsStream(ROSTER)) {
@@ -340,10 +342,16 @@ public final class TooltipParitySweep {
      * @return the subjects, in roster order, and for {@code vanilla} its code-drawn ones after its
      *     sprite ones and its plain lines last
      * @throws IllegalArgumentException if the label is neither
-     * @throws IllegalStateException if a pack subject's key names no unstyled roster subject, or a plain
-     *     line is more than one line
+     * @throws IllegalStateException if the roster is of another format, a pack subject's key names no
+     *     unstyled roster subject, or a plain line is more than one line
      */
     static @NotNull List<Subject> subjects(@NotNull JsonObject roster, @NotNull String label) {
+        JsonElement format = roster.get("format");
+        if (format == null || !format.isJsonPrimitive() || !String.valueOf(ROSTER_FORMAT).equals(format.getAsString())) {
+            throw new IllegalStateException(String.format(
+                "The tooltip roster is format '%s', and this sweep reads format '%s'", format, ROSTER_FORMAT));
+        }
+
         List<JsonObject> listed = new ArrayList<>();
         roster.getAsJsonArray("subjects").forEach(element -> listed.add(element.getAsJsonObject()));
         if (label.equals(VANILLA)) {
@@ -915,11 +923,11 @@ public final class TooltipParitySweep {
                 SubstitutionCollector collector = new SubstitutionCollector();
                 held = drawBoxAlone(context.collecting(collector), subject.options(),
                     reference.getWidth() / scale - 2 * CLIENT_MARGIN_MCPX, reference.getHeight() / scale - 2 * CLIENT_MARGIN_MCPX);
-                standIns = standIns(collector.snapshot());
+                standIns = SweepReport.standIns(collector.snapshot());
             } else {
                 RenderResult result = javaRenderer.render(subject.options());
                 held = result.image().toPixelBuffer();
-                standIns = standIns(result.substitutions());
+                standIns = SweepReport.standIns(result.substitutions());
             }
             // The PNG holds premultiplied colour as the harness's does: the render's held ints are its bytes.
             PixelBuffer javaPB = PixelBuffer.ofStraight(held.data(), held.width(), held.height());
@@ -946,21 +954,6 @@ public final class TooltipParitySweep {
             System.err.printf("       %-50s FAILED: %s%n", key, ex.getMessage());
             return Row.failed(key, javaW, javaH, vanillaW, vanillaH, standIns);
         }
-    }
-
-    /**
-     * Spells the stand-ins a row's render drew as its {@code stand_ins} cell: each one's kind, state and
-     * id, then the item that named it where there is one, space-separated, the stand-ins joined by
-     * {@code "; "} in the order they arrive.
-     *
-     * @param substitutions the stand-ins the render drew, distinct and in their natural order
-     * @return the cell, empty where the render drew none
-     */
-    private static @NotNull String standIns(@NotNull List<Substitution> substitutions) {
-        return substitutions.stream()
-            .map(substitution -> substitution.kind() + " " + substitution.state() + " " + substitution.id()
-                + substitution.namedBy().map(item -> " " + item).orElse(""))
-            .collect(Collectors.joining("; "));
     }
 
     /**

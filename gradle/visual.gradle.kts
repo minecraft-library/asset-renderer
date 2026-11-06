@@ -74,7 +74,8 @@ val vanillaSweeps: Map<String, VanillaSweep> = linkedMapOf(
     "armorParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.ArmorParitySweep"),
     "glintParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.GlintParitySweep", "itemId"),
     "menuParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.MenuParitySweep", "menuId"),
-    "tooltipParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.TooltipParitySweep", "tooltipId", listOf("vanilla"))
+    "tooltipParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.TooltipParitySweep", "tooltipId", listOf("vanilla")),
+    "bookParityVanilla" to VanillaSweep("lib.minecraft.renderer.sweep.BookParitySweep", "bookId")
 )
 
 // What the shared JVM answers for each producer, filled as it ends: how long that producer's sweep
@@ -277,6 +278,11 @@ register("menuParityVanilla") {
 
 register("tooltipParityVanilla") {
     description = "Per-subject tooltip parity report comparing Java TextRenderer against the vanilla-reference-harness tooltip references at cache/.../references/tooltips/, every subject of the tracked roster whole and as its box alone, and every plain line as one line of chat text. Each reference - a tooltip's whole sprite rect, a plain line's text on nothing - is taken to its own first pixel and compared with the renderer's canvas as drawn, so this is a direct diff rather than a bbox-aligned one; a size that disagrees fails the row. Writes per-subject renders, a diff panel where the two differ, and a TSV to cache/visual/tooltip-parity-vanilla/. Run renderVanillaTooltipReferences first. -PtooltipId=one_line"
+    group = "visual"
+}
+
+register("bookParityVanilla") {
+    description = "Per-page book parity report comparing Java TextRenderer's BOOK style against the vanilla-reference-harness book references at cache/.../references/books/, every page of the tracked book roster as one text component, and the book's background alone. Each reference - the screen the client lays the book out on - is taken to its own first pixel and compared with the renderer's canvas as drawn, so this is a direct diff rather than a bbox-aligned one; a size that disagrees fails the row. Writes per-page renders, a diff panel where the two differ, and a TSV to cache/visual/book-parity-vanilla/. Run renderVanillaBookReferences first. -PbookId=one_line"
     group = "visual"
 }
 

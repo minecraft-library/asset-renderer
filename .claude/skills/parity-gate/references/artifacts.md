@@ -45,6 +45,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 26531 ms | yes |
 | `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 2095 ms | yes |
 | `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 3940 ms | yes |
+| `sweep.book` | sweep-table | STORE | `bookParityVanilla` | 2 | - | - | - | **no** |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9845 | 89746 ms | yes |
 | `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 22698 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 169 | 9788 ms | yes |

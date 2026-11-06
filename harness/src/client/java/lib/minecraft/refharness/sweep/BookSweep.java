@@ -16,6 +16,7 @@ import lib.minecraft.refharness.frame.GuiFrameRenderer;
 import lib.minecraft.refharness.mixin.BookViewScreenAccessor;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.BookViewScreen;
 import net.minecraft.network.chat.Component;
@@ -62,7 +63,7 @@ import java.util.Set;
  * <p>No page is obfuscated. The client's obfuscation picks its glyphs off {@code Font.random}, which
  * nothing seeds, so such a page would not reproduce and the whole tree's determinism would go with it.
  */
-@Parity(claim = "harness-book-sweep", mode = Mode.DEMOTE)
+@Parity(claim = "harness-book-sweep", mode = Mode.DEMOTE, subject = Subject.TEXT)
 public final class BookSweep implements Sweep<BookSweep.BookSubject> {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");

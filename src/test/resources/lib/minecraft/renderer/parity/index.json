@@ -186,6 +186,11 @@
       "sha256": "88517bf18bb10e64fef40063bf287ff82fa26e898b6cb3e4b96b0a5cb0ee3a74",
       "sum": "7.6024"
     },
+    "sweep.book": {
+      "baselined": false,
+      "determinism_floor": 2,
+      "kind": "sweep-table"
+    },
     "sweep.entity": {
       "baselined": true,
       "determinism_floor": 2,

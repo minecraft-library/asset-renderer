@@ -102,6 +102,7 @@ public final class SweepBundle {
         sweeps.put(GlintParitySweep.class.getName(), GlintParitySweep::run);
         sweeps.put(MenuParitySweep.class.getName(), MenuParitySweep::run);
         sweeps.put(TooltipParitySweep.class.getName(), TooltipParitySweep::run);
+        sweeps.put(BookParitySweep.class.getName(), BookParitySweep::run);
         return Collections.unmodifiableMap(sweeps);
     }
 
