@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,18 +17,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The {@link AtlasResult.Sidecar} typed schema - {@code parse(toJson(x)) == x} under record structural
- * equality, the concrete JSON shape and member order against a mini fixture, a tile's stand-ins written
- * as its last member and the skipped subjects as the sheet's, a file written before either member
- * existed, the {@code empty} source token, and the failure a row naming no {@link AtlasResult.Tile.Kind},
- * {@link AtlasResult.Tile.Source}, {@link Substitution.Kind} or {@link Possible.State} constant raises.
+ * equality, the concrete JSON shape and member order against a mini fixture, a branch tile's model
+ * written after its pixel rectangle, a tile's stand-ins written as its last member and the skipped
+ * subjects as the sheet's, a file written before any of those members existed, the {@code empty} source
+ * token, and the failure a row naming no {@link AtlasResult.Tile.Kind}, {@link AtlasResult.Tile.Source},
+ * {@link Substitution.Kind} or {@link Possible.State} constant raises.
  */
 @DisplayName("AtlasResult.Sidecar typed round-trip and schema shape")
 class AtlasRendererSidecarTest {
 
     private static final AtlasResult.Sidecar FIXTURE = new AtlasResult.Sidecar(64, 2, 3, List.of(
-        new AtlasResult.Tile("minecraft:stone", AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.BLOCK_MODEL, 0, 0, 0, 0, 64, 64, List.of()),
-        new AtlasResult.Tile("minecraft:oak_sign", AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.BLOCK_ENTITY, 1, 0, 64, 0, 64, 64, List.of()),
-        new AtlasResult.Tile("minecraft:apple", AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL, 0, 1, 0, 64, 64, 64, List.of())), List.of());
+        new AtlasResult.Tile("minecraft:stone", Optional.empty(), AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.BLOCK_MODEL, 0, 0, 0, 0, 64, 64, List.of()),
+        new AtlasResult.Tile("minecraft:oak_sign", Optional.empty(), AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.BLOCK_ENTITY, 1, 0, 64, 0, 64, 64, List.of()),
+        new AtlasResult.Tile("minecraft:apple", Optional.empty(), AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL, 0, 1, 0, 64, 64, 64, List.of())), List.of());
 
     @Test
     @DisplayName("parse(toJson(x)) reproduces x exactly")
@@ -63,7 +65,7 @@ class AtlasRendererSidecarTest {
     @Test
     @DisplayName("a tile's stand-ins are written as its last member and read back as they were")
     void roundTripsATileWithStandIns() {
-        AtlasResult.Tile tile = new AtlasResult.Tile("minecraft:apple", AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL,
+        AtlasResult.Tile tile = new AtlasResult.Tile("minecraft:apple", Optional.empty(), AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL,
             0, 0, 0, 0, 64, 64, List.of(
                 Substitution.texture("minecraft:item/apple", Possible.State.ABSENT),
                 Substitution.leafModel("minecraft:item/apple_core", "minecraft:apple")));
@@ -79,12 +81,30 @@ class AtlasRendererSidecarTest {
     }
 
     @Test
-    @DisplayName("a file written before stand-ins and skips were recorded reads as a sheet with neither")
+    @DisplayName("a branch tile's model is written after its pixel rectangle and before its stand-ins, and read back as it was")
+    void roundTripsABranchTilesModel() {
+        AtlasResult.Tile branch = new AtlasResult.Tile("minecraft:paper[custom_model_data={floats:[10011.0f]}]", Optional.of("omc_dream:orb/orb_domination"),
+            AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL, 0, 0, 0, 0, 64, 64, List.of(
+                Substitution.texture("omc_dream:orb/orb_domination", Possible.State.ABSENT)));
+        AtlasResult.Sidecar sidecar = new AtlasResult.Sidecar(64, 1, 1, List.of(branch), List.of());
+
+        String expected = "{\"tileSize\":64,\"columns\":1,\"count\":1,\"tiles\":["
+            + "{\"id\":\"minecraft:paper[custom_model_data={floats:[10011.0f]}]\",\"kind\":\"item\",\"source\":\"item_model\","
+            + "\"col\":0,\"row\":0,\"x\":0,\"y\":0,\"width\":64,\"height\":64,\"model\":\"omc_dream:orb/orb_domination\","
+            + "\"substitutions\":[{\"kind\":\"texture\",\"state\":\"absent\",\"id\":\"omc_dream:orb/orb_domination\"}]}]}";
+        assertEquals(expected, sidecar.toJson().toGson().toString());
+        assertEquals(sidecar, AtlasResult.Sidecar.parse(sidecar.toJson()));
+        assertEquals(branch, branch.at(3, 2, 16).at(0, 0, 64), "a re-packed tile keeps its model");
+    }
+
+    @Test
+    @DisplayName("a file written before models, stand-ins and skips were recorded reads as a sheet of plain tiles with none")
     void readsAFileWithoutTheNewerMembers() {
         AtlasResult.Sidecar parsed = parse(
             "{ \"id\": \"minecraft:stone\", \"kind\": \"block\", \"source\": \"block_model\", \"col\": 0, \"row\": 0, \"x\": 0, \"y\": 0, \"width\": 64, \"height\": 64 }");
 
         assertEquals(List.of(), parsed.skipped(), "no skipped member reads as no skipped subject");
+        assertEquals(Optional.empty(), parsed.tiles().getFirst().model(), "no model member reads as a plain tile");
         assertEquals(List.of(), parsed.tiles().getFirst().substitutions(), "no substitutions member reads as no stand-in");
         assertEquals(new AtlasResult.Sidecar(64, 1, 1, List.of(FIXTURE.tiles().getFirst()), List.of()), parsed);
     }
@@ -92,7 +112,7 @@ class AtlasRendererSidecarTest {
     @Test
     @DisplayName("a tile whose subject draws nothing reads and writes the empty source token")
     void readsAndWritesTheEmptySource() {
-        AtlasResult.Tile air = new AtlasResult.Tile("minecraft:cave_air", AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.EMPTY,
+        AtlasResult.Tile air = new AtlasResult.Tile("minecraft:cave_air", Optional.empty(), AtlasResult.Tile.Kind.BLOCK, AtlasResult.Tile.Source.EMPTY,
             0, 0, 0, 0, 64, 64, List.of());
 
         assertEquals(new AtlasResult.Sidecar(64, 1, 1, List.of(air), List.of()),

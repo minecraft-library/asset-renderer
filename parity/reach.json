@@ -105,6 +105,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasRendererBranchTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/AtlasRendererLayoutTest": {
       "artifacts": [],
       "source": "derived"

@@ -90,6 +90,15 @@ accessors.
   knows. A walk the stack does not steer proceeds at the context without it, the baked fast path
   included. No other stack shape is mapped: a pre-1.20.5 stack carries none of the components a
   definition tests but the item model its id stands for.
+- **An atlas draws a `custom_model_data` branch as its stack**, through that same `ItemContext`. After
+  each id's plain tile, `AtlasRenderer` lists every distinct float that reaches an entry of a
+  `range_dispatch` on `custom_model_data` in the id's definition and draws the stack carrying it, so
+  the tile is the slot the client draws for that stack - a pack whose custom items are thresholds of
+  vanilla definitions shows them all. The row's `id` is the stack in the client's command syntax and
+  its `model` the model the walk lands on, which `AtlasOptions.filter` tests in place of the id; the
+  floats are listed by index and then by value, and one that draws what the plain icon or an earlier
+  one draws adds no tile. The item index is untouched: a branch is no item, and `knownItemIds()`
+  answers only ids `findItem` does.
 - An `asset` type that takes a bag or a context imports uphill, because `call/request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index

@@ -36,8 +36,10 @@ public class AtlasOptions implements RenderOptions {
     private final @NotNull Scope source = Scope.BOTH;
 
     /**
-     * Optional predicate filter evaluated per model id; only ids passing the predicate are
-     * rendered. Empty (default) admits every id from the selected {@link #source}
+     * Optional predicate deciding which tiles are rendered, tested against a plain tile's block or item
+     * id and against a {@code custom_model_data} branch tile's model - the model its branch lands on, or
+     * its item id where it lands on none - so a branch is kept or dropped whatever its id's plain tile
+     * is. Empty (default) admits every tile from the selected {@link #source}
      */
     private final @NotNull Optional<Predicate<String>> filter = Optional.empty();
 
