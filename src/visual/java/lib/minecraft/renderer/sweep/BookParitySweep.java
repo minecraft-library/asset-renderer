@@ -50,7 +50,16 @@ import java.util.List;
  * So {@code java.png} is written as the harness writes the reference, the two are compared premultiplied with
  * premultiplied, and {@code raw_differing_pixels} is a byte comparison.
  *
- * <p>Vanilla only: the harness draws every page over vanilla's own resources.
+ * <p>Vanilla only: the harness draws every page over vanilla's own resources, because no pack in the workspace
+ * changes the book's texture. hypixel-skyblock, the one pack a sweep stores a table over, ships no
+ * {@code textures/gui/book.png}; defrosted ships one whose every texel equals vanilla's, and no pack sweep takes
+ * it because it redraws the letters; the two Catharsis containers are packs the client cannot read; and
+ * Hypixel+ ships nothing the book screen reads - no {@code textures/gui} file, font or shader. On the roster's
+ * pages, which hold only printable ASCII and the section sign and so none of the characters hypixel-skyblock's
+ * font draws as icons, the pack's one change that reaches them is the page text's colour, through its text
+ * palette, which {@code TextRendererTest$Book.theContextsTextPaletteReachesThePage} holds and
+ * {@link TooltipParitySweep}'s hypixel-skyblock configuration measures through the same text kit, so no pack
+ * table of the book is stored.
  *
  * <p>Output: one folder per page under {@code cache/visual/book-parity-vanilla/} holding {@code vanilla.png}
  * (the reference taken to its first pixel) and {@code java.png}, and {@code diff.png} and

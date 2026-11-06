@@ -250,7 +250,7 @@ harness that does not compile. This is the cheap gate on that; the expensive one
 a `renderVanilla*` task, which does not.
 
 `clientClasses` is the load-bearing half and the task runs both: Loom's
-`splitEnvironmentSourceSets()` puts every harness java file in the **client** source set, so a bare
+`splitEnvironmentSourceSets()` puts every mod java file in the **client** source set, so a bare
 `classes` reports `:compileJava NO-SOURCE` and succeeds over sources it never read.
 
 ```bash

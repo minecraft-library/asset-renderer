@@ -270,6 +270,8 @@ public final class TooltipParitySweep {
          *
          * @param roster the roster
          * @return the configuration
+         * @throws IllegalStateException if the roster is of another format, or a plain line is more than
+         *     one line
          */
         static @NotNull Configuration vanilla(@NotNull JsonObject roster) {
             return new Configuration(VANILLA, ParityPaths.references("tooltips"), Path.of("cache/visual/tooltip-parity-vanilla"),
@@ -284,7 +286,10 @@ public final class TooltipParitySweep {
          * @param label the label the roster's {@code packs} section keys
          * @return the configuration
          * @throws IOException if the handshake cannot be read
-         * @throws IllegalStateException if the pack run has written no handshake
+         * @throws IllegalArgumentException if the roster has no pack configuration of that label
+         * @throws IllegalStateException if the roster is of another format, a pack subject's key names no
+         *     unstyled roster subject, the pack run has written no handshake, or the handshake is of
+         *     another format or requests a pack that is not a folder-source id
          */
         static @NotNull Configuration overPacks(@NotNull JsonObject roster, @NotNull String label) throws IOException {
             List<Subject> subjects = TooltipParitySweep.subjects(roster, label);
@@ -578,8 +583,11 @@ public final class TooltipParitySweep {
      *     keys - then an optional roster key to scope the run to
      * @throws IOException if the roster or the handshake cannot be read, or the report cannot be written
      * @throws IllegalArgumentException if no configuration is given, or the roster has none of that label
-     * @throws IllegalStateException if a pack configuration has no handshake, or its chrome or text
-     *     shader resolves differently from the client's
+     * @throws IllegalStateException if the roster is not on the classpath beside this class or is of
+     *     another format, a pack subject's key names no unstyled roster subject, a plain line is more
+     *     than one line, a pack configuration has no handshake or one of another format or requesting a
+     *     pack that is not a folder-source id, or the renderer resolves that configuration's packs,
+     *     chrome or shaders differently from the client's
      */
     public static void main(String @NotNull [] args) throws IOException {
         if (args.length == 0) {
@@ -604,6 +612,8 @@ public final class TooltipParitySweep {
      * @throws IOException if the roster cannot be read or the report cannot be written
      * @throws IllegalArgumentException if the configuration is not {@code vanilla} - a pack
      *     configuration renders over a context loaded over its own packs, which {@link #main} loads
+     * @throws IllegalStateException if the roster is not on the classpath beside this class or is of
+     *     another format, or a plain line is more than one line
      */
     static void run(@NotNull RendererContext context, String @NotNull [] args) throws IOException {
         if (args.length == 0 || !args[0].equals(VANILLA)) {
@@ -676,8 +686,9 @@ public final class TooltipParitySweep {
      * @param configuration the pack configuration, carrying its handshake
      * @param assets the client assets the renderer was loaded from
      * @param context the context the renderer resolves its chrome through
-     * @throws IllegalStateException if the two sides resolve any chrome sprite, the text shader or any
-     *     pack-shipped shader file differently
+     * @throws IllegalStateException if the renderer stacks another number of packs than the handshake
+     *     names, its chrome resolves a sprite the stack does not supply, or the two sides resolve any
+     *     chrome sprite, the text shader or any pack-shipped shader file differently
      */
     private static void checkResolution(@NotNull Configuration configuration, @NotNull ClientAssets assets,
                                         @NotNull RendererContext context) {

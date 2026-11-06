@@ -52,9 +52,10 @@ from parity.norm import posix, read_json
 REFERENCES = "manifest.references"
 
 #: The authored rules whose route into the reference tree is the entity schedule roster alone. B47's
-#: version pins reach the tree only through the roster the visual classpath writes - the harness is a
-#: build of its own whose versions B29 speaks for - and B65's triggers are the roster's own inputs:
-#: the two entity tables it is written from and its writer. A derived rule is the third route, read
+#: version pins reach the tree only through the roster the visual classpath writes - the versions the
+#: harness's client boots on are B29's, and the catalog's JUnit coordinates it reads reach only its
+#: unit suite, which writes no reference - and B65's triggers are the roster's own inputs: the two
+#: entity tables it is written from and its writer. A derived rule is the third route, read
 #: off the rules themselves rather than listed: ``manifest.references`` roots at the resolution the
 #: roster is written through, so the reference graph answers it for a type only through that root.
 ROSTER_RULES = ("B47", "B65")

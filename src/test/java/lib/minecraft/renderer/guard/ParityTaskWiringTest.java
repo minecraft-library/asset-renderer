@@ -182,6 +182,56 @@ final class ParityTaskWiringTest {
     private static final Pattern READS_A_RUN_PROPERTY = Pattern.compile(
         "\\b(?:System\\.getProperty|Boolean\\.getBoolean|Integer\\.getInteger|Long\\.getLong)\\(\"([^\"]+)\"");
 
+    /** The harness's own settings, which import this build's version catalog as {@code libs}. */
+    private static final Path HARNESS_SETTINGS = Path.of("harness/settings.gradle.kts");
+
+    /**
+     * A Kotlin comment, block or line, opening at the start of a line or after whitespace.
+     * <p>
+     * Anchored that way because the same characters occur inside the harness build's strings - a
+     * repository URL's {@code //} and a glob's {@code /*} - where they open nothing.
+     */
+    private static final Pattern KOTLIN_COMMENT = Pattern.compile("(?s)(?<!\\S)/\\*.*?\\*/|(?<!\\S)//[^\n]*");
+
+    /** A block of a settings script importing catalogs, opened; an import written any other way reads as a use. */
+    private static final Pattern IMPORTS_A_CATALOG = Pattern.compile("\\bversionCatalogs\\s*\\{");
+
+    /**
+     * One read of the catalog the harness settings name {@code libs}, capturing either the path its
+     * generated accessor takes after {@code libs.}, or the catalog's quoted name or a word of the API that
+     * looks a catalog up by that name and reads its entries.
+     * <p>
+     * The accessor is not preceded by a word character, a dot or a path separator, which is what keeps the
+     * catalog's own file, {@code ../gradle/libs.versions.toml}, from reading as a reference to it.
+     */
+    private static final Pattern READS_THE_CATALOG = Pattern.compile("(?<![\\w./\\\\-])libs\\.([\\w.]+)"
+        + "|(\"libs\"|\\b(?:versionCatalogs|VersionCatalogsExtension|LibrariesForLibs"
+        + "|find(?:Library|Version|Bundle|Plugin))\\b)");
+
+    /** The name a call opens with, bare or quoted, read back from its parenthesis. */
+    private static final Pattern CALLEE = Pattern.compile("(?:\"(\\w+)\"|(\\w+))\\s*$");
+
+    /** A dependency configuration of the harness's unit suite, which no client run puts on its classpath. */
+    private static final Pattern SUITE_CONFIGURATION = Pattern.compile("test(?!Fixtures)[A-Z]\\w*");
+
+    /** One name the harness's unit suite goes by - a configuration, its source set or its task - however written. */
+    private static final Pattern NAMES_THE_SUITE = Pattern.compile("\\btest(?:(?!Fixtures)[A-Z]\\w*)?\\b");
+
+    /** A dependency line of the unit suite, a statement opening on a call to one of its configurations. */
+    private static final Pattern DECLARES_A_SUITE_DEPENDENCY =
+        Pattern.compile("(?m)^\\s*\"?(test(?!Fixtures)[A-Z]\\w*)\"?\\s*\\(");
+
+    /** The block configuring the unit suite's source set or its task, opened, capturing the container and the name. */
+    private static final Pattern CONFIGURES_THE_SUITE = Pattern.compile("\\b(sourceSets|tasks)\\.(test)\\s*\\{");
+
+    /** A statement of the suite's source-set block that adds to that set's own classpath. */
+    private static final Pattern ADDS_TO_THE_SUITES_CLASSPATH =
+        Pattern.compile("\\s*(?:compileClasspath|runtimeClasspath)\\s*\\+=[^\n]*");
+
+    /** What a catalog version reaching a client boot owes the store, which both harness catalog guards end on. */
+    private static final String OWES_B47_A_BOOT = "That edit owes B47 a boot - take it out of ROSTER_RULES, or "
+        + "put the catalog in a boot rule's triggers - and manifest.pack-tooltips a place in B47's sees";
+
     /** One artifact row of the build's table: its id and its producer list. */
     private static final Pattern ARTIFACT_ROW =
         Pattern.compile("ParityArtifact\\(\"([^\"]+)\",\\s*listOf\\(([^)]*)\\)");
@@ -957,7 +1007,7 @@ final class ParityTaskWiringTest {
 
         assertThat("the wrapper's whole argv, in order and as written, because `clientClasses` is "
                 + "the operand that compiles anything at all: Loom's splitEnvironmentSourceSets() "
-                + "puts every harness java file in the CLIENT source set, so `classes` alone "
+                + "puts every mod java file in the CLIENT source set, so `classes` alone "
                 + "reports :compileJava NO-SOURCE and this gate reports success in seconds over a "
                 + "harness that does not compile - the exact state it was added to end, and one "
                 + "nothing else in either build notices before a client boot. The rest are read "
@@ -1017,6 +1067,149 @@ final class ParityTaskWiringTest {
                 + "through this build hands the client no such value, so the reader sees its default "
                 + "on every run and a spelling slip between the two files fails only at a client boot",
             read.stream().filter(name -> !set.contains(name)).toList(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("the harness build takes from the version catalog only its unit suite's libraries")
+    void theHarnessTakesOnlyItsSuitesLibrariesFromTheCatalog() {
+        List<String> suite = new ArrayList<>();
+        List<String> outside = new ArrayList<>();
+        for (Path file : List.of(HARNESS_SETTINGS, HARNESS_BUILD)) {
+            String script = withoutComments(read(file));
+            String code = file.equals(HARNESS_SETTINGS) ? withoutTheImports(script) : script;
+            Matcher reference = READS_THE_CATALOG.matcher(code);
+            while (reference.find()) {
+                String read = reference.group(1) != null ? "libs." + reference.group(1) : reference.group(2);
+                boolean plugin = read.startsWith("libs.plugins.") || read.equals("findPlugin");
+                (!plugin && insideASuiteConfiguration(code, reference.start()) ? suite : outside)
+                    .add(site(file, code, reference.start(), read));
+            }
+        }
+
+        assertThat("the harness build reads nothing from the catalog its settings import, which leaves the "
+                + "clause below vacuous - and B47's source, which names the unit suite's libraries as what "
+                + "the harness takes from it, false",
+            suite, is(not(empty())));
+        assertThat("catalog reads in the harness build outside a test configuration, or naming a plugin - "
+                + "through the libs accessor or through the API that looks a catalog up by name. B47 lists "
+                + "manifest.pack-tooltips blind to a catalog edit, and schedule.ROSTER_RULES lets a capture "
+                + "over one skip the client boot, because the harness takes only its unit suite's libraries "
+                + "from the catalog and no client run puts a test configuration on its classpath. A catalog "
+                + "version on a client, run or plugin line chooses code every boot executes. " + OWES_B47_A_BOOT,
+            outside, is(empty()));
+    }
+
+    @Test
+    @DisplayName("the harness build hands its unit suite's configurations and output to nothing else")
+    void theHarnessHandsItsSuiteToNothingElse() {
+        String code = withoutComments(read(HARNESS_BUILD));
+        Set<Integer> own = new TreeSet<>();
+        DECLARES_A_SUITE_DEPENDENCY.matcher(code).results().forEach(line -> own.add(line.start(1)));
+        List<String> blockStatements = new ArrayList<>();
+        Matcher block = CONFIGURES_THE_SUITE.matcher(code);
+        while (block.find()) {
+            own.add(block.start(2));
+            if (!block.group(1).equals("sourceSets")) continue;
+            int open = block.end() - 1;
+            int close = closing(code, open);
+            assertThat("the suite's source-set block never closes", close, is(not(-1)));
+            int at = open + 1;
+            for (String line : code.substring(open + 1, close).split("\n", -1)) {
+                if (!line.isBlank() && !ADDS_TO_THE_SUITES_CLASSPATH.matcher(line).matches())
+                    blockStatements.add(site(HARNESS_BUILD, code, at, line.strip()));
+                at += line.length() + 1;
+            }
+        }
+        List<String> elsewhere = NAMES_THE_SUITE.matcher(code).results()
+            .filter(name -> !own.contains(name.start()))
+            .map(name -> site(HARNESS_BUILD, code, name.start(), name.group()))
+            .toList();
+
+        assertThat("names of the harness's unit suite outside its own dependency lines and the blocks "
+                + "configuring its source set and its task. The catalog's libraries reach only the suite, "
+                + "which is what lets B47 list manifest.pack-tooltips blind to a catalog edit and "
+                + "schedule.ROSTER_RULES skip the client boot over one, and a client configuration extending "
+                + "one of the suite's, or a client classpath or run taking its source set or its output, puts "
+                + "a catalog version on every boot. " + OWES_B47_A_BOOT,
+            elsewhere, is(empty()));
+        assertThat("statements of the suite's source-set block other than one adding to that set's own "
+                + "classpath. Inside the block the suite's output and classpaths are named unqualified, so a "
+                + "statement there handing them to a client set names nothing the clause above reads, and "
+                + "puts a catalog version on every boot. " + OWES_B47_A_BOOT,
+            blockStatements, is(empty()));
+    }
+
+    /**
+     * Blanks every comment of a Kotlin script, keeping each line break, so what is matched afterwards is
+     * code and its offsets and line numbers are the file's own.
+     *
+     * @param source the script's text
+     * @return the text with each comment character but a line break replaced by a space
+     */
+    private static String withoutComments(String source) {
+        return KOTLIN_COMMENT.matcher(source).replaceAll(comment -> comment.group().replaceAll("[^\n]", " "));
+    }
+
+    /**
+     * Blanks every block of a settings script that imports a catalog, keeping each line break, so an
+     * import does not read as a use of what it imports and the offsets and line numbers stay the file's own.
+     * <p>
+     * A block that never closes is left as it is, so what it holds reads as a use.
+     *
+     * @param settings the settings script's text, its comments blanked
+     * @return the text with each import block's every character but a line break replaced by a space
+     */
+    private static String withoutTheImports(String settings) {
+        StringBuilder blanked = new StringBuilder(settings);
+        Matcher opened = IMPORTS_A_CATALOG.matcher(settings);
+        while (opened.find()) {
+            int close = closing(settings, opened.end() - 1);
+            if (close == -1) continue;
+            for (int at = opened.start(); at <= close; at++)
+                if (blanked.charAt(at) != '\n') blanked.setCharAt(at, ' ');
+        }
+        return blanked.toString();
+    }
+
+    /**
+     * Names a place in a Kotlin script by its file, its line and what stands there.
+     *
+     * @param file the script's repo-relative path
+     * @param code the script's text, its offsets the file's own
+     * @param at the offset of what stands there
+     * @param what what stands there, as a failure prints it
+     * @return the file, the line number and what stands there
+     */
+    private static String site(Path file, String code, int at, String what) {
+        return file + ":" + (1 + occurrences(code.substring(0, at), "\n")) + " " + what;
+    }
+
+    /**
+     * Answers whether a position sits inside a call to a configuration of the harness's unit suite.
+     * <p>
+     * Walks back to the brace opening the block the position sits in, and reads the OUTERMOST call
+     * between the two, which is the configuration a dependency line opens with: a catalog reference
+     * handed through a helper, {@code testImplementation(platform(libs.bom))}, belongs to the suite, and
+     * one handed through a helper named like a configuration into a client one does not.
+     *
+     * @param code the script's text, its comments blanked
+     * @param at the position of the reference
+     * @return whether the outermost call around it is a test configuration
+     */
+    private static boolean insideASuiteConfiguration(String code, int at) {
+        String outermost = null;
+        int depth = 0;
+        for (int i = at - 1; i >= 0; i--) {
+            char ch = code.charAt(i);
+            if (ch == ')' || ch == '}') depth++;
+            else if ((ch == '(' || ch == '{') && depth > 0) depth--;
+            else if (ch == '{') break;
+            else if (ch == '(') {
+                Matcher callee = CALLEE.matcher(code.substring(code.lastIndexOf('\n', i) + 1, i));
+                outermost = callee.find() ? (callee.group(1) != null ? callee.group(1) : callee.group(2)) : "";
+            }
+        }
+        return outermost != null && SUITE_CONFIGURATION.matcher(outermost).matches();
     }
 
     @Test

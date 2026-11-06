@@ -199,12 +199,13 @@ abstract class HarnessRunTask @Inject constructor(private val workers: WorkerExe
 }
 
 /**
- * The one client a build boots at a time, leased by every harness run and by the harness compile.
+ * The one client a build boots at a time, leased by every harness run, the harness compile and the
+ * harness suite.
  *
  * <p>Every run boots the same run directory - one options file, one world save the run deletes before
- * it starts - and the compile runs the same nested build, so two of them at once would race over both.
- * A lease is held until its task completes, the boot's work included, so a second run waits for the
- * first client to stop while everything else in the project goes on around it.
+ * it starts - and the compile and the suite run the same nested build, so two of them at once would
+ * race over both. A lease is held until its task completes, the boot's work included, so a second run
+ * waits for the first client to stop while everything else in the project goes on around it.
  */
 abstract class HarnessClient : BuildService<BuildServiceParameters.None>
 
@@ -1698,7 +1699,7 @@ tasks {
     }
 
     register<Exec>("harnessClasses") {
-        description = "Compiles the vanilla-reference-harness through its own wrapper. The cheap gate on a harness edit: nothing else in this build compiles those sources, so a mistake in them otherwise surfaces at the next client boot."
+        description = "Compiles the vanilla-reference-harness through its own wrapper. The cheap gate on a harness edit: only it and harnessTest, which compiles those sources to run the harness's own suite, compile them in this build, so a mistake in them otherwise surfaces at the next client boot."
         group = "verification"
         workingDir = harnessDir.asFile
         // The client's lease too: it runs the same nested build a boot does, over the same directory.
@@ -1706,7 +1707,7 @@ tasks {
         val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
         val gradlew = harnessDir.file(if (isWindows) "gradlew.bat" else "gradlew").asFile.absolutePath
         // Both source sets, and `clientClasses` is the load-bearing one: Loom's
-        // splitEnvironmentSourceSets() puts every harness java file in the CLIENT set, so `classes`
+        // splitEnvironmentSourceSets() puts every mod java file in the CLIENT set, so `classes`
         // alone reports :compileJava NO-SOURCE and succeeds over sources it never read. `classes`
         // stays beside it so a first file under src/main/java is compiled the day it lands.
         commandLine = buildList {
