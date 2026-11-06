@@ -2,7 +2,8 @@
 
 Load when touching a block item's icon - `Block#modelIcon`, `BlockRenderer.Isometric3D`, `GuiIcon`,
 `ItemModelTreeLoader.deriveBlockItemModels` - how a slot draws an item, a special model's
-`SpecialTransform`, or `BlockIndexBuilder.resolveBlockStateModel`. Indexed from
+`SpecialTransform` or its base's pose (`ItemModelDispatch.specialPose`), or
+`BlockIndexBuilder.resolveBlockStateModel`. Indexed from
 [`CLAUDE.md`](../../CLAUDE.md).
 
 ## Block icons
@@ -62,6 +63,14 @@ multipart assembly.
 - The block's own icon keeps block lighting whatever its model's `gui_light` names, because the
   harness lights every block icon `ITEMS_3D` and its references are the ground truth -
   `calibrated_sculk_sensor` declares `front`, and both sides light it as a block.
+- A stack that picks a special branch - a special, or a composite whose every drawing child is a
+  special on one base - whose base is not the plain branch's draws it at that base's `display.gui`,
+  the nearest file up its chain to declare one, unturned where none does or where no pack ships the
+  base, which the client reads as its missing model; and in that base's light, `front` through
+  `Shading.relightForItemsFlat`. `ItemModelDispatch.specialPose` reads the base under any root,
+  through `RendererContext.findModel`, which answers a model that declares nothing to draw. The
+  plain branch keeps the block's own pose and light, and so does a branch whose specials name more
+  than one base, which one pose cannot stand for.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
   not a runtime proxy, so the two repos cannot drift on which blocks are icons. It walks the file the
   same way - a condition to `on_false`, where the neutral context sends every condition vanilla

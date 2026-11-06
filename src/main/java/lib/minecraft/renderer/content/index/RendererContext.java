@@ -307,6 +307,20 @@ public interface RendererContext {
     }
 
     /**
+     * Looks up a loaded model by its id whatever it declares - a template, a special model's
+     * {@code base} - as vanilla's model baker answers any model it discovered. Where
+     * {@link #findItemModel(String)} answers a model that declares nothing to draw as an item empty,
+     * this answers it present, so a caller reading such a model's display or light reads the model
+     * itself. The default answers absent.
+     *
+     * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
+     * @return the resolved model, absent where no model is loaded under the id
+     */
+    default @NotNull Possible<ModelData> findModel(@NotNull String modelId) {
+        return Possible.absent();
+    }
+
+    /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
      * rendering to tint the liquid / head layer. The default answers absent so test stubs do not
      * need to override it; the production context reads the bundled
@@ -1004,6 +1018,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
             return delegate().findItemModel(modelId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Possible<ModelData> findModel(@NotNull String modelId) {
+            return delegate().findModel(modelId);
         }
 
         /** {@inheritDoc} */
