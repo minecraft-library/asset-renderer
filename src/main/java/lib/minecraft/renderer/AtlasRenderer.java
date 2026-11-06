@@ -6,11 +6,19 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.Background;
 import dev.simplified.util.Possible;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.call.request.GridOptions;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
@@ -24,6 +32,7 @@ import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,6 +61,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -60,10 +73,20 @@ import java.util.stream.IntStream;
 
 /**
  * Renders every block and item id a {@link RendererContext} knows into a single grid atlas image, each
- * as its slot icon with no item data, and a {@link AtlasResult.Sidecar sidecar} describing each tile's
- * coordinates. A branch an item definition picks by a stack's components - a
- * {@code custom_model_data} threshold, a custom name - is never a tile of its own, as the client holds
- * no item for it: render the stack through {@link ItemRenderer} to draw one.
+ * as its slot icon with no item data and then each distinct {@code custom_model_data} branch of its item
+ * definition as the slot icon of the stack that picks it, and a {@link AtlasResult.Sidecar sidecar}
+ * describing each tile's coordinates.
+ * <p>
+ * A branch is an entry of a {@code range_dispatch} on {@code custom_model_data} anywhere in the
+ * definition. Its stack carries one float at the dispatch's index, a zero at each index before it: the
+ * entry's threshold over the dispatch's scale, moved a float at a time until the walk's own product of
+ * the two reaches the threshold, which leaves the threshold itself at scale 1. The tile is that stack
+ * drawn through {@link ItemRenderer}, so it is the slot the client draws for the stack, tints, glint and
+ * stand-ins as any item render gives them. A float picking what the plain icon or a prior branch of the
+ * same id picks adds no tile, and a stack setting floats at two indices, or a {@code custom_model_data}
+ * flag or string, is not listed. A branch tile's row is keyed by its stack in the client's command
+ * syntax and names the model its walk lands on, which the filter tests in place of the id - see
+ * {@link AtlasResult.Tile} and {@link AtlasOptions#getFilter()}.
  * <p>
  * Implements the same {@link Renderer Renderer&lt;O&gt;} contract as the other top-level
  * renderers: a constructor takes a {@link RendererContext}, the cached {@link ItemRenderer},
@@ -106,8 +129,10 @@ import java.util.stream.IntStream;
  * <p>What it reads and never hands back is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
  * block pass hands to the fluid or the portal renderer instead; the known ids are laid down in the
- * order the context answers them, related subjects next to each other. What it hands back - the
- * sidecar and its rows - nests in {@link AtlasResult}, the one result that names them.
+ * order the context answers them, related subjects next to each other, each id's branch tiles after its
+ * plain tile, ascending by index and then by float, and standing where that tile would where the filter
+ * drops it. What it hands back - the sidecar and its rows - nests in {@link AtlasResult}, the one result
+ * that names them.
  *
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
  * that is the claim above rather than this paragraph, so the two cannot come to disagree.
@@ -399,10 +424,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Lists every subject the passes walk, the block pass first: each block id the context knows
-     * about, in the order the context answers them, then the portal and fluid ids, that the filter keeps
-     * and whose slot icon the item pass does not own; then each item id the context knows about, in the
-     * order the context answers them, that the filter keeps and whose icon the block pass does not
-     * already draw. A pass the options scope out lists nothing.
+     * about, in the order the context answers them, then the portal and fluid ids, whose slot icon the
+     * item pass does not own; then each item id the context knows about, in the order the context
+     * answers them, whose icon the block pass does not already draw. Each id is listed as
+     * {@link #list} lists one, its plain tile and then its branches, each where the filter keeps it. A
+     * pass the options scope out lists nothing.
      *
      * @param options the atlas options
      * @return the candidates, in pass order
@@ -418,27 +444,143 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             blockIds.addAll(PORTAL_BLOCK_IDS);
             blockIds.addAll(FLUID_BLOCK_IDS);
             blockIds.stream()
-                .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
                 .filter(blockId -> !hasItemEntry(blockId))
-                .forEach(blockId -> candidates.add(new Candidate(blockId, AtlasResult.Tile.Kind.BLOCK)));
+                .forEach(blockId -> list(blockId, AtlasResult.Tile.Kind.BLOCK, options, candidates));
         }
         if (options.getSource() != AtlasOptions.Scope.BLOCK) {
             // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
             // decorated_pot, copper golem statues) already render through the block pass as
             // Tile.Source.BLOCK_ENTITY tiles - their vanilla item models have neither elements
             // nor layer0 and would produce blank icons if rendered here. Skip them (the filter below
-            // drops non-additive block-entity ids) so the atlas emits exactly one tile per TE id.
+            // drops non-additive block-entity ids) so the atlas emits exactly one plain tile per TE id,
+            // and lists a TE id's branches once, after the block pass's plain tile.
             //
             // Additive entries (bell-overlay attached to bell_floor / bell_wall / bell_between_walls)
             // keep their item tile because the underlying item/<id>.json carries a real layer0 icon -
             // the entity overlay only enriches the block-tile render, not the inventory icon.
             this.context.knownItemIds().stream()
-                .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
                 .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                     .map(be -> !be.additive()).orElse(false))
-                .forEach(itemId -> candidates.add(new Candidate(itemId, AtlasResult.Tile.Kind.ITEM)));
+                .forEach(itemId -> list(itemId, AtlasResult.Tile.Kind.ITEM, options, candidates));
         }
         return List.copyOf(candidates);
+    }
+
+    /**
+     * Lists one id a pass walks: its plain tile where the filter keeps the id, then each of its
+     * {@linkplain #branches(String) branches} the filter keeps by the model it lands on, or by the id
+     * where it lands on none - whether or not the plain tile was kept.
+     *
+     * @param id the block or item id the pass walks
+     * @param kind the pass
+     * @param options the atlas options
+     * @param candidates the candidates listed so far, which this id's are appended to
+     */
+    private void list(@NotNull String id, @NotNull AtlasResult.Tile.Kind kind, @NotNull AtlasOptions options, @NotNull List<Candidate> candidates) {
+        if (keeps(options, id))
+            candidates.add(new Candidate(id, kind, Optional.empty()));
+
+        for (Branch branch : branches(id))
+            if (keeps(options, branch.model().orElse(id)))
+                candidates.add(new Candidate(id, kind, Optional.of(branch)));
+    }
+
+    /**
+     * Whether the atlas filter keeps a tile tested by the given key, every tile where the options set no
+     * filter.
+     *
+     * @param options the atlas options
+     * @param key the plain tile's id, or the model a branch tile lands on
+     * @return whether the tile is drawn
+     */
+    private static boolean keeps(@NotNull AtlasOptions options, @NotNull String key) {
+        return options.getFilter().map(filter -> filter.test(key)).orElse(true);
+    }
+
+    /**
+     * Lists the {@code custom_model_data} branches of an id's item definition, ascending by index and then
+     * by float: one for each float that reaches an entry of a {@code range_dispatch} on
+     * {@code custom_model_data} anywhere in the definition, kept where the walk with a stack carrying it
+     * lands other than the walk with a stack carrying none and other than every earlier float's in that
+     * order. An id with no definition, an empty one or a refused one has none.
+     *
+     * @param id the block or item id
+     * @return the branches, each with the model its walk lands on
+     */
+    private @NotNull List<Branch> branches(@NotNull String id) {
+        Possible<ItemModelTree> tree = this.context.findItemTree(id);
+        if (!tree.isPresent() || tree.get().isRejected()) return List.of();
+
+        SortedMap<Integer, SortedSet<Float>> floats = new TreeMap<>();
+        collect(tree.get().root(), floats);
+        ItemModelContext stack = ItemModelContext.gui().withItemId(id);
+        List<ItemModelNode.Resolution> drawn = new ArrayList<>(List.of(stack.resolve(tree.get())));
+        List<Branch> branches = new ArrayList<>();
+        floats.forEach((index, values) -> {
+            for (float value : values) {
+                ItemModelNode.Resolution resolution = stack.withComponents(Branch.components(index, value)).resolve(tree.get());
+                if (drawn.contains(resolution)) continue;
+
+                drawn.add(resolution);
+                branches.add(new Branch(index, value, resolution.modelId().or(() -> resolution.special().map(ItemModelNode.Special::base))));
+            }
+        });
+        return branches;
+    }
+
+    /**
+     * Gathers, by index, every float that reaches an entry of a {@code range_dispatch} on
+     * {@code custom_model_data} anywhere below a node - the property bare or {@code minecraft:}, as the
+     * walk reads it, at an index a float list can hold.
+     *
+     * @param node the node to search
+     * @param floats the floats gathered so far, by index, which this node's are added to
+     */
+    private static void collect(@NotNull ItemModelNode node, @NotNull SortedMap<Integer, SortedSet<Float>> floats) {
+        switch (node) {
+            case ItemModelNode.RangeDispatch range -> {
+                if (range.index() >= 0 && ResourceId.vanillaPath(range.property()).filter("custom_model_data"::equals).isPresent()) {
+                    for (ItemModelNode.RangeDispatch.Entry entry : range.entries())
+                        reaching(entry.threshold(), range.scale()).ifPresent(value -> floats.computeIfAbsent(range.index(), index -> new TreeSet<>()).add(value));
+                }
+
+                range.entries().forEach(entry -> collect(entry.model(), floats));
+                collect(range.fallback(), floats);
+            }
+            case ItemModelNode.Condition condition -> {
+                collect(condition.onTrue(), floats);
+                collect(condition.onFalse(), floats);
+            }
+            case ItemModelNode.Select select -> {
+                select.cases().forEach(option -> collect(option.model(), floats));
+                collect(select.fallback(), floats);
+            }
+            case ItemModelNode.Composite composite -> composite.models().forEach(child -> collect(child, floats));
+            case ItemModelNode.Model ignored -> {}
+            case ItemModelNode.Special ignored -> {}
+            case ItemModelNode.Bundle ignored -> {}
+            case ItemModelNode.Empty ignored -> {}
+            case ItemModelNode.Absent ignored -> {}
+        }
+    }
+
+    /**
+     * Answers the float a stack's {@code custom_model_data} carries for a {@code range_dispatch} to reach
+     * a threshold, as the walk compares them: the threshold over the dispatch's scale, moved a float at a
+     * time in the direction that raises the product until the scale times it reaches the threshold.
+     *
+     * @param threshold the entry's threshold
+     * @param scale the dispatch's scale
+     * @return the float, or empty where the scale is zero or not finite, or no finite float reaches the
+     *     threshold
+     */
+    private static @NotNull Optional<Float> reaching(float threshold, float scale) {
+        if (scale == 0f || !Float.isFinite(scale)) return Optional.empty();
+
+        float value = threshold / scale;
+        while (Float.isFinite(value) && scale * value < threshold)
+            value = scale > 0f ? Math.nextUp(value) : Math.nextDown(value);
+        return Float.isFinite(value) ? Optional.of(value) : Optional.empty();
     }
 
     /**
@@ -454,8 +596,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         Candidate candidate = bake.candidates.get(index);
         try {
             Drawn drawn = switch (candidate.kind()) {
-                case BLOCK -> drawBlock(candidate.id(), bake.options);
-                case ITEM -> drawItem(candidate.id(), bake.options);
+                case BLOCK -> drawBlock(candidate, bake.options);
+                case ITEM -> drawItem(candidate, bake.options);
             };
             bake.keep(index, drawn.source());
             return drawn.result();
@@ -472,50 +614,52 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * definition rather than by a biome. The item options name the tile size and nothing else, which the
      * slot icon's block branch carries onto the same isometric block options a plain block render would
      * build. {@link #FLUID_BLOCK_IDS} dispatch to {@link FluidRenderer.FluidFace2D} and
-     * {@link #PORTAL_BLOCK_IDS} to {@link PortalRenderer}.
+     * {@link #PORTAL_BLOCK_IDS} to {@link PortalRenderer}. A branch tile draws the same slot icon of the
+     * stack that picks the branch.
      *
-     * @param blockId the block id the pass walked
+     * @param candidate the block id the pass walked, and the branch its tile draws
      * @param options the atlas options
      * @return the tile's render and its source label
      * @throws RendererException when the render or the classification refuses the subject
      */
-    private @NotNull Drawn drawBlock(@NotNull String blockId, @NotNull AtlasOptions options) {
+    private @NotNull Drawn drawBlock(@NotNull Candidate candidate, @NotNull AtlasOptions options) {
+        String blockId = candidate.id();
         if (FLUID_BLOCK_IDS.contains(blockId))
             return new Drawn(this.fluidRenderer.render(fluidOptionsFor(blockId, options.getTileSize())), AtlasResult.Tile.Source.FLUID);
         if (PORTAL_BLOCK_IDS.contains(blockId))
             return new Drawn(this.portalRenderer.render(portalOptionsFor(blockId, options.getTileSize())), AtlasResult.Tile.Source.PORTAL);
 
-        ItemOptions iconOptions = ItemOptions.builder()
+        ItemOptions.Builder iconOptions = ItemOptions.builder()
             .itemId(blockId)
             .type(ItemOptions.Type.GUI_ICON)
-            .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
-            .build();
-        RenderResult result = this.itemRenderer.render(iconOptions);
+            .output(OutputOptions.builder().canvasSize(options.getTileSize()).build());
+        candidate.stack().ifPresent(iconOptions::context);
+        RenderResult result = this.itemRenderer.render(iconOptions.build());
         return new Drawn(result, classifyBlockSource(blockId));
     }
 
     /**
      * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
-     * render.
+     * render, a branch tile drawing the slot icon of the stack that picks the branch.
      *
-     * @param itemId the item id the pass walked
+     * @param candidate the item id the pass walked, and the branch its tile draws
      * @param options the atlas options
      * @return the tile's render and its source label
      * @throws RendererException when the render or the classification refuses the subject
      */
-    private @NotNull Drawn drawItem(@NotNull String itemId, @NotNull AtlasOptions options) {
+    private @NotNull Drawn drawItem(@NotNull Candidate candidate, @NotNull AtlasOptions options) {
         // animateGlint(false): intrinsically-foil items (enchanted_book, nether_star, ...) render
         // their glint as a single static frame-0 here. An animated glint tile would force the
         // whole atlas onto GridRenderer's animated path (FrameCompositor), turning an otherwise-static
         // atlas into an animated one; the atlas wants exactly one frame per tile.
-        ItemOptions itemOptions = ItemOptions.builder()
-            .itemId(itemId)
+        ItemOptions.Builder itemOptions = ItemOptions.builder()
+            .itemId(candidate.id())
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
-            .animateGlint(false)
-            .build();
-        RenderResult result = this.itemRenderer.render(itemOptions);
-        return new Drawn(result, classifyItemSource(itemId));
+            .animateGlint(false);
+        candidate.stack().ifPresent(itemOptions::context);
+        RenderResult result = this.itemRenderer.render(itemOptions.build());
+        return new Drawn(result, classifyItemSource(candidate.id()));
     }
 
     /**
@@ -625,12 +769,98 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * One subject a pass walks: its id, and the pass that walks it.
+     * One subject a pass walks: its id, the pass that walks it, and the branch of its item definition its
+     * tile draws in place of the plain icon.
      *
      * @param id the namespaced block or item id
      * @param kind the pass that walks it
+     * @param branch the {@code custom_model_data} branch the tile draws, empty for the id's plain tile
      */
-    private record Candidate(@NotNull String id, @NotNull AtlasResult.Tile.Kind kind) {}
+    private record Candidate(@NotNull String id, @NotNull AtlasResult.Tile.Kind kind, @NotNull Optional<Branch> branch) {
+
+        /**
+         * Names the id the subject's sidecar row takes - the block or item id for a plain tile, and for a
+         * branch tile the stack it draws, written in the client's command syntax.
+         *
+         * @return the row's id
+         */
+        @NotNull String label() {
+            return this.branch.map(picked -> picked.label(this.id)).orElse(this.id);
+        }
+
+        /**
+         * Builds the item stack the tile draws, afresh on each call so no render reads another's.
+         *
+         * @return the branch's stack, or empty for a plain tile, which draws no stack
+         */
+        @NotNull Optional<ItemContext> stack() {
+            return this.branch.map(picked -> ItemContext.ofStack(picked.stack(this.id)));
+        }
+
+    }
+
+    /**
+     * A {@code custom_model_data} branch of an item definition: the float a stack carries at an index to
+     * pick it, and the model the walk with that stack lands on.
+     *
+     * @param index the {@code custom_model_data} float index the branch's dispatch reads
+     * @param value the float the stack carries at that index
+     * @param model the model the walk lands on - its leaf model, a special's base, a composite's first
+     *     layer's - or empty where it lands on none
+     */
+    private record Branch(int index, float value, @NotNull Optional<String> model) {
+
+        /**
+         * Builds the component patch of a stack carrying one {@code custom_model_data} float at an index,
+         * a zero at each index before it.
+         *
+         * @param index the float's index
+         * @param value the float
+         * @return the patch, keyed by qualified component id
+         */
+        static @NotNull CompoundTag components(int index, float value) {
+            ListTag<FloatTag> floats = new ListTag<>();
+            for (int i = 0; i < index; i++)
+                floats.add(new FloatTag(0f));
+            floats.add(new FloatTag(value));
+
+            CompoundTag customModelData = new CompoundTag();
+            customModelData.put("floats", floats);
+            CompoundTag components = new CompoundTag();
+            components.put("minecraft:custom_model_data", customModelData);
+            return components;
+        }
+
+        /**
+         * Builds the stack that picks this branch.
+         *
+         * @param itemId the stack's item id
+         * @return the stack, {@code {id, components}}
+         */
+        @NotNull CompoundTag stack(@NotNull String itemId) {
+            CompoundTag stack = new CompoundTag();
+            stack.put("id", new StringTag(itemId));
+            stack.put("components", components(this.index, this.value));
+            return stack;
+        }
+
+        /**
+         * Writes the stack that picks this branch in the client's command syntax: the item id, then its
+         * {@code custom_model_data} component, each float written as {@link Float#toString(float)} writes
+         * it with an {@code f} after it.
+         *
+         * @param itemId the stack's item id
+         * @return the stack, as in {@code minecraft:paper[custom_model_data={floats:[10011.0f]}]}
+         */
+        @NotNull String label(@NotNull String itemId) {
+            StringBuilder floats = new StringBuilder();
+            for (int i = 0; i < this.index; i++)
+                floats.append(0f).append("f,");
+            floats.append(this.value).append('f');
+            return itemId + "[custom_model_data={floats:[" + floats + "]}]";
+        }
+
+    }
 
     /**
      * A tile's render and the pipeline path that produced it.
@@ -725,11 +955,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         void refuse(int index, @NotNull RendererException refusal) {
             Candidate candidate = this.candidates.get(index);
             String reason = Objects.requireNonNullElse(refusal.getMessage(), refusal.getClass().getSimpleName());
-            Settled prior = this.settled.getAndSet(index, new Refused(new AtlasResult.Skipped(candidate.id(), candidate.kind(), reason)));
+            Settled prior = this.settled.getAndSet(index, new Refused(new AtlasResult.Skipped(candidate.label(), candidate.kind(), reason)));
             if (prior instanceof Refused || !this.options.isProgressLogging()) return;
 
             boolean block = candidate.kind() == AtlasResult.Tile.Kind.BLOCK;
-            System.err.printf(block ? "  skipped block '%s': %s%n" : "  skipped item '%s': %s%n", candidate.id(), refusal.getMessage());
+            System.err.printf(block ? "  skipped block '%s': %s%n" : "  skipped item '%s': %s%n", candidate.label(), refusal.getMessage());
         }
 
         /**
@@ -759,10 +989,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     Candidate candidate = this.candidates.get(standing.get(i));
                     GridResult.Cell cell = cells.get(i);
                     if (!(this.settled.get(standing.get(i)) instanceof Kept kept))
-                        throw new IllegalStateException("Atlas tile '%s' was laid down without settling as kept".formatted(candidate.id()));
+                        throw new IllegalStateException("Atlas tile '%s' was laid down without settling as kept".formatted(candidate.label()));
 
                     return new AtlasResult.Tile(
-                        candidate.id(),
+                        candidate.label(),
+                        candidate.branch().flatMap(Branch::model),
                         candidate.kind(),
                         kept.source(),
                         cell.col(),

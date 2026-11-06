@@ -105,7 +105,7 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * Every model under every pack's {@code models/} tree whatever its path - the {@code block/} and
      * {@code item/} models, the ones outside both, and the missing model - which
-     * {@link #findItemModel(String)} looks a model up in.
+     * {@link #findItemModel(String)} and {@link #findModel(String)} look a model up in.
      */
     private final @NotNull ResolvedModels models;
 
@@ -180,6 +180,7 @@ public final class IndexedRendererContext implements RendererContext {
 
         BlockTables blockTables = new BlockTables(
             models.blocks(),
+            models.all(),
             blockTints,
             itemDefinitions,
             blockDefaultStates,
@@ -304,6 +305,18 @@ public final class IndexedRendererContext implements RendererContext {
     @Override
     public @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
         return this.models.find(modelId);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Answers from the models {@link #findItemModel(String)} answers from, the missing model's id
+     * included, and reads a bare id as a {@code minecraft:} one, as vanilla parses an identifier.
+     */
+    @Override
+    public @NotNull Possible<ModelData> findModel(@NotNull String modelId) {
+        String key = ResourceId.parse(modelId).id();
+        return this.models.all().containsKey(key) ? Possible.of(this.models.all().get(key)) : Possible.absent();
     }
 
     /**

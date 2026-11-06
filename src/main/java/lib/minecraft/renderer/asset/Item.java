@@ -42,19 +42,19 @@ public record Item(
      * the array index is the layer's {@code tintindex}.
      * <p>
      * Vanilla calculates each tint on every render - from an item component (a dyed-leather colour, a
-     * potion's effect colour, a firework's explosion colour, a map's colour), falling back to the
-     * {@code default} when the component is absent, or from the grass colormap - and multiplies it into
-     * the matching {@code layerN} sprite. This renderer mirrors that: the sealed variants carry what
-     * the JSON declares (a default, a fixed value or a climate point) and the item renderer resolves
-     * the effective ARGB from the render options and the pack stack before multiplying.
+     * potion's effect colour, a firework's explosion colour, a map's colour, a custom-model-data
+     * colour), falling back to the {@code default} when the component is absent, or from the grass
+     * colormap - and multiplies it into the matching {@code layerN} sprite. This renderer mirrors that:
+     * the sealed variants carry what the JSON declares (a default, a fixed value, a climate point or a
+     * component index) and the item renderer resolves the effective ARGB from the render options and the
+     * pack stack before multiplying.
      * <p>
-     * Tint source types this renderer does not model ({@code minecraft:custom_model_data},
-     * {@code minecraft:team}) parse to {@link Constant} of white so they render untinted rather than
-     * guessing a colour.
+     * The tint source type this renderer does not model, {@code minecraft:team}, parses to
+     * {@link Constant} of white so it renders untinted rather than guessing a colour.
      */
     public sealed interface LayerTint
         permits LayerTint.Dye, LayerTint.Potion, LayerTint.Firework, LayerTint.Grass, LayerTint.MapColor,
-            LayerTint.Constant {
+            LayerTint.CustomModelData, LayerTint.Constant {
 
         /**
          * A {@code minecraft:dye} tint - the dyed-leather colour. Resolves from the render options'
@@ -112,6 +112,17 @@ public record Item(
          * @param defaultColor the ARGB applied when no map colour is supplied
          */
         record MapColor(int defaultColor) implements LayerTint {}
+
+        /**
+         * A {@code minecraft:custom_model_data} tint - one colour of the stack's
+         * {@code minecraft:custom_model_data} component. Resolves from the {@code colors} entry at
+         * {@code index}, made opaque, else the render options' tint override, else the JSON default
+         * made opaque, which is what a stack carrying no colour at {@code index} draws.
+         *
+         * @param index the position in the component's {@code colors} list this tint reads
+         * @param defaultColor the ARGB applied when the stack carries no colour at {@code index}
+         */
+        record CustomModelData(int index, int defaultColor) implements LayerTint {}
 
         /**
          * A {@code minecraft:constant} tint (or a source type this renderer does not model) - a fixed

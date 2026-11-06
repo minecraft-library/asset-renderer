@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
@@ -21,6 +22,7 @@ import lib.minecraft.renderer.vanilla.SunAngle;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -32,12 +34,13 @@ import java.util.function.IntFunction;
  * tree, the CIT override that outranks it, and the timing a time-driven tree derives for itself.
  * <p>
  * It is a lookup rather than a render: every entry answers with a {@link FrameItem} built over an
- * already-indexed item, or the timing to ask for one at, and none of them touches a pixel. What a frame
- * draws is what the item definition names, as in vanilla: the model its leaf names, the missing model
- * where no pack ships that model, vanilla's missing item model for a definition the loader refused, a
- * select that falls back to nothing it declares or a node type in a mod's namespace, nothing at all for
- * an empty branch, a definition rooted at {@code minecraft:empty} or a model that declares nothing to
- * draw, and every one of those a {@code composite}'s children land on, one over another in order.
+ * already-indexed item, the timing to ask for one at, or the {@link SpecialPose} a slot draws a special
+ * branch at, and none of them touches a pixel. What a frame draws is what the item definition names, as
+ * in vanilla: the model its leaf names, the missing model where no pack ships that model, vanilla's
+ * missing item model for a definition the loader refused, a select that falls back to nothing it
+ * declares or a node type in a mod's namespace, nothing at all for an empty branch, a definition rooted
+ * at {@code minecraft:empty} or a model that declares nothing to draw, and every one of those a
+ * {@code composite}'s children land on, one over another in order.
  * <p>
  * A stack steers a walk only where its components, or the item id its default item model is read
  * from, choose the branch. Where the walk at a context reaches the branch it reaches at the same
@@ -317,6 +320,61 @@ public class ItemModelDispatch {
     }
 
     /**
+     * Resolves the pose and light a slot draws a special branch at, where the walk at the render's own
+     * context lands on specials alone - every layer it draws a special, all of them on one base - and
+     * that base is not the one the neutral {@link ItemModelContext#gui()} walk lands on. Vanilla poses
+     * and lights each special layer by its own base whichever branch picked it, a {@code composite}'s
+     * children included: the base's {@code display.gui}, the nearest file up its chain to declare one,
+     * and its {@code gui_light}. The base is read through {@link RendererContext#findModel(String)},
+     * which answers a template that declares nothing to draw as it answers any loaded model, and a base
+     * no pack ships is vanilla's missing model, which declares neither - so it answers the identity
+     * transform and {@link GuiLight#SIDE}, never the plain branch's pose.
+     * <p>
+     * Where the two walks land on the same base, the pose the block index baked for the item stands,
+     * so the answer is empty, as it is for a refused or absent tree and for a branch drawing anything
+     * but specials on one base, which one pose cannot stand for.
+     *
+     * @param context the renderer context supplying the tree and the base model
+     * @param options the item render options, supplying the id
+     * @param modelContext the evaluation context the render resolves its item tree at, already resolved for the drawing type
+     * @return the picked specials' pose, empty where the walk lands on anything but specials on one base or on the neutral walk's base
+     */
+    public static @NotNull Optional<SpecialPose> specialPose(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull ItemModelContext modelContext
+    ) {
+        Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
+        if (!tree.isPresent() || tree.get().isRejected()) return Optional.empty();
+
+        Optional<String> picked = specialBase(walkedAt(tree, modelContext).resolve(tree.get()));
+        Optional<String> neutral = specialBase(ItemModelContext.gui().resolve(tree.get()));
+        if (picked.isEmpty() || picked.equals(neutral)) return Optional.empty();
+
+        Optional<ModelData> base = context.findModel(picked.get()).toOptional();
+        return Optional.of(new SpecialPose(
+            base.flatMap(model -> model.getDisplay().getOptional(ItemModelContext.DISPLAY_CONTEXT_GUI)).orElse(ModelTransform.IDENTITY),
+            base.map(ModelData::getGuiLight).orElse(GuiLight.SIDE)
+        ));
+    }
+
+    /**
+     * Answers the one base a branch's specials share, where every layer it draws is a special - a lone
+     * special leaf, or a {@code composite} whose drawing children are all specials, as vanilla's beds
+     * are.
+     *
+     * @param resolution the resolved branch
+     * @return the base every layer's special names, empty for a branch drawing nothing, any layer that
+     *     is not a special, or specials on more than one base
+     */
+    private static @NotNull Optional<String> specialBase(@NotNull ItemModelNode.Resolution resolution) {
+        List<Optional<String>> bases = resolution.layers()
+            .stream()
+            .map(layer -> layer.special().map(ItemModelNode.Special::base))
+            .distinct()
+            .toList();
+        return bases.size() == 1 ? bases.getFirst() : Optional.empty();
+    }
+
+    /**
      * Builds the item a frame carries for an id the item index does not hold - no model of its own, no
      * durability, no tint and no intrinsic foil.
      *
@@ -339,6 +397,14 @@ public class ItemModelDispatch {
     private static @NotNull ItemModelContext walkedAt(@NotNull Possible<ItemModelTree> tree, @NotNull ItemModelContext at) {
         return tree.isPresent() && at.steers(tree.get()) ? at : at.withoutComponents();
     }
+
+    /**
+     * The pose and light a slot draws a special branch at, read off the branch's base model.
+     *
+     * @param gui the base's {@code display.gui} transform, the nearest up its chain, the identity where no file in it declares one or no pack ships it
+     * @param light the base's {@code gui_light}, {@link GuiLight#SIDE} where no pack ships it
+     */
+    public record SpecialPose(@NotNull ModelTransform gui, @NotNull GuiLight light) {}
 
     /**
      * What one frame of an item render draws - the dispatch walk's answer at one evaluation context.

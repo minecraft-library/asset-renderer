@@ -105,6 +105,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasRendererBranchTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/AtlasRendererLayoutTest": {
       "artifacts": [],
       "source": "derived"
@@ -152,6 +156,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/CompositeResultTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/CustomModelDataTintTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -406,6 +414,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/SpecialBasePoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
         "manifest.visual",
@@ -490,8 +502,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -535,8 +553,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -555,8 +579,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -972,6 +1002,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -994,6 +1025,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1016,6 +1048,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1083,6 +1116,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1105,6 +1139,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1127,6 +1162,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1167,6 +1203,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1193,6 +1230,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1215,6 +1253,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1237,6 +1276,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1259,6 +1299,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -1285,6 +1326,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -2252,6 +2294,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -2271,8 +2314,14 @@
     },
     "lib/minecraft/renderer/call/request/BannerLayer": {
       "artifacts": [
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -2305,8 +2354,14 @@
     },
     "lib/minecraft/renderer/call/request/DecorationOptions": {
       "artifacts": [
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -2344,6 +2399,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -2367,8 +2423,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -2385,8 +2447,14 @@
     },
     "lib/minecraft/renderer/call/request/ItemOptions": {
       "artifacts": [
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -2970,6 +3038,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -3070,6 +3139,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -3140,8 +3210,14 @@
     },
     "lib/minecraft/renderer/content/index/ItemModelDispatch": {
       "artifacts": [
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -4470,8 +4546,13 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu",
@@ -7069,8 +7150,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -7107,8 +7194,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -7119,8 +7212,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -7134,6 +7233,7 @@
         "manifest.player-raw",
         "manifest.references",
         "manifest.visual",
+        "pin.block-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -7189,8 +7289,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -7201,8 +7307,14 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.player-raw",
         "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
         "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
@@ -7507,6 +7619,7 @@
         "manifest.player-sheets",
         "manifest.references",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",
@@ -7581,6 +7694,7 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
+        "pin.block-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",

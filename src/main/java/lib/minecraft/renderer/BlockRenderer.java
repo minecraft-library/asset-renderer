@@ -10,6 +10,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -24,6 +25,7 @@ import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.BlockSlot;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.content.index.ItemModelDispatch.SpecialPose;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.VariantMatcher;
 import lib.minecraft.renderer.engine.camera.Camera;
@@ -142,17 +144,25 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * tints index the faces of the model it names, which is {@link Block#model()} exactly where
      * {@code modelIcon} holds; a stand-in draws a model the definition does not name, so it keeps the
      * plain render's tint.
+     * <p>
+     * A special branch a stack picks is posed and lit by its own base, as vanilla's slot poses it,
+     * where that base is not the plain branch's: the icon is viewed through the base's
+     * {@code display.gui} in place of {@link Block#iconGui()}, and relit under
+     * {@link Shading#relightForItemsFlat} where the base lights {@code front}.
      *
      * @param options the block options, which must name {@link BlockOptions.Type#ISOMETRIC_3D}
      * @param definitionTints the item definition's tints, calculated, indexed by tintindex
+     * @param pose the picked special branch's pose, empty where the block's own pose stands
      * @return the rendered image composited over {@link BlockOptions#getBackground()}
      * @throws IllegalArgumentException if the options name a face render, which has no slot-icon build
      */
-    @NotNull ImageData renderIcon(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
+    @NotNull ImageData renderIcon(
+        @NotNull BlockOptions options, int @NotNull [] definitionTints, @NotNull Optional<SpecialPose> pose
+    ) {
         if (options.getType() != BlockOptions.Type.ISOMETRIC_3D)
             throw new IllegalArgumentException(String.format("A slot icon renders isometric, not '%s'", options.getType()));
 
-        return options.getBackground().composite(this.isometric3D.draw(options, definitionTints));
+        return options.getBackground().composite(this.isometric3D.draw(options, definitionTints, pose));
     }
 
     /**
@@ -245,32 +255,39 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the rendered image, before the background composite
          */
         @NotNull ImageData draw(@NotNull BlockOptions options) {
-            return draw(options, Optional.empty());
+            return draw(options, Optional.empty(), Optional.empty());
         }
 
         /**
          * Draws a slot icon, whose identity build takes the item definition's tints in place of the
-         * options' biome.
+         * options' biome, posed by a picked special branch's base where one is given.
          *
          * @param options the block options
          * @param definitionTints the item definition's tints, calculated, indexed by tintindex
+         * @param pose the picked special branch's pose, empty where the block's own pose stands
          * @return the rendered image, before the background composite
          */
-        @NotNull ImageData draw(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
-            return draw(options, Optional.of(definitionTints));
+        @NotNull ImageData draw(
+            @NotNull BlockOptions options, int @NotNull [] definitionTints, @NotNull Optional<SpecialPose> pose
+        ) {
+            return draw(options, Optional.of(definitionTints), pose);
         }
 
         /**
-         * Draws the block, with or without the item definition's tints.
+         * Draws the block, with or without the item definition's tints and a picked special branch's
+         * pose.
          *
          * @param options the block options
          * @param definitionTints the item definition's tints for a slot icon, empty for a plain render
+         * @param pose the picked special branch's pose for a slot icon, empty for a plain render
          * @return the rendered image, before the background composite
          */
-        private @NotNull ImageData draw(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
+        private @NotNull ImageData draw(
+            @NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints, @NotNull Optional<SpecialPose> pose
+        ) {
             Possible<Block> block = this.context.findBlock(options.getBlockId());
             return switch (block.getState()) {
-                case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints).bake();
+                case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints, pose).bake();
                 case EMPTY -> emptyFrames(options);
                 case ABSENT -> missingBlock(this.context, options, () -> missingCube(this.context, options));
             };
@@ -331,16 +348,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * camera is the item gui for every block without a per-family branch. A non-neutral render
          * (custom projection, rotation, or facing) falls back to the projection's own resolution so a
          * caller-driven pose is never overridden. The lighting frame tracks the resolved pose.
+         * <p>
+         * A special branch a stack picks, whose base is not the plain branch's, brings that base's
+         * {@code display.gui}, which takes the place of {@link Block#iconGui()} for a neutral render.
          *
          * @param block the block whose authored {@code display.gui} pose to resolve
          * @param output the output frame supplying the projection, rotation, and facing
+         * @param special the picked special branch's pose, empty where the block's own pose stands
          * @return the view the icon renders through
          */
-        private static @NotNull View resolveIconView(@NotNull Block block, @NotNull OutputOptions output) {
+        private static @NotNull View resolveIconView(
+            @NotNull Block block, @NotNull OutputOptions output, @NotNull Optional<SpecialPose> special
+        ) {
             if (!output.isNeutralInventoryIcon())
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
 
-            ModelTransform gui = block.iconGui().orElse(null);
+            ModelTransform gui = special.map(SpecialPose::gui).or(block::iconGui).orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
             return new View(
@@ -457,6 +480,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private final @NotNull LightingFrame lighting;
 
             /**
+             * The slot light the inventory relight runs under: a picked special branch's base's on a
+             * slot icon, else {@link GuiLight#SIDE}, vanilla's {@code ITEMS_3D}, which the block's own
+             * icon keeps whatever its model's {@code gui_light} names.
+             */
+            private final @NotNull GuiLight light;
+
+            /**
              * Whether the render is the inventory icon, in which the blockstate plays no part.
              * <p>
              * Vanilla bakes a block item's icon from the model its {@code minecraft:item_model}
@@ -479,10 +509,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @param options the caller's options
              * @param block the resolved subject
              * @param definitionTints the item definition's tints for a slot icon, empty for a plain render
+             * @param pose the picked special branch's pose for a slot icon, empty for a plain render
              */
             private Assembly(
                 @NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Block block,
-                @NotNull Optional<int[]> definitionTints
+                @NotNull Optional<int[]> definitionTints, @NotNull Optional<SpecialPose> pose
             ) {
                 this.context = context;
                 this.textures = context.withMissingTexture();
@@ -493,8 +524,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // construction time, so the renderer reads it straight off the block - no sidecar
                 // lookup through RendererContext#findBlockEntityEntry is needed.
                 this.entity = block.entity();
-                this.view = resolveIconView(block, options.getOutput());
+                // The pose is the slot's, so a caller-driven pose overrides a picked special's as it
+                // overrides the block's own.
+                Optional<SpecialPose> special = pose.filter(picked -> options.getOutput().isNeutralInventoryIcon());
+                this.view = resolveIconView(block, options.getOutput(), special);
                 this.lighting = this.view.lighting();
+                this.light = special.map(SpecialPose::light).orElse(GuiLight.SIDE);
                 this.tint = resolveRenderTint(context, block, this.entity, options);
                 this.state = options.getVariant().isEmpty()
                     ? block.defaultState()
@@ -539,7 +574,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * primary / additive-entity / merged-parts {@link GeometryLayer} stack (each face texture
              * resolved at {@code tick}), folds it, applies the block-entity icon rotation + multi-block
              * recenter, rebuilds from the first blockstate apply when empty, then re-lights with
-             * vanilla's {@code Lighting.ITEMS_3D} Lambertian.
+             * vanilla's {@code Lighting.ITEMS_3D} Lambertian - or its {@code ITEMS_FLAT}, where a picked
+             * special branch's base lights {@code front}.
              *
              * <p>Re-lights on the post-{@code display.gui} normal (26.1 dropped per-face cardinal
              * multiplication from the GUI inventory path - the shader's only lighting input is two
@@ -601,7 +637,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (triangles.isEmpty())
                     triangles = firstBlockstateApplyAt(tick);
 
-                return Shading.relightForItems3d(triangles, this.lighting, this.entity.isEmpty());
+                return switch (this.light) {
+                    case FRONT -> Shading.relightForItemsFlat(triangles, this.lighting, this.entity.isEmpty());
+                    case SIDE -> Shading.relightForItems3d(triangles, this.lighting, this.entity.isEmpty());
+                };
             }
 
             /**

@@ -1136,9 +1136,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * Draws the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
          * block backs it and its model declares elements, and for any id whose item definition decides
          * the frame; else the isometric {@link BlockRenderer} for a block-backed id, its faces tinted by
-         * the item definition's tints, and the empty slot for an id either index knows as one that
-         * draws nothing. The block delegate renders on a transparent background so
-         * {@link ItemRenderer#draw} composites the caller's own background exactly once.
+         * the item definition's tints and posed by {@link ItemModelDispatch#specialPose the base of the
+         * special branch a stack picks} where that base is not the plain branch's, and the empty slot
+         * for an id either index knows as one that draws nothing. The block delegate renders on a
+         * transparent background so {@link ItemRenderer#draw} composites the caller's own background
+         * exactly once.
          *
          * @param options the item render options
          * @return the faithful inventory icon, before the shared background composite
@@ -1160,7 +1162,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (block.isPresent())
                 return this.blockRenderer.renderIcon(adaptToBlock(options),
-                    definitionTints(this.context, options, ItemOptions.Type.GUI_ICON));
+                    definitionTints(this.context, options, ItemOptions.Type.GUI_ICON),
+                    ItemModelDispatch.specialPose(this.context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON)));
 
             // Neither index draws it, and one of them knows it draws nothing - air, or a block such as
             // cave_air with no item - so the slot is empty beneath the decorations the request names.

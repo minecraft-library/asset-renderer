@@ -1261,7 +1261,8 @@ public final class PipelineParityDump {
 
     /**
      * Returns one layer tint as a tagged record, carrying what its source declares: an ARGB colour,
-     * alpha-forced opaque at parse, or for a grass tint the climate point its colormap is sampled at.
+     * alpha-forced opaque at parse, for a grass tint the climate point its colormap is sampled at, and
+     * for a custom-model-data tint the colour index it reads beside its default.
      *
      * @param tint the tint to emit
      * @return the tint object
@@ -1289,6 +1290,11 @@ public final class PipelineParityDump {
             case Item.LayerTint.MapColor mapColor -> {
                 root.addProperty("tint", "map_color");
                 root.add("default_color", CanonicalJson.argb(mapColor.defaultColor()));
+            }
+            case Item.LayerTint.CustomModelData data -> {
+                root.addProperty("tint", "custom_model_data");
+                root.addProperty("index", data.index());
+                root.add("default_color", CanonicalJson.argb(data.defaultColor()));
             }
             case Item.LayerTint.Constant constant -> {
                 root.addProperty("tint", "constant");

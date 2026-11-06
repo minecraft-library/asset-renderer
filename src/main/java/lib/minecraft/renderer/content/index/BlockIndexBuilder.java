@@ -113,11 +113,13 @@ public class BlockIndexBuilder {
      * Its counterpart {@link BakedTables} carries what the bake produces, and the split is the point
      * rather than a size limit: a raw {@link ApplyDto} and a resolved {@link Block.Variant} are
      * different types, so no pass downstream of the bake can reach an unbaked apply at all.
-     * {@link #attachOrphanBlockEntities} reads six of the nine - an orphan block entity has no model,
+     * {@link #attachOrphanBlockEntities} reads six of the ten - an orphan block entity has no model,
      * no tint and no item-def override - and takes the record whole rather than naming a sixth of it
      * in its own signature.
      *
      * @param blockModels the parsed block model data keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path under {@code models/},
+     *     which a blockstate's model id resolves against
      * @param blockTints the block tint bindings keyed by stripped block id
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
      * @param blockDefaultStates the default-state property maps keyed by namespaced block id
@@ -129,6 +131,7 @@ public class BlockIndexBuilder {
      */
     public record BlockTables(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
+        @NotNull ConcurrentMap<String, ModelData> models,
         @NotNull Map<String, Block.Tint> blockTints,
         @NotNull ConcurrentMap<String, String> itemDefinitions,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates,
@@ -247,10 +250,10 @@ public class BlockIndexBuilder {
         @NotNull Set<String> drawsNothing
     ) {
         // Bake the raw blockstate applies into resolved Block.Variant / Block.Multipart here, where the
-        // resolved model set (blockModels) lives, so BlockStateLoader stays a pure read plus pack merge.
+        // resolved model set (models) lives, so BlockStateLoader stays a pure read plus pack merge.
         BakedTables baked = new BakedTables(
-            bakeVariants(blockStates.variants(), tables.blockModels()),
-            bakeMultiparts(blockStates.multiparts(), tables.blockModels()),
+            bakeVariants(blockStates.variants(), tables.models()),
+            bakeMultiparts(blockStates.multiparts(), tables.models()),
             buildReverseTagIndex(blockTags));
         ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(tables, baked, stack);
         attachOrphanBlockEntities(blockIndex, tables, baked, stack);
@@ -273,17 +276,17 @@ public class BlockIndexBuilder {
      * collected map drew every one of them hanging.
      *
      * @param rawVariants block id to its {@code variantKey -> }{@link ApplyDto} map
-     * @param blockModels the parsed model set keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path
      * @return block id to its resolved {@code variantKey -> }{@link Block.Variant} map, unmodifiable
      */
     private static @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> bakeVariants(
         @NotNull ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> rawVariants,
-        @NotNull ConcurrentMap<String, ModelData> blockModels
+        @NotNull ConcurrentMap<String, ModelData> models
     ) {
         HashMap<String, ConcurrentMap<String, Block.Variant>> baked = new HashMap<>();
         rawVariants.forEach((blockId, applies) -> {
             HashMap<String, Block.Variant> variants = new HashMap<>();
-            applies.forEach((key, apply) -> variants.put(key, bakeVariant(apply, BlockStateKey.parse(key), blockModels)));
+            applies.forEach((key, apply) -> variants.put(key, bakeVariant(apply, BlockStateKey.parse(key), models)));
             baked.put(blockId, Concurrent.adoptMap(variants).toUnmodifiable());
         });
         return Concurrent.adoptMap(baked).toUnmodifiable();
@@ -295,12 +298,12 @@ public class BlockIndexBuilder {
      * property map is empty), preserving author order.
      *
      * @param rawMultiparts block id to its ordered {@link MultipartPart} list
-     * @param blockModels the parsed model set keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path
      * @return block id to its assembled {@link Block.Multipart}, unmodifiable
      */
     private static @NotNull ConcurrentMap<String, Block.Multipart> bakeMultiparts(
         @NotNull ConcurrentMap<String, ConcurrentList<MultipartPart>> rawMultiparts,
-        @NotNull ConcurrentMap<String, ModelData> blockModels
+        @NotNull ConcurrentMap<String, ModelData> models
     ) {
         return rawMultiparts.entrySet()
             .stream()
@@ -309,7 +312,7 @@ public class BlockIndexBuilder {
                 block -> new Block.Multipart(block.getValue()
                     .stream()
                     .map(part -> new Block.Multipart.Part(part.when(),
-                        bakeVariant(part.apply(), Concurrent.newMap(), blockModels)))
+                        bakeVariant(part.apply(), Concurrent.newMap(), models)))
                     .collect(Concurrent.toUnmodifiableList()))));
     }
 
@@ -320,16 +323,16 @@ public class BlockIndexBuilder {
      *
      * @param apply the raw apply
      * @param properties the apply's blockstate key pre-parsed into a property map
-     * @param blockModels the parsed model set keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path
      * @return the resolved variant with its geometry baked in
      */
-    private static @NotNull Block.Variant bakeVariant(@NotNull ApplyDto apply, @NotNull ConcurrentMap<String, String> properties, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull Block.Variant bakeVariant(@NotNull ApplyDto apply, @NotNull ConcurrentMap<String, String> properties, @NotNull ConcurrentMap<String, ModelData> models) {
         Optional<Block.Variant> noPosition = apply.weighted().isEmpty()
             ? Optional.empty()
-            : Optional.of(bakeVariant(drawWithoutPosition(apply.weighted()), properties, blockModels));
+            : Optional.of(bakeVariant(drawWithoutPosition(apply.weighted()), properties, models));
 
         return new Block.Variant(apply.model(), apply.x(), apply.y(), apply.uvlock(),
-            new Block.ElementGeometry(resolveVariantModel(apply.model(), blockModels)), properties, noPosition);
+            new Block.ElementGeometry(resolveVariantModel(apply.model(), models)), properties, noPosition);
     }
 
     /**
@@ -360,12 +363,12 @@ public class BlockIndexBuilder {
      * single point where the 1:1 block-to-model link is established.
      *
      * @param modelId the full namespaced model id (e.g. {@code "minecraft:block/furnace"})
-     * @param blockModels the full parsed-model set keyed by model id
+     * @param models every parsed model keyed by full model id, whatever its path
      * @return the resolved model, or an element-less {@link ModelData} when absent
      */
-    private static @NotNull ModelData resolveVariantModel(@NotNull String modelId, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull ModelData resolveVariantModel(@NotNull String modelId, @NotNull ConcurrentMap<String, ModelData> models) {
         if (modelId.isEmpty()) return new ModelData();
-        ModelData model = blockModels.get(modelId);
+        ModelData model = models.get(modelId);
         return model != null ? model : new ModelData();
     }
 
@@ -716,7 +719,7 @@ public class BlockIndexBuilder {
                 continue;
             }
 
-            Possible<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, tables.itemDefinitions(), baked.variants(), tables.blockModels());
+            Possible<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, tables.itemDefinitions(), baked.variants(), tables.models());
             if (resolved.getState() == Possible.State.EMPTY) drawsNothing.add(blockId);
             if (resolved.isEmpty()) continue;
             ResolvedBlockModel hit = resolved.get();
@@ -851,7 +854,7 @@ public class BlockIndexBuilder {
      * @param blockId stripped blockstate id (e.g. {@code minecraft:acacia_fence})
      * @param itemDefs item-definition overrides keyed by stripped block id, valued by full model id
      * @param variantMap blockstate variant map keyed by stripped block id
-     * @param blockModels loaded block model data keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path
      * @return the resolved model paired with the model id that produced it; empty when a loaded
      *     candidate declares nothing to draw and none is usable, and absent when no candidate is usable
      *     otherwise - none loads, a stand-in, a broken model, or a multipart-only block
@@ -860,12 +863,12 @@ public class BlockIndexBuilder {
         @NotNull String blockId,
         @NotNull ConcurrentMap<String, String> itemDefs,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap,
-        @NotNull ConcurrentMap<String, ModelData> blockModels
+        @NotNull ConcurrentMap<String, ModelData> models
     ) {
         boolean drawsNothing = false;
         String itemModelRef = itemDefs.get(blockId);
         if (itemModelRef != null) {
-            ModelData model = blockModels.get(itemModelRef);
+            ModelData model = models.get(itemModelRef);
             if (isUsableResolvedModel(model))
                 return Possible.of(new ResolvedBlockModel(itemModelRef, model));
             drawsNothing = model != null && !isStandIn(itemModelRef) && model.declaresNothingToDraw(false);
@@ -874,7 +877,7 @@ public class BlockIndexBuilder {
         ConcurrentMap<String, Block.Variant> variants = variantMap.get(blockId);
         if (variants != null && !variants.isEmpty()) {
             String variantModelId = variants.values().iterator().next().modelId();
-            ModelData model = blockModels.get(variantModelId);
+            ModelData model = models.get(variantModelId);
             if (isUsableResolvedModel(model))
                 return Possible.of(new ResolvedBlockModel(variantModelId, model));
             drawsNothing |= model != null && !isStandIn(variantModelId) && model.declaresNothingToDraw(false);

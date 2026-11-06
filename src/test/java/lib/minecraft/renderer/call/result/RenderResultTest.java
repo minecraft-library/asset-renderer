@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -168,7 +169,7 @@ class RenderResultTest {
      * @return the row
      */
     private static @NotNull AtlasResult.Tile tile(@NotNull String id, int col, @NotNull List<Substitution> substitutions) {
-        return new AtlasResult.Tile(id, AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL,
+        return new AtlasResult.Tile(id, Optional.empty(), AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL,
             col, 0, col * 16, 0, 16, 16, substitutions);
     }
 
