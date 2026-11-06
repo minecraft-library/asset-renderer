@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * Pins for the {@link ResolvedModels} attributed multi-namespace merge: namespace-qualified model
  * ids, cross-pack raw-later-wins-then-inherit, the per-slot display walk with each file's hand fill,
  * the {@code gui_light} walk and its refusal of a word vanilla does not read, {@link ModelTexture}
- * object-form retention, the pack-attributed {@code rendersNothing} diagnostic,
+ * object-form retention, the silence over a pack's templates and special-model bases,
  * and {@code filter.block} erasure. The whole {@code models/} tree is read: a model outside
  * {@code block/} and {@code item/} is found and parents others while the two indexed sets stay as their
  * subtrees give them, an absent parent resolves to the missing model, and a cyclic, malformed or
@@ -231,42 +231,47 @@ class ResolvedModelsTest {
     }
 
     /**
-     * Asserts the diagnostic names the pack a nothing-rendering model came from, reading it off
-     * captured {@code System.err} because {@link ResolvedModels} prints there rather than to a
-     * {@code Diagnostics} sink; the capture stops working the day it takes one.
+     * Pins that a pack's models which draw nothing of their own load and print nothing, as the client
+     * lists every model file and warns only of one it cannot read, resolve or bake: a template whose
+     * references its child binds, a template nothing names, an empty file, an item template ending at
+     * {@code item/generated} with no layer, and a special model's base binding only a particle.
      *
      * @throws IOException if a fixture pack cannot be written
      */
     @Test
-    @DisplayName("a non-vanilla winner that renders nothing is diagnosed by pack name")
-    void attributionNamesWinningPack() throws IOException {
+    @DisplayName("a pack's templates and special-model bases load, and nothing is reported for them")
+    void aPacksTemplatesAndBasesLoadSilently() throws IOException {
         Path van = tmp.resolve("vanilla");
-        write(van.resolve("assets/minecraft/models/block/stone.json"),
-            "{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{\"up\":{\"texture\":\"#all\"}}}],"
-                + "\"textures\":{\"all\":\"minecraft:block/stone\"}}");
+        write(van.resolve("assets/minecraft/models/item/generated.json"), "{\"parent\":\"builtin/generated\"}");
 
         Path user = tmp.resolve("user");
-        write(user.resolve("assets/testns/models/block/hollow.json"), "{}"); // no elements, no textures -> renders nothing
+        write(user.resolve("assets/testns/models/block/crop_billboard.json"),
+            "{\"textures\":{\"particle\":\"#crop\"},"
+                + "\"elements\":[{\"from\":[0,0,4],\"to\":[16,16,4],\"faces\":{\"north\":{\"texture\":\"#crop\"}}}]}");
+        write(user.resolve("assets/testns/models/item/salad_billboard.json"),
+            "{\"parent\":\"testns:block/crop_billboard\",\"textures\":{\"crop\":\"testns:item/salad\"}}");
+        write(user.resolve("assets/testns/models/block/hollow.json"), "{}");
+        write(user.resolve("assets/testns/models/item/base/painting.json"),
+            "{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,1],\"faces\":{\"north\":{\"texture\":\"#0\"}}}]}");
+        write(user.resolve("assets/testns/models/item/parts/parent_cube.json"),
+            "{\"parent\":\"item/generated\",\"textures\":{\"0\":\"testns:item/pixel\",\"particle\":\"#0\"}}");
+        write(user.resolve("assets/testns/models/item/head_base.json"),
+            "{\"textures\":{\"particle\":\"minecraft:block/soul_sand\"},\"display\":{\"gui\":{\"scale\":[4,4,4]}}}");
 
-        PackStack stack = PackStack.of(Concurrent.newList(
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
             pack(PackId.VANILLA, van, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, Set.of("testns"))));
+            pack(new PackId("userpack"), user, Set.of("testns"))))));
 
-        PrintStream originalErr = System.err;
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        try {
-            System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
-            ResolvedModels.load(stack).blocks();
-        } finally {
-            System.err.flush();
-            System.setErr(originalErr);
-        }
-
-        String output = captured.toString(StandardCharsets.UTF_8);
-        assertThat(output, containsString("userpack"));
-        assertThat(output, containsString("testns:block/hollow"));
-        // A vanilla-origin model never triggers the diagnostic, even were it empty.
-        assertThat(output, not(containsString("minecraft:block/stone")));
+        assertThat("nothing is reported", output, is(""));
+        for (String id : List.of("testns:block/crop_billboard", "testns:block/hollow", "testns:item/base/painting",
+            "testns:item/parts/parent_cube", "testns:item/head_base"))
+            assertThat(id + " is loaded", models[0].all().containsKey(id), is(true));
+        assertThat("the child binds the template's reference",
+            models[0].find("testns:item/salad_billboard").orElseThrow().resolveTextureReference("#crop"),
+            is(Optional.of("testns:item/salad")));
+        assertThat("a base binding only a particle declares nothing to draw",
+            models[0].find("testns:item/head_base").getState(), is(Possible.State.EMPTY));
     }
 
     @Test
@@ -359,7 +364,7 @@ class ResolvedModelsTest {
     }
 
     @Test
-    @DisplayName("a .geo.json loads as an empty model under its .geo stem, which the lookup answers empty, with no blank-model report")
+    @DisplayName("a .geo.json loads as an empty model under its .geo stem, which the lookup answers empty, and nothing is reported for it")
     void aGeoFileLoadsAsAnEmptyModel() throws IOException {
         Path user = tmp.resolve("user");
         write(user.resolve("assets/testns/models/entity/thing.geo.json"),

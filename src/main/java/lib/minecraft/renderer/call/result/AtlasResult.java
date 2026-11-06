@@ -21,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * The atlas's result: the composed grid, and the sidecar placing every tile in it. Its stand-ins are its
@@ -79,9 +80,9 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
         /**
          * Parses a sidecar from its JSON root - the read side, which the {@code generateAtlas} task's
          * read-back and its {@code -Pdiagnose}, {@code -PsourceFilter} and {@code -PskipRender} passes
-         * take. A member it does not know is ignored, and an absent {@code tiles}, {@code skipped} or
-         * {@code substitutions} member reads as none, so a file written before a member existed still
-         * reads; a token naming no constant throws.
+         * take. A member it does not know is ignored, and an absent {@code tiles}, {@code skipped},
+         * {@code model} or {@code substitutions} member reads as none, so a file written before a member
+         * existed still reads; a token naming no constant throws.
          *
          * @param root the parsed sidecar JSON
          * @return the typed sidecar
@@ -139,7 +140,8 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
      * ids named it and its lookup answered absent. Both reach the same per-tile catch, so both give a
      * row of this shape.
      *
-     * @param id the namespaced block or item id the tile would have been rendered from
+     * @param id the namespaced block or item id the tile would have been rendered from, or for a branch
+     *     tile the stack it would have drawn, written as {@link Tile#id()} writes one
      * @param kind the pass that met the subject
      * @param reason the refusal's message
      */
@@ -180,13 +182,20 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
      *
      * <p>A row carries coordinates and no pixels - the grid position only exists once every tile has
      * been laid out, and the composed atlas image is what holds the pixels. The x/y-vs-col/row
-     * redundancy is kept because external consumers walk it. A row's stand-ins are written as a last
-     * {@code substitutions} member only where there are any, so a tile that drew none reads as it would
-     * with no such member at all.
+     * redundancy is kept because external consumers walk it. A branch tile's {@code model} is written
+     * after the pixel rectangle and a row's stand-ins as a last {@code substitutions} member, each only
+     * where there is one, so a plain tile that drew none reads as it would with neither member at all.
      *
-     * @param id the namespaced block or item id the tile was rendered from
+     * @param id the namespaced block or item id the tile was rendered from, or for a tile of a
+     *     {@code custom_model_data} branch the stack it drew, in the client's command syntax - the item
+     *     id, then the component carrying one float at the branch's index after a zero at each index
+     *     before it, as in {@code minecraft:paper[custom_model_data={floats:[10011.0f]}]}
+     * @param model the model a branch tile's walk lands on - its leaf model, a special's base, a
+     *     composite's first layer's - which the atlas filter tested in place of the id; empty for a plain
+     *     tile and for a branch landing on no model, which the filter tested by its item id
      * @param kind whether the tile holds a block or an item
-     * @param source the pipeline path that produced the tile
+     * @param source the pipeline path that produced the tile, a branch tile classified by its item id as
+     *     that id's plain tile is
      * @param col the grid column the tile occupies
      * @param row the grid row the tile occupies
      * @param x the tile's left pixel edge in the atlas ({@code col * tileSize})
@@ -198,6 +207,7 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
      */
     public record Tile(
         @NotNull String id,
+        @NotNull Optional<String> model,
         @NotNull Kind kind,
         @NotNull Source source,
         int col,
@@ -211,7 +221,8 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
 
         /**
          * Reads one tile row, resolving its lowercase kind and source tokens back to their constants. An
-         * absent {@code substitutions} member reads as no stand-in.
+         * absent {@code model} member reads as a plain tile's, and an absent {@code substitutions} member
+         * as no stand-in.
          *
          * @param row the tile object from the sidecar's {@code tiles} array
          * @return the typed tile
@@ -233,6 +244,7 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
 
             return new Tile(
                 row.getString("id", ""),
+                row.findString("model"),
                 kind,
                 source,
                 row.getInt("col", 0),
@@ -250,16 +262,18 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
          * @param col the grid column the copy occupies
          * @param row the grid row the copy occupies
          * @param tileSize the re-packed sheet's per-tile edge length in pixels
-         * @return the same tile, its stand-ins included, at the cell's pixel edges and at its own size
+         * @return the same tile, its model and stand-ins included, at the cell's pixel edges and at its own
+         *     size
          */
         public @NotNull Tile at(int col, int row, int tileSize) {
-            return new Tile(this.id, this.kind, this.source, col, row, col * tileSize, row * tileSize,
+            return new Tile(this.id, this.model, this.kind, this.source, col, row, col * tileSize, row * tileSize,
                 this.width, this.height, this.substitutions);
         }
 
         /**
          * Builds this tile's row, the one row serialiser every writer shares: the subject, its kind and
-         * source, its cell and pixel rectangle, then its stand-ins where it drew any.
+         * source, its cell and pixel rectangle, then a branch tile's model, then its stand-ins where it
+         * drew any.
          *
          * @return the tile object
          */
@@ -273,7 +287,8 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
                 .putInt("x", this.x)
                 .putInt("y", this.y)
                 .putInt("width", this.width)
-                .putInt("height", this.height);
+                .putInt("height", this.height)
+                .putIf("model", this.model);
 
             if (!this.substitutions.isEmpty()) {
                 JsonTree array = row.childArray("substitutions");

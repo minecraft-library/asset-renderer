@@ -272,7 +272,7 @@ class IndexedRendererContextTest {
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.BlockEntity> blockEntities = beResult.models();
         BlockTables blockTables = new BlockTables(
-            blockModels, blockTints, Concurrent.newMap(), blockDefaults, Concurrent.newMap(),
+            blockModels, allModels, blockTints, Concurrent.newMap(), blockDefaults, Concurrent.newMap(),
             blockEntities, beResult.variants(), itemTrees, itemModels);
         IndexRows<Block> blockRows = BlockIndexBuilder.load(
             blockTables, new BlockStates(blockstates, Concurrent.newMap()), blockTags, stack);
@@ -397,6 +397,19 @@ class IndexedRendererContextTest {
         assertThat(context.findItemModel("minecraft:item/stick").getState(), is(Possible.State.PRESENT));
         assertThat(context.findItemModel("minecraft:block/unknown").getState(), is(Possible.State.ABSENT));
         assertThat(context.withMissingTexture().findItemModel("item/air").getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("findModel answers every loaded model present, one declaring nothing to draw included, and an unloaded id absent")
+    void findModelAnswersEveryLoadedModel() {
+        // The models findItemModel answers empty are there all the same, and a special's base is one.
+        for (String blank : List.of("minecraft:item/air", "minecraft:item/generated", "minecraft:block/stone"))
+            assertThat(blank, context.findModel(blank).getState(), is(Possible.State.PRESENT));
+
+        assertThat(context.findModel("minecraft:item/stick").orElseThrow(), is(sameInstance(context.findItemModel("item/stick").orElseThrow())));
+        assertThat(context.findModel("item/generated").orElseThrow(), is(sameInstance(context.findModel("minecraft:item/generated").orElseThrow())));
+        assertThat(context.findModel("minecraft:block/unknown").getState(), is(Possible.State.ABSENT));
+        assertThat(context.withMissingTexture().findModel("item/air").getState(), is(Possible.State.PRESENT));
     }
 
     @Test

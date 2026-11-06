@@ -14,10 +14,11 @@ import java.lang.reflect.Type;
 
 /**
  * Reads one {@code tints[]} entry of an item {@code model} node into its {@link LayerTint} variant,
- * dispatching on the (namespace-stripped) {@code type}. Source types this renderer does not model
- * ({@code custom_model_data}, {@code team}) - and any non-object entry - become a white
- * {@link LayerTint.Constant}, rendered untinted rather than guessing. A {@code grass} entry without a
- * numeric climate point is refused, since its colour has no default to fall back to.
+ * dispatching on the (namespace-stripped) {@code type}. The source type this renderer does not model,
+ * {@code team} - and any non-object entry - becomes a white {@link LayerTint.Constant}, rendered
+ * untinted rather than guessing. A {@code grass} entry without a numeric climate point is refused,
+ * since its colour has no default to fall back to, and so is a {@code custom_model_data} entry whose
+ * {@code index} is not a non-negative number, as vanilla's codec refuses both.
  *
  * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
  * names it, so no constant pool carries an edge to it. It parses the tint a drawn layer takes.
@@ -37,9 +38,30 @@ public final class LayerTintDeserializer implements JsonDeserializer<LayerTint> 
             case "firework" -> new LayerTint.Firework(argb(tint, "default"));
             case "grass" -> new LayerTint.Grass(climate(tint, "temperature"), climate(tint, "downfall"));
             case "map_color" -> new LayerTint.MapColor(argb(tint, "default"));
+            case "custom_model_data" -> new LayerTint.CustomModelData(index(tint), argb(tint, "default"));
             case "constant" -> new LayerTint.Constant(argb(tint, "value"));
             default -> new LayerTint.Constant(0xFFFFFFFF);
         };
+    }
+
+    /**
+     * Reads the {@code index} of a {@code custom_model_data} tint, which vanilla's codec reads as an
+     * optional non-negative integer defaulting to {@code 0}. A {@code null} member is absent, as
+     * vanilla's JSON reader answers one.
+     *
+     * @param tint the tint entry
+     * @return the index
+     * @throws JsonParseException if the member is present but not a number, or negative
+     */
+    private static int index(@NotNull JsonObject tint) {
+        JsonElement value = tint.get("index");
+        if (value == null || value.isJsonNull()) return 0;
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
+            throw new JsonParseException(String.format("Custom model data tint index '%s' is not a number", value));
+        int index = value.getAsInt();
+        if (index < 0)
+            throw new JsonParseException(String.format("Custom model data tint index '%s' is negative", index));
+        return index;
     }
 
     /**

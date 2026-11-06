@@ -117,6 +117,9 @@ public enum DecodedComponent {
     /** The paragraph separator, which a written string escapes. */
     private static final char PARAGRAPH_SEPARATOR = '\u2029';
 
+    /** The component a {@code minecraft:custom_model_data} tint source reads its colours from, which no select here keys on. */
+    private static final @NotNull String CUSTOM_MODEL_DATA = "minecraft:custom_model_data";
+
     /** The qualified component id, the key a stack's component map holds this component's value under. */
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull String id;
@@ -182,6 +185,30 @@ public enum DecodedComponent {
     }
 
     /**
+     * Reads one entry of the {@code colors} list a stack's {@code minecraft:custom_model_data} carries,
+     * decoded as vanilla's {@code RGB_COLOR_CODEC} decodes it - the colour a
+     * {@code minecraft:custom_model_data} tint source reads before its default, as vanilla's
+     * {@code CustomModelData.getColor} answers it.
+     *
+     * @param components the stack's component map keyed by qualified component id, or empty when the caller supplies no stack
+     * @param index the position in the {@code colors} list
+     * @return the colour, or empty when the patch does not set the component, its list holds no entry at
+     *     {@code index}, or the entry does not decode
+     */
+    public static @NotNull OptionalInt customModelDataColor(@NotNull Optional<CompoundTag> components, int index) {
+        Optional<Tag<?>> value = components.map(map -> map.get(CUSTOM_MODEL_DATA));
+        if (value.isEmpty() || !(value.get() instanceof CompoundTag data)) return OptionalInt.empty();
+        Optional<List<Tag<?>>> colours = member(data, "colors").flatMap(DecodedComponent::elements);
+        if (colours.isEmpty() || index < 0 || index >= colours.get().size()) return OptionalInt.empty();
+
+        try {
+            return OptionalInt.of(rgb(colours.get().get(index), true));
+        } catch (IllegalArgumentException unreadable) {
+            return OptionalInt.empty();
+        }
+    }
+
+    /**
      * Whether a compound is vanilla's list-element wrapper - one entry, keyed by the empty string, which
      * is how vanilla's binary form writes each element of a list whose elements differ in type.
      *
@@ -208,7 +235,7 @@ public enum DecodedComponent {
         return ResourceId.parse(string.getValue()).id();
     }
 
-    /** Decodes a dyed colour as vanilla's {@code RGB_COLOR_CODEC} does: any number's int value, else three floats. */
+    /** Decodes an RGB colour - a dyed colour, or one of a custom model data's colours - as vanilla's {@code RGB_COLOR_CODEC} does: any number's int value, else three floats. */
     private static int rgb(@NotNull Tag<?> value, boolean stack) {
         if (isNumber(value, stack)) return ((NumericalTag<?>) value).intValue();
         Optional<List<Tag<?>>> channels = elements(value);
