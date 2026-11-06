@@ -120,3 +120,101 @@ before at 18, so reading the texel below an exact boundary, as the entity raster
 differing pixels into 154. Closing the 18 needs the card's interpolation setup at the client's screen
 position and the GUI atlas's layout, and modelling the card is refused in
 [Texel rules](renderer/TexelFetch.md). Nobody has taken it on.
+
+## A skin, cape or armour face is read from its own crop, not from the whole sheet
+
+The skin, the cape and the worn armour layers are cut into one buffer per box face, and each face is
+laid over that buffer, where the client lays each face as its rectangle of the whole sheet. Three things
+follow. The sampler the sheet's sidecar sets never reaches these faces, so a blurred or clamped sheet
+draws nearest and repeating here. At a texel boundary that a pixel centre sits on, a mirrored face (an
+armoured player's left arm and left leg, every mirrored shell cube), a face read bottom up and the
+cape's cap strips read the texel on the other side of the edge from the client's, and every face reads
+the crop's own far edge where the client reads the sheet's neighbouring texel. A fractional shell strip
+is resampled to whole texels, and a strip that lies off its sheet draws clear.
+
+The fix lays each face as its region of the whole sheet with the sheet's sampler: `FaceTextures`
+answering a region, `BoxKit` laying its corners, and `HumanoidPart`, `WornBox` and the cape normalising
+their rectangles by the declared layout. It is not byte-neutral at vanilla's sheet size, because a
+boundary pixel then reads the sheet's texel, so it moves stored player, armour, entity and glint rows
+and the player pin, each named by a before/after run ahead of its capture. It also closes the next
+entry. Nobody has taken it on.
+
+## A skin, cape or armour texture of another size is cropped at vanilla's sheet coordinates
+
+The croppers above cut at the texel coordinates of the sheet size the model declares, so a texture of
+another size - a pack's high-resolution skin or armour layer, or a strip a sidecar declares several
+frames of - draws that sheet's top-left texels, where the client normalises the model's UVs by the
+declared size and draws the whole file. No source in reach ships a skin, cape, armour or wing texture at
+a size other than vanilla's. Laying each face as its region of the whole sheet, the previous entry's
+fix, closes it. Nobody has taken it on.
+
+## An equipment asset's layers are pasted into one picture before they are drawn
+
+`EquipmentKit` tints a dyeable layer's texture to a byte and copies an asset's layers into one buffer,
+which the raster then shades and rounds again. The client draws each layer as its own pass, its colour
+the vertex colour, multiplied with the light once and read through the layer's own sampler. So a dyed or
+undyed-coloured layer's colour is rounded twice - undyed and dyed leather, a horse's leather armour and
+every dyeable layer take it - and a composite is read nearest whatever its layers' sidecars select. A
+single flat layer is no composite and keeps its own sampler.
+
+The fix answers each layer with its colour and draws it as its own pass, tinted once with the light.
+It moves the stored rows that dress a dyeable layer - the armour sweep's leather zombie and piglin, the
+glint sweep's leather-clad player, the entity sweep's horse - by a channel step where the two roundings
+part. Nobody has taken it on.
+
+## A cutout pass is blended where the client writes it whole
+
+The client draws an entity's cutout textures, every equipment layer, the wings, a skull and the copper
+golem statue through cutout pipelines that set no blend: a fragment at or above the 0.1 cutout writes its
+colour whole, in submission order. Each of those passes here is the default pass, which blends a partly
+transparent fragment at its alpha (`PassDeclaration.DEFAULT`). Read nearest, only a partly transparent
+texel makes one - of vanilla's 85 equipment textures, three carry such a texel: the strider saddle (six,
+at alpha 253 or 254) and the black and cyan llama decor (one each). Read through a texture whose sidecar
+blurs, every edge between a clear texel and a drawn one makes one. No stored stack blurs such a texture,
+and whether a stored strider row draws a partial texel is not measured.
+
+The fix is a cutout pass kind - written whole at or above the cutout, no blend - for those passes. It
+changes how the rasterizer composites them, so it wants its own measurement. Nobody has taken it on.
+
+## A custom_model_data flag condition and string select never read the stack
+
+A `condition` node on `custom_model_data` drops its `index` when it is read, and the walk answers
+`false` for it and absent for a `custom_model_data` select (`ItemModelContext`), where the 26.1 client
+answers `flags[index] == true` and `strings[index]`. With no stack both agree. A stack that sets `flags`
+or `strings` - which is how ItemsAdder packs switch a composite's layers - draws those layers in the
+client and never here.
+
+Reading them is two small walk arms and the kept index, but it widens the set of component tests the
+walk answers, which [RequestsAndResults](renderer/RequestsAndResults.md)'s *Decisions that stay closed*
+refuses ("Do not widen the component tests an item definition's walk answers"). That refusal rests on
+the set being every component test the definitions on hand use; a user's ItemsAdder pack uses the flag
+condition 2016 times, and these two choose how an item looks, from the same component the range dispatch
+already reads. Whether that reopens the decision is the owner's call. Nobody has taken it on.
+
+## A special reached through a dispatch root takes the default pose when no stack picks it
+
+`BlockIndexBuilder.iconGuiFor` reads a special model's base for its icon pose only where the item
+definition's root is itself a `model` or `special` node; under a `select`, `range_dispatch` or
+`condition` root it gives the default iso pose (`[30, 225, 0]` at 0.625), reads the base from `item/`
+models only and falls back to the block model's gui transform. The client poses the picked special by
+its base under any root and falls back to no transform. The harness's `BlockGuiTransform` mirrors the
+renderer, so no parity row sees it. In vanilla it decides `chest`, `trapped_chest` and the eight copper
+golem statues: `chest` and `copper_chest`, which the client poses identically, are drawn a half turn
+apart here and in the references, and which of the two a real inventory shows is not measured. A pack
+that wraps the player head in a `range_dispatch` draws its plain head a half turn round and smaller.
+
+The fix reads the neutral branch's base under any root, from every model, with no transform where it
+declares none, and the harness reads the picked layer's properties to match. It moves ten vanilla
+references, which are re-rendered and promoted, and the chest family's turn wants a client inventory
+capture to settle. Nobody has taken it on.
+
+## A container sheet is composed at one texel per Minecraft pixel
+
+A shipped screen's sheet is resized to 256 texels before its blits are copied into the panel
+(`Window.Sliced`'s `compose` and `paintPanel`), so a sheet of another size draws at one texel per
+Minecraft pixel where the client draws it at full resolution, and the panel is laid nearest whatever
+the sheet's sidecar selects, where the client filters or clamps each blit off the sheet. The fix keeps
+the blits the panel is composed from and lays each off the sheet through the client's region blit, at
+the sheet's own resolution and sampler. A 256-texel vanilla sheet laid blit by blit with nearest
+sampling is the copy's texels, so no stored menu moves; no stored stack ships a sheet of another size or
+with a texture section. Nobody has taken it on.
