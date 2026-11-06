@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -82,20 +83,20 @@ public class BlockGeometryKit {
      * the render path applies those transforms.
      *
      * @param model the relative bone/cube model (vanilla Y-down frame)
-     * @param texture the entity texture the cube UVs sample
+     * @param texture the entity texture the cube UVs sample, with the sampler it is read through
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the block-frame triangle list, ready for the downstream render transform
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         int tintArgb
     ) {
         return buildFromBones(model, texture, tintArgb, Matrix4f.IDENTITY);
     }
 
     /**
-     * {@code presentation}-aware variant of {@link #buildFromBones(EntityMesh, PixelBuffer, int)}
+     * {@code presentation}-aware variant of {@link #buildFromBones(EntityMesh, SampledTexture, int)}
      * that applies a block-entity presentation transform to each composed cube corner
      * <b>before</b> the {@code /16 - 0.5} normalization - the same {@code [0, 16]}-space frame the
      * bake formerly produced at tooling time.
@@ -109,7 +110,7 @@ public class BlockGeometryKit {
      * a caller would otherwise build.
      *
      * @param model the relative bone/cube model (vanilla Y-down frame)
-     * @param texture the entity texture the cube UVs sample
+     * @param texture the entity texture the cube UVs sample, with the sampler it is read through
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @param presentation the {@code [0, 16]}-space model-to-block transform applied after the bone
      *     chain and before normalization, or {@link Matrix4f#IDENTITY} for the native frame
@@ -117,14 +118,14 @@ public class BlockGeometryKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         int tintArgb,
         @NotNull Matrix4f presentation
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Map<String, Matrix4f> chains = BoneKit.buildChainTransforms(model.getBones());
-        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
-        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.pixels().width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.pixels().height());
 
         for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
             EntityMesh.Bone bone = boneEntry.getValue();
@@ -152,7 +153,7 @@ public class BlockGeometryKit {
                         }
                         Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
                         Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                        boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                        boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture.pixels());
                         BoxKit.addQuad(triangles, corners, uv,
                             texture, tintArgb, normal, Lighting.inventory(normal),
                             new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
@@ -422,9 +423,11 @@ public class BlockGeometryKit {
                 if (blockFace == null) continue;
 
                 ModelFace face = entry.getValue();
-                PixelBuffer texture = ctm.resolve(blockFace, face.getTexture())
+                PixelBuffer sprite = ctm.resolve(blockFace, face.getTexture())
                     .orElseGet(() -> faceTextures.get(face.getTexture()));
-                if (texture == null) continue;
+                if (sprite == null) continue;
+                // An atlas sprite, read by its atlas's sampler - nearest, whatever its own sidecar sets.
+                SampledTexture texture = SampledTexture.of(sprite);
 
                 int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
@@ -446,7 +449,7 @@ public class BlockGeometryKit {
                 // may also flag a texture force_translucent; those faces join the pass even when the
                 // sprite is fully opaque - vanilla glass already qualifies via its alpha, so this is
                 // additive for pack content only.
-                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, sprite)
                     || forceTranslucentRefs.contains(face.getTexture());
                 BoxKit.addQuad(
                     triangles, corners, uv,

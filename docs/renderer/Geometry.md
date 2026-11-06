@@ -75,7 +75,9 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
   substitutes a different part's atlas origin, so no permutation of the part's own strip reaches it.
 - `Unwrap.Atlas.crop` stays a cropped buffer: `buildBox` addresses each face's `W x H` buffer by the
   full `[0,1]` UV rect, so a sheet plus a rectangle is a sampler change, and the two part company on
-  a mirrored cube where the crop reverses the row and a mirrored UV interpolates a descending `u`.
+  a mirrored cube where the crop reverses the row and a mirrored UV interpolates a descending `u`. A
+  crop is a buffer of its own, so a box reads it nearest and repeating whatever the sheet's texture
+  section selects, where the client reads the sheet itself through that section's sampler.
 - `Unwrap.Atlas.rect` ignores its own `mirror` flag, because six entity-kit predicates ask what a
   face's own strip holds and the caller applies `AxisSigns.MIRROR_X`; only `crop` applies both.
 

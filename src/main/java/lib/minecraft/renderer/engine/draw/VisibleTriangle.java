@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.engine.draw;
 
-import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
@@ -16,7 +15,7 @@ import org.jetbrains.annotations.Nullable;
  * @param uv0 the first vertex UV coordinate (in {@code [0, 1]} range)
  * @param uv1 the second vertex UV coordinate
  * @param uv2 the third vertex UV coordinate
- * @param texture the texture this triangle samples from
+ * @param texture the texture this triangle samples from, and the sampler it is read through
  * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
  * @param normal the model-space surface normal; transformed with the triangle to drive per-face
  *     relighting (block-icon and item-3D passes light by this normal, snapped to the nearest
@@ -39,7 +38,7 @@ public record VisibleTriangle(
     @NotNull Vector2f uv0,
     @NotNull Vector2f uv1,
     @NotNull Vector2f uv2,
-    @NotNull PixelBuffer texture,
+    @NotNull SampledTexture texture,
     int tintArgb,
     @NotNull Vector3f normal,
     float shading,
@@ -54,7 +53,7 @@ public record VisibleTriangle(
     public VisibleTriangle(
         @NotNull Vector3f position0, @NotNull Vector3f position1, @NotNull Vector3f position2,
         @NotNull Vector2f uv0, @NotNull Vector2f uv1, @NotNull Vector2f uv2,
-        @NotNull PixelBuffer texture, int tintArgb,
+        @NotNull SampledTexture texture, int tintArgb,
         @NotNull Vector3f normal, float shading,
         @NotNull SurfaceTraits traits
     ) {

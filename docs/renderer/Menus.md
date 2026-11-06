@@ -40,7 +40,9 @@ laid by `NineSliceKit` at output-pixel resolution.
   container texture, a plain texture: of its sidecar the texture section alone, so its `gui` section is
   never read, container art being blitted rather than nine-sliced, and an animation section neither
   plays nor loses it. A sheet authored at another size for a shipped screen is read at one texel per
-  Minecraft pixel, where the client draws it at full resolution.
+  Minecraft pixel, where the client draws it at full resolution. The panel composed from it is laid
+  nearest, so a sheet whose texture section blurs or clamps draws as one that sets neither, where the
+  client filters or clamps each blit off the sheet.
 - **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite, the
   anvil's field and its cross, and the recipe-book button are read as the client's GUI atlas holds
   them - the missing texture for one no pack supplies, one that cannot be read and one whose `gui`

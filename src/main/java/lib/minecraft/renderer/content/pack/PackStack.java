@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -51,11 +52,12 @@ import java.util.stream.Stream;
  * are empty or do not decode, where its sidecar is there and does not parse or carries an animation or
  * texture section the client's codec refuses, or where its sidecar's animation has a frame size that does
  * not divide the strip on both axes - the failures on which vanilla's sprite loader draws its missing
- * sprite. Read as a plain texture ({@link #plainPixels}) - one the client's texture manager loads by its
- * file - it cannot be read only where its bytes are empty or do not decode, or where its sidecar is there
- * and does not parse or carries a texture section the client's codec refuses, the failures on which the
- * client's texture loader answers its missing texture; the read never consults the animation section,
- * which {@link #flipbook} alone plays, over the sprite read's strip. Each read memoises its own answers.
+ * sprite. Read as a plain texture ({@link #plainTexture}) - one the client's texture manager loads by its
+ * file, and samples by its texture section - it cannot be read only where its bytes are empty or do not
+ * decode, or where its sidecar is there and does not parse or carries a texture section the client's
+ * codec refuses, the failures on which the client's texture loader answers its missing texture; the read
+ * never consults the animation section, which {@link #flipbook} alone plays, over the sprite read's strip.
+ * Each read memoises its own answers.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Parity(claim = "asset-layer")
@@ -117,11 +119,12 @@ public final class PackStack {
     private final @NotNull ConcurrentSet<PixelKey> undecodable = Concurrent.newSet();
 
     /**
-     * Per-stack memoisation cache of the {@link PixelBuffer}s the plain read answered, keyed by the resolved
-     * {@code (PackId, ResourceId)} as the sprite read's are and held apart from them, since the two reads
-     * refuse different sidecars; a file both reads serve is decoded once and its one buffer held in both.
+     * Per-stack memoisation cache of the textures the plain read decoded, each with the sampler its section
+     * selects, keyed by the resolved {@code (PackId, ResourceId)} as the sprite read's are and held apart from
+     * them, since the two reads refuse different sidecars; a file both reads serve is decoded once and its one
+     * buffer held in both.
      */
-    private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> plainCache = Concurrent.newMap();
+    private final @NotNull ConcurrentMap<PixelKey, SampledTexture> plainCache = Concurrent.newMap();
 
     /**
      * The resolved {@code (PackId, ResourceId)} keys of the textures the plain read found and could not read -
@@ -293,21 +296,22 @@ public final class PackStack {
     }
 
     /**
-     * Resolves a texture id to the pixels the client's texture manager loads for it as a plain texture,
-     * memoised on the resolved {@code (PackId, ResourceId)} apart from {@link #pixels}. Runs the same
+     * Resolves a texture id to the texture the client's texture manager loads for it as a plain texture - its
+     * pixels and the sampler its sidecar's texture section selects - memoised on the resolved
+     * {@code (PackId, ResourceId)} apart from {@link #pixels}. Runs the same
      * dispatch to the same winning file and decodes its image before it reads its sidecar, and of the
      * sidecar only the texture section, as the client's texture loader does; a texture that cannot be read
      * is remembered and answered empty from then on.
      *
      * @param id the namespaced texture id
-     * @return the decoded texture; empty when the dispatch lands on a file whose bytes do not decode (an
-     *     empty file included), or whose sidecar does not parse or carries a texture section the client's
+     * @return the texture and its sampler; empty when the dispatch lands on a file whose bytes do not decode
+     *     (an empty file included), or whose sidecar does not parse or carries a texture section the client's
      *     codec refuses; absent when nothing supplies the id
      */
-    public @NotNull Possible<PixelBuffer> plainPixels(@NotNull ResourceId id) {
+    public @NotNull Possible<SampledTexture> plainTexture(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
         if (indexed.isPresent()) {
-            PixelBuffer cached = this.plainCache.get(new PixelKey(indexed.get().pack(), id));
+            SampledTexture cached = this.plainCache.get(new PixelKey(indexed.get().pack(), id));
             if (cached != null) return Possible.of(cached);
         }
         return resolve(id).map(this::decodePlain).orElseGet(Possible::absent);
@@ -371,8 +375,8 @@ public final class PackStack {
 
         // The plain read decodes the same file to the same pixels, so a buffer it already holds is shared
         // rather than decoded a second time.
-        PixelBuffer plain = this.plainCache.get(key);
-        Possible<PixelBuffer> image = plain != null ? Possible.of(plain) : image(texture, key, this.undecodable);
+        SampledTexture plain = this.plainCache.get(key);
+        Possible<PixelBuffer> image = plain != null ? Possible.of(plain.pixels()) : image(texture, key, this.undecodable);
         if (!image.isPresent()) return image;
         PixelBuffer buffer = image.get();
 
@@ -393,41 +397,39 @@ public final class PackStack {
 
     /**
      * Decodes a resolved texture as the client's texture loader reads a plain texture - its image, then
-     * the texture section of its sidecar - memoising on the resolved key both the pixels of a texture that
-     * can be read and the fact that one cannot.
+     * the texture section of its sidecar, which selects the sampler it is read through - memoising on the
+     * resolved key both the texture that can be read and the fact that one cannot.
      *
-     * @param texture the winning file the dispatch resolved
-     * @return the decoded pixels, or empty when the file's bytes are empty or do not decode, or when its
-     *     sidecar does not parse or carries a texture section the client's codec refuses
+     * @param resolved the winning file the dispatch resolved
+     * @return the decoded pixels and their sampler, or empty when the file's bytes are empty or do not
+     *     decode, or when its sidecar does not parse or carries a texture section the client's codec refuses
      */
-    private @NotNull Possible<PixelBuffer> decodePlain(@NotNull ResolvedTexture texture) {
-        PixelKey key = new PixelKey(texture.pack(), texture.id());
-        PixelBuffer cached = this.plainCache.get(key);
+    private @NotNull Possible<SampledTexture> decodePlain(@NotNull ResolvedTexture resolved) {
+        PixelKey key = new PixelKey(resolved.pack(), resolved.id());
+        SampledTexture cached = this.plainCache.get(key);
         if (cached != null) return Possible.of(cached);
         if (this.plainUndecodable.contains(key)) return Possible.empty();
 
         // A buffer the sprite read kept passed every refusal this read makes - it refuses a superset - so
-        // the same file's pixels are shared rather than decoded a second time.
+        // the same file's pixels are shared rather than decoded a second time. The client's texture loader
+        // decodes the image before it reads the sidecar, so an image that does not decode is what is
+        // reported, whatever the sidecar holds.
         PixelBuffer sprite = this.pixelCache.get(key);
-        if (sprite != null) {
-            this.plainCache.put(key, sprite);
-            return Possible.of(sprite);
-        }
-
-        // The client's texture loader decodes the image before it reads the sidecar, so an image that does
-        // not decode is what is reported, whatever the sidecar holds.
-        Possible<PixelBuffer> image = image(texture, key, this.plainUndecodable);
-        if (!image.isPresent()) return image;
+        Possible<PixelBuffer> image = sprite != null ? Possible.of(sprite) : image(resolved, key, this.plainUndecodable);
+        if (!image.isPresent()) return Possible.empty();
 
         // Of the sidecar it asks for the texture section alone: a document that is not JSON, or a texture
         // section its codec refuses, loses the texture, and the animation section is never read.
-        Possible<MCMeta> meta = texture.meta();
+        Possible<MCMeta> meta = resolved.meta();
         if (meta.getState() == Possible.State.EMPTY
             || meta.isPresent() && meta.get().texture().getState() == Possible.State.EMPTY)
-            return unreadable(this.plainUndecodable, key, "Unable to parse metadata from '%s' in pack '%s'%n", texture.id(), texture.pack());
+            return unreadable(this.plainUndecodable, key, "Unable to parse metadata from '%s' in pack '%s'%n", resolved.id(), resolved.pack());
 
-        this.plainCache.put(key, image.get());
-        return image;
+        // The client builds the texture's sampler from the section it read; a file with no sidecar is the
+        // empty document.
+        SampledTexture texture = new SampledTexture(image.get(), meta.orElse(MCMeta.EMPTY).sampler());
+        this.plainCache.put(key, texture);
+        return Possible.of(texture);
     }
 
     /**
@@ -463,14 +465,15 @@ public final class PackStack {
     /**
      * Records a texture that is there and cannot be read, reporting it the first time it is seen.
      *
+     * @param <T> the type the read answers
      * @param into the read's set of the textures it could not read
      * @param key the resolved key the texture is remembered under
      * @param format the report's format string, naming why the texture cannot be read
      * @param args the report's arguments
      * @return the empty answer the texture is served as
      */
-    private @NotNull Possible<PixelBuffer> unreadable(@NotNull ConcurrentSet<PixelKey> into, @NotNull PixelKey key,
-                                                      @PrintFormat @NotNull String format, @Nullable Object... args) {
+    private <T> @NotNull Possible<T> unreadable(@NotNull ConcurrentSet<PixelKey> into, @NotNull PixelKey key,
+                                                @PrintFormat @NotNull String format, @Nullable Object... args) {
         if (into.add(key))
             System.err.printf(format, args);
 

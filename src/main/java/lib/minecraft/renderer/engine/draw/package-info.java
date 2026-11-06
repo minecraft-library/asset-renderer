@@ -1,8 +1,8 @@
 /**
  * The draw list a rasterizer consumes - the triangles a render hands it, and what each one declares
  * about how it is drawn.
- *
- * <p>{@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle} is one entry of the
+ * <p>
+ * {@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle} is one entry of the
  * list: three positions and three UVs, the texture it samples, its tint, its normal, its shade scalar
  * and the surface it is drawn as. That surface is
  * {@link lib.minecraft.renderer.engine.draw.SurfaceTraits SurfaceTraits} - the four flags a builder
@@ -10,27 +10,34 @@
  * {@link lib.minecraft.renderer.engine.draw.PassDeclaration PassDeclaration} the whole pass was
  * submitted under, which says how a surviving fragment is shaded, blended, scaled in opacity,
  * depth-written, ordered and sampled past the sheet's edge.
- *
- * <p>{@link lib.minecraft.renderer.engine.draw.GeometryLayer GeometryLayer} is the one
+ * <p>
+ * {@link lib.minecraft.renderer.engine.draw.Sampler Sampler} is how a triangle's texture is read - the
+ * filter and the address mode the client's sampler holds - and
+ * {@link lib.minecraft.renderer.engine.draw.SampledTexture SampledTexture} the texture paired with it,
+ * which is what a triangle carries and what a plain texture is read as.
+ * <p>
+ * {@link lib.minecraft.renderer.engine.draw.GeometryLayer GeometryLayer} is the one
  * {@link lib.minecraft.renderer.engine.layer.Layer Layer} kind whose target is a triangle list. Every
  * layer appends to one shared sink and the
  * {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} draws the combined list once, so
  * the order layers append in is the order coplanar ties and translucent surfaces resolve in.
- *
- * <p>{@link lib.minecraft.renderer.engine.draw.DrawPart DrawPart} is one part of a picture drawn in
+ * <p>
+ * {@link lib.minecraft.renderer.engine.draw.DrawPart DrawPart} is one part of a picture drawn in
  * one depth pass: a triangle list beside the model transform it is drawn through, so parts posed each
  * on their own depth-test against one another.
- *
- * <p>These types are read far beyond the rasterizer - by every kit that emits a triangle, every
+ * <p>
+ * These types are read far beyond the rasterizer - by every kit that emits a triangle, every
  * renderer that splices a layer and the pass that relights a folded stack - which is what keeps the
- * draw list apart from the raster arithmetic, whose one reader is the rasterizer itself.
- *
- * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
+ * draw list apart from the raster arithmetic, whose one reader is the rasterizer itself. The
+ * sampler's arithmetic is read by the rasterizer and by every kit that lays a texture without the
+ * rasterizer, which is why it sits with the draw list.
+ * <p>
+ * A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or
  * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code call},
  * {@code content}, {@code bake} or the root package.
- *
- * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * <p>
+ * <b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
  * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
  * of the dump's verdict on a change made here.
  */

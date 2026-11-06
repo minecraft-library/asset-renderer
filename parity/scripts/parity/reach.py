@@ -203,6 +203,8 @@ HELD_DEMOTES: dict[str, frozenset[str]] = {
     "engine-renders": frozenset({
         "src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java",
         "src/main/java/lib/minecraft/renderer/engine/draw/PassDeclaration.java",
+        "src/main/java/lib/minecraft/renderer/engine/draw/SampledTexture.java",
+        "src/main/java/lib/minecraft/renderer/engine/draw/Sampler.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/FrameLoan.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/RasterPass.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/Timeline.java",

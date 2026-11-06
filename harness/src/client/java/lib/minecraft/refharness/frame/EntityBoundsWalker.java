@@ -26,6 +26,7 @@ import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.resources.metadata.texture.TextureMetadataSection;
 import net.minecraft.client.resources.model.EquipmentAssetManager;
 import net.minecraft.client.resources.model.EquipmentClientInfo;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
@@ -122,7 +123,17 @@ final class EntityBoundsWalker implements AutoCloseable {
      * shifts the rendered entity off-centre. Entries are owned by this walker and closed in
      * {@link #close}.
      */
-    private final Map<Identifier, NativeImage> textureCache = new HashMap<>();
+    private final Map<Identifier, WalkTexture> textureCache = new HashMap<>();
+
+    /**
+     * A texture the walk measures by: its image, and whether its sidecar's texture section blurs or clamps it, as the
+     * client's texture loader reads that section when it builds the texture's sampler.
+     *
+     * @param image the decoded image
+     * @param linear whether the section blurs, so the texture is filtered linearly
+     * @param clamp whether the section clamps, so the texture is clamped to its edges
+     */
+    private record WalkTexture(NativeImage image, boolean linear, boolean clamp) {}
 
     /**
      * Whether the walk poses each model it measures before measuring it.
@@ -225,7 +236,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         // transparent pixels (warden's flat tendril plane cubes, wither's ribcage plane, etc)
         // can be skipped - their authored cube extents are far larger than what's drawn, and
         // including the empty extent shifts the bounds centre off the visible silhouette.
-        NativeImage texture = entityTexture(renderer, state);
+        WalkTexture texture = entityTexture(renderer, state);
 
         ScreenBounds bounds = new ScreenBounds();
         Consumer<? super org.joml.Vector3fc> expand = vec -> bounds.expand(vec.x(), vec.y());
@@ -270,7 +281,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         LivingEntityRenderer<?, ?, ?> renderer,
         EntityRenderState state,
         PoseStack ps,
-        NativeImage texture,
+        WalkTexture texture,
         Consumer<? super org.joml.Vector3fc> expand
     ) {
         boolean poses = posesBeforeWalking();
@@ -317,7 +328,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         LivingEntityRenderer<?, ?, ?> renderer,
         EntityRenderState state,
         PoseStack ps,
-        NativeImage bodyTexture,
+        WalkTexture bodyTexture,
         LayerModelVisitor visitor
     ) {
         for (RenderLayer<?, ?> layer : layersOf(renderer)) {
@@ -326,7 +337,7 @@ final class EntityBoundsWalker implements AutoCloseable {
             // body texture: the two disagree on which of the shell's texels are opaque, so the body
             // texture over-pads a body-shaped saddle mesh and crops a dedicated one. A layer that carries
             // no equipment texture (every non-equipment overlay) falls back to the body texture unchanged.
-            NativeImage layerTexture = equipmentTexture(layer, state);
+            WalkTexture layerTexture = equipmentTexture(layer, state);
             if (layerTexture == null) {
                 // An equipment layer - one that declares an EquipmentClientInfo.LayerType - which
                 // resolves no equipment texture is dressing an item this subject is not wearing. A
@@ -364,7 +375,7 @@ final class EntityBoundsWalker implements AutoCloseable {
          * @param model the model it draws
          * @param texture the texture the model's opacity is read through
          */
-        void visit(RenderLayer<?, ?> layer, Model<?> model, NativeImage texture);
+        void visit(RenderLayer<?, ?> layer, Model<?> model, WalkTexture texture);
     }
 
     /**
@@ -1132,22 +1143,25 @@ final class EntityBoundsWalker implements AutoCloseable {
      * to a resource, or the PNG fails to decode - the bounds walker degrades to including all
      * polygons in that case.
      */
-    private NativeImage entityTexture(EntityRenderer<?, ?> renderer, EntityRenderState state) {
+    private WalkTexture entityTexture(EntityRenderer<?, ?> renderer, EntityRenderState state) {
         Identifier location = invokeGetTextureLocation(renderer, state);
         return location == null ? null : loadTexture(location);
     }
 
     /**
-     * Loads a texture PNG as a {@link NativeImage} for alpha sampling, cached in
-     * {@link #textureCache} keyed by resource location so repeat renders on the same texture
-     * (variant sweeps, an equipment layer shared across family members) don't reopen the resource.
-     * Returns {@code null} when the location resolves to no resource or the PNG fails to decode.
+     * Loads a texture PNG as a {@link NativeImage} for alpha sampling, with the blur and clamp its sidecar's
+     * texture section sets, cached in {@link #textureCache} keyed by resource location so repeat renders on
+     * the same texture (variant sweeps, an equipment layer shared across family members) don't reopen the
+     * resource. The section is read off the same resource the client's texture loader reads it off, and is
+     * none where the resource ships no sidecar or one whose section the client's codec refuses - a texture
+     * the client draws as its missing texture, which a vanilla run never meets. Returns {@code null} when the
+     * location resolves to no resource or the PNG fails to decode.
      *
      * @param location the texture resource location
-     * @return the decoded image, or {@code null}
+     * @return the decoded image and its section's flags, or {@code null}
      */
-    private NativeImage loadTexture(Identifier location) {
-        NativeImage cached = textureCache.get(location);
+    private WalkTexture loadTexture(Identifier location) {
+        WalkTexture cached = textureCache.get(location);
         if (cached != null) return cached;
         try {
             Resource resource = Minecraft.getInstance().getResourceManager().getResource(location).orElse(null);
@@ -1156,9 +1170,25 @@ final class EntityBoundsWalker implements AutoCloseable {
             try (InputStream stream = resource.open()) {
                 image = NativeImage.read(stream);
             }
-            textureCache.put(location, image);
-            return image;
+            TextureMetadataSection section = textureSection(resource);
+            WalkTexture texture = new WalkTexture(image, section != null && section.blur(), section != null && section.clamp());
+            textureCache.put(location, texture);
+            return texture;
         } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads a texture resource's sidecar for its texture section, as the client's texture loader does.
+     *
+     * @param resource the texture resource
+     * @return the section, or {@code null} where the resource ships none or one the client's codec refuses
+     */
+    private static TextureMetadataSection textureSection(Resource resource) {
+        try {
+            return resource.metadata().getSection(TextureMetadataSection.TYPE).orElse(null);
+        } catch (IOException | RuntimeException refused) {
             return null;
         }
     }
@@ -1179,7 +1209,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * @return the equipment texture, or {@code null} when the layer carries none (a non-equipment
      *     layer, or an unresolved asset) so the caller falls back to the body texture
      */
-    private NativeImage equipmentTexture(RenderLayer<?, ?> layer, EntityRenderState state) {
+    private WalkTexture equipmentTexture(RenderLayer<?, ?> layer, EntityRenderState state) {
         EquipmentClientInfo.LayerType layerType = reflectLayerType(layer, state);
         if (layerType == null) return null;
         ItemStack worn = firstWornItem(state);
@@ -1197,7 +1227,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         List<EquipmentClientInfo.Layer> layers = info.getLayers(layerType);
         if (layers.isEmpty()) return null;
         Identifier texture = layers.getFirst().getTextureLocation(layerType);
-        NativeImage image = loadTexture(texture);
+        WalkTexture image = loadTexture(texture);
         if (image != null && RESOLVED_EQUIPMENT_TEXTURES.add(texture))
             LOG.info("equipment bounds texture: {} -> {}", layer.getClass().getSimpleName(), texture);
         return image;
@@ -1509,11 +1539,11 @@ final class EntityBoundsWalker implements AutoCloseable {
      * Polygons with opaque corners but transparent interior (rare for cube-based MC entity
      * textures) still expand the bounds.
      */
-    private static void walkVisibleExtents(ModelPart part, PoseStack ps, NativeImage texture, Consumer<? super org.joml.Vector3fc> output) {
+    private static void walkVisibleExtents(ModelPart part, PoseStack ps, WalkTexture texture, Consumer<? super org.joml.Vector3fc> output) {
         walkVisibleExtentsImpl(part, "root", ps, texture, output);
     }
 
-    private static void walkVisibleExtentsImpl(ModelPart part, String bonePath, PoseStack ps, NativeImage texture, Consumer<? super org.joml.Vector3fc> output) {
+    private static void walkVisibleExtentsImpl(ModelPart part, String bonePath, PoseStack ps, WalkTexture texture, Consumer<? super org.joml.Vector3fc> output) {
         if (!part.visible) return;
         Map<String, ModelPart> children = childrenOf(part);
         List<ModelPart.Cube> cubes = cubesOf(part);
@@ -1562,6 +1592,9 @@ final class EntityBoundsWalker implements AutoCloseable {
      *   <li>Polygons whose opaque texels touch all four edges of the UV box (a diagonal outline,
      *       such as the elytra wing's outward face): opaque box equals the polygon UV box, so the
      *       four corners are contributed even where those corner texels are transparent.</li>
+     *   <li>A texture its sidecar blurs: the filter reads the texels within one of a point, so the
+     *       polygon is measured over the texels whose reach meets its UV box and the opaque box grows
+     *       by half a texel a side, clipped to the polygon's.</li>
      * </ul>
      * <p>
      * Identifies the four vertices' corner roles (BL/BR/TR/TL) by their (u, v) values matching
@@ -1574,15 +1607,17 @@ final class EntityBoundsWalker implements AutoCloseable {
      * is ~1.3M lookups - tens of milliseconds in practice, dominated by setupAnim and pose
      * stack work.
      */
-    private static void contributePolygonExtents(ModelPart.Polygon polygon, PoseStack.Pose pose, NativeImage texture, Consumer<? super org.joml.Vector3fc> output,
+    private static void contributePolygonExtents(ModelPart.Polygon polygon, PoseStack.Pose pose, WalkTexture sampled, Consumer<? super org.joml.Vector3fc> output,
                                                   String bonePath, int cubeIndex, ModelPart.Cube cube) {
-        if (texture == null) {
+        if (sampled == null) {
             for (ModelPart.Vertex vertex : polygon.vertices()) {
                 Vector3f p = pose.pose().transformPosition(vertex.worldX(), vertex.worldY(), vertex.worldZ(), new Vector3f());
                 output.accept(p);
             }
             return;
         }
+        NativeImage texture = sampled.image();
+        boolean linear = sampled.linear();
         int width = texture.getWidth();
         int height = texture.getHeight();
         if (width <= 0 || height <= 0) {
@@ -1649,15 +1684,31 @@ final class EntityBoundsWalker implements AutoCloseable {
         // row 48 which is part of the adjacent left_arm UP face, making the (otherwise
         // transparent) sleeve "look" opaque and contribute its inflated extent to the
         // bounds.
-        int pxMin = clampPixel((int) Math.floor(uMin * width), width);
-        int pxMax = clampPixel((int) Math.ceil(uMax * width) - 1, width);
-        int pyMin = clampPixel((int) Math.floor(vMin * height), height);
-        int pyMax = clampPixel((int) Math.ceil(vMax * height) - 1, height);
+        int pxMin, pxMax, pyMin, pyMax;
+        if (linear) {
+            // A linear sample reads the texels within one texel of it, so texel c draws over
+            // (c - 0.5, c + 1.5) in texel space: one just outside the polygon's UV box can draw inside
+            // it, and an opaque one draws half a texel past its own edges. The scan takes every texel
+            // whose reach meets the box - one beyond each edge that is a whole texel - each read where
+            // the texture's address mode puts it, and the sub-rectangle grows by half a texel on each
+            // side, clipped to the polygon's UV box.
+            pxMin = (int) Math.floor(uMin * width - 1.5f) + 1;
+            pxMax = (int) Math.ceil(uMax * width + 0.5f) - 1;
+            pyMin = (int) Math.floor(vMin * height - 1.5f) + 1;
+            pyMax = (int) Math.ceil(vMax * height + 0.5f) - 1;
+        } else {
+            pxMin = clampPixel((int) Math.floor(uMin * width), width);
+            pxMax = clampPixel((int) Math.ceil(uMax * width) - 1, width);
+            pyMin = clampPixel((int) Math.floor(vMin * height), height);
+            pyMax = clampPixel((int) Math.ceil(vMax * height) - 1, height);
+        }
         int firstOpaquePx = Integer.MAX_VALUE, lastOpaquePx = Integer.MIN_VALUE;
         int firstOpaquePy = Integer.MAX_VALUE, lastOpaquePy = Integer.MIN_VALUE;
         for (int py = pyMin; py <= pyMax; py++) {
             for (int px = pxMin; px <= pxMax; px++) {
-                int alpha = (texture.getPixel(px, py) >>> 24) & 0xFF;
+                int alpha = linear
+                    ? (texture.getPixel(address(px, width, sampled.clamp()), address(py, height, sampled.clamp())) >>> 24) & 0xFF
+                    : (texture.getPixel(px, py) >>> 24) & 0xFF;
                 if (alpha == 0) continue;
                 if (px < firstOpaquePx) firstOpaquePx = px;
                 if (px > lastOpaquePx) lastOpaquePx = px;
@@ -1670,13 +1721,22 @@ final class EntityBoundsWalker implements AutoCloseable {
                 dumpPrefix, pxMin, pyMin, pxMax, pyMax);
             return;
         }
-        // Convert opaque-pixel range to UV-space using texel edges (a texel at (px, py)
-        // covers UV [px/W, (px+1)/W] × [py/H, (py+1)/H]). Clamp the resulting UV box to the
-        // polygon's UV range so we don't overshoot the geometry.
-        float opaqueUMin = Math.max(uMin, (float) firstOpaquePx / width);
-        float opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / width);
-        float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / height);
-        float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / height);
+        // Convert opaque-pixel range to UV-space: read nearest by texel edges (a texel at
+        // (px, py) covers UV [px/W, (px+1)/W] × [py/H, (py+1)/H]), read linearly by the half
+        // texel the filter spills past them. Clamp the resulting UV box to the polygon's UV
+        // range so we don't overshoot the geometry.
+        float opaqueUMin, opaqueUMax, opaqueVMin, opaqueVMax;
+        if (linear) {
+            opaqueUMin = Math.max(uMin, (firstOpaquePx - 0.5f) / width);
+            opaqueUMax = Math.min(uMax, (lastOpaquePx + 1.5f) / width);
+            opaqueVMin = Math.max(vMin, (firstOpaquePy - 0.5f) / height);
+            opaqueVMax = Math.min(vMax, (lastOpaquePy + 1.5f) / height);
+        } else {
+            opaqueUMin = Math.max(uMin, (float) firstOpaquePx / width);
+            opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / width);
+            opaqueVMin = Math.max(vMin, (float) firstOpaquePy / height);
+            opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / height);
+        }
         // Contribute the four bilinear-interpolated corners of the opaque sub-rect.
         Vector3f cBl = contributeBilinearCorner(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
         Vector3f cBr = contributeBilinearCorner(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
@@ -1691,6 +1751,19 @@ final class EntityBoundsWalker implements AutoCloseable {
             cBr.x(), cBr.y(), cBr.z(),
             cTr.x(), cTr.y(), cTr.z(),
             cTl.x(), cTl.y(), cTl.z());
+    }
+
+    /**
+     * Answers the texel a sampler reads on one axis for an index that may lie past either edge: wrapped into
+     * the texture where it repeats, held at the nearer edge where its sidecar clamps it.
+     *
+     * @param texel the texel index, unbounded
+     * @param size the texture's size on the axis
+     * @param clamp whether the texture is clamped to its edges
+     * @return the texel read
+     */
+    private static int address(int texel, int size, boolean clamp) {
+        return clamp ? Math.clamp(texel, 0, size - 1) : Math.floorMod(texel, size);
     }
 
     private static Vector3f contributeBilinearCorner(
@@ -2117,8 +2190,8 @@ final class EntityBoundsWalker implements AutoCloseable {
 
     @Override
     public void close() {
-        for (NativeImage image : textureCache.values()) {
-            image.close();
+        for (WalkTexture texture : textureCache.values()) {
+            texture.image().close();
         }
         textureCache.clear();
     }

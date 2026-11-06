@@ -52,7 +52,8 @@ import static org.hamcrest.Matchers.not;
  * tables fold its block entity's flipbook in. A chest whose animation is refused draws its missing sprite,
  * as the client's chest sheet does; an atlas tile draws a skull's texture as a single render of the skull
  * draws it at rest - the strip's first frame for a valid animation, and the whole file for a refused one -
- * since the atlas's still view freezes both reads.
+ * since the atlas's still view freezes both reads. A skull's texture is read through the sampler its sidecar's
+ * texture section selects, in a single render and in an atlas tile alike, the still view keeping it.
  * <p>
  * Loads the vanilla stack under one staged pack holding a valid strip and a refused animation for a skull
  * texture and for a chest texture, through {@link ClientAssetsExtension}, which abandons the class where no
@@ -80,6 +81,9 @@ class PlainBlockEntityTextureTest {
     /** The animation section the client's codec refuses. */
     private static final String REFUSED = "{\"animation\":{\"frametime\":0}}";
 
+    /** The skull texture a second staged pack ships as vanilla's bytes beside a texture section that blurs. */
+    private static final String ZOMBIE = "minecraft:entity/zombie/zombie";
+
     private static final int TILE = 64;
 
     @TempDir
@@ -88,6 +92,8 @@ class PlainBlockEntityTextureTest {
     private static RendererContext vanilla;
 
     private static RendererContext packed;
+
+    private static RendererContext blurred;
 
     /**
      * Stages the pack - two strips of vanilla's texture over a solid copy, two of vanilla's own files beside a
@@ -112,6 +118,16 @@ class PlainBlockEntityTextureTest {
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
         packed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
+
+        Path blur = work.resolve("plain-block-entity-blur");
+        Files.createDirectories(blur);
+        Files.writeString(blur.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"plain block entity blur fixture\"}}");
+        stage(blur, ZOMBIE, vanillaBytes(ZOMBIE), "{\"texture\":{\"blur\":true}}");
+        ClientOptions blurOptions = ClientOptions.builder()
+            .cacheRoot(work.resolve("cache-blur").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(blur.toFile())))
+            .build();
+        blurred = RendererContext.load(new ClientAssets(blurOptions, ClientAssetsExtension.vanilla()));
     }
 
     @Test
@@ -166,6 +182,24 @@ class PlainBlockEntityTextureTest {
             assertThat(skull + "'s tile", tilePixels(drawn, skull), is(tilePixels(reference, skull)));
             assertThat(skull + "'s row names no stand-in", tile(drawn, skull).substitutions(), is(empty()));
         }
+    }
+
+    @Test
+    @DisplayName("a skull's texture is read through the sampler its sidecar selects, in a single render and in an atlas tile alike")
+    void anAtlasTileReadsASkullsTextureByItsSampler() {
+        String skull = "minecraft:zombie_head";
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(skull::equals))
+            .tileSize(TILE)
+            .progressLogging(false)
+            .build();
+
+        // The blurring pack ships vanilla's own bytes, so only the sampler can tell the two contexts apart.
+        assertThat("a single render reads the texture linearly", RenderDigest.frameCrcs(still(blurred, skull).image()),
+            is(not(RenderDigest.frameCrcs(still(vanilla, skull).image()))));
+        List<Integer> blurredTile = tilePixels(new AtlasRenderer(blurred).render(options), skull);
+        assertThat("an atlas tile reads it linearly too", blurredTile,
+            is(not(tilePixels(new AtlasRenderer(vanilla).render(options), skull))));
     }
 
     /**

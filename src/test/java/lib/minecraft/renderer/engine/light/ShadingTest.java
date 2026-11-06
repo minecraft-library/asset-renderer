@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -67,7 +68,7 @@ class ShadingTest {
     /** The identity relight frame, where the shading transform is the bare GUI Y-flip */
     private static final LightingFrame FLAT = LightingFrame.tracking(EulerRotation.NONE);
 
-    private static final PixelBuffer WHITE_1X1 = PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1);
+    private static final SampledTexture WHITE_1X1 = SampledTexture.of(PixelBuffer.ofStraight(new int[]{0xFFFFFFFF}, 1, 1));
     private static final Vector2f UV = new Vector2f(0f, 0f);
     private static final Vector3f ORIGIN = new Vector3f(0f, 0f, 0f);
 

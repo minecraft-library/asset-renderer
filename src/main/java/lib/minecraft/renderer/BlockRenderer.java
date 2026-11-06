@@ -33,6 +33,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.RasterPass;
@@ -809,11 +810,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @param entity the block entity whose renderer decides the read
              * @param textureId the texture the mesh samples
              * @param tick the animation tick the texture is sampled at
-             * @return the frame, the checkerboard where no pack supplies the texture or it cannot be read
+             * @return the frame and the sampler it is read through - a plain texture's own, a sheet sprite
+             *     nearest and repeating, as its atlas reads it - the checkerboard where no pack supplies the
+             *     texture or it cannot be read
              */
-            private @NotNull PixelBuffer entityTexture(@NotNull Block.BlockEntity entity, @NotNull String textureId, int tick) {
-                if (!entity.plainTexture()) return frame(this.textures, textureId, tick);
-                return Flipbook.atTick(this.textures.resolvePlainTexture(textureId), this.textures.findFlipbook(textureId), tick).get();
+            private @NotNull SampledTexture entityTexture(@NotNull Block.BlockEntity entity, @NotNull String textureId, int tick) {
+                if (!entity.plainTexture()) return SampledTexture.of(frame(this.textures, textureId, tick));
+                return Flipbook.atTick(this.textures.resolvePlainTexture(textureId).get(), this.textures.findFlipbook(textureId), tick);
             }
 
             /**
@@ -829,7 +832,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
                 @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull Block.BlockEntity entity, int tick) {
-                PixelBuffer texture = entityTexture(entity, entity.textureId(), tick);
+                SampledTexture texture = entityTexture(entity, entity.textureId(), tick);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -867,7 +870,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                     Block.BlockEntity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = entityTexture(entity, part.texture(), tick);
+                    SampledTexture texture = entityTexture(entity, part.texture(), tick);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());

@@ -45,6 +45,8 @@ import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -98,6 +100,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -123,7 +126,19 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * plays a table, as an atlas sprite and the plain reads that sample a table do, and the whole strip where
  * it never did. A plain read that plays a table is drawn over two frames a tick apart as well, its second
  * frame the strip's second, so a site that stops stepping its tick shows. A staged texture is the
- * family's own at rest, so a family that draws it is held to its intact picture.
+ * family's own at rest, so a family that draws it is held to its intact picture; beside a refused
+ * animation it keeps its intact sidecar's texture section, so a glint keeps the blur vanilla's sidecar
+ * sets.
+ * <p>
+ * Each sprite and plain family is drawn once more with its texture beside a sidecar flipping its texture
+ * section's blur. A plain family whose reader draws the texture whole is filtered by it, as the client
+ * samples a plain texture by its sidecar, so it draws a picture other than its reference; a plain family
+ * whose reader prepares a picture out of the texture first - a skin, cape or armour sheet's crops, the
+ * composed container panel - reads that picture nearest, and draws its reference exactly, as does every
+ * atlas sprite, which its atlas reads by its own sampler. A family served a solid sheet is staged as a
+ * two-tone sheet instead, since a filter leaves a uniform texture as it is. After its zero-byte break, a
+ * drawn plain family is broken once more beside a sidecar that blurs, and draws the checkerboard hard, as
+ * the client's missing texture is read.
  * <p>
  * Each render is exactly the one it draws where the texture IS the checkerboard. A render that draws the
  * texture prints the id once in the words of what was wrong with it, and names it in its result as the
@@ -249,6 +264,25 @@ class MissingTextureFamilyTest {
         "cape on the wings", "elytra source");
 
     /**
+     * The plain families whose reader prepares a picture out of the texture before it is drawn - a crop of a
+     * skin, cape or armour sheet, or the composed container panel - which is read nearest and repeating
+     * whatever the sheet's sidecar selects, so a blur sidecar leaves the family's picture as it is.
+     */
+    private static final Set<String> PREPARED = Set.of(
+        "player skin", "default skin", "cape", "worn armour layer", "pack-rule armour tile", "container sheet");
+
+    /**
+     * The families served a solid sheet by their intact context, which the blur stack stages as
+     * {@link #twoTone} instead, a filter leaving a uniform texture as it is.
+     */
+    private static final Set<String> TWO_TONE = Set.of("cape", "cape on the wings", "pack-rule armour tile", "elytra source");
+
+    /**
+     * The colour of a {@link #twoTone} sheet's odd texels.
+     */
+    private static final int OTHER_TONE = 0xFFCC9933;
+
+    /**
      * The canvas every render here is drawn at - large enough to tell two pictures apart.
      */
     private static final OutputOptions OUTPUT = OutputOptions.builder().canvasSize(64).build();
@@ -261,6 +295,12 @@ class MissingTextureFamilyTest {
 
     @TempDir
     static Path animatedRoot;
+
+    @TempDir
+    static Path blurredRoot;
+
+    @TempDir
+    static Path blurredBrokenRoot;
 
     /**
      * The vanilla stack every family reads.
@@ -283,6 +323,18 @@ class MissingTextureFamilyTest {
      * over a copy of it below recoloured where it is opaque, beside a valid animation of those two frames.
      */
     private static PackStack animated;
+
+    /**
+     * A pack holding every atlas-sprite and plain family's texture, as its intact render draws it at rest, or
+     * a {@link #twoTone} sheet for a family served a solid one, beside a texture section flipping its blur.
+     */
+    private static PackStack blurred;
+
+    /**
+     * A pack holding a zero-byte copy of every atlas-sprite and plain family's texture beside a texture
+     * section that blurs.
+     */
+    private static PackStack blurredBroken;
 
     /**
      * Each two-frame strip the valid-animation pack ships, decoded, by family texture id.
@@ -317,19 +369,25 @@ class MissingTextureFamilyTest {
         // once now rather than inside whichever test reads it first.
         errDuring(() -> ids.stream().map(ResourceId::parse).forEach(id -> {
             broken.pixels(id);
-            broken.plainPixels(id);
+            broken.plainTexture(id);
         }));
 
         for (Family family : families().filter(family -> family.read() != Read.PERMUTATION_INPUT).toList()) {
             RendererContext intact = family.intact().apply(vanilla);
             String id = family.textureId();
-            Possible<PixelBuffer> read = family.read() == Read.PLAIN ? intact.resolvePlainTexture(id) : intact.resolveTexture(id);
+            Possible<PixelBuffer> read = family.read() == Read.PLAIN ? intact.resolvePlainTexture(id).map(SampledTexture::pixels) : intact.resolveTexture(id);
             PixelBuffer atRest = Flipbook.atTick(read, intact.findFlipbook(id), 0).orElseThrow();
             byte[] still = png(atRest);
             assertThat(family + "'s staged texture decodes back to its intact one",
                 RenderDigest.pixels(ImageFactory.fromByteArray(still).toPixelBuffer()), is(RenderDigest.pixels(atRest)));
             Files.write(textureFile(refusedRoot, id), still);
-            Files.writeString(sidecarFile(refusedRoot, id), "{\"animation\":{\"frametime\":0}}");
+            Files.writeString(sidecarFile(refusedRoot, id), "{\"animation\":{\"frametime\":0}" + textureSection(intact, id) + "}");
+
+            boolean blurs = intact.findMeta(id).flatMap(MCMeta::texture).map(MCMeta.TextureSampling::blur).orElse(false);
+            Files.write(textureFile(blurredRoot, id), TWO_TONE.contains(family.name()) ? png(twoTone(64, 32)) : still);
+            Files.writeString(sidecarFile(blurredRoot, id), "{\"texture\":{\"blur\":" + !blurs + "}}");
+            Files.write(textureFile(blurredBrokenRoot, id), new byte[0]);
+            Files.writeString(sidecarFile(blurredBrokenRoot, id), "{\"texture\":{\"blur\":true}}");
 
             PixelBuffer lower = PixelBuffer.straight(atRest.width(), atRest.height());
             PixelBuffer strip = PixelBuffer.straight(atRest.width(), atRest.height() * 2);
@@ -351,6 +409,30 @@ class MissingTextureFamilyTest {
         }
         refused = indexed(refusedRoot);
         animated = indexed(animatedRoot);
+        blurred = indexed(blurredRoot);
+        blurredBroken = indexed(blurredBrokenRoot);
+        // As the zero-byte pack's, each file is decoded now, so the pack reader's own line prints here.
+        errDuring(() -> families().filter(family -> family.read() != Read.PERMUTATION_INPUT)
+            .map(family -> ResourceId.parse(family.textureId()))
+            .forEach(id -> {
+                blurredBroken.pixels(id);
+                blurredBroken.plainTexture(id);
+            }));
+    }
+
+    /**
+     * Answers a family's intact sidecar's texture section as the members to merge into a staged sidecar
+     * beside another section - the client's texture loader reading that section whatever sits beside it -
+     * or nothing where the sidecar carries none.
+     *
+     * @param intact the context serving the family's texture intact
+     * @param textureId the family's texture
+     * @return the section as a leading comma and its member, or the empty string
+     */
+    private static @NotNull String textureSection(@NotNull RendererContext intact, @NotNull String textureId) {
+        return intact.findMeta(textureId).flatMap(MCMeta::texture)
+            .map(section -> ",\"texture\":{\"blur\":" + section.blur() + ",\"clamp\":" + section.clamp() + "}")
+            .orElse("");
     }
 
     /**
@@ -540,7 +622,7 @@ class MissingTextureFamilyTest {
             assertThat(family + " is served", (plain ? intact.resolvePlainTexture(family.textureId())
                 : intact.resolveTexture(family.textureId())).isPresent(), is(true));
             assertThat(family + " decodes to nothing from the zero-byte pack",
-                (plain ? broken.plainPixels(id) : broken.pixels(id)).getState(), is(Possible.State.EMPTY));
+                (plain ? broken.plainTexture(id).getState() : broken.pixels(id).getState()), is(Possible.State.EMPTY));
         });
     }
 
@@ -561,9 +643,11 @@ class MissingTextureFamilyTest {
             DynamicTest zeroBytes = DynamicTest.dynamicTest("zero bytes", () -> assertDrawsTheCheckerboard(family,
                 intact -> unreadable(intact, family.textureId()),
                 Possible.State.EMPTY, "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
-            Stream<DynamicTest> tests = family.read() == Read.PERMUTATION_INPUT
-                ? Stream.of(zeroBytes)
-                : Stream.of(zeroBytes, DynamicTest.dynamicTest("a refused animation", () -> assertRefusedAnimation(family)));
+            DynamicTest refusedAnimation = DynamicTest.dynamicTest("a refused animation", () -> assertRefusedAnimation(family));
+            DynamicTest blurredBreak = DynamicTest.dynamicTest("a blur sidecar beside zero bytes", () -> assertBlurredBreakIsHard(family));
+            Stream<DynamicTest> tests = family.read() == Read.PERMUTATION_INPUT ? Stream.of(zeroBytes)
+                : family.read() == Read.PLAIN && family.drawn() ? Stream.of(zeroBytes, refusedAnimation, blurredBreak)
+                : Stream.of(zeroBytes, refusedAnimation);
             return DynamicContainer.dynamicContainer(family.name(), tests);
         });
     }
@@ -591,6 +675,54 @@ class MissingTextureFamilyTest {
                     assertPlaysItsStrip(family, intact, staged);
             }
         });
+    }
+
+    @TestFactory
+    @DisplayName("a blur sidecar filters a plain texture its reader draws whole, and no picture a reader prepares first, nor any atlas sprite")
+    @NotNull Stream<DynamicTest> aBlurSidecarFiltersOnlyAPlainTextureDrawnWhole() {
+        return perFamily(family -> family.read() != Read.PERMUTATION_INPUT && family.drawn(), family -> {
+            RendererContext intact = family.intact().apply(vanilla);
+            String id = family.textureId();
+            List<Object> reference = picture(family.render().draw(TWO_TONE.contains(family.name())
+                ? intact.withTexture(id, twoTone(64, 32))
+                : intact));
+            RenderResult drawn = family.render().draw(staged(intact, id, blurred));
+
+            assertThat(family + " names no stand-in", drawn.substitutions(), is(empty()));
+            if (family.read() == Read.PLAIN && !PREPARED.contains(family.name())) {
+                assertThat(family + " is filtered by its sidecar, as the client samples a plain texture drawn whole",
+                    picture(drawn), is(not(reference)));
+            } else {
+                assertThat(family + " draws its reference, read nearest whatever its sidecar selects", picture(drawn), is(reference));
+            }
+        });
+    }
+
+    /**
+     * Pins both halves of a single flat equipment layer's sampler apart, which the blur factory's
+     * {@code equipment layer} family cannot, either half alone moving its picture. The pig's own texture is
+     * served clear, so the saddle alone draws and bounds the canvas: vanilla's saddle holds only clear and
+     * opaque texels, so read nearest it draws no partly transparent pixel, and filtered its fringe does; and
+     * a saddle face whose opaque texels end inside it is measured half a texel further filtered, so the
+     * canvas sized to the saddle moves.
+     */
+    @Test
+    @DisplayName("a blurred single flat equipment layer is drawn through its filter and measured by its reach")
+    void aBlurredFlatEquipmentLayerIsDrawnAndMeasuredThroughItsFilter() {
+        String saddle = "minecraft:entity/equipment/pig_saddle/saddle";
+        RendererContext clearPig = vanilla.withTexture(PIG_ADULT, PixelBuffer.straight(64, 64));
+        Render pig = context -> entity(context, entity("minecraft:pig")
+            .appearance(AppearanceOptions.builder().equipment(Map.of("saddle", "saddle")).build())
+            .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
+            .pixelsPerBlock(128));
+
+        PixelBuffer hard = pig.draw(clearPig).image().getFrames().getFirst().pixels();
+        PixelBuffer filtered = pig.draw(staged(clearPig, saddle, blurred)).image().getFrames().getFirst().pixels();
+
+        assertThat("the saddle read nearest draws no partly transparent pixel", partlyTransparent(hard), is(0));
+        assertThat("the saddle filtered draws a partly transparent fringe", partlyTransparent(filtered), is(greaterThan(0)));
+        assertThat("the canvas sized to the filtered saddle", List.of(filtered.width(), filtered.height()),
+            is(not(List.of(hard.width(), hard.height()))));
     }
 
     @Test
@@ -662,17 +794,19 @@ class MissingTextureFamilyTest {
         RendererContext unreadable = RecordingContext.over(unreadable(vanilla, WING_TILE)).answeringArmorOverride(tile);
 
         String reported = errDuring(() -> assertThat(
-            ElytraKit.wingsTexture(missing.withMissingTexture(), elytra, 0).orElseThrow(),
+            ElytraKit.wingsTexture(missing.withMissingTexture(), elytra, 0).orElseThrow().pixels(),
             is(sameInstance(MissingSprite.sprite()))));
         assertThat(occurrences(reported, "Missing texture '" + WING_TILE + "' - drawing the checkerboard"), is(1));
-        assertThat(ElytraKit.wingsTexture(unreadable.withMissingTexture(), elytra, 0).orElseThrow(),
+        assertThat(ElytraKit.wingsTexture(unreadable.withMissingTexture(), elytra, 0).orElseThrow().pixels(),
             is(sameInstance(MissingSprite.sprite())));
 
         // The kit reads through the wrapper itself, so a context read bare draws the stand-in too.
-        assertThat("missing, read bare", ElytraKit.wingsTexture(missing, elytra, 0).orElseThrow(),
+        assertThat("missing, read bare", ElytraKit.wingsTexture(missing, elytra, 0).orElseThrow().pixels(),
             is(sameInstance(MissingSprite.sprite())));
-        assertThat("unreadable, read bare", ElytraKit.wingsTexture(unreadable, elytra, 0).orElseThrow(),
+        assertThat("unreadable, read bare", ElytraKit.wingsTexture(unreadable, elytra, 0).orElseThrow().pixels(),
             is(sameInstance(MissingSprite.sprite())));
+        assertThat("the stand-in read nearest and repeating", ElytraKit.wingsTexture(missing, elytra, 0).orElseThrow().sampler(),
+            is(Sampler.NEAREST_REPEAT));
     }
 
     // ------------------------------------------------------------------------------------
@@ -818,6 +952,27 @@ class MissingTextureFamilyTest {
     }
 
     /**
+     * Asserts a plain family whose texture ships as zero bytes beside a texture section that blurs draws the
+     * checkerboard hard - exactly the render it draws where the texture is the checkerboard - as the client's
+     * missing texture carries no section, and names its texture unreadable. The report it prints is the
+     * container's first test's, the reporting sets being static.
+     *
+     * @param family the family under test
+     */
+    private static void assertBlurredBreakIsHard(@NotNull Family family) {
+        RendererContext intact = family.intact().apply(vanilla);
+        String id = family.textureId();
+        List<Object> reference = picture(family.render().draw(intact.withTexture(id, MissingSprite.sprite())));
+        AtomicReference<RenderResult> drawn = new AtomicReference<>();
+
+        errDuring(() -> drawn.set(family.render().draw(staged(intact, id, blurredBroken))));
+
+        assertThat(family + " draws the hard checkerboard", picture(drawn.get()), is(reference));
+        assertThat(family + " names its texture unreadable", drawn.get().substitutions(),
+            contains(Substitution.texture(id, Possible.State.EMPTY)));
+    }
+
+    /**
      * Asserts a family whose read site plays a table over a plain read steps a valid strip with the tick
      * each frame is drawn at: of two frames one tick apart, the first is the first of two intact frames,
      * and the second the second of two frames over the strip's lower frame served whole. A site that
@@ -881,9 +1036,9 @@ class MissingTextureFamilyTest {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+        public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
             this.plainReads.add(textureId);
-            return isStaged(textureId) ? this.stack.plainPixels(this.staged) : this.delegate.resolvePlainTexture(textureId);
+            return isStaged(textureId) ? this.stack.plainTexture(this.staged) : this.delegate.resolvePlainTexture(textureId);
         }
 
         /** {@inheritDoc} */
@@ -1089,6 +1244,22 @@ class MissingTextureFamilyTest {
     }
 
     /**
+     * An opaque buffer of two tones, the served colour on every texel whose coordinates sum even and
+     * {@link #OTHER_TONE} on every other, so every texel differs from the one beside it.
+     *
+     * @param width the buffer width
+     * @param height the buffer height
+     * @return the buffer
+     */
+    private static @NotNull PixelBuffer twoTone(int width, int height) {
+        PixelBuffer buffer = PixelBuffer.straight(width, height);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                buffer.setPixel(x, y, (x + y) % 2 == 0 ? SERVED : OTHER_TONE);
+        return buffer;
+    }
+
+    /**
      * Spells a render as its frame count, its first frame's size and every frame's pixels, so two renders
      * compare by all three.
      *
@@ -1100,6 +1271,23 @@ class MissingTextureFamilyTest {
         ImageFrame first = image.getFrames().getFirst();
         return List.of(image.getFrames().size(), first.pixels().width(), first.pixels().height(),
             RenderDigest.frameCrcs(image));
+    }
+
+    /**
+     * Counts the pixels of a picture that are neither clear nor opaque.
+     *
+     * @param pixels the picture
+     * @return how many of its pixels have an alpha strictly between 0 and 255
+     */
+    private static int partlyTransparent(@NotNull PixelBuffer pixels) {
+        int count = 0;
+        for (int y = 0; y < pixels.height(); y++) {
+            for (int x = 0; x < pixels.width(); x++) {
+                int alpha = pixels.getPixel(x, y) >>> 24;
+                if (alpha > 0 && alpha < 255) count++;
+            }
+        }
+        return count;
     }
 
     /**

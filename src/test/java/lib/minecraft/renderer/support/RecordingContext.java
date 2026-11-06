@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -116,7 +117,7 @@ public final class RecordingContext implements RendererContext.Forwarding {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+    public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
         this.resolved.add(textureId);
         return this.delegate.resolvePlainTexture(textureId);
     }

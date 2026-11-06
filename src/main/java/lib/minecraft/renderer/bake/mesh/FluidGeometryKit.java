@@ -5,6 +5,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Face;
@@ -81,6 +82,9 @@ public class FluidGeometryKit {
         //   pixel-for-pixel match to vanilla's LiquidBlockRenderer.
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // Both are atlas sprites, read by the block atlas's sampler - nearest, whatever their sidecars set.
+        SampledTexture stillTex = SampledTexture.of(still);
+        SampledTexture flowTex = SampledTexture.of(flow);
 
         float hNW = top.nw() - CUBE_HALF;
         float hNE = top.ne() - CUBE_HALF;
@@ -97,15 +101,15 @@ public class FluidGeometryKit {
         Vector3f pSEb = new Vector3f(+CUBE_HALF, yBot, +CUBE_HALF);
         Vector3f pSWb = new Vector3f(-CUBE_HALF, yBot, +CUBE_HALF);
 
-        addNonPlanarTop(triangles, pNWt, pSWt, pSEt, pNEt, still, argbTint);
+        addNonPlanarTop(triangles, pNWt, pSWt, pSEt, pNEt, stillTex, argbTint);
 
         Vector3f down = Face.DOWN.normal();
         BoxKit.addQuad(triangles,
             new Vector3f[] {pSWb, pNWb, pNEb, pSEb},
             new Vector2f[] {new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)},
-            still, argbTint, down, Lighting.inventory(down), SurfaceTraits.OPAQUE_BODY, null);
+            stillTex, argbTint, down, Lighting.inventory(down), SurfaceTraits.OPAQUE_BODY, null);
 
-        PixelBuffer sideTex = flowAngleRadians.isPresent() ? flow : still;
+        SampledTexture sideTex = flowAngleRadians.isPresent() ? flowTex : stillTex;
 
         addSide(triangles, pNEt, pNEb, pNWb, pNWt, top.ne(), top.nw(),
             sideTex, argbTint, Face.NORTH.normal(), flowAngleRadians);
@@ -133,7 +137,7 @@ public class FluidGeometryKit {
     private static void addNonPlanarTop(
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f nw, @NotNull Vector3f sw, @NotNull Vector3f se, @NotNull Vector3f ne,
-        @NotNull PixelBuffer texture, int argbTint
+        @NotNull SampledTexture texture, int argbTint
     ) {
         Vector2f uvNW = new Vector2f(0f, 0f);
         Vector2f uvSW = new Vector2f(0f, 1f);
@@ -159,7 +163,7 @@ public class FluidGeometryKit {
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f pTL, @NotNull Vector3f pBL, @NotNull Vector3f pBR, @NotNull Vector3f pTR,
         float topLeftHeight, float topRightHeight,
-        @NotNull PixelBuffer texture, int argbTint, @NotNull Vector3f normal,
+        @NotNull SampledTexture texture, int argbTint, @NotNull Vector3f normal,
         @NotNull Optional<Float> flowAngleRadians
     ) {
         Vector2f[] uv = {

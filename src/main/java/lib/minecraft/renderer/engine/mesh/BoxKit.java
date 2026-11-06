@@ -3,8 +3,8 @@ package lib.minecraft.renderer.engine.mesh;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -88,6 +88,10 @@ public class BoxKit {
      * {@link SurfaceTraits#OPAQUE_BODY} and {@link SurfaceTraits#WORN_SHELL}, which is why those two
      * constants are the whole of the distinction and why they carry their own reasons.
      * <p>
+     * Every face is read nearest and repeating: a box paints an atlas sprite, a buffer this renderer
+     * builds, or the crop of a skin, cape or armour sheet one face reads, each a picture of its own
+     * rather than a plain texture read whole, so no sheet's sampler reaches it.
+     * <p>
      * {@code debugPart} names the box for the per-pixel trace and each face's two triangles carry
      * {@code part:face}. Without a tag an armour fragment logs {@code tag=null} and the trace skips it
      * entirely, which has misread the armour seam twice - so a caller holding a name passes it whenever
@@ -121,7 +125,7 @@ public class BoxKit {
             Vector3f normal = face.normal();
             addQuad(
                 triangles, corners, uv,
-                textures.byFace(face), tintArgb,
+                SampledTexture.of(textures.byFace(face)), tintArgb,
                 normal, Lighting.inventory(normal),
                 surface,
                 debugPart == null ? null : debugPart + ":" + face.direction()
@@ -158,7 +162,7 @@ public class BoxKit {
      *     is a {@link ConcurrentList}
      * @param corners the quad's four vertices, in the order the caller's {@link CornerPhase} walks them
      * @param uv the four UVs, {@code uv[i]} pairing with {@code corners[i]}
-     * @param texture the texture both triangles sample
+     * @param texture the texture both triangles sample, with the sampler it is read through
      * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
      * @param normal the surface normal both triangles carry
      * @param shading the shade scalar both triangles carry
@@ -170,7 +174,7 @@ public class BoxKit {
         @NotNull List<VisibleTriangle> out,
         @NotNull Vector3f @NotNull [] corners,
         @NotNull Vector2f @NotNull [] uv,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         int tintArgb,
         @NotNull Vector3f normal,
         float shading,

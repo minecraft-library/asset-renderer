@@ -4,6 +4,8 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
@@ -18,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.IntUnaryOperator;
 
@@ -40,7 +43,9 @@ import static org.hamcrest.Matchers.not;
  * The extent cases hold the kit's two answers to one another: {@link NineSliceKit#extent} against
  * {@link PixelBuffer#opaqueBounds()} of what {@link NineSliceKit#draw} lays down on a clear canvas the
  * rect's size, read in Minecraft pixels, over the real sprites and over a synthetic sprite in every
- * scaling mode.
+ * scaling mode - read nearest as a GUI sprite, and linearly as a texture of its own sampler, whose
+ * fringe the extent holds. A GUI sprite reads exactly as a texture read nearest does, whatever the
+ * address mode.
  * <p>
  * The real-sprite cases pin the bytes the kit's blend leaves on a clear canvas: each translucent texel
  * keeps its alpha and has its colour scaled by it, as the client's framebuffer holds it. The synthetic
@@ -55,6 +60,9 @@ class NineSliceKitTest {
     private static final String TOOLTIP_DIR = "assets/minecraft/textures/gui/sprites/tooltip";
 
     private static final int PX_PER_MCPX = MinecraftFont.MC_PIXEL_SCALE;
+
+    private static final Sampler LINEAR_REPEAT = new Sampler(Sampler.FilterMode.LINEAR, Sampler.AddressMode.REPEAT);
+    private static final Sampler LINEAR_CLAMP = new Sampler(Sampler.FilterMode.LINEAR, Sampler.AddressMode.CLAMP_TO_EDGE);
 
     // The overhanging blit geometry, the tooltip chrome's own for vanilla's pair: a fresh canvas of
     // CANVAS_W_MCPX x CANVAS_H_MCPX Minecraft pixels, with both sprites drawn over the client's rect
@@ -170,31 +178,82 @@ class NineSliceKitTest {
     }
 
     @Test
-    @DisplayName("the extent is the bounds of what the kit draws in every scaling mode, a texture off its declared size and a texel the multiplier clears")
+    @DisplayName("the extent is the bounds of what the kit draws in every scaling mode, a texture off its declared size and a texel the multiplier clears, read nearest as a GUI sprite and linearly as a texture")
     void extentIsWhatEveryScalingDraws() {
-        PixelBuffer inner = opaqueSquare(10, 2, 7);
-        assertExtentIsDrawn("stretch", inner, new MCMeta.GuiScaling.Stretch(), 19, 12, 1.0f);
-        assertExtentIsDrawn("tile", inner, new MCMeta.GuiScaling.Tile(10, 10), 25, 15, 1.0f);
-        assertExtentIsDrawn("nine_slice border 3 stretch_inner", inner,
-            new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(3, 3, 3, 3), true),
-            21, 15, 1.0f);
-        assertExtentIsDrawn("20x20 declared 10x10", opaqueSquare(20, 4, 15),
-            new MCMeta.GuiScaling.Tile(10, 10), 19, 12, 1.0f);
+        for (Row row : rows()) {
+            assertExtentIsDrawn(row.label(), row.sprite(), row.gui(), row.w(), row.h(), row.mul());
+            for (Sampler sampler : new Sampler[]{ LINEAR_REPEAT, LINEAR_CLAMP })
+                assertExtentIsDrawn(row.label() + " " + sampler, new SampledTexture(row.sprite(), sampler), row.gui(), row.w(), row.h(), row.mul());
+        }
 
+        // A linear read spills half a texel past every opaque edge, so where a texel spans two output pixels its
+        // extent holds a pixel the nearest read leaves clear. At one texel an output pixel every pixel centre is a
+        // texel centre, where the linear read is the nearest one.
+        PixelBuffer inner = opaqueSquare(10, 2, 7);
+        MCMeta.GuiScaling tile = new MCMeta.GuiScaling.Tile(10, 10);
+        Rectangle2D nearest = NineSliceKit.extent(inner, tile, 25, 15, 1.0f).orElseThrow();
+        Rectangle2D linear = NineSliceKit.extent(new SampledTexture(inner, LINEAR_REPEAT), tile, 25, 15, 1.0f).orElseThrow();
+        assertThat("the linear extent " + linear + " holds the nearest one " + nearest, linear.contains(nearest), is(true));
+        assertThat("and is wider", linear.getWidth() > nearest.getWidth(), is(true));
+        assertThat("and taller", linear.getHeight() > nearest.getHeight(), is(true));
+    }
+
+    @Test
+    @DisplayName("a GUI sprite is read as the client's GUI atlas reads its sprites, nearest whatever the address mode")
+    void aGuiSpriteIsReadAsItsAtlasReadsIt() {
+        Sampler atlas = new Sampler(Sampler.FilterMode.NEAREST, Sampler.AddressMode.CLAMP_TO_EDGE);
+        for (Row row : rows()) {
+            PixelBuffer gui = PixelBuffer.canvas(row.w() * PX_PER_MCPX, row.h() * PX_PER_MCPX);
+            NineSliceKit.draw(gui, row.sprite(), row.gui(), 0, 0, row.w(), row.h(), row.mul());
+            for (Sampler sampler : new Sampler[]{ atlas, Sampler.NEAREST_REPEAT }) {
+                SampledTexture texture = new SampledTexture(row.sprite(), sampler);
+                PixelBuffer drawn = PixelBuffer.canvas(row.w() * PX_PER_MCPX, row.h() * PX_PER_MCPX);
+                NineSliceKit.draw(drawn, texture, row.gui(), 0, 0, row.w(), row.h(), row.mul());
+                assertThat(row.label() + " drawn through " + sampler, drawn.data(), is(gui.data()));
+                assertThat(row.label() + " measured through " + sampler,
+                    NineSliceKit.extent(texture, row.gui(), row.w(), row.h(), row.mul()),
+                    is(NineSliceKit.extent(row.sprite(), row.gui(), row.w(), row.h(), row.mul())));
+            }
+        }
+    }
+
+    /**
+     * Answers the synthetic rows the extent and the GUI-sprite read are held over: every scaling mode, a texture off
+     * its declared size, a texel the multiplier clears, and sprites authored at twice their declared size.
+     *
+     * @return the rows
+     */
+    private static List<Row> rows() {
+        PixelBuffer inner = opaqueSquare(10, 2, 7);
         // An alpha-80 texel at the corner scales to alpha 0.4 at 0.005, which rounds to 0 and is
         // discarded, while the opaque texels keep alpha 1.
         PixelBuffer faint = opaqueSquare(10, 2, 7);
         faint.setPixel(0, 0, 0x50FFFFFF);
-        assertExtentIsDrawn("alpha-80 texel cleared by the multiplier", faint,
-            new MCMeta.GuiScaling.Stretch(), 19, 12, 0.005f);
-
-        // The sprites authored at twice their declared size, each texel drawn.
-        assertExtentIsDrawn("4x4 tile declared 2x2", distinctTexels(4, 4), new MCMeta.GuiScaling.Tile(2, 2), 4, 2, 1.0f);
-        assertExtentIsDrawn("20x20 nine_slice declared 10x10", opaqueSquare(20, 1, 18),
-            new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), true),
-            12, 12, 1.0f);
-        assertExtentIsDrawn("4x4 stretch", opaqueSquare(4, 1, 2), new MCMeta.GuiScaling.Stretch(), 2, 2, 1.0f);
+        return List.of(
+            new Row("stretch", inner, new MCMeta.GuiScaling.Stretch(), 19, 12, 1.0f),
+            new Row("tile", inner, new MCMeta.GuiScaling.Tile(10, 10), 25, 15, 1.0f),
+            new Row("nine_slice border 3 stretch_inner", inner,
+                new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(3, 3, 3, 3), true), 21, 15, 1.0f),
+            new Row("20x20 declared 10x10", opaqueSquare(20, 4, 15), new MCMeta.GuiScaling.Tile(10, 10), 19, 12, 1.0f),
+            new Row("alpha-80 texel cleared by the multiplier", faint, new MCMeta.GuiScaling.Stretch(), 19, 12, 0.005f),
+            // The sprites authored at twice their declared size, each texel drawn.
+            new Row("4x4 tile declared 2x2", distinctTexels(4, 4), new MCMeta.GuiScaling.Tile(2, 2), 4, 2, 1.0f),
+            new Row("20x20 nine_slice declared 10x10", opaqueSquare(20, 1, 18),
+                new MCMeta.GuiScaling.NineSlice(10, 10, new MCMeta.GuiScaling.NineSlice.Border(2, 2, 2, 2), true), 12, 12, 1.0f),
+            new Row("4x4 stretch", opaqueSquare(4, 1, 2), new MCMeta.GuiScaling.Stretch(), 2, 2, 1.0f));
     }
+
+    /**
+     * One synthetic sprite laid over a rect.
+     *
+     * @param label the row's name in an assertion
+     * @param sprite the sprite
+     * @param gui the sprite's scaling
+     * @param w the rect width in mcPixels
+     * @param h the rect height in mcPixels
+     * @param mul the alpha multiplier
+     */
+    private record Row(String label, PixelBuffer sprite, MCMeta.GuiScaling gui, int w, int h, float mul) {}
 
     /**
      * Asserts that {@link NineSliceKit#extent} answers {@link PixelBuffer#opaqueBounds()} of the sprite
@@ -215,6 +274,27 @@ class NineSliceKitTest {
         Optional<Rectangle2D> expected = drawn.isEmpty() ? Optional.empty() : Optional.of(TextKit.mcPixels(drawn));
         assertThat(String.format("extent of %s over %dx%d mcPx at multiplier %s", label, wMcPx, hMcPx, mul),
             NineSliceKit.extent(sprite, gui, wMcPx, hMcPx, mul), is(expected));
+    }
+
+    /**
+     * Asserts that {@link NineSliceKit#extent} answers {@link PixelBuffer#opaqueBounds()} of a texture drawn through
+     * its own sampler at the origin of a clear canvas the rect's size, read in Minecraft pixels, and nothing where the
+     * draw lays nothing.
+     *
+     * @param label the texture's name in the assertion
+     * @param texture the texture and its sampler
+     * @param gui the texture's scaling
+     * @param wMcPx the rect width in mcPixels
+     * @param hMcPx the rect height in mcPixels
+     * @param mul the alpha multiplier
+     */
+    private static void assertExtentIsDrawn(String label, SampledTexture texture, MCMeta.GuiScaling gui, int wMcPx, int hMcPx, float mul) {
+        PixelBuffer canvas = PixelBuffer.canvas(wMcPx * PX_PER_MCPX, hMcPx * PX_PER_MCPX);
+        NineSliceKit.draw(canvas, texture, gui, 0, 0, wMcPx, hMcPx, mul);
+        Rectangle drawn = canvas.opaqueBounds();
+        Optional<Rectangle2D> expected = drawn.isEmpty() ? Optional.empty() : Optional.of(TextKit.mcPixels(drawn));
+        assertThat(String.format("extent of %s over %dx%d mcPx at multiplier %s", label, wMcPx, hMcPx, mul),
+            NineSliceKit.extent(texture, gui, wMcPx, hMcPx, mul), is(expected));
     }
 
     /**

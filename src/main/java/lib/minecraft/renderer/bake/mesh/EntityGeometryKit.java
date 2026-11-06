@@ -10,6 +10,8 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -110,12 +112,12 @@ public class EntityGeometryKit {
      * ({@code ENTITY_MODEL_FIT_EXTENT / bounds.maxExtent}) for a single-layer render.
      *
      * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
+     * @param texture the shared texture atlas, with the sampler it is read through
      * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture
+        @NotNull SampledTexture texture
     ) {
         Box bounds = computeBounds(model);
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
@@ -133,13 +135,13 @@ public class EntityGeometryKit {
      * build parameters. The auto-fit convenience overload delegates here.
      *
      * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
+     * @param texture the shared texture atlas, with the sampler it is read through
      * @param params the render frame, pass declaration and tint for this build
      * @return the build result containing the triangle list
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         @NotNull EntityBuildParams params
     ) {
         return build(model, texture, params, null);
@@ -163,7 +165,7 @@ public class EntityGeometryKit {
      * not entered again.
      *
      * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
+     * @param texture the texture the triangles sample, with the sampler it is read through
      * @param params the render frame, pass declaration and tint for this build
      * @param sharedGeometry an {@link IdentityHashMap} the builds of one draw share, read by one thread
      *     at a time
@@ -171,7 +173,7 @@ public class EntityGeometryKit {
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         @NotNull EntityBuildParams params,
         @NotNull Map<EntityMesh, Object> sharedGeometry
     ) {
@@ -182,7 +184,7 @@ public class EntityGeometryKit {
      * Creates the table the builds of one draw share their per-face geometry through, keyed by each
      * mesh's reference identity.
      *
-     * @return an empty table for {@link #buildTriangles(EntityMesh, PixelBuffer, EntityBuildParams, Map)}
+     * @return an empty table for {@link #buildTriangles(EntityMesh, SampledTexture, EntityBuildParams, Map)}
      */
     static @NotNull Map<EntityMesh, Object> sharedGeometry() {
         return new IdentityHashMap<>();
@@ -194,7 +196,7 @@ public class EntityGeometryKit {
      * where the table holds nothing for the mesh yet.
      *
      * @param model the entity model definition (Java Y-down frame)
-     * @param texture the shared texture atlas
+     * @param texture the texture the triangles sample, with the sampler it is read through
      * @param params the render frame, pass declaration and tint for this build
      * @param sharedGeometry the table shared with the draw's other builds, or {@code null} to share
      *     nothing
@@ -202,7 +204,7 @@ public class EntityGeometryKit {
      */
     private static @NotNull BuildResult build(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         @NotNull EntityBuildParams params,
         @Nullable Map<EntityMesh, Object> sharedGeometry
     ) {
@@ -210,8 +212,8 @@ public class EntityGeometryKit {
         PassDeclaration pass = params.pass();
         int tintArgb = params.tintArgb();
 
-        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
-        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.pixels().width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.pixels().height());
 
         Object held = sharedGeometry == null ? null : sharedGeometry.get(model);
         if (held instanceof SharedFaces shared && shared.frame() == frame)
@@ -317,7 +319,7 @@ public class EntityGeometryKit {
                 // {@code translucent=false} and bypass the sort because their alpha-255 fragments
                 // depth-fail farther fragments correctly without reordering.
                 boolean cubeIsTranslucent = !cubeCullBackFaces
-                    && uvPartialAlphaPresent(cubeUv, size, texture);
+                    && uvPartialAlphaPresent(cubeUv, size, texture.pixels());
                 // One traits value for every face of this cube, and for no other build: the translucency
                 // flag reads this call's texture, which another pass, or another tick of an animated
                 // texture, paints differently.
@@ -378,7 +380,7 @@ public class EntityGeometryKit {
      * only where this pass resolves them against the width and height they were resolved at.
      *
      * @param model the mesh the held geometry was built from
-     * @param texture the texture this pass samples
+     * @param texture the texture this pass samples, with the sampler it is read through
      * @param pass the pass declaration baked onto every triangle
      * @param tintArgb the ARGB tint multiplied into every sampled texel
      * @param texW the texture width this pass resolves UVs against
@@ -388,7 +390,7 @@ public class EntityGeometryKit {
      */
     private static @NotNull BuildResult replay(
         @NotNull EntityMesh model,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         @NotNull PassDeclaration pass,
         int tintArgb,
         float texW,
@@ -413,7 +415,7 @@ public class EntityGeometryKit {
                 BoneKit.CubeUv cubeUv = new BoneKit.CubeUv(cube, texW, texH);
                 boolean cubeCullBackFaces = model.isCull();
                 boolean cubeIsTranslucent = !cubeCullBackFaces
-                    && uvPartialAlphaPresent(cubeUv, size, texture);
+                    && uvPartialAlphaPresent(cubeUv, size, texture.pixels());
                 SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
                 int cubeSlot = slot;
                 slot += FACES_PER_CUBE;
@@ -555,8 +557,8 @@ public class EntityGeometryKit {
      *     screen-space contribution.
      * @param modelScale per-entity scale applied to every cube vertex before the screen
      *     transform; pass 1 when no per-renderer scale is in effect
-     * @param texture the entity texture used for per-face alpha-tight clipping; pass
-     *     {@code null} to fall back to AABB-corner walk
+     * @param texture the entity texture used for per-face alpha-tight clipping, whose sampler decides
+     *     how far a face's opaque texels reach; pass {@code null} to fall back to AABB-corner walk
      * @return the opaque-sub-rectangle screen-space bounds; the X and Y extents drive canvas sizing,
      *     the Z extent is depth and not consumed by the canvas-fit math
      */
@@ -564,11 +566,11 @@ public class EntityGeometryKit {
         @NotNull EntityMesh model,
         @NotNull Matrix4f screenTransform,
         float modelScale,
-        PixelBuffer texture
+        SampledTexture texture
     ) {
         Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
-        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
-        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.pixels().width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.pixels().height());
         BoundsAccumulator acc = new BoundsAccumulator();
         // The trace toggle is per thread, and nothing this walk calls flips it.
         boolean tracingBounds = DebugChannel.tracingBounds();
@@ -683,20 +685,25 @@ public class EntityGeometryKit {
      * Skips degenerate polygons ({@code uMin==uMax} or {@code vMin==vMax}). Falls back to
      * contributing all four raw 3D corners when the polygon's UVs aren't axis-aligned (rare for
      * vanilla cube faces; an upstream invariant breakage rather than a real geometry case).
+     * <p>
+     * Under a linear sampler texel {@code c} draws over {@code (c - 0.5, c + 1.5)} in texel space,
+     * so the scan takes every texel whose reach meets the UV box - one past each edge that is a
+     * whole texel - read as the sampler addresses it, and the opaque sub-rectangle grows by half a
+     * texel on each side, clipped to the box.
      *
      * @param corners3d the polygon's four world-space corners in kit corner order
      * @param uvs the polygon's four per-vertex UVs paired with {@code corners3d}
      * @param cubeTransform cube-space transform applied before scaling
      * @param modelScale per-render vertex pre-scale
      * @param screenTransform model-to-screen transform applied last
-     * @param texture the entity texture used for alpha sampling
+     * @param texture the entity texture used for alpha sampling, with its sampler
      * @param acc accumulator collecting the contributed corners
      * @param dumpLabel optional debug label for {@link DebugChannel} tracing, or {@code null}
      */
     private static void contributeFaceAlphaTight(
         @NotNull Vector3f[] corners3d, @NotNull Vector2f[] uvs,
         @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
-        @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc,
+        @NotNull SampledTexture texture, @NotNull BoundsAccumulator acc,
         @Nullable String dumpLabel
     ) {
         float uMin = Float.POSITIVE_INFINITY, uMax = Float.NEGATIVE_INFINITY;
@@ -730,33 +737,51 @@ public class EntityGeometryKit {
             return;
         }
 
-        int W = texture.width();
-        int H = texture.height();
+        PixelBuffer pixels = texture.pixels();
+        Sampler sampler = texture.sampler();
+        boolean linear = sampler.filterMode() == Sampler.FilterMode.LINEAR;
+        int W = pixels.width();
+        int H = pixels.height();
         if (W <= 0 || H <= 0) {
             for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, acc);
             DebugChannel.boundsNoTextureFallback(dumpLabel);
             return;
         }
-        // Texel at integer pixel position {@code (px, py)} covers the half-open UV rect
-        // {@code [px/W, (px+1)/W) x [py/H, (py+1)/H)}. The polygon's UV rect is
-        // {@code [uMin, uMax] x [vMin, vMax]} (closed). A texel partially overlaps the polygon
-        // when {@code (px+1)/W > uMin AND px/W < uMax}, which gives
-        // {@code px >= floor(uMin*W) AND px < ceil(uMax*W)} (or equivalently
-        // {@code px <= ceil(uMax*W) - 1}). Using {@code floor(uMax*W)} as the inclusive upper
-        // bound over-includes the next-row texel when {@code uMax*W} lands exactly on an
-        // integer boundary (e.g. piglin_brute right_sleeve face has {@code vMax = 48/64 = 0.75}
-        // exactly, so {@code floor(48) = 48} admits texel row 48 which is part of the adjacent
-        // left_arm UP face's UV region - that wraparound made our walker count the sleeve as
-        // opaque even though its own UV bbox is fully transparent).
-        int pxMin = clampPixel((int) Math.floor(uMin * W), W);
-        int pxMax = clampPixel((int) Math.ceil(uMax * W) - 1, W);
-        int pyMin = clampPixel((int) Math.floor(vMin * H), H);
-        int pyMax = clampPixel((int) Math.ceil(vMax * H) - 1, H);
+        int pxMin, pxMax, pyMin, pyMax;
+        if (linear) {
+            // A linear sample reads the texels within one texel of it, so texel c draws over
+            // (c - 0.5, c + 1.5) in texel space: one just outside the face's UV box can draw inside
+            // it, and an opaque one draws half a texel past its own edges. The scan takes every texel
+            // whose reach meets the box - one beyond each edge that is a whole texel - each read where
+            // the sampler addresses it, and the sub-rectangle grows by half a texel, clipped to the box
+            // the triangle covers.
+            pxMin = (int) Math.floor(uMin * W - 1.5f) + 1;
+            pxMax = (int) Math.ceil(uMax * W + 0.5f) - 1;
+            pyMin = (int) Math.floor(vMin * H - 1.5f) + 1;
+            pyMax = (int) Math.ceil(vMax * H + 0.5f) - 1;
+        } else {
+            // Texel at integer pixel position {@code (px, py)} covers the half-open UV rect
+            // {@code [px/W, (px+1)/W) x [py/H, (py+1)/H)}. The polygon's UV rect is
+            // {@code [uMin, uMax] x [vMin, vMax]} (closed). A texel partially overlaps the polygon
+            // when {@code (px+1)/W > uMin AND px/W < uMax}, which gives
+            // {@code px >= floor(uMin*W) AND px < ceil(uMax*W)} (or equivalently
+            // {@code px <= ceil(uMax*W) - 1}). Using {@code floor(uMax*W)} as the inclusive upper
+            // bound over-includes the next-row texel when {@code uMax*W} lands exactly on an
+            // integer boundary (e.g. piglin_brute right_sleeve face has {@code vMax = 48/64 = 0.75}
+            // exactly, so {@code floor(48) = 48} admits texel row 48 which is part of the adjacent
+            // left_arm UP face's UV region - that wraparound made our walker count the sleeve as
+            // opaque even though its own UV bbox is fully transparent).
+            pxMin = clampPixel((int) Math.floor(uMin * W), W);
+            pxMax = clampPixel((int) Math.ceil(uMax * W) - 1, W);
+            pyMin = clampPixel((int) Math.floor(vMin * H), H);
+            pyMax = clampPixel((int) Math.ceil(vMax * H) - 1, H);
+        }
         int firstOpaquePx = Integer.MAX_VALUE, lastOpaquePx = Integer.MIN_VALUE;
         int firstOpaquePy = Integer.MAX_VALUE, lastOpaquePy = Integer.MIN_VALUE;
         for (int py = pyMin; py <= pyMax; py++) {
             for (int px = pxMin; px <= pxMax; px++) {
-                if (ColorMath.alpha(texture.getPixel(px, py)) == 0) continue;
+                int texel = linear ? pixels.getPixel(sampler.address(px, W), sampler.address(py, H)) : pixels.getPixel(px, py);
+                if (ColorMath.alpha(texel) == 0) continue;
                 if (px < firstOpaquePx) firstOpaquePx = px;
                 if (px > lastOpaquePx) lastOpaquePx = px;
                 if (py < firstOpaquePy) firstOpaquePy = py;
@@ -768,10 +793,18 @@ public class EntityGeometryKit {
             return;
         }
 
-        float opaqueUMin = Math.max(uMin, (float) firstOpaquePx / W);
-        float opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / W);
-        float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / H);
-        float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / H);
+        float opaqueUMin, opaqueUMax, opaqueVMin, opaqueVMax;
+        if (linear) {
+            opaqueUMin = Math.max(uMin, (firstOpaquePx - 0.5f) / W);
+            opaqueUMax = Math.min(uMax, (lastOpaquePx + 1.5f) / W);
+            opaqueVMin = Math.max(vMin, (firstOpaquePy - 0.5f) / H);
+            opaqueVMax = Math.min(vMax, (lastOpaquePy + 1.5f) / H);
+        } else {
+            opaqueUMin = Math.max(uMin, (float) firstOpaquePx / W);
+            opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / W);
+            opaqueVMin = Math.max(vMin, (float) firstOpaquePy / H);
+            opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / H);
+        }
 
         Vector3f bl = contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
         Vector3f br = contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
@@ -830,7 +863,7 @@ public class EntityGeometryKit {
     /**
      * Projects a bone-local point through {@code cubeTransform} then {@code modelScale} then
      * {@code screenTransform} and feeds the screen-space result to {@code acc}. The three-stage
-     * order mirrors the vertex path in {@link #buildTriangles(EntityMesh, PixelBuffer, EntityBuildParams)}.
+     * order mirrors the vertex path in {@link #buildTriangles(EntityMesh, SampledTexture, EntityBuildParams)}.
      * The screen transform is always orthographic here (the entity's perspective / oblique fit measures
      * its silhouette in the engine via {@code rasterizeFitted}), so the raw rotated point is the
      * screen-space bounds contribution.
@@ -902,7 +935,7 @@ public class EntityGeometryKit {
 
     /**
      * The centre anchor + model-units-to-NDC scale that normalize a model to the auto-fit unit-cube
-     * extent - the same {@code ENTITY_MODEL_FIT_EXTENT / maxExtent} scale the {@link #buildTriangles(EntityMesh, PixelBuffer)}
+     * extent - the same {@code ENTITY_MODEL_FIT_EXTENT / maxExtent} scale the {@link #buildTriangles(EntityMesh, SampledTexture)}
      * convenience overload bakes, but returned as data so a caller can pre-scale geometry to a
      * well-behaved unit range before a perspective / oblique {@code rasterizeFitted} pass fills the
      * canvas in screen space.
@@ -941,7 +974,7 @@ public class EntityGeometryKit {
      * frame match the scale the renderer used for the entity body. Used by {@link EntityRenderer} to
      * project block-model overlay triangles (mooshroom mushroom blocks, etc) at the same
      * silhouette-centred frame the entity body uses - the same {@link FitFrame} the body was
-     * {@link #buildTriangles(EntityMesh, PixelBuffer, EntityBuildParams) built} through, with its
+     * {@link #buildTriangles(EntityMesh, SampledTexture, EntityBuildParams) built} through, with its
      * two scales pre-multiplied by the caller - so they render at the correct scale and orientation
      * alongside it.
      *

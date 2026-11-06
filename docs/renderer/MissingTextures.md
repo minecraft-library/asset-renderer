@@ -50,6 +50,10 @@ standing the sprite read in for the plain one.
   value-less answer. The kits that take a context - the trim, banner, glint, equipment and elytra kits,
   and the nine-slice kit's GUI-sprite read - wrap whatever they are handed, so a kit draws the
   checkerboard whoever calls it.
+- **A plain texture's stand-in is read hard.** The client's missing texture carries no texture section,
+  so it is sampled nearest and repeating whatever the sidecar of the texture it stands for sets; the
+  substituting wrapper hands the checkerboard over on the plain read with `Sampler.NEAREST_REPEAT`, so a
+  book, glint or mob texture whose sidecar blurs, and which cannot be read, draws the hard checkerboard.
 - **A GUI sprite's stand-in stretches.** The client's missing sprite carries no `gui.scaling`, so it
   stretches over the rect whatever the sprite it stands for would have been sliced as, and a file that
   cannot be read never reaches its atlas, sidecar and all. The context keeps such a file's sidecar, so

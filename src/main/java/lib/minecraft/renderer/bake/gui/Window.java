@@ -357,9 +357,11 @@ public interface Window {
          * for the screen.
          * <p>
          * The sheet is read as the client reads a container texture, a plain texture: whole, never
-         * animated, and with its sidecar's texture section alone. For a screen the client ships, it is
-         * read in the {@link ScreenMetrics#SHEET}-texel space every container blit declares, so a sheet
-         * of another size is read at one texel per Minecraft pixel, and the panel is the regions of it
+         * animated, and with its sidecar's texture section alone. The panel composed from it is laid
+         * nearest whatever sampler that section selects, where the client filters or clamps each blit
+         * off the sheet by it. For a screen the client ships, the sheet is read in the
+         * {@link ScreenMetrics#SHEET}-texel space every container blit declares, so a sheet of another
+         * size is read at one texel per Minecraft pixel, and the panel is the regions of it
          * the client blits, laid one under the other; without the player's section they are cut after
          * the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Either is
          * the size it is painted at, its cells the art's own, and no cell sprite is read unless the
@@ -393,7 +395,7 @@ public interface Window {
             @NotNull RendererContext context, @NotNull ResourceId panelId, @NotNull Optional<ResourceId> cellId,
             @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(panelId.id()).get();
+            PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(panelId.id()).get().pixels();
             PixelBuffer panel = compose(sheet, screen, layout);
             Optional<ResourceId> cell = cellId.or(() -> screen.regions().isEmpty()
                 ? Optional.of(SLOT_SPRITE)

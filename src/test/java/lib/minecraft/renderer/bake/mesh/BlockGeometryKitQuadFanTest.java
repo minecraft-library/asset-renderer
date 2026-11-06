@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentArrayList;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -68,7 +69,7 @@ class BlockGeometryKitQuadFanTest {
         };
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
 
-        BoxKit.addQuad(out, corners, uv, texture1x1(), TINT_ARGB,
+        BoxKit.addQuad(out, corners, uv, SampledTexture.of(texture1x1()), TINT_ARGB,
             Face.SOUTH.normal(), 0.75f, SurfaceTraits.OPAQUE_BODY, "quad:south");
 
         assertThat(out.size(), equalTo(2));
@@ -193,7 +194,7 @@ class BlockGeometryKitQuadFanTest {
         Face.forEach(face -> {
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
-            PixelBuffer texture = textures.byFace(face);
+            SampledTexture texture = SampledTexture.of(textures.byFace(face));
             float shading = Lighting.inventory(normal);
             String debugTag = debugPart == null ? null : debugPart + ":" + face.direction();
             triangles.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2],

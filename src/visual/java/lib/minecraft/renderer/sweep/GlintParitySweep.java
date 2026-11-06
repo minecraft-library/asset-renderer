@@ -18,6 +18,7 @@ import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -285,7 +286,7 @@ public final class GlintParitySweep {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).image().toPixelBuffer().toBufferedImage());
 
-        PixelBuffer glintTexture = GlintKit.readTexture(context, GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        SampledTexture glintTexture = GlintKit.readTexture(context, GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -329,7 +330,7 @@ public final class GlintParitySweep {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).image().toPixelBuffer().toBufferedImage());
 
-        PixelBuffer glintTexture = GlintKit.readTexture(context, GlintKit.ITEM_GLINT_TEXTURE_ID);
+        SampledTexture glintTexture = GlintKit.readTexture(context, GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.itemDefault(30), spriteUv.orElse(null));
 

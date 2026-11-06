@@ -26,6 +26,7 @@ import lib.minecraft.renderer.call.result.AtlasResult;
 import lib.minecraft.renderer.call.result.GridResult;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
@@ -206,8 +207,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Builds the view every tile renders through: the context with both of its reads frozen at tick 0 -
-     * each atlas sprite and each plain texture its first frame - so a tile is one still frame, and draws a
-     * skull's texture, the glint and the portal's two as a single render of its subject draws them at rest.
+     * each atlas sprite and each plain texture its first frame, a plain texture read through its own
+     * sampler - so a tile is one still frame, and draws a skull's texture, the glint and the portal's two
+     * as a single render of its subject draws them at rest.
      *
      * @param context the render context
      * @return the static view
@@ -221,8 +223,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 return frozen;
             }
 
-            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
-                return Flipbook.atTick(context.resolvePlainTexture(textureId), context.findFlipbook(textureId), 0);
+            @Override public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+                return context.resolvePlainTexture(textureId).map(texture -> Flipbook.atTick(texture, context.findFlipbook(textureId), 0));
             }
         };
     }

@@ -17,8 +17,11 @@ import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,6 +41,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -58,6 +62,12 @@ import static org.hamcrest.Matchers.sameInstance;
  * and the playback table plays nothing over it, so the whole file is drawn. A valid one plays over the
  * plain read as over the sprite read. Nor does it read a {@code gui} section, which only its GUI atlas
  * reads, so a refused one leaves the texture whole too.
+ * <p>
+ * The read answers the texture with the sampler its texture section selects, as the client builds a
+ * texture's sampler from the section it read: linear where the section blurs, clamped to the edge where it
+ * clamps, nearest and repeating where it sets neither or the sidecar carries none. A frame cut from a
+ * playing strip keeps it, and the checkerboard standing in for a texture that cannot be read is read nearest
+ * and repeating whatever the sidecar beside it selects.
  * <p>
  * The read takes the file the id names: no atlas sprite stitched from another file redirects it, and no
  * paletted permutation answers it. Each read memoises and reports its own answers, so a texture the sprite
@@ -166,6 +176,30 @@ class IndexedRendererContextPlainLoadTest {
     /** A strip of two frames that differ, beside a valid animation. */
     private static final String VALID = "minecraft:entity/plain_load_test_valid";
 
+    /** Whole textures beside each texture section the sampler cases read, by id, with the sampler each selects. */
+    private static final Map<String, Sampler> SAMPLED = Map.of(
+        "minecraft:entity/plain_load_test_sampled_blur", Sampler.of(true, false),
+        "minecraft:entity/plain_load_test_sampled_clamp", Sampler.of(false, true),
+        "minecraft:entity/plain_load_test_sampled_both", Sampler.of(true, true),
+        "minecraft:entity/plain_load_test_sampled_empty_document", Sampler.NEAREST_REPEAT,
+        "minecraft:entity/plain_load_test_sampled_animation", Sampler.NEAREST_REPEAT,
+        "minecraft:entity/plain_load_test_sampled_empty_section", Sampler.NEAREST_REPEAT);
+
+    /** The sidecar beside each of {@link #SAMPLED}'s textures. */
+    private static final Map<String, String> SAMPLED_SIDECARS = Map.of(
+        "minecraft:entity/plain_load_test_sampled_blur", "{\"texture\":{\"blur\":true}}",
+        "minecraft:entity/plain_load_test_sampled_clamp", "{\"texture\":{\"clamp\":true}}",
+        "minecraft:entity/plain_load_test_sampled_both", "{\"texture\":{\"blur\":true,\"clamp\":true}}",
+        "minecraft:entity/plain_load_test_sampled_empty_document", "{}",
+        "minecraft:entity/plain_load_test_sampled_animation", "{\"animation\":{}}",
+        "minecraft:entity/plain_load_test_sampled_empty_section", "{\"texture\":{}}");
+
+    /** A file of zero bytes beside a texture section that blurs. */
+    private static final String BLURRED_BROKEN = "minecraft:entity/plain_load_test_blurred_broken";
+
+    /** A strip of two frames that differ, beside a valid animation and a texture section that blurs. */
+    private static final String BLURRED_STRIP = "minecraft:entity/plain_load_test_blurred_strip";
+
     /** The colours of the two halves every two-colour fixture holds, in strip order. */
     private static final int FIRST = 0xFF102030, SECOND = 0xFF405060;
 
@@ -217,6 +251,10 @@ class IndexedRendererContextPlainLoadTest {
         write(entityDir, MATERIAL, png(3, 1), null);
         write(entityDir, PERMUTATION_BASE, still, null);
         write(entityDir, VALID, png(16, 32), "{\"animation\":{}}");
+        for (Map.Entry<String, String> sampled : SAMPLED_SIDECARS.entrySet())
+            write(entityDir, sampled.getKey(), still, sampled.getValue());
+        write(entityDir, BLURRED_BROKEN, new byte[0], "{\"texture\":{\"blur\":true}}");
+        write(entityDir, BLURRED_STRIP, png(16, 32), "{\"animation\":{},\"texture\":{\"blur\":true}}");
 
         Path atlases = vanillaRoot.resolve("assets/minecraft/atlases");
         Files.createDirectories(atlases);
@@ -278,7 +316,7 @@ class IndexedRendererContextPlainLoadTest {
     void aRefusedGuiSectionLeavesAPlainTextureWhole() {
         assertThat("the sidecar's gui section is refused",
             context.findMeta(REFUSED_GUI).orElseThrow().gui().getState(), is(Possible.State.EMPTY));
-        assertWholeFile("the plain read", context.resolvePlainTexture(REFUSED_GUI), REFUSED_GUI);
+        assertWholeFile("the plain read", context.resolvePlainTexture(REFUSED_GUI).map(SampledTexture::pixels), REFUSED_GUI);
     }
 
     @Test
@@ -320,10 +358,10 @@ class IndexedRendererContextPlainLoadTest {
     @DisplayName("the two reads keep their own answers, whichever reads a texture first")
     void theTwoReadsKeepTheirOwnAnswers() {
         assertThat("the sprite read, first", context.resolveTexture(SPRITE_FIRST).getState(), is(Possible.State.EMPTY));
-        assertWholeFile("the plain read after it", context.resolvePlainTexture(SPRITE_FIRST), SPRITE_FIRST);
+        assertWholeFile("the plain read after it", context.resolvePlainTexture(SPRITE_FIRST).map(SampledTexture::pixels), SPRITE_FIRST);
         assertThat("the sprite read again", context.resolveTexture(SPRITE_FIRST).getState(), is(Possible.State.EMPTY));
 
-        assertWholeFile("the plain read, first", context.resolvePlainTexture(PLAIN_FIRST), PLAIN_FIRST);
+        assertWholeFile("the plain read, first", context.resolvePlainTexture(PLAIN_FIRST).map(SampledTexture::pixels), PLAIN_FIRST);
         assertThat("the sprite read after it", context.resolveTexture(PLAIN_FIRST).getState(), is(Possible.State.EMPTY));
     }
 
@@ -331,9 +369,9 @@ class IndexedRendererContextPlainLoadTest {
     @DisplayName("a file both reads serve is decoded once, whichever reads it first")
     void aFileBothReadsServeIsDecodedOnce() {
         PixelBuffer sprite = context.resolveTexture(SHARED_SPRITE_FIRST).get();
-        assertThat("the plain read after the sprite read", context.resolvePlainTexture(SHARED_SPRITE_FIRST).get(), sameInstance(sprite));
+        assertThat("the plain read after the sprite read", context.resolvePlainTexture(SHARED_SPRITE_FIRST).get().pixels(), sameInstance(sprite));
 
-        PixelBuffer plain = context.resolvePlainTexture(SHARED_PLAIN_FIRST).get();
+        PixelBuffer plain = context.resolvePlainTexture(SHARED_PLAIN_FIRST).get().pixels();
         assertThat("the sprite read after the plain read", context.resolveTexture(SHARED_PLAIN_FIRST).get(), sameInstance(plain));
     }
 
@@ -341,7 +379,7 @@ class IndexedRendererContextPlainLoadTest {
     @DisplayName("a plain read takes the file the id names, never the one an atlas stitches under it")
     void aPlainReadIsTheFileTheIdNames() {
         assertWholeFile("the sprite read of the redirected id", context.resolveTexture(REDIRECTED), REDIRECT_SOURCE);
-        assertWholeFile("the plain read of the redirected id", context.resolvePlainTexture(REDIRECTED), REDIRECTED);
+        assertWholeFile("the plain read of the redirected id", context.resolvePlainTexture(REDIRECTED).map(SampledTexture::pixels), REDIRECTED);
         assertWholeFile("the sprite read of a redirected id with no file", context.resolveTexture(REDIRECTED_UNSHIPPED), REDIRECT_SOURCE);
         assertThat("the plain read of a redirected id with no file",
             context.resolvePlainTexture(REDIRECTED_UNSHIPPED).getState(), is(Possible.State.ABSENT));
@@ -359,7 +397,7 @@ class IndexedRendererContextPlainLoadTest {
     void aPackPrefixedIdIsReadPlainly() {
         assertThat("the plain read holds pixels", context.resolvePlainTexture(PACK_PREFIXED).isPresent(), is(true));
         assertThat("the plain read is the whole file",
-            same(context.resolvePlainTexture(PACK_PREFIXED).get(), decoded(PACK_PREFIXED)), is(true));
+            same(context.resolvePlainTexture(PACK_PREFIXED).get().pixels(), decoded(PACK_PREFIXED)), is(true));
         assertThat("the sprite read", context.resolveTexture(PACK_PREFIXED).getState(), is(Possible.State.EMPTY));
     }
 
@@ -379,8 +417,8 @@ class IndexedRendererContextPlainLoadTest {
         List<String> unreadable = List.of(BLANK_SIDECAR, MALFORMED_SIDECAR, REFUSED_BLUR, REFUSED_MIPMAP, ZERO_BYTE, TRUNCATED);
 
         for (String id : unreadable)
-            assertThat(id + " is the checkerboard", substituting.resolvePlainTexture(id).orElseThrow(), is(sameInstance(MissingSprite.sprite())));
-        assertWholeFile("a refused animation's file", substituting.resolvePlainTexture(REFUSED_FRAMETIME), REFUSED_FRAMETIME);
+            assertThat(id + " is the checkerboard", substituting.resolvePlainTexture(id).orElseThrow().pixels(), is(sameInstance(MissingSprite.sprite())));
+        assertWholeFile("a refused animation's file", substituting.resolvePlainTexture(REFUSED_FRAMETIME).map(SampledTexture::pixels), REFUSED_FRAMETIME);
 
         assertThat("each is recorded as a stand-in, and the readable file is not", collector.snapshot(),
             containsInAnyOrder(unreadable.stream().map(id -> Substitution.texture(id, Possible.State.EMPTY)).toArray()));
@@ -389,7 +427,7 @@ class IndexedRendererContextPlainLoadTest {
     @Test
     @DisplayName("a valid animation plays over a plain texture as it plays over a sprite")
     void aValidAnimationPlaysOverAPlainTextureAsOverASprite() {
-        Possible<PixelBuffer> plain = context.resolvePlainTexture(VALID);
+        Possible<PixelBuffer> plain = context.resolvePlainTexture(VALID).map(SampledTexture::pixels);
         Possible<Flipbook> table = context.findFlipbook(VALID);
         assertWholeFile("the plain read", plain, VALID);
         assertThat("the playback table", table.isPresent(), is(true));
@@ -403,6 +441,73 @@ class IndexedRendererContextPlainLoadTest {
         }
     }
 
+    @Test
+    @DisplayName("a plain texture is read through the sampler its texture section selects, held with its pixels")
+    void aPlainTexturesSamplerIsItsTextureSections() {
+        for (Map.Entry<String, Sampler> sampled : SAMPLED.entrySet()) {
+            String id = sampled.getKey();
+            SampledTexture texture = context.resolvePlainTexture(id).orElseThrow();
+            assertThat(id + "'s sampler", texture.sampler(), is(sampled.getValue()));
+            assertWholeFile(id + "'s pixels", Possible.of(texture.pixels()), id);
+            assertThat(id + " read twice answers one texture", context.resolvePlainTexture(id).orElseThrow(), is(sameInstance(texture)));
+        }
+    }
+
+    @Test
+    @DisplayName("the checkerboard standing in for a plain texture that cannot be read is read hard, whatever its sidecar selects")
+    void theStandInIsReadHardWhateverTheSidecarSays() {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        RendererContext substituting = context.collecting(collector).withMissingTexture();
+        SampledTexture[] standIn = new SampledTexture[1];
+        errDuring(() -> standIn[0] = substituting.resolvePlainTexture(BLURRED_BROKEN).orElseThrow());
+
+        assertThat("the sidecar blurs", context.findMeta(BLURRED_BROKEN).orElseThrow().sampler(), is(Sampler.of(true, false)));
+        assertThat("the checkerboard", standIn[0].pixels(), is(sameInstance(MissingSprite.sprite())));
+        assertThat("read nearest and repeating", standIn[0].sampler(), is(Sampler.NEAREST_REPEAT));
+        assertThat("recorded as a stand-in", collector.snapshot(), containsInAnyOrder(Substitution.texture(BLURRED_BROKEN, Possible.State.EMPTY)));
+    }
+
+    @Test
+    @DisplayName("a sidecar selects the sampler its texture section sets, nearest and repeating where it carries none or one the codec refuses")
+    void aSidecarSelectsTheSamplerItsTextureSectionSets() {
+        for (boolean blur : new boolean[]{ false, true }) {
+            for (boolean clamp : new boolean[]{ false, true }) {
+                assertThat("blur " + blur + ", clamp " + clamp, document(Possible.of(new MCMeta.TextureSampling(blur, clamp,
+                    MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f))).sampler(), is(new Sampler(
+                    blur ? Sampler.FilterMode.LINEAR : Sampler.FilterMode.NEAREST,
+                    clamp ? Sampler.AddressMode.CLAMP_TO_EDGE : Sampler.AddressMode.REPEAT)));
+            }
+        }
+        assertThat("the empty document", MCMeta.EMPTY.sampler(), is(Sampler.NEAREST_REPEAT));
+        assertThat("no texture section", document(Possible.absent()).sampler(), is(Sampler.NEAREST_REPEAT));
+        assertThat("a texture section the codec refused", document(Possible.empty()).sampler(), is(Sampler.NEAREST_REPEAT));
+    }
+
+    @Test
+    @DisplayName("a frame cut from a playing strip keeps the sampler its texture section selects")
+    void aFrameOfAPlayingStripKeepsItsSampler() {
+        SampledTexture strip = context.resolvePlainTexture(BLURRED_STRIP).orElseThrow();
+        Possible<Flipbook> table = context.findFlipbook(BLURRED_STRIP);
+        assertThat("the strip plays", table.isPresent() && table.get().totalTicks() > 0, is(true));
+
+        for (int tick : List.of(0, 1)) {
+            SampledTexture frame = Flipbook.atTick(strip, table, tick);
+            assertThat("tick " + tick + "'s frame is a half of the strip", List.of(frame.pixels().width(), frame.pixels().height()), is(List.of(16, 16)));
+            assertThat("tick " + tick + "'s frame colour", frame.pixels().getPixel(0, 0), is(tick == 0 ? FIRST : SECOND));
+            assertThat("tick " + tick + "'s frame sampler", frame.sampler(), is(Sampler.of(true, false)));
+        }
+    }
+
+    /**
+     * Builds a sidecar holding a texture section in the given state and nothing else.
+     *
+     * @param texture the texture section
+     * @return the sidecar
+     */
+    private static @NotNull MCMeta document(@NotNull Possible<MCMeta.TextureSampling> texture) {
+        return new MCMeta(ResourceId.parse(BLURRED_STRIP), Optional.empty(), Possible.absent(), texture, Possible.absent(), Optional.empty());
+    }
+
     /**
      * Asserts a plain read answers a texture's whole file while the sprite read refuses it, and that its
      * playback table plays nothing, so a frame at any tick is the whole file.
@@ -410,12 +515,12 @@ class IndexedRendererContextPlainLoadTest {
      * @param id the texture id
      */
     private static void assertDrawnWhole(@NotNull String id) {
-        assertWholeFile(id + "'s plain read", context.resolvePlainTexture(id), id);
+        assertWholeFile(id + "'s plain read", context.resolvePlainTexture(id).map(SampledTexture::pixels), id);
         assertThat(id + "'s sprite read", context.resolveTexture(id).getState(), is(Possible.State.EMPTY));
         assertThat(id + "'s playback table", context.findFlipbook(id).getState(), is(Possible.State.EMPTY));
         for (int tick : List.of(0, 1)) {
             assertWholeFile(id + " at tick " + tick,
-                Flipbook.atTick(context.resolvePlainTexture(id), context.findFlipbook(id), tick), id);
+                Flipbook.atTick(context.resolvePlainTexture(id).map(SampledTexture::pixels), context.findFlipbook(id), tick), id);
         }
     }
 

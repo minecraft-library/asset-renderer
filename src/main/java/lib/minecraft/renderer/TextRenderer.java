@@ -16,6 +16,7 @@ import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.TextSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
@@ -67,18 +68,22 @@ import java.util.Optional;
  * A BOOK request draws one page on the game's book texture, {@code minecraft:gui/book}, read through the
  * renderer's context, a pack's file in place of vanilla's, and laid as the client's book screen lays it:
  * one quad over 192 Minecraft pixels a side reading the texture's top-left three quarters, whatever its
- * size. The page is one text component, its section-sign codes still in its text. The book's text style -
- * black, with a shadow colour of no alpha - is merged under it ({@link TextSegment#inherit}), it is wrapped
- * at 114 Minecraft pixels as the client wraps a page ({@link TextSegment#wrap}), and its first 14 lines are
- * drawn 9 apart from the client's text origin, the rest dropped. So the page's text is black where it names
- * no colour and has no shadow where it names no shadow colour, and text the wrap opens in no style at all,
- * after a reset code a break follows, draws white with a shadow, as the client draws it. The texture is
- * read as the client's book screen reads it, as a plain texture with its sidecar's texture section alone,
- * so an animation section there neither loses it nor animates it. A book texture no selected pack ships,
- * one that does not decode, or one whose sidecar does not parse or carries a texture section the client's
- * codec refuses, draws as the missing texture over the quad, as the client draws its missing texture, and
- * is named in the result as a stand-in. Only a context reads the texture, so a renderer holding none raises
- * a {@link RenderException} for a book.
+ * size. The texture is read through the sampler its sidecar's texture section selects, as the client's
+ * book screen reads it, so a section that blurs smooths the page and widens its canvas by the half texel
+ * the filter spills past every edge, and one that also clamps holds the quad's first texels to the
+ * texture's own edge. The page is one text component, its section-sign codes still in its text. The
+ * book's text style - black, with a shadow colour of no alpha - is merged under it
+ * ({@link TextSegment#inherit}), it is wrapped at 114 Minecraft pixels as the client wraps a page
+ * ({@link TextSegment#wrap}), and its first 14 lines are drawn 9 apart from the client's text origin,
+ * the rest dropped. So the page's text is black where it names no colour and has no shadow where it
+ * names no shadow colour, and text the wrap opens in no style at all, after a reset code a break
+ * follows, draws white with a shadow, as the client draws it. The texture is read as the client's book
+ * screen reads it, as a plain texture with its sidecar's texture section alone, so an animation section
+ * there neither loses it nor animates it. A book texture no selected pack ships, one that does not
+ * decode, or one whose sidecar does not parse or carries a texture section the client's codec refuses,
+ * draws as the missing texture over the quad, as the client draws its missing texture, and is named in
+ * the result as a stand-in. Only a context reads the texture, so a renderer holding none raises a
+ * {@link RenderException} for a book.
  * <p>
  * For a tooltip the renderer owns only the glyph rows and the text block's measure, the box being its
  * chrome's; a book's texture quad and its lines the renderer lays itself. A tooltip's canvas is the box
@@ -323,9 +328,9 @@ public final class TextRenderer implements Renderer<TextOptions> {
     /**
      * Draws a book page: the book texture read through this renderer's context, and the request's page on it,
      * wrapped and capped as the client's book screen wraps and caps a page - every frame on a canvas ending at
-     * the first pixel the texture or the lines draw, rounded out to whole mcPixels. The texture, with any
-     * stand-in it is, and the palette are read once a render, and the page is wrapped once, before the frame
-     * count, which reads its lines.
+     * the first pixel the texture or the lines draw, rounded out to whole mcPixels. The texture and its
+     * sampler, with any stand-in it is, and the palette are read once a render, and the page is wrapped
+     * once, before the frame count, which reads its lines.
      *
      * @param options the text render options
      * @return the drawn page, empty where neither the texture nor the lines draw a pixel
@@ -335,7 +340,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         RendererContext context = this.context.orElseThrow(() -> new RenderException(
             "The BOOK text style draws its page from the texture '%s'; the text renderer needs a RendererContext to read it",
             BOOK_TEXTURE_ID));
-        PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(BOOK_TEXTURE_ID.id()).get();
+        SampledTexture sheet = context.withMissingTexture().resolvePlainTexture(BOOK_TEXTURE_ID.id()).get();
         TextPalette palette = context.findTextPalette().orElse(TextPalette.VANILLA);
         ConcurrentList<LineSegment> lines = pageLines(options.getPage());
         boolean animated = hasObfuscation(lines) || hasAnimatedGradient(lines);
@@ -377,13 +382,13 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * and the ceiling of each maximum. They are rounded out because the quad is laid at a whole-mcPixel
      * corner, and a drawn pixel's edge can fall inside a Minecraft pixel.
      *
-     * @param sheet the book texture
+     * @param sheet the book texture and the sampler it is read through
      * @param lines the lines drawn
      * @param frameCount how many frames the render draws
      * @return the page's drawn bounds from the quad's corner in whole mcPixels, empty where it draws nothing
      */
     private static @NotNull Optional<Rectangle> pageBounds(
-        @NotNull PixelBuffer sheet,
+        @NotNull SampledTexture sheet,
         @NotNull ConcurrentList<LineSegment> lines,
         int frameCount
     ) {
@@ -410,7 +415,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      *
      * @param options the text render options
      * @param lines the lines drawn
-     * @param sheet the book texture
+     * @param sheet the book texture and the sampler it is read through
      * @param bounds the page's drawn bounds from the quad's corner in mcPixels, which the canvas spans
      * @param palette the colours the context's text shader draws in place of the lines' own
      * @param frameIndex the animation frame drawn, from which {@link TextKit} seeds each line's scramble
@@ -420,7 +425,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static @NotNull PixelBuffer drawPageFrame(
         @NotNull TextOptions options,
         @NotNull ConcurrentList<LineSegment> lines,
-        @NotNull PixelBuffer sheet,
+        @NotNull SampledTexture sheet,
         @NotNull Rectangle bounds,
         @NotNull TextPalette palette,
         long frameIndex,

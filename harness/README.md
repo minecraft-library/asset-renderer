@@ -164,8 +164,8 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 `walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing the corners of each face's opaque-texel sub-rectangle:
 
-1. Sample every texel inside each polygon's UV box.
-2. Compute the tight opaque-pixel bbox.
+1. Sample every texel inside each polygon's UV box - and, where the texture's own `texture` section blurs, every texel whose reach, half a texel past its own edges, meets it, read as the section's address mode puts it.
+2. Compute the tight opaque-pixel bbox, grown by half a texel a side and clipped to the UV box where the section blurs.
 3. Bilinearly interpolate the bbox's 4 corners through the polygon's vertex positions to get 3D positions.
 4. Feed those 3D positions to the bounds accumulator.
 

@@ -46,6 +46,7 @@ import lib.minecraft.renderer.content.table.BlockItemsLoader;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Parity;
@@ -269,12 +270,13 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, and the id is read as the file it names:
      * no atlas sprite redirects it and no paletted permutation answers it, the client's texture manager
-     * consulting neither. The pack stack resolves the file as {@link #resolveTexture(String)} resolves it
-     * and decodes it once, into the plain read's own cache.
+     * consulting neither. The pack stack resolves the file as {@link #resolveTexture(String)} resolves it,
+     * decodes it once into the plain read's own cache, and reads its sampler off the same file's texture
+     * section.
      */
     @Override
-    public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
-        return this.stack.plainPixels(ResourceId.parse(textureId));
+    public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+        return this.stack.plainTexture(ResourceId.parse(textureId));
     }
 
     /** {@inheritDoc} */

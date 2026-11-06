@@ -18,6 +18,8 @@ import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.SpriteAtlas;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +70,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *     <li>the plain read is absent exactly where the texture lookup is, but for an id only a paletted
  *     permutation serves, which no file backs, and an id an items or blocks atlas stitches from another
  *     file, which the texture lookup follows and the plain read does not; and where both answer a
- *     file's pixels and no atlas redirects the id, the pixels are one file's.</li>
+ *     file's pixels and no atlas redirects the id, the pixels are one file's;</li>
+ *     <li>a plain read holding pixels is read through the sampler its sidecar's texture section
+ *     selects, and the checkerboard standing in for one nearest and repeating whatever the sidecar
+ *     beside it selects.</li>
  * </ul>
  * No relation sees a plain read that refuses what the client never reads, a sprite read refusing the
  * same file, so the plain read is also held to the state the production fixture puts it in, through
@@ -216,6 +221,15 @@ class TextureViewCoherenceTest {
     /** An id served with no pixels, read through a measuring context alone. */
     private static final String MEASURED_UNREADABLE = "minecraft:block/coherence_measured_unreadable";
 
+    /** A whole texture beside a texture section that blurs. */
+    private static final String BLURRED = "minecraft:block/coherence_blurred";
+
+    /** A whole texture beside a texture section that clamps. */
+    private static final String CLAMPED = "minecraft:block/coherence_clamped";
+
+    /** A file of zero bytes beside a texture section that blurs. */
+    private static final String BLURRED_BROKEN = "minecraft:block/coherence_blurred_broken";
+
     /** The ids the hiding wrapper hides - one of each state some base serves. */
     private static final Set<String> HIDDEN = Set.of(
         ANIMATED, STATIC, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, MEMORY_PRESENT, MEMORY_EMPTY);
@@ -226,13 +240,15 @@ class TextureViewCoherenceTest {
         SECTIONLESS_SIDECAR, RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP, WIDE,
         PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING,
         PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MALFORMED, PACK_PREFIXED_RAGGED, PACK_PREFIXED_MISSING,
-        UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
+        UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED,
+        BLURRED, CLAMPED, BLURRED_BROKEN);
 
     /** The ids only a paletted permutation serves, which no file backs, so no plain read answers them. */
     private static final Set<String> PERMUTATION_ONLY = Set.of(PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING);
 
     /** The ids the substituting source serves with pixels, on both reads. */
-    private static final Set<String> SOURCE_SERVED = Set.of(ANIMATED, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, SOURCE_ONLY);
+    private static final Set<String> SOURCE_SERVED = Set.of(ANIMATED, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, SOURCE_ONLY,
+        BLURRED, CLAMPED);
 
     /**
      * The state the production context's plain read answers each id in: whole where only an animation
@@ -251,7 +267,10 @@ class TextureViewCoherenceTest {
         Map.entry(WIDE, Possible.State.PRESENT),
         Map.entry(PACK_PREFIXED, Possible.State.PRESENT),
         Map.entry(PACK_PREFIXED_RAGGED, Possible.State.PRESENT),
+        Map.entry(BLURRED, Possible.State.PRESENT),
+        Map.entry(CLAMPED, Possible.State.PRESENT),
         Map.entry(ZERO_BYTE, Possible.State.EMPTY),
+        Map.entry(BLURRED_BROKEN, Possible.State.EMPTY),
         Map.entry(BROKEN_ANIMATED, Possible.State.EMPTY),
         Map.entry(BLANK_SIDECAR, Possible.State.EMPTY),
         Map.entry(MALFORMED_SIDECAR, Possible.State.EMPTY),
@@ -321,6 +340,12 @@ class TextureViewCoherenceTest {
         write(vanillaBlocks, SHADOWED_BASE, still);
         write(vanillaBlocks, SHADOWED, truncated);
         write(vanillaBlocks, REPORTED_ONCE, truncated);
+        write(vanillaBlocks, BLURRED, still);
+        sidecar(vanillaBlocks, BLURRED, "{\"texture\":{\"blur\":true}}");
+        write(vanillaBlocks, CLAMPED, still);
+        sidecar(vanillaBlocks, CLAMPED, "{\"texture\":{\"clamp\":true}}");
+        write(vanillaBlocks, BLURRED_BROKEN, new byte[0]);
+        sidecar(vanillaBlocks, BLURRED_BROKEN, "{\"texture\":{\"blur\":true}}");
 
         Path extraRoot = tmp.resolve("extra");
         Path extraBlocks = extraRoot.resolve("assets/minecraft/textures/block");
@@ -385,6 +410,17 @@ class TextureViewCoherenceTest {
         assertStates(PACK_PREFIXED_MISSING, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNSERVED, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNKNOWN_PREFIX, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
+        assertStates(BLURRED, Possible.State.PRESENT, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(CLAMPED, Possible.State.PRESENT, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(BLURRED_BROKEN, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+
+        // The ids whose plain read carries a sampler other than the missing texture's, so the sampler rows can fail.
+        for (String id : List.of(BLURRED, CLAMPED)) {
+            assertThat(id + "'s plain read's sampler", production.resolvePlainTexture(id).orElseThrow().sampler(),
+                is(not(Sampler.NEAREST_REPEAT)));
+        }
+        assertThat("the broken texture's sidecar blurs", production.findMeta(BLURRED_BROKEN).orElseThrow().sampler(),
+            is(not(Sampler.NEAREST_REPEAT)));
 
         // The ids whose plain read is in another state than the texture lookup's, so the plain rows can fail.
         for (String id : List.of(REFUSED_ANIMATION, RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP,
@@ -604,7 +640,7 @@ class TextureViewCoherenceTest {
             assertThat("and the sidecar's animation section", animation.isAbsent(), is(false));
         }
 
-        Possible<PixelBuffer> plain = context.resolvePlainTexture(id);
+        Possible<PixelBuffer> plain = context.resolvePlainTexture(id).map(SampledTexture::pixels);
         // A substituting wrapper answers a permutation's plain read with the checkerboard, which is there.
         if (!PERMUTATION_ONLY.contains(id) || !plain.isPresent()) {
             assertThat("the plain read is absent exactly when the texture is, but for a permutation",
@@ -616,6 +652,14 @@ class TextureViewCoherenceTest {
         if (plain.isPresent() && texture.isPresent()
             && !MissingSprite.isSprite(plain.get()) && !MissingSprite.isSprite(texture.get()))
             assertThat("both reads answer the one file's pixels", same(plain.get(), texture.get()), is(true));
+
+        // Where the plain read holds pixels it is read through the sampler its sidecar selects, the empty
+        // document's where the context answers none, and the checkerboard nearest and repeating whatever the
+        // sidecar beside it selects - the fixture's atlases redirecting no id.
+        if (plain.isPresent()) {
+            assertThat("the plain read's sampler is its sidecar's", context.resolvePlainTexture(id).orElseThrow().sampler(),
+                is(MissingSprite.isSprite(plain.get()) ? Sampler.NEAREST_REPEAT : meta.orElse(MCMeta.EMPTY).sampler()));
+        }
     }
 
     /**
@@ -627,7 +671,7 @@ class TextureViewCoherenceTest {
      * @param id the texture id asked about
      */
     private static void assertPlainState(@NotNull Wrapped wrapped, @NotNull String id) {
-        Possible<PixelBuffer> plain = wrapped.context().resolvePlainTexture(id);
+        Possible<PixelBuffer> plain = wrapped.context().resolvePlainTexture(id).map(SampledTexture::pixels);
         Possible.State beneath = wrapped.plain().apply(id);
         if (!wrapped.substitutes())
             assertThat("the plain read is in the state the fixture puts it in", plain.getState(), is(beneath));

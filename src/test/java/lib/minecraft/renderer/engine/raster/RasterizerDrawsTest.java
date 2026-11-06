@@ -3,11 +3,14 @@ package lib.minecraft.renderer.engine.raster;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.draw.DrawPart;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -34,15 +37,21 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * two parts depth-test against each other whichever is drawn first - where two separate calls paint
  * the later over the earlier, each starting a depth buffer of its own - and a coplanar tie goes to the
  * later part.
- *
- * <p>It also holds a frame drawn as one band on the calling thread to the same frame drawn in parallel
+ * <p>
+ * It also holds a frame drawn as one band on the calling thread to the same frame drawn in parallel
  * bands, at band counts fixed by the test rather than read from the host's processor count. A frame
  * that fits the depth buffer a thread keeps takes either arm by the area its triangles cover, so the
  * arm a frame takes depends on its content, and nothing else would see the two drift apart.
- *
- * <p>No pixel shows how a frame is split, since one band and any number of bands draw the same bytes,
+ * <p>
+ * No pixel shows how a frame is split, since one band and any number of bands draw the same bytes,
  * so the split is held to its own answers as well: the rows each band covers for a height and a
  * processor count, and the arm a frame takes for its size and the area its triangles cover.
+ * <p>
+ * A triangle's texture is fetched through its own sampler: a linear one filters the interpolated
+ * coordinate, each tap addressed by its mode, and a nearest one reads below the sheet's first texel, at
+ * a face's first-texel boundary and on a scrolled pass, wrapped where the sampler repeats and held at
+ * the edge where it clamps. No stored sweep draws a filtered or clamped raster texture, so these
+ * cases are the fetch's witness.
  */
 @DisplayName("Rasterizer draws several parts in one depth pass")
 class RasterizerDrawsTest {
@@ -82,6 +91,15 @@ class RasterizerDrawsTest {
      * rows - so the comparison covers band boundaries off a multiple of 32 on any host.
      */
     private static final int @NotNull [] BAND_COUNTS = { 3, 7, 8 };
+
+    /** A nearest sampler clamped to the texture's edge. */
+    private static final @NotNull Sampler NEAREST_CLAMP = new Sampler(Sampler.FilterMode.NEAREST, Sampler.AddressMode.CLAMP_TO_EDGE);
+
+    /** A linear sampler that repeats. */
+    private static final @NotNull Sampler LINEAR_REPEAT = new Sampler(Sampler.FilterMode.LINEAR, Sampler.AddressMode.REPEAT);
+
+    /** A linear sampler clamped to the texture's edge. */
+    private static final @NotNull Sampler LINEAR_CLAMP = new Sampler(Sampler.FilterMode.LINEAR, Sampler.AddressMode.CLAMP_TO_EDGE);
 
     /** Opaque two-sided surface traits. */
     private static final @NotNull SurfaceTraits OPAQUE = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false);
@@ -169,6 +187,43 @@ class RasterizerDrawsTest {
         PixelBuffer tied = PixelBuffer.canvas(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(both, tied, NEAR);
         assertThat(tied.data(), is(draw(List.of(new DrawPart(square(0xFF0000FF), NEAR))).data()));
+    }
+
+    @Test
+    @DisplayName("a texture read through a linear sampler is filtered at the interpolated coordinate, through its address mode")
+    void aLinearTextureIsFilteredAtTheInterpolatedCoordinate() {
+        PixelBuffer blackWhite = PixelBuffer.ofStraight(new int[]{ 0xFF000000, 0xFFFFFFFF }, 2, 1);
+        // Four output pixels across the texture's two texels read texel-space 0.25, 0.75, 1.25 and 1.75.
+        assertThat("linear, repeating", stripRow(new SampledTexture(blackWhite, LINEAR_REPEAT), 0f, 1f, OPAQUE),
+            is(List.of(0xFF404040, 0xFF404040, 0xFFBFBFBF, 0xFFBFBFBF)));
+        assertThat("linear, clamped", stripRow(new SampledTexture(blackWhite, LINEAR_CLAMP), 0f, 1f, OPAQUE),
+            is(List.of(0xFF000000, 0xFF404040, 0xFFBFBFBF, 0xFFFFFFFF)));
+        assertThat("nearest", stripRow(SampledTexture.of(blackWhite), 0f, 1f, OPAQUE),
+            is(List.of(0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xFFFFFFFF)));
+    }
+
+    @Test
+    @DisplayName("a nearest fetch below the sheet's first texel wraps to its last, and holds at its first where the sampler clamps")
+    void aClampingNearestFetchHoldsTheFirstTexelBelowTheSheet() {
+        PixelBuffer four = PixelBuffer.ofStraight(new int[]{ 0xFF110000, 0xFF002200, 0xFF000033, 0xFF444444 }, 4, 1);
+        // The strip's left edge runs through the first column's pixel centres at u = 0, a texel boundary,
+        // which reads the texel below it - outside the sheet.
+        List<Integer> repeat = edgeRow(SampledTexture.of(four));
+        List<Integer> clamp = edgeRow(new SampledTexture(four, NEAREST_CLAMP));
+        assertThat("repeating: the last texel, then the strip's own", repeat, is(List.of(0xFF444444, 0xFF110000, 0xFF002200, 0xFF000033)));
+        assertThat("clamped: the first texel, then the strip's own", clamp, is(List.of(0xFF110000, 0xFF110000, 0xFF002200, 0xFF000033)));
+    }
+
+    @Test
+    @DisplayName("a scrolled pass reads past the sheet as its sampler addresses it: wrapped where it repeats, the edge texel where it clamps")
+    void aScrolledPassReadsPastTheSheetAsItsSamplerAddresses() {
+        PixelBuffer four = PixelBuffer.ofStraight(new int[]{ 0xFF110000, 0xFF002200, 0xFF000033, 0xFF444444 }, 4, 1);
+        SurfaceTraits scrolled = new SurfaceTraits(false, false, false, true,
+            new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false, true));
+        assertThat("repeating", stripRow(SampledTexture.of(four), 1f, 2f, scrolled),
+            is(List.of(0xFF110000, 0xFF002200, 0xFF000033, 0xFF444444)));
+        assertThat("clamped", stripRow(new SampledTexture(four, NEAREST_CLAMP), 1f, 2f, scrolled),
+            is(List.of(0xFF444444, 0xFF444444, 0xFF444444, 0xFF444444)));
     }
 
     @Test
@@ -352,7 +407,7 @@ class RasterizerDrawsTest {
         int argb,
         @NotNull SurfaceTraits traits
     ) {
-        PixelBuffer texture = texture(argb);
+        SampledTexture texture = texture(argb);
         Vector3f normal = new Vector3f(0f, 0f, 1f);
         Vector3f topLeft = new Vector3f(minX, maxY, z);
         Vector3f bottomLeft = new Vector3f(minX, minY, z);
@@ -366,15 +421,80 @@ class RasterizerDrawsTest {
     }
 
     /**
-     * Builds a 2 by 2 texture of one colour.
+     * Draws a strip four output pixels wide, its corners on whole pixels, across the canvas's centre column
+     * group from {@code u0} on its left to {@code u1} on its right, and answers the four pixels of its middle
+     * row.
+     *
+     * @param texture the texture the strip samples, with its sampler
+     * @param u0 the left edge's texture coordinate
+     * @param u1 the right edge's texture coordinate
+     * @param traits the surface the strip is drawn as, its pass among them
+     * @return the four pixels, left to right
+     */
+    private static @NotNull List<Integer> stripRow(@NotNull SampledTexture texture, float u0, float u1, @NotNull SurfaceTraits traits) {
+        // The orthographic camera lays a model unit over half the canvas, so a sixteenth of a unit is four pixels.
+        PixelBuffer canvas = PixelBuffer.canvas(SIZE, SIZE);
+        new Rasterizer(CAMERA).rasterize(strip(0f, 0.125f, u0, u1, texture, traits), canvas);
+        List<Integer> row = new ArrayList<>();
+        for (int x = CENTRE; x < CENTRE + 4; x++)
+            row.add(canvas.getPixel(x, CENTRE));
+        return row;
+    }
+
+    /**
+     * Draws a strip four output pixels wide whose left edge runs through the pixel centres of the canvas's centre
+     * column, at {@code u = 0}, and answers the four pixels of its middle row from that column.
+     *
+     * @param texture the texture the strip samples, with its sampler
+     * @return the four pixels, left to right
+     */
+    private static @NotNull List<Integer> edgeRow(@NotNull SampledTexture texture) {
+        float half = 0.5f / (SIZE / 2f);
+        PixelBuffer canvas = PixelBuffer.canvas(SIZE, SIZE);
+        new Rasterizer(CAMERA).rasterize(strip(half, half + 0.125f, 0f, 1f, texture, OPAQUE), canvas);
+        List<Integer> row = new ArrayList<>();
+        for (int x = CENTRE; x < CENTRE + 4; x++)
+            row.add(canvas.getPixel(x, CENTRE));
+        return row;
+    }
+
+    /**
+     * Builds a strip half a model unit tall about the centre line, from {@code minX} to {@code maxX}, its texture
+     * coordinate running from {@code u0} on the left to {@code u1} on the right and from 0 to 1 down.
+     *
+     * @param minX the left edge, in model units
+     * @param maxX the right edge, in model units
+     * @param u0 the left edge's texture coordinate
+     * @param u1 the right edge's texture coordinate
+     * @param texture the texture the strip samples, with its sampler
+     * @param traits the surface the strip is drawn as
+     * @return the strip's two triangles
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> strip(
+        float minX, float maxX, float u0, float u1, @NotNull SampledTexture texture, @NotNull SurfaceTraits traits
+    ) {
+        Vector3f normal = new Vector3f(0f, 0f, 1f);
+        Vector3f topLeft = new Vector3f(minX, 0.25f, 0f);
+        Vector3f bottomLeft = new Vector3f(minX, -0.25f, 0f);
+        Vector3f bottomRight = new Vector3f(maxX, -0.25f, 0f);
+        Vector3f topRight = new Vector3f(maxX, 0.25f, 0f);
+        return Concurrent.newUnmodifiableList(
+            new VisibleTriangle(topLeft, bottomLeft, bottomRight,
+                new Vector2f(u0, 0f), new Vector2f(u0, 1f), new Vector2f(u1, 1f), texture, ColorMath.WHITE, normal, 1f, traits),
+            new VisibleTriangle(topLeft, bottomRight, topRight,
+                new Vector2f(u0, 0f), new Vector2f(u1, 1f), new Vector2f(u1, 0f), texture, ColorMath.WHITE, normal, 1f, traits));
+    }
+
+    /**
+     * Builds a 2 by 2 texture of one colour, read nearest and repeating.
      *
      * @param argb the colour
      * @return the texture
      */
-    private static @NotNull PixelBuffer texture(int argb) {
+    private static @NotNull SampledTexture texture(int argb) {
         PixelBuffer texture = PixelBuffer.straight(2, 2);
         texture.fill(argb);
-        return texture;
+        return SampledTexture.of(texture);
     }
 
     /**
@@ -385,8 +505,7 @@ class RasterizerDrawsTest {
      * @return the square's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> square(int argb) {
-        PixelBuffer texture = PixelBuffer.straight(2, 2);
-        texture.fill(argb);
+        SampledTexture texture = texture(argb);
         SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false);
         Vector3f normal = new Vector3f(0f, 0f, 1f);
         Vector3f topLeft = new Vector3f(-HALF, HALF, 0f);

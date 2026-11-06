@@ -429,7 +429,7 @@ class ArmorKitTest {
             .map(triangle -> List.<Object>of(
                 triangle.position0(), triangle.position1(), triangle.position2(),
                 triangle.uv0(), triangle.uv1(), triangle.uv2(),
-                triangle.texture().width(), triangle.texture().height(), triangle.tintArgb(),
+                triangle.texture().pixels().width(), triangle.texture().pixels().height(), triangle.tintArgb(),
                 triangle.normal(), triangle.shading(), triangle.traits(),
                 Optional.ofNullable(triangle.debugTag())))
             .toList();

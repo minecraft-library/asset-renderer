@@ -6,6 +6,7 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -195,8 +196,9 @@ class RasterizerDepthPlaneTest {
      * @return the triangle
      */
     private static @NotNull VisibleTriangle triangle(@NotNull Vector3f a, @NotNull Vector3f b, @NotNull Vector3f c, int argb) {
-        PixelBuffer texture = PixelBuffer.straight(2, 2);
-        texture.fill(argb);
+        PixelBuffer pixels = PixelBuffer.straight(2, 2);
+        pixels.fill(argb);
+        SampledTexture texture = SampledTexture.of(pixels);
         return new VisibleTriangle(a, b, c,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f),
             texture, ColorMath.WHITE, new Vector3f(0f, 0f, 1f), 1f, TWO_SIDED);

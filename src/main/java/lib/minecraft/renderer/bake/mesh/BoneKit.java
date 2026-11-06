@@ -493,6 +493,12 @@ public class BoneKit {
      * detection: it walks the {@code [floor(min), ceil(max))} texel box of the UV corners' bounding
      * rectangle ({@link Vector4f#bounds}) and stops at the first partial-alpha sample.
      *
+     * <p>
+     * The texture's own texels decide it whatever sampler draws the face. A linear filter blends a
+     * clear texel and a drawn one into partial alpha between them, but the client picks a pass by its
+     * render type rather than by what the filter draws, and a cutout render type writes that fringe in
+     * submission order, unsorted.
+     *
      * @param uv the face's four UV corners in {@code [0, 1]} space
      * @param texture the texture the face samples
      * @return {@code true} when any covered texel has partial alpha

@@ -940,8 +940,11 @@ class TextRendererTest {
      * one-pack stack read by the production context - beside a sidecar, or cut short - so the texture is
      * read as the client's book screen reads it, a plain texture: an animation section, refused or with a
      * frame size that does not divide the image, leaves it drawn, and a sidecar that does not parse, a
-     * refused texture section or an image that does not decode draws the missing texture. No client jar is
-     * needed but for the one case that reads vanilla's own texture, which skips without one. Over an opaque
+     * refused texture section or an image that does not decode draws the missing texture. A sidecar the
+     * seeding context serves beside the texture selects its sampler: a texture section that blurs draws the
+     * quad linearly and widens the canvas by the fringe, one that also clamps holds the quad's first texels
+     * to the texture's edge, and the missing texture standing in for one is drawn hard. No client jar is
+     * needed but for the two cases that read vanilla's own texture, which skip without one. Over an opaque
      * texture the quad lies at the canvas's corner on a 384 x 384 canvas, so a line's band - the 18 output
      * rows from its cell's top - sits at a fixed place: line {@code i}'s from row {@code 60 + 18 i}, its
      * first column 72.
@@ -1354,6 +1357,125 @@ class TextRendererTest {
 
             assertThat("canvas", size(canvas), is(List.of(292, 360)));
             assertThat("pixels that are not the texel under them", missed, is(0));
+        }
+
+        @Test
+        @DisplayName("a book texture whose sidecar blurs is drawn linearly, an edge pixel blended, and its canvas holds the fringe")
+        void aBlurredBookIsDrawnLinearAndItsCanvasHoldsTheFringe() {
+            PixelBuffer blurred = draw(stubContext(Map.of(TEXTURE, patch()), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+
+            // The patch draws output 19 to 60 blurred, Minecraft 9 to 31 rounded out, so the canvas starts at quad 18.
+            assertThat("the blurred canvas", size(blurred), is(List.of(44, 44)));
+            assertThat("the corner of the fringe, a sixteenth of one texel", hex(blurred.getPixel(1, 1)), is(hex(0x10010101)));
+            assertThat("the left fringe, a quarter of the patch", hex(blurred.getPixel(1, 12)), is(hex(0x400D0B09)));
+            assertThat("the patch's first column, three quarters of it", hex(blurred.getPixel(2, 12)), is(hex(0xBF70654F)));
+            assertThat("the right fringe, a quarter of the patch", hex(blurred.getPixel(42, 12)), is(hex(0x400D0B09)));
+            assertThat("past the fringe", hex(blurred.getPixel(43, 12)), is(hex(0x00000000)));
+
+            PixelBuffer hard = draw(serving(patch()), book(TextSegment.literal("")).build());
+            int partial = 0;
+            for (int y = 0; y < hard.height(); y++)
+                for (int x = 0; x < hard.width(); x++)
+                    if (ColorMath.alpha(hard.getPixel(x, y)) != 0 && ColorMath.alpha(hard.getPixel(x, y)) != 255) partial++;
+            assertThat("the hard canvas", size(hard), is(List.of(40, 40)));
+            assertThat("the hard patch", hex(hard.getPixel(0, 10)), is(hex(PAPER)));
+            assertThat("pixels of the hard patch partly transparent", partial, is(0));
+        }
+
+        @Test
+        @DisplayName("a blurred book texture repeats at the quad's edge, and holds the edge texel where its sidecar also clamps")
+        void aBlurredBookRepeatsOrClampsAtTheQuadsEdge() {
+            PixelBuffer repeat = draw(stubContext(Map.of(TEXTURE, edged()), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+            PixelBuffer clamp = draw(stubContext(Map.of(TEXTURE, edged()), Map.of(TEXTURE, blur(true))), book(TextSegment.literal("")).build());
+            PixelBuffer hard = draw(serving(edged()), book(TextSegment.literal("")).build());
+
+            // The first output column reads texel 0 three quarters and the texel before it a quarter: the last
+            // column repeating, the first held where the sidecar clamps.
+            assertThat("the first column, repeating", hex(repeat.getPixel(0, 100)), is(hex(0xFFBF0040)));
+            assertThat("the first column, clamped", hex(clamp.getPixel(0, 100)), is(hex(0xFFFF0000)));
+            assertThat("the first column, hard", hex(hard.getPixel(0, 100)), is(hex(0xFFFF0000)));
+            assertThat("the second column, repeating", hex(repeat.getPixel(1, 100)), is(hex(0xFFF12D23)));
+            assertThat("the second column, clamped", hex(clamp.getPixel(1, 100)), is(hex(0xFFF12D23)));
+            assertThat("the second column, hard", hex(hard.getPixel(1, 100)), is(hex(0xFFFF0000)));
+            for (PixelBuffer canvas : List.of(repeat, clamp, hard))
+                assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+        }
+
+        @Test
+        @DisplayName("a book texture no pack ships draws the hard missing texture, whatever the sidecar beside its id says")
+        void aBlurredBookThatIsMissingDrawsTheHardCheckerboard() {
+            RenderResult result = new TextRenderer(stubContext(Map.of(), Map.of(TEXTURE, blur(true)))).render(book(TextSegment.literal("")).build());
+            PixelBuffer canvas = result.image().getFrames().getFirst().pixels();
+
+            assertThat("the book texture named as a stand-in", result.substitutions(),
+                contains(Substitution.texture(TEXTURE, Possible.State.ABSENT)));
+            assertThat("canvas", size(canvas), is(List.of(QUAD_PX, QUAD_PX)));
+            assertThat("pixels that are not the missing texture's texel the client's quad reads under them",
+                missedTexels(canvas, MissingSprite.sprite()), is(0));
+        }
+
+        @Test
+        @DisplayName("vanilla's book texture blurred draws a page one Minecraft pixel larger every way")
+        void vanillasBookBlurredIsAPageOneMinecraftPixelLargerEveryWay() throws IOException {
+            assumeSprites();
+            PixelBuffer texture = PixelBuffer.wrap(ImageIO.read(new ByteArrayInputStream(
+                ClientAssetsExtension.vanilla().bytes("assets/minecraft/textures/gui/book.png").orElseThrow())));
+            PixelBuffer canvas = draw(stubContext(Map.of(TEXTURE, texture), Map.of(TEXTURE, blur(false))), book(TextSegment.literal("")).build());
+
+            // Minecraft 19 to 167 across and 0 to 182 down, where the hard page is 20 to 166 and 1 to 181.
+            assertThat("canvas", size(canvas), is(List.of(296, 364)));
+            assertThat("a fringe pixel the hard page leaves clear", hex(canvas.getPixel(1, 182)), is(hex(0x40020100)));
+        }
+
+        /**
+         * Builds the sidecar of a book texture whose texture section blurs.
+         *
+         * @param clamp whether the section also clamps
+         * @return the sidecar
+         */
+        private static MCMeta blur(boolean clamp) {
+            return new MCMeta(ResourceId.parse(TEXTURE), Optional.empty(), Possible.absent(),
+                Possible.of(new MCMeta.TextureSampling(true, clamp, MCMeta.TextureSampling.MipmapStrategy.AUTO, 0f)),
+                Possible.absent(), Optional.empty());
+        }
+
+        /**
+         * Builds a 256 x 256 clear texture holding a {@link #PAPER} block over texels 10 to 29 on both axes.
+         *
+         * @return the texture
+         */
+        private static PixelBuffer patch() {
+            PixelBuffer patch = PixelBuffer.straight(256, 256);
+            for (int y = 10; y <= 29; y++)
+                for (int x = 10; x <= 29; x++)
+                    patch.setPixel(x, y, PAPER);
+            return patch;
+        }
+
+        /**
+         * Builds an opaque 256 x 256 texture whose first column is red, whose last column is blue and whose rest
+         * is {@link #PAPER}, every row alike.
+         *
+         * @return the texture
+         */
+        private static PixelBuffer edged() {
+            PixelBuffer edged = PixelBuffer.straight(256, 256);
+            edged.fill(PAPER);
+            for (int y = 0; y < 256; y++) {
+                edged.setPixel(0, y, 0xFFFF0000);
+                edged.setPixel(255, y, 0xFF0000FF);
+            }
+            return edged;
+        }
+
+        /**
+         * Spells a colour as eight hex digits, for an assertion that names the bytes.
+         *
+         * @param argb the colour
+         * @return its hex spelling
+         */
+        private static String hex(int argb) {
+            return String.format("%08X", argb);
         }
 
         @Test

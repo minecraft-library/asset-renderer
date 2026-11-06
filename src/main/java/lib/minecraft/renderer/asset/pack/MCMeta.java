@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset.pack;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,6 +43,18 @@ public record MCMeta(
     public static final @NotNull MCMeta EMPTY = new MCMeta(
         new ResourceId(ResourceId.DEFAULT_NAMESPACE, ""),
         Optional.empty(), Possible.absent(), Possible.absent(), Possible.absent(), Optional.empty());
+
+    /**
+     * Answers the sampler this document's texture section selects, as the client builds a texture's sampler from
+     * it: linear filtering where it blurs, clamped to the edge where it clamps, nearest and repeating otherwise -
+     * and {@link Sampler#NEAREST_REPEAT} where the document carries no texture section or one the client's codec
+     * refuses, {@link #EMPTY} among them.
+     *
+     * @return the sampler
+     */
+    public @NotNull Sampler sampler() {
+        return this.texture.map(section -> Sampler.of(section.blur(), section.clamp())).orElse(Sampler.NEAREST_REPEAT);
+    }
 
     /**
      * The {@code pack} section of a root {@code pack.mcmeta}.

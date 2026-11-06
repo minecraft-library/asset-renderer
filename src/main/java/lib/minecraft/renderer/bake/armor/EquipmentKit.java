@@ -2,11 +2,11 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -20,7 +20,9 @@ import java.util.OptionalInt;
 /**
  * The equipment-model texture composite - the single place an equipment asset id plus a render layer
  * becomes one drawable buffer, shared by worn humanoid armor and mob equipment (saddles, body armor,
- * llama decor).
+ * llama decor). A single flat layer is its own texture, read by the sampler its sidecar's texture
+ * section selects; layers pasted or tinted into one are read nearest and repeating whatever their
+ * sidecars select.
  *
  * <p>An asset declares its layers back-to-front per layer type: one flat layer for a plain material,
  * or a dyed base plus an undyed detail pass for leather-style armor. Each layer resolves to a texture
@@ -52,10 +54,12 @@ public class EquipmentKit {
      *     {@code layerN} the overlays); {@link CitResult#NONE} leaves every layer on the model
      * @param tick the animation tick to sample each layer texture at, or empty to take the texture
      *     unsampled
-     * @return the composited texture, or empty when the asset declares no layer that draws for this
-     *     render layer - none at all, or only dyed-only passes on an undyed wearer
+     * @return the composited texture and the sampler it is read through - a single flat layer's own,
+     *     being that layer's texture, and nearest and repeating for layers pasted or tinted into one - or
+     *     empty when the asset declares no layer that draws for this render layer - none at all, or only
+     *     dyed-only passes on an undyed wearer
      */
-    public static @NotNull Optional<PixelBuffer> composite(
+    public static @NotNull Optional<SampledTexture> composite(
         @NotNull RendererContext context,
         @NotNull ResourceId assetId,
         @NotNull LayerType layerType,
@@ -87,15 +91,17 @@ public class EquipmentKit {
             if (layer.dyeable().isPresent()) {
                 int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
                 if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
-                painted = resolve(context, textureId, tick).orElseThrow().tint(color);
+                painted = resolve(context, textureId, tick).orElseThrow().pixels().tint(color);
             } else {
-                painted = resolve(context, textureId, tick).orElseThrow();
+                painted = resolve(context, textureId, tick).orElseThrow().pixels();
             }
 
             if (combined == null) combined = PixelBuffer.straight(painted.width(), painted.height());
             combined.blit(painted, 0, 0);
         }
-        return Optional.ofNullable(combined);
+        // The composite is this kit's own picture of the layers, read nearest and repeating: the client
+        // draws each layer through its own sampler, which a pasted or tinted copy cannot be read through.
+        return Optional.ofNullable(combined).map(SampledTexture::of);
     }
 
     /**
@@ -106,18 +112,17 @@ public class EquipmentKit {
      * @param context the texture context the layer texture is read through
      * @param textureId the layer texture's namespaced id
      * @param tick the animation tick to sample at, or empty to take the texture unsampled
-     * @return the layer's pixels, the checkerboard where no pack supplies the texture or it cannot be read
+     * @return the layer's texture and the sampler it is read through, the checkerboard where no pack
+     *     supplies the texture or it cannot be read
      */
-    private static @NotNull Optional<PixelBuffer> resolve(
+    private static @NotNull Optional<SampledTexture> resolve(
         @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
         RendererContext textures = context.withMissingTexture();
-        Possible<PixelBuffer> texture = tick.isEmpty()
-            ? textures.resolvePlainTexture(textureId)
-            : Flipbook.atTick(textures.resolvePlainTexture(textureId), textures.findFlipbook(textureId), tick.getAsInt());
-        return Optional.of(texture.get());
+        SampledTexture texture = textures.resolvePlainTexture(textureId).get();
+        return Optional.of(tick.isEmpty() ? texture : Flipbook.atTick(texture, textures.findFlipbook(textureId), tick.getAsInt()));
     }
 
 }

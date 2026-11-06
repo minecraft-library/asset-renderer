@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.parity.Mode;
@@ -295,13 +296,13 @@ public class GlintKit {
      * behaviour used for whole-subject items and blocks.
      *
      * @param base the base render, whose coverage mask restricts the foil when present
-     * @param glintTexture the glint scroll texture
+     * @param glintTexture the glint scroll texture and the sampler it is read through
      * @param options the glint configuration
      * @return an ordered list of composited frames, one per output frame
      */
     public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
         @NotNull PixelBuffer base,
-        @NotNull PixelBuffer glintTexture,
+        @NotNull SampledTexture glintTexture,
         @NotNull GlintOptions options
     ) {
         Timeline.FpsLoop loop = new Timeline.FpsLoop(options.framesPerSecond(), options.totalFrames());
@@ -326,16 +327,17 @@ public class GlintKit {
     }
 
     /**
-     * Reads a glint texture as the client's glint render types bind it, a plain texture, through the
-     * context's {@link RendererContext#withMissingTexture() missing-texture wrapper}: a texture no pack
-     * supplies, or that cannot be read, scrolls as the checkerboard, as vanilla scrolls a missing-sprite
-     * foil.
+     * Reads a glint texture as the client's glint render types bind it, a plain texture sampled by the
+     * sampler its sidecar's texture section selects - smoothed where it blurs, as vanilla's glint sidecars
+     * do - through the context's {@link RendererContext#withMissingTexture() missing-texture wrapper}: a
+     * texture no pack supplies, or that cannot be read, scrolls as the checkerboard, read hard, as vanilla
+     * scrolls a missing-sprite foil.
      *
      * @param context the renderer context the glint texture resolves through
      * @param glintTextureId the glint texture id
-     * @return the glint scroll texture
+     * @return the glint scroll texture and the sampler it is read through
      */
-    public static @NotNull PixelBuffer readTexture(@NotNull RendererContext context, @NotNull String glintTextureId) {
+    public static @NotNull SampledTexture readTexture(@NotNull RendererContext context, @NotNull String glintTextureId) {
         return context.withMissingTexture().resolvePlainTexture(glintTextureId).get();
     }
 
@@ -404,8 +406,9 @@ public class GlintKit {
          * delays wrap the multiplied frames.
          * <p>
          * The glint texture is read by {@link GlintKit#readTexture(RendererContext, String) readTexture},
-         * as the client's glint render types bind it: a texture no pack supplies, or that cannot be read,
-         * scrolls as the checkerboard.
+         * as the client's glint render types bind it, sampled by the sampler its sidecar's texture section
+         * selects: a texture no pack supplies, or that cannot be read, scrolls as the checkerboard, read
+         * hard.
          *
          * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
@@ -417,7 +420,7 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            PixelBuffer glintTexture = readTexture(context, preset.glintTextureId());
+            SampledTexture glintTexture = readTexture(context, preset.glintTextureId());
             return timeline.frames() > 1
                 ? stampOver(this, frames, timeline, glintTexture)
                 : scroll(this, frames, glintTexture);
@@ -431,9 +434,9 @@ public class GlintKit {
      */
     private static @NotNull RasterPass.Finish.Result stampOver(
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
-        @NotNull Timeline timeline, @NotNull PixelBuffer glintTexture
+        @NotNull Timeline timeline, @NotNull SampledTexture glintTexture
     ) {
-        PixelBuffer tintedGlint = tinted(glintTexture, foil.preset());
+        SampledTexture tintedGlint = tinted(glintTexture, foil.preset());
         for (int f = 0; f < frames.size(); f++)
             stampInPlace(frames.get(f), tintedGlint, glintTimeAt(timeline.millisAt(foil.animate() ? f : 0)), foil.preset());
         return new RasterPass.Finish.Result(frames, timeline);
@@ -446,7 +449,7 @@ public class GlintKit {
      */
     private static @NotNull RasterPass.Finish.Result scroll(
         @NotNull Foil foil, @NotNull ConcurrentList<PixelBuffer> frames,
-        @NotNull PixelBuffer glintTexture
+        @NotNull SampledTexture glintTexture
     ) {
         Timeline.FpsLoop playback = new Timeline.FpsLoop(foil.preset().framesPerSecond(), foil.preset().totalFrames());
         if (foil.animate())
@@ -465,27 +468,27 @@ public class GlintKit {
      * the copy it stamps, which carries none.
      *
      * @param frame the baked frame, which nothing else holds
-     * @param tintedGlint the glint texture with the preset's tint applied
+     * @param tintedGlint the glint texture with the preset's tint applied, and the sampler it is read through
      * @param glintTime the glint time, in vanilla post-{@code glintSpeed} milliseconds
      * @param options the glint configuration
      */
-    private static void stampInPlace(@NotNull PixelBuffer frame, @NotNull PixelBuffer tintedGlint, long glintTime, @NotNull GlintOptions options) {
+    private static void stampInPlace(@NotNull PixelBuffer frame, @NotNull SampledTexture tintedGlint, long glintTime, @NotNull GlintOptions options) {
         stampGlint(frame, tintedGlint, glintTime, options, null, frame.mask().orElse(null));
         frame.clearMask();
     }
 
     /**
-     * Returns the glint texture with the preset's tint applied - the texture itself when the tint is
-     * white.
+     * Returns the glint texture with the preset's tint applied, read through the same sampler - the
+     * texture itself when the tint is white.
      *
-     * @param glintTexture the glint scroll texture
+     * @param glintTexture the glint scroll texture and the sampler it is read through
      * @param options the glint configuration
-     * @return the tinted glint texture
+     * @return the tinted glint texture and its sampler
      */
-    private static @NotNull PixelBuffer tinted(@NotNull PixelBuffer glintTexture, @NotNull GlintOptions options) {
+    private static @NotNull SampledTexture tinted(@NotNull SampledTexture glintTexture, @NotNull GlintOptions options) {
         return options.tintArgb() == ColorMath.WHITE
             ? glintTexture
-            : glintTexture.tint(options.tintArgb());
+            : new SampledTexture(glintTexture.pixels().tint(options.tintArgb()), glintTexture.sampler());
     }
 
     /**
@@ -504,7 +507,7 @@ public class GlintKit {
      * mask applies the foil to every opaque pixel.
      *
      * @param base the base render, whose coverage mask restricts the foil when present
-     * @param glintTexture the glint scroll texture
+     * @param glintTexture the glint scroll texture and the sampler it is read through
      * @param glintTimes the ordered glint times (vanilla post-{@code glintSpeed} millis), one per frame
      * @param options the glint configuration
      * @param spriteUv the real atlas sprite-UV rect to sample {@code UV0} through, or {@code null} for
@@ -513,12 +516,12 @@ public class GlintKit {
      */
     public static @NotNull ConcurrentList<PixelBuffer> applyGlintAtTimes(
         @NotNull PixelBuffer base,
-        @NotNull PixelBuffer glintTexture,
+        @NotNull SampledTexture glintTexture,
         long @NotNull [] glintTimes,
         @NotNull GlintOptions options,
         @Nullable SpriteUv spriteUv
     ) {
-        PixelBuffer tintedGlint = tinted(glintTexture, options);
+        SampledTexture tintedGlint = tinted(glintTexture, options);
         // The foil coverage rides the base buffer; unwrap once here, at the boundary of the per-pixel
         // stamp loop, so stampGlint's inner loop reads a plain nullable rather than an Optional.
         PixelMask glintMask = base.mask().orElse(null);
@@ -536,8 +539,8 @@ public class GlintKit {
      * Composites the glint texture over a buffer for a single glint time, masked by the buffer's own
      * alpha so the glint only shows where the item is opaque. Each opaque pixel samples the glint
      * texture through vanilla's UV transform {@code translation(-u, v) . rotateZ(theta) . scale(s)}
-     * applied to the pixel-centre normalized icon coordinate, wrapping {@code GL_REPEAT}-style into
-     * the glint texture, then blends with the quadratic {@code GLINT} blend.
+     * applied to the pixel-centre normalized icon coordinate, read through the glint texture's
+     * sampler, then blends with the quadratic {@code GLINT} blend.
      * <p>
      * The column products of the rotation are tabled once per call from this target's own width and
      * the row products taken once per row, each rounded to a float on its own as the transform
@@ -545,7 +548,7 @@ public class GlintKit {
      */
     private static void stampGlint(
         @NotNull PixelBuffer target,
-        @NotNull PixelBuffer glint,
+        @NotNull SampledTexture glint,
         long glintTimeMillis,
         @NotNull GlintOptions options,
         @Nullable SpriteUv rect,
@@ -553,13 +556,6 @@ public class GlintKit {
     ) {
         int w = target.width();
         int h = target.height();
-        int glintW = glint.width();
-        int glintH = glint.height();
-        // Decided per stamp from the texture it samples, which is whatever the pack stack resolves: a
-        // pack's own or replaced glint at any size on either axis, or the 16x16 missing-texture
-        // checkerboard.
-        boolean powerOfTwoW = isPowerOfTwo(glintW);
-        boolean powerOfTwoH = isPowerOfTwo(glintH);
 
         float u = (float) Math.floorMod(glintTimeMillis, options.uLoopMillis()) / options.uLoopMillis();
         float v = (float) Math.floorMod(glintTimeMillis, options.vLoopMillis()) / options.vLoopMillis();
@@ -612,7 +608,7 @@ public class GlintKit {
                 float tcx = rx - u;
                 float tcy = ry + v;
 
-                int glintPixel = sampleBilinearWrapped(glint, tcx * glintW, tcy * glintH, powerOfTwoW, powerOfTwoH);
+                int glintPixel = glint.sample(tcx, tcy);
                 if (ColorMath.alpha(glintPixel) < GLINT_DISCARD_ALPHA_BYTE) continue;
 
                 // Pre-fade by GlintAlpha (vanilla's glint shader multiplies by it before the blend),
@@ -627,82 +623,6 @@ public class GlintKit {
                 target.setPixel(x, y, ColorMath.blend(faded, dst, BlendMode.QUADRATIC_ADD));
             }
         }
-    }
-
-    /**
-     * Bilinearly samples the glint texture at the given texel-space coordinate with {@code GL_REPEAT}
-     * wrapping, matching vanilla's {@code blur: true} (LINEAR) sampler state on the glint texture.
-     * Nearest sampling produced hard texel edges - a glint visibly sharper than vanilla's softly
-     * filtered sheen; this interpolates the four neighbouring texels at the sample's pixel centre.
-     *
-     * @param texture the glint texture
-     * @param texelX the sample X in texel units (pre-wrap, pixel-corner space)
-     * @param texelY the sample Y in texel units
-     * @param powerOfTwoW whether the texture's width is a positive power of two
-     * @param powerOfTwoH whether the texture's height is a positive power of two
-     * @return the bilinearly-interpolated ARGB sample
-     */
-    private static int sampleBilinearWrapped(@NotNull PixelBuffer texture, float texelX, float texelY,
-                                             boolean powerOfTwoW, boolean powerOfTwoH) {
-        int w = texture.width();
-        int h = texture.height();
-        // Shift to texel centres so integer coords land mid-texel, then bilerp toward the next texel.
-        float fx = texelX - 0.5f;
-        float fy = texelY - 0.5f;
-        int x0 = (int) Math.floor(fx);
-        int y0 = (int) Math.floor(fy);
-        float dx = fx - x0;
-        float dy = fy - y0;
-        int xa = wrap(x0, w, powerOfTwoW);
-        int xb = wrap(x0 + 1, w, powerOfTwoW);
-        int ya = wrap(y0, h, powerOfTwoH);
-        int yb = wrap(y0 + 1, h, powerOfTwoH);
-
-        int p00 = texture.getPixel(xa, ya);
-        int p10 = texture.getPixel(xb, ya);
-        int p01 = texture.getPixel(xa, yb);
-        int p11 = texture.getPixel(xb, yb);
-        return ColorMath.pack(
-            bilerp(ColorMath.alpha(p00), ColorMath.alpha(p10), ColorMath.alpha(p01), ColorMath.alpha(p11), dx, dy),
-            bilerp(ColorMath.red(p00), ColorMath.red(p10), ColorMath.red(p01), ColorMath.red(p11), dx, dy),
-            bilerp(ColorMath.green(p00), ColorMath.green(p10), ColorMath.green(p01), ColorMath.green(p11), dx, dy),
-            bilerp(ColorMath.blue(p00), ColorMath.blue(p10), ColorMath.blue(p01), ColorMath.blue(p11), dx, dy)
-        );
-    }
-
-    /**
-     * Bilinear interpolation of one channel across the four corner texels.
-     */
-    private static int bilerp(int c00, int c10, int c01, int c11, float dx, float dy) {
-        float top = c00 + (c10 - c00) * dx;
-        float bottom = c01 + (c11 - c01) * dx;
-        return Math.clamp(Math.round(top + (bottom - top) * dy), 0, 255);
-    }
-
-    /**
-     * Wraps a texel coordinate into {@code 0..size - 1} as {@code GL_REPEAT} does. A power-of-two size
-     * keeps the coordinate's low bits, which is {@code Math.floorMod} for every {@code int}, negative
-     * and overflowed coordinates included; any other size takes {@code Math.floorMod} itself.
-     *
-     * @param coord the texel coordinate
-     * @param size the axis size in texels
-     * @param powerOfTwo whether {@code size} is a positive power of two
-     * @return the wrapped coordinate in {@code 0..size - 1}
-     */
-    private static int wrap(int coord, int size, boolean powerOfTwo) {
-        return powerOfTwo ? coord & (size - 1) : Math.floorMod(coord, size);
-    }
-
-    /**
-     * Tests whether a texture axis is a positive power of two, the one size {@link #wrap} masks. Zero
-     * is not one, so an empty texture fails in {@code Math.floorMod} rather than reading outside its
-     * pixels.
-     *
-     * @param size the axis size in texels
-     * @return whether {@code size} is a positive power of two
-     */
-    private static boolean isPowerOfTwo(int size) {
-        return size > 0 && (size & (size - 1)) == 0;
     }
 
     /**

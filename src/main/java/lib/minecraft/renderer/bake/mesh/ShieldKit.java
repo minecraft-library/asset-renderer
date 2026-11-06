@@ -12,6 +12,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
@@ -139,8 +140,10 @@ public class ShieldKit {
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildShield3D(@NotNull PixelBuffer texture) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        addBox(triangles, texture, ShieldMesh.PLATE);
-        addBox(triangles, texture, ShieldMesh.HANDLE);
+        // An atlas sprite, read by its atlas's sampler - nearest, whatever its own sidecar sets.
+        SampledTexture sprite = SampledTexture.of(texture);
+        addBox(triangles, sprite, ShieldMesh.PLATE);
+        addBox(triangles, sprite, ShieldMesh.HANDLE);
         return triangles;
     }
 
@@ -264,12 +267,12 @@ public class ShieldKit {
      * its model-frame max-Z edge, which the special transform carries to min Z.
      *
      * @param out the triangle list to append to
-     * @param texture the shield atlas
+     * @param texture the shield atlas, with the sampler it is read through
      * @param cube the vanilla-authored cube to emit
      */
     private static void addBox(
         @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull PixelBuffer texture,
+        @NotNull SampledTexture texture,
         @NotNull ShieldMesh.Cube cube
     ) {
         float mx = cube.originX(), my = cube.originY(), mz = cube.originZ();

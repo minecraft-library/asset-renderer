@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.DrawPart;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -56,7 +57,8 @@ import java.util.stream.IntStream;
  * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
  * functions with a {@code 1/256} fixed-point sample and the GPU's top-left fill rule, taken in GL's
  * Y-up frame (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails},
- * vanilla {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
+ * vanilla {@code GL_LEQUAL}), texture-sampled through the triangle's sampler, nearest or linear,
+ * tinted ({@link BlendMode#MULTIPLY}), shaded
  * ({@link Shading}), and composited through the triangle's {@link BlendMode}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
@@ -955,10 +957,15 @@ public class Rasterizer {
             DepthMath.Plane plane = t.plane;
             float alphaScale = pass.alpha();
 
+            // The triangle's texture and the sampler it is read through, hoisted once per triangle. A
+            // nearest fetch keeps the exact coordinate and the face's own bounds; a linear one samples
+            // the float coordinate.
+            PixelBuffer texture = t.source.texture().pixels();
+            Sampler sampler = t.source.texture().sampler();
+            boolean linear = sampler.filterMode() == Sampler.FilterMode.LINEAR;
             // Last texel of the face's own rectangle on each axis, hoisted once per triangle. A
             // quad's two triangles each carry the diagonal's opposite corners, so the max over
             // three vertices is the whole face's extent either way.
-            PixelBuffer texture = t.source.texture();
             int lastTexelX = lastTexel(t.source.uv0().x(), t.source.uv1().x(), t.source.uv2().x(), texture.width());
             int lastTexelY = lastTexel(t.source.uv0().y(), t.source.uv1().y(), t.source.uv2().y(), texture.height());
             boolean wrapsTexture = pass.wrapsTexture();
@@ -972,8 +979,8 @@ public class Rasterizer {
             float ty0 = t.source.uv0().y() * texture.height();
             float ty1 = t.source.uv1().y() * texture.height();
             float ty2 = t.source.uv2().y() * texture.height();
-            boolean exactX = !t.perspectiveCorrect && isWhole(tx0) && isWhole(tx1) && isWhole(tx2);
-            boolean exactY = !t.perspectiveCorrect && isWhole(ty0) && isWhole(ty1) && isWhole(ty2);
+            boolean exactX = !linear && !t.perspectiveCorrect && isWhole(tx0) && isWhole(tx1) && isWhole(tx2);
+            boolean exactY = !linear && !t.perspectiveCorrect && isWhole(ty0) && isWhole(ty1) && isWhole(ty2);
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
@@ -1075,35 +1082,50 @@ public class Rasterizer {
                         v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
                     }
 
-                    // A coordinate exactly on a texel boundary reads the texel below it, which is where
-                    // the GPU's interpolation almost always lands such a value - a few float steps
-                    // under it - and the snapped corners put one there wherever a face's edge or a
-                    // texel edge runs through pixel centres. The exact coordinate comes off the integer edge values
-                    // when the face's corners sit on whole texels, so a float evaluation landing a
-                    // step either side of the boundary cannot decide it.
-                    //
-                    // Every pass takes its texel by that one rule; what differs is the bound. A
-                    // scrolled pass samples where its render type translated it to, which the authored
-                    // rectangle does not name - so the face's own bound has nothing to say and the
-                    // sheet wraps instead, the way a repeating sampler does. Told apart by the PASS
-                    // rather than by whether the coordinate ran past the sheet, because a block's own
-                    // geometry does that: the decorated pot's sherds and one water flow frame author a
-                    // rectangle whose upper corner rounds a texel beyond, and wrapping those would read
-                    // from the opposite edge.
-                    int tx = exactX
-                        ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) tx0, (long) tx1, (long) tx2)
-                        : RasterMath.texelOf(u * texture.width());
-                    int ty = exactY
-                        ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) ty0, (long) ty1, (long) ty2)
-                        : RasterMath.texelOf(v * texture.height());
-                    if (wrapsTexture) {
-                        tx = Math.floorMod(tx, texture.width());
-                        ty = Math.floorMod(ty, texture.height());
+                    int tx = 0;
+                    int ty = 0;
+                    int rawTexel;
+                    if (linear) {
+                        // A filtered fetch reads the four texels about the coordinate less half a texel,
+                        // each addressed by the sampler. Its weights run continuously through a texel
+                        // boundary, so neither the exact coordinate nor the face's own bound has anything
+                        // to decide; the trace logs the first tap.
+                        rawTexel = sampler.sample(texture, u, v);
+                        if (tracing) {
+                            tx = sampler.address((int) Math.floor(u * texture.width() - 0.5f), texture.width());
+                            ty = sampler.address((int) Math.floor(v * texture.height() - 0.5f), texture.height());
+                        }
                     } else {
-                        tx = faceTexel(tx, texture.width(), lastTexelX);
-                        ty = faceTexel(ty, texture.height(), lastTexelY);
+                        // A coordinate exactly on a texel boundary reads the texel below it, which is where
+                        // the GPU's interpolation almost always lands such a value - a few float steps
+                        // under it - and the snapped corners put one there wherever a face's edge or a
+                        // texel edge runs through pixel centres. The exact coordinate comes off the integer
+                        // edge values when the face's corners sit on whole texels, so a float evaluation
+                        // landing a step either side of the boundary cannot decide it.
+                        //
+                        // Every pass takes its texel by that one rule; what differs is the bound. A
+                        // scrolled pass samples where its render type translated it to, which the authored
+                        // rectangle does not name - so the face's own bound has nothing to say and the
+                        // sheet is read past its edge as the sampler addresses it instead - wrapped by a
+                        // repeating one. Told apart by the PASS rather than by whether the coordinate ran
+                        // past the sheet, because a block's own geometry does that: the decorated pot's
+                        // sherds and one water flow frame author a rectangle whose upper corner rounds a
+                        // texel beyond, and wrapping those would read from the opposite edge.
+                        tx = exactX
+                            ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) tx0, (long) tx1, (long) tx2)
+                            : RasterMath.texelOf(u * texture.width());
+                        ty = exactY
+                            ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) ty0, (long) ty1, (long) ty2)
+                            : RasterMath.texelOf(v * texture.height());
+                        if (wrapsTexture) {
+                            tx = sampler.address(tx, texture.width());
+                            ty = sampler.address(ty, texture.height());
+                        } else {
+                            tx = faceTexel(tx, texture.width(), lastTexelX, sampler);
+                            ty = faceTexel(ty, texture.height(), lastTexelY, sampler);
+                        }
+                        rawTexel = texture.getPixel(tx, ty);
                     }
-                    int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) <= ALPHA_CUTOUT) {
                         if (tracing)
                             DebugChannel.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
@@ -1197,20 +1219,22 @@ public class Rasterizer {
     }
 
     /**
-     * Bounds a texel a face reads on one axis: wrapped into the sheet below its first texel, as
-     * vanilla's repeating sampler does, and held at the face's {@link #lastTexel last texel} above.
+     * Bounds a texel a nearest fetch of a face reads on one axis: below the sheet's first texel read as
+     * the sampler addresses it - wrapped by a repeating sampler, as vanilla's is, held at the first
+     * texel by a clamping one - and held at the face's {@link #lastTexel last texel} above.
      *
      * <p>Below the sheet's start is where a face whose rectangle begins at the sheet's edge reads at
      * its own first-texel boundary, the texel below it being the sheet's last one under a repeating
-     * sampler.
+     * sampler, and its first under a clamping one.
      *
      * @param texel the texel the coordinate reads, unbounded
      * @param texels the texture's size along this axis
      * @param lastTexel the face's last texel on this axis
+     * @param sampler the sampler the texture is read through
      * @return the texel the fetch reads
      */
-    private static int faceTexel(int texel, int texels, int lastTexel) {
-        return texel < 0 ? Math.floorMod(texel, texels) : Math.min(texel, lastTexel);
+    private static int faceTexel(int texel, int texels, int lastTexel, @NotNull Sampler sampler) {
+        return texel < 0 ? sampler.address(texel, texels) : Math.min(texel, lastTexel);
     }
 
     /**

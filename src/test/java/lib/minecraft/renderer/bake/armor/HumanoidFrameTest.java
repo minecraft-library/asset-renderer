@@ -205,9 +205,9 @@ class HumanoidFrameTest {
         List<String> misses = new ArrayList<>();
         int checked = 0;
         for (VisibleTriangle triangle : faceTriangles) {
-            compare(misses, face, box, triangle.position0(), sampled(triangle.texture(), triangle.uv0(), span), unwrap, mirrored);
-            compare(misses, face, box, triangle.position1(), sampled(triangle.texture(), triangle.uv1(), span), unwrap, mirrored);
-            compare(misses, face, box, triangle.position2(), sampled(triangle.texture(), triangle.uv2(), span), unwrap, mirrored);
+            compare(misses, face, box, triangle.position0(), sampled(triangle.texture().pixels(), triangle.uv0(), span), unwrap, mirrored);
+            compare(misses, face, box, triangle.position1(), sampled(triangle.texture().pixels(), triangle.uv1(), span), unwrap, mirrored);
+            compare(misses, face, box, triangle.position2(), sampled(triangle.texture().pixels(), triangle.uv2(), span), unwrap, mirrored);
             checked += 3;
         }
 

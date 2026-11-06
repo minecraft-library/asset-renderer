@@ -23,6 +23,7 @@ import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.ColorMapException;
@@ -73,8 +74,9 @@ import java.util.stream.Collectors;
  * <p>
  * The context declares lookups and nothing derived from them. A texture's frame at a tick is
  * {@link Flipbook#atTick} over its read - {@link #resolveTexture} for an atlas sprite,
- * {@link #resolvePlainTexture} for a plain texture - and {@link #findFlipbook}; a biome or redstone
- * tint is {@code bake.texture.Tints} over {@link #findColorOverride} and {@link #findColorMap}. So a
+ * {@link #resolvePlainTexture} for a plain texture - and {@link #findFlipbook}, the frame of a plain
+ * texture keeping the sampler its texture section selects; a biome or redstone tint is
+ * {@code bake.texture.Tints} over {@link #findColorOverride} and {@link #findColorMap}. So a
  * wrapper that overrides a lookup is picked up by everything derived from it, because the derivation
  * asks the wrapper.
  * <p>
@@ -468,29 +470,33 @@ public interface RendererContext {
     @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
-     * Resolves a texture id to the decoded {@link PixelBuffer} the client's texture manager loads for it as
-     * a plain texture - one the client binds by its file rather than as an atlas sprite, such as the book, a
-     * container sheet, an entity's texture or an equipment layer. Of its sidecar only the texture section is
-     * read, so an animation section the client's codec refuses, or one whose frame size does not divide the
-     * image, does not lose the texture, and no atlas sprite or paletted permutation answers for the id. A
-     * frame of it at a tick is {@link Flipbook#atTick} over this read and {@link #findFlipbook}, which plays
-     * no table for either of those sections. The default answers {@link #resolveTexture}, which is the plain
-     * read of a context holding no sidecar and no atlas.
+     * Resolves a texture id to the texture the client's texture manager loads for it as a plain texture - its
+     * decoded pixels and the sampler its sidecar's texture section selects - for one the client binds by its
+     * file rather than as an atlas sprite, such as the book, a container sheet, an entity's texture or an
+     * equipment layer. Of its sidecar only the texture section is read, so an animation section the client's
+     * codec refuses, or one whose frame size does not divide the image, does not lose the texture, and no
+     * atlas sprite or paletted permutation answers for the id. A frame of it at a tick is
+     * {@link Flipbook#atTick(SampledTexture, Possible, int)} over this read and {@link #findFlipbook}, which
+     * plays no table for either of those sections and keeps the sampler. The default answers
+     * {@link #resolveTexture}'s pixels read through the sampler the document {@link #findMeta} answers
+     * selects ({@link MCMeta#sampler()}), the empty document's where it answers none - the plain read of a
+     * context holding no atlas.
      *
      * @param textureId the namespaced texture identifier, e.g. {@code "minecraft:gui/book"}
-     * @return the decoded texture; empty when the id is served and yields no pixels - a file a pack ships
-     *     whose bytes are empty or do not decode, or whose sidecar does not parse or carries a texture
+     * @return the texture and its sampler; empty when the id is served and yields no pixels - a file a pack
+     *     ships whose bytes are empty or do not decode, or whose sidecar does not parse or carries a texture
      *     section the client's codec refuses - and absent when nothing serves the id
      */
-    default @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
-        return this.resolveTexture(textureId);
+    default @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+        return this.resolveTexture(textureId).map(pixels -> new SampledTexture(pixels, this.findMeta(textureId).orElse(MCMeta.EMPTY).sampler()));
     }
 
     /**
      * Answers textures out of the given source, for both reads, falling through to this context for
      * every id the source does not serve. A source that serves an id answers {@link #resolveTexture} and
-     * {@link #resolvePlainTexture} for it even where what it serves cannot be drawn - its empty stands,
-     * and this context is not asked for that id.
+     * {@link #resolvePlainTexture} for it, the plain read through the sampler its sidecar's texture section
+     * selects, which this view keeps, even where what it serves cannot be drawn - its empty stands, and this
+     * context is not asked for that id.
      *
      * <p>A substituted texture is reported as carrying no animation: {@link #findAnimation} and
      * {@link #findFlipbook} answer empty for it and {@link #findMeta} answers this context's document
@@ -518,8 +524,11 @@ public interface RendererContext {
                 return source.apply(textureId).orAbsent(() -> delegate.resolveTexture(textureId));
             }
 
-            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
-                return source.apply(textureId).orAbsent(() -> delegate.resolvePlainTexture(textureId));
+            @Override public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+                Possible<PixelBuffer> served = source.apply(textureId);
+                return served.isAbsent()
+                    ? delegate.resolvePlainTexture(textureId)
+                    : served.map(pixels -> new SampledTexture(pixels, this.findMeta(textureId).orElse(MCMeta.EMPTY).sampler()));
             }
 
             @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
@@ -549,7 +558,7 @@ public interface RendererContext {
 
     /**
      * Reserves one texture id for a supplied buffer, which both reads answer, answering no sidecar at all
-     * for it.
+     * for it, so its plain read is nearest and repeating.
      *
      * <p>Distinct from {@link #withTextures} in what it says about metadata, and the difference is
      * the point: this reserves a <i>synthetic</i> texture - one no pack supplies - so there is no
@@ -574,8 +583,8 @@ public interface RendererContext {
                 return textureId.equals(id) ? Possible.of(buffer) : delegate.resolveTexture(id);
             }
 
-            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String id) {
-                return textureId.equals(id) ? Possible.of(buffer) : delegate.resolvePlainTexture(id);
+            @Override public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String id) {
+                return textureId.equals(id) ? Possible.of(SampledTexture.of(buffer)) : delegate.resolvePlainTexture(id);
             }
 
             @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String id) {
@@ -696,7 +705,8 @@ public interface RendererContext {
      * <p>
      * Only the pixels are substituted, and that is what makes everything derived from
      * {@link #resolveTexture} and {@link #resolvePlainTexture} total: {@link Flipbook#atTick} over this
-     * context's answers always holds pixels. Serving every texture, it answers none of the three metadata
+     * context's answers always holds pixels. The checkerboard a plain read stands in with is read nearest
+     * and repeating, as the client's missing texture is. Serving every texture, it answers none of the three metadata
      * lookups absent: an id this context resolves keeps the sidecar, animation and playback table it
      * resolved, and the checkerboard is a texture with no sidecar, so an id it does not resolve answers
      * all three empty. An id the sprite read resolves to no pixels already plays nothing, so no table is
@@ -716,28 +726,27 @@ public interface RendererContext {
             }
 
             @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                return this.standIn(textureId, delegate.resolveTexture(textureId));
+                Possible<PixelBuffer> resolved = delegate.resolveTexture(textureId);
+                return resolved.isPresent() ? resolved : Possible.of(this.standIn(textureId, resolved.getState()));
             }
 
-            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
-                return this.standIn(textureId, delegate.resolvePlainTexture(textureId));
+            @Override public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
+                Possible<SampledTexture> resolved = delegate.resolvePlainTexture(textureId);
+                // The client's missing texture carries no texture section, so it is read nearest and repeating
+                // whatever the sidecar of the texture it stands for selects.
+                return resolved.isPresent() ? resolved : Possible.of(SampledTexture.of(this.standIn(textureId, resolved.getState())));
             }
 
             /**
-             * Answers what a read resolved, or the checkerboard, reported, where it holds no pixels.
+             * Reports a texture a read holds no pixels for and answers the checkerboard standing in for it.
              *
              * @param textureId the id the read was asked for
-             * @param resolved what the read beneath answered
-             * @return pixels, always
+             * @param state the state the read beneath answered, empty or absent
+             * @return the checkerboard
              */
-            private @NotNull Possible<PixelBuffer> standIn(@NotNull String textureId, @NotNull Possible<PixelBuffer> resolved) {
-                return switch (resolved.getState()) {
-                    case PRESENT -> resolved;
-                    case EMPTY, ABSENT -> {
-                        this.report(Substitution.texture(textureId, resolved.getState()));
-                        yield Possible.of(MissingSprite.sprite());
-                    }
-                };
+            private @NotNull PixelBuffer standIn(@NotNull String textureId, @NotNull Possible.State state) {
+                this.report(Substitution.texture(textureId, state));
+                return MissingSprite.sprite();
             }
 
             @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
@@ -786,7 +795,7 @@ public interface RendererContext {
                 return isHidden(textureId) ? Possible.absent() : delegate.resolveTexture(textureId);
             }
 
-            @Override public @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+            @Override public @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
                 return isHidden(textureId) ? Possible.absent() : delegate.resolvePlainTexture(textureId);
             }
 
@@ -1135,7 +1144,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Possible<PixelBuffer> resolvePlainTexture(@NotNull String textureId) {
+        @Override default @NotNull Possible<SampledTexture> resolvePlainTexture(@NotNull String textureId) {
             return delegate().resolvePlainTexture(textureId);
         }
 
