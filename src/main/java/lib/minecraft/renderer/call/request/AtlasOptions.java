@@ -11,6 +11,7 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Configures a single {@code AtlasRenderer} invocation. Selects which model sources to render,
@@ -38,7 +39,7 @@ public class AtlasOptions implements RenderOptions {
      * Optional predicate filter evaluated per model id; only ids passing the predicate are
      * rendered. Empty (default) admits every id from the selected {@link #source}
      */
-    private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
+    private final @NotNull Optional<Predicate<String>> filter = Optional.empty();
 
     /**
      * Output tile dimensions in pixels (square)
@@ -63,7 +64,7 @@ public class AtlasOptions implements RenderOptions {
      * it off via the builder. A skipped subject is named in the sidecar's
      * {@link AtlasResult.Sidecar#skipped() skipped} rows whether or not this is set.
      */
-    private final boolean progressLogging = true;
+    private final boolean progressLogging = false;
 
     /**
      * Builds an instance with every field at its default value.

@@ -325,7 +325,6 @@ AtlasOptions options = AtlasOptions.builder()
     .tileSize(128)
     .columns(5)
     .background(Background.checkerboard())
-    .progressLogging(false)                        // on by default; a library consumer wants it off
     .build();
 
 AtlasResult sheet = new AtlasRenderer(context).render(options);
