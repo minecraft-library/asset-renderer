@@ -1,8 +1,8 @@
 # Geometry rules
 
 Load when touching `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`,
-`EulerRotation` - `BoxKit`, `BoneKit`, `HumanoidPart`, a JOML rotation factory, or the order an
-entity's corners are rounded in. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
+`EulerRotation` - `BoxKit`, `FaceTextures`, `BoneKit`, `HumanoidPart`, a JOML rotation factory, or the
+order an entity's corners are rounded in. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 ## Faces, corner phase and unwrap
 
@@ -46,14 +46,13 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
   the `MIRROR_Y` that lights it is the fold's, one argument at one call.
 - A face map moves a strip between faces and cannot turn one in its own plane. Read through `HALF_X`,
   a cube's `UP` strip lays its top row on the upright box's min-Z edge where `BAKERY`'s `DOWN` walk lays
-  a crop's top row on max Z, so every box built upright from a cube strip reverses `DOWN`'s rows after
-  reading it: `HumanoidPart.textures` and `WornBox.Mesh.textures` on a copy of the crop,
-  `ShieldKit.addBox` on its v bounds. The cape's yaw also turns its two cap strips half a turn in
-  theirs, so `PlayerAssembly.capeTextures` turns those two crops after reading them through `HALF_Z`;
-  on the one-row hem that half turn is the same texels as the column reversal `DOWN` owes in that
-  frame. A `FaceTextures` supplier writes into no buffer it did not allocate, so the `DOWN` reversal
-  and the cape's half turn each hand out a buffer of their own, and a crop that is ever cached or
-  shared stays safe to hand out.
+  a region's top row on max Z, so every box built upright from a cube strip reads `DOWN` bottom up -
+  `HumanoidPart.textures`, `WornBox.Mesh.textures` and `ShieldKit.addBox`, each by swapping the face's
+  `v` bounds. The cape's yaw also turns its two cap strips half a turn in theirs, so
+  `PlayerAssembly.capeTextures` reads those two regions right to left and bottom up after reading them
+  through `HALF_Z`; on the one-row hem that half turn is the same texels as the column reversal `DOWN`
+  owes in that frame. A turn is a pair of coordinates swapped and touches no pixel, so every supplier
+  hands out the same sheet it was given.
 
 ## Boxes and unwraps
 
@@ -68,18 +67,31 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - `HumanoidPart`'s skin rectangles are `Unwrap.Atlas.rect` at the part's atlas origin under
   `AxisSigns.HALF_X`, derived rather than tabulated, and a scope's extent and both layouts follow from the
   union of its parts' boxes, so `PlayerOptions.Type` owns them.
-- The skull scope shares that arithmetic and never the constant or the predicate: `0.02f` and
-  `OVERLAY_INFLATE` are two calibrations at two u/px scales, and unifying the gate deletes the hat
-  layer on every legacy 64x32 skin.
+- The skull scope shares that arithmetic and never the constant: `0.02f` and `OVERLAY_INFLATE` are two
+  calibrations at two u/px scales. The hat takes no layout gate, both skin layouts carrying it, where a
+  body scope's other five overlays wait on the square layout (`PlayerAssembly.hasOverlay`); the gate
+  asks the layout rather than the texel size, so a high-resolution skin and the checkerboard standing in
+  for a missing one draw their overlays alike.
 - The 64x32 left-limb fallback is the production armour path, the armour atlas being 64x32, and it
   substitutes a different part's atlas origin, so no permutation of the part's own strip reaches it.
-- `Unwrap.Atlas.crop` stays a cropped buffer: `buildBox` addresses each face's `W x H` buffer by the
-  full `[0,1]` UV rect, so a sheet plus a rectangle is a sampler change, and the two part company on
-  a mirrored cube where the crop reverses the row and a mirrored UV interpolates a descending `u`. A
-  crop is a buffer of its own, so a box reads it nearest and repeating whatever the sheet's texture
-  section selects, where the client reads the sheet itself through that section's sampler.
+  It fires where the declared sheet stops above the part's rectangle - the 64x32 equipment sheet, or a
+  skin half as tall as it is wide (`HumanoidPart.skinSheetHeight`).
+- **A box face is a region of the whole sheet, never a crop of it.** `FaceTextures` answers each face as
+  a `Region` - the texture with its sampler, and the face's left, top, right and bottom coordinates -
+  and `buildBox` lays those coordinates on the face's corners, as the client's cube does. Each
+  rectangle is normalised by the sheet size its model declares (`FaceTextures.Region.of`): 64x64 for a
+  skin, 64x32 for a legacy one, the equipment sheet and the cape, and a shell's own `TextureSize`. So
+  the sheet's sampler reaches every face; a mirrored face, a `DOWN` face and the cape's cap strips
+  interpolate a descending pair, and read a boundary pixel on the side the client's polygon does; a
+  pixel past a face's edge reads the sheet's neighbouring texel; a fractional shell strip keeps its
+  fraction; a strip off its sheet reads the sheet as its sampler addresses it; and a texture of another
+  size than the one declared draws whole.
 - `Unwrap.Atlas.rect` ignores its own `mirror` flag, because six entity-kit predicates ask what a
-  face's own strip holds and the caller applies `AxisSigns.MIRROR_X`; only `crop` applies both.
+  face's own strip holds and the caller applies `AxisSigns.MIRROR_X`; only `read` applies both - the
+  opposite strip, right to left.
+- `FaceTextures` sits in `engine/mesh`, beside `BoxKit`, rather than with the face vocabulary in
+  `engine/geometry`: a region names a sampled texture, and `engine/draw` sits above `engine/geometry` in
+  `TierOrderTest`'s order.
 
 ## JOML factories
 

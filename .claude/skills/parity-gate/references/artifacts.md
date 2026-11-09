@@ -39,7 +39,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 2605 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 883 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 2220 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 1943 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 1981 ms | yes |
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 15 | 835 ms | yes |
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 17127 ms | yes |
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 26531 ms | yes |
@@ -52,7 +52,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 9 | 3103 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6260 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6081 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 9 | 3014 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 20261 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 24190 ms | yes |

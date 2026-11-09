@@ -99,12 +99,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static final @NotNull String STEVE_SKIN_ID = "minecraft:entity/player/wide/steve";
 
-    /**
-     * The edge of the square sheet a skin is read from, which vanilla's player model declares, in
-     * texels.
-     */
-    private static final int SKIN_SHEET_SIZE = 64;
-
     private final @NotNull RendererContext context;
 
     /**
@@ -191,30 +185,29 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
      * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
-     * included, that no pack supplies or that cannot be read is the checkerboard, laid across the
-     * whole skin sheet so every part and overlay crops it where vanilla's normalised UVs land on its
-     * own. Every part reads the skin through a crop of its rectangle, read nearest whatever its
-     * sidecar's texture section selects.
+     * included, that no pack supplies or that cannot be read is the checkerboard. Every part reads
+     * its faces as regions of the whole skin sheet, normalised by the layout the skin declares, so the
+     * checkerboard lands where vanilla's normalised UVs land on it.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
-     * @return the resolved skin buffer
+     * @return the resolved skin, with the sampler it is read through - its sidecar's for one read by id,
+     *     nearest and repeating for one from bytes or a URL, which carries no sidecar
      */
-    static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+    static @NotNull SampledTexture resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getSkin().getBytes().isPresent())
-            return ImageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer();
+            return SampledTexture.of(ImageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer());
 
         if (options.getSkin().getSkin().getUrl().isPresent()) {
             String url = options.getSkin().getSkin().getUrl().get();
-            return parent.skinCache.computeIfAbsent(url, u -> {
+            return SampledTexture.of(parent.skinCache.computeIfAbsent(url, u -> {
                 byte[] bytes = SkinFetch.fetchTexture(u);
                 return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            });
+            }));
         }
 
         String skinId = options.getSkin().getSkin().getId().orElse(STEVE_SKIN_ID);
-        PixelBuffer skin = textures(parent).resolvePlainTexture(skinId).get().pixels();
-        return MissingSprite.stretchedTo(skin, SKIN_SHEET_SIZE, SKIN_SHEET_SIZE);
+        return textures(parent).resolvePlainTexture(skinId).get();
     }
 
     /**
@@ -303,7 +296,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
-            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape.pixels(), torsoMin, torsoMax)));
+            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape, torsoMin, torsoMax)));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -311,13 +304,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Renders a 2D front-facing composite for any body type, over this renderer's resolved skin.
+     * Renders a 2D front-facing composite for any body type, over this renderer's resolved skin. The
+     * composite crops its parts out of the skin, so the stand-in sprite is laid across the square
+     * skin sheet first, landing where vanilla's normalised UVs land on its own.
      */
     private static @NotNull ImageData render2D(
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options
     ) {
-        return PlayerSprite.render2D(resolveSkin(parent, options), options, textures(parent));
+        PixelBuffer skin = MissingSprite.stretchedTo(resolveSkin(parent, options).pixels(),
+            HumanoidPart.SKIN_SIZE, HumanoidPart.SKIN_SIZE);
+        return PlayerSprite.render2D(skin, options, textures(parent));
     }
 
 
@@ -346,7 +343,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
-            PixelBuffer skin = resolveSkin(this.parent, options);
+            SampledTexture skin = resolveSkin(this.parent, options);
+            int sheetHeight = HumanoidPart.skinSheetHeight(skin.pixels());
             View view = playerView(options);
             Rasterizer engine = playerEngine(this.parent, view);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
@@ -356,15 +354,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             // centred(0.125f) is 8 * 0.5f * 0.125f = exactly +-0.5f in binary32, and the overlay's
             // 0.5f + 0.02f is exactly the 0.52f the two literals used to spell. Drawing both from the
             // scope's own box is therefore bit-identical and says where the numbers come from.
-            // The gate stays hasHatOverlay, which accepts a legacy 64x32 skin that the body scopes'
-            // hasOverlay rejects; unifying the two would delete the hat layer on every such skin.
+            // The hat takes no layout gate: both skin layouts carry it, the legacy one included, where
+            // the body scopes' hasOverlay gate decides the five overlays only the square layout holds.
             Box head = PlayerOptions.Type.SKULL.lattice().boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(BoxKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
-                if (options.getSkin().isRenderOverlay() && PlayerAssembly.hasHatOverlay(skin))
+                sink.addAll(BoxKit.buildBox(head,
+                    HumanoidPart.HEAD.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, false), ColorMath.WHITE));
+                if (options.getSkin().isRenderOverlay())
                     sink.addAll(BoxKit.buildBox(
                         head.expand(SKULL_OVERLAY_INFLATE),
-                        HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
+                        HumanoidPart.HEAD.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, true), ColorMath.WHITE));
             });
             RendererContext textures = textures(this.parent);
             PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, textures);
@@ -462,14 +461,14 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * {@link PlayerOptions.Type#BUST} and {@link PlayerOptions.Type#FULL} differ in nothing but the scope
      * token, which is why it is a parameter here rather than two bodies that have to be kept in step.
      * {@link PlayerOptions.Type#SKULL} deliberately does not route through this: it draws one box with its
-     * own wider-gated hat overlay, and it seats no back layer.
+     * own hat overlay, drawn over either skin layout, and it seats no back layer.
      */
     private static @NotNull ImageData renderScope3D(
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options,
         @NotNull PlayerOptions.Type type
     ) {
-        PixelBuffer skin = resolveSkin(parent, options);
+        SampledTexture skin = resolveSkin(parent, options);
         View view = playerView(options);
         Rasterizer engine = playerEngine(parent, view);
         RendererContext textures = textures(parent);

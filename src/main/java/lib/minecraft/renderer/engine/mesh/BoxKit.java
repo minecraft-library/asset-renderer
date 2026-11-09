@@ -10,7 +10,6 @@ import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.math.Vector2f;
@@ -47,8 +46,6 @@ public class BoxKit {
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
      * with the given per-face textures.
-     * <p>
-     * Every face uses the full {@code [0, 1]} UV rectangle.
      *
      * @param textures the texture each face paints
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
@@ -88,9 +85,13 @@ public class BoxKit {
      * {@link SurfaceTraits#OPAQUE_BODY} and {@link SurfaceTraits#WORN_SHELL}, which is why those two
      * constants are the whole of the distinction and why they carry their own reasons.
      * <p>
-     * Every face is read nearest and repeating: a box paints an atlas sprite, a buffer this renderer
-     * builds, or the crop of a skin, cape or armour sheet one face reads, each a picture of its own
-     * rather than a plain texture read whole, so no sheet's sampler reaches it.
+     * Every face lays the {@link FaceTextures.Region region} its supplier answers: the region's four
+     * coordinates ride the face's corners in {@link CornerPhase#BAKERY}'s walk, whose pairing is the
+     * identity, and the face reads the region's texture through that texture's own sampler. A skin,
+     * cape or armour face is the rectangle of the whole sheet the client lays it as, so a pixel past the
+     * rectangle's edge reads the sheet's neighbouring texel and a blurred or clamped sheet is read as
+     * its sidecar selects; an atlas sprite or a buffer this renderer builds is the whole of a buffer,
+     * read nearest and repeating.
      * <p>
      * {@code debugPart} names the box for the per-pixel trace and each face's two triangles carry
      * {@code part:face}. Without a tag an armour fragment logs {@code tag=null} and the trace skips it
@@ -114,18 +115,18 @@ public class BoxKit {
     ) {
         // Two triangles on each of the six faces, filled here alone and adopted once the last face is in.
         ArrayList<VisibleTriangle> triangles = new ArrayList<>(12);
-        // The full [0, 1] rectangle - the UV every face of a box takes. One quartet serves all six
-        // faces because Vector2f is immutable, so the instances are shared rather than re-derived.
-        Vector2f[] uv = {
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
-        };
 
         Face.forEach(face -> {
+            FaceTextures.Region region = textures.byFace(face);
+            // The region's left, top, right and bottom coordinates as the face's TL, BL, BR and TR
+            // corners - the order BAKERY walks a face's corners in. A descending pair is a face read
+            // right to left or bottom up, and stays one: the normaliser is 1 and no mirror is asked.
+            Vector2f[] uv = region.uv().toUvCorners(1f, 1f, 0, false);
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
             addQuad(
                 triangles, corners, uv,
-                SampledTexture.of(textures.byFace(face)), tintArgb,
+                region.texture(), tintArgb,
                 normal, Lighting.inventory(normal),
                 surface,
                 debugPart == null ? null : debugPart + ":" + face.direction()

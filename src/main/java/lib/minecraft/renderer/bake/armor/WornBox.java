@@ -1,16 +1,15 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.math.Vector3f;
-import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
@@ -60,12 +59,13 @@ public sealed interface WornBox {
     @NotNull Box boxFor(@NotNull ArmorSlot slot);
 
     /**
-     * Where this row reads each of its faces from on a sheet.
+     * Where this row reads each of its faces from on a sheet - each face a region of the whole sheet,
+     * read through the sheet's own sampler.
      *
-     * @param sheet the armour or trim sheet to read
+     * @param sheet the armour or trim sheet to read, with the sampler it is read through
      * @return this row's per-face texture supplier against that sheet
      */
-    @NotNull FaceTextures textures(@NotNull PixelBuffer sheet);
+    @NotNull FaceTextures textures(@NotNull SampledTexture sheet);
 
     /**
      * Whether a slot's armour draws this row.
@@ -132,25 +132,18 @@ public sealed interface WornBox {
          * have no counterpart in the skin layout at all. On the adult shell the two agree box for box,
          * the helmet's second box included: that shell IS the skin unwrap, mirrored left limbs and all.
          *
-         * <p>{@link Face#DOWN} is handed with its rows reversed into a copy of its own, as
-         * {@link HumanoidPart#textures} hands the body's: the box builder's {@link CornerPhase#BAKERY}
-         * walk puts a crop's top row on the box's max-Z edge, while the cube's own polygon puts it on
-         * the edge {@link AxisSigns#HALF_X} carries to min Z.
-         *
-         * <p>The stand-in sprite is laid across the sheet size the shell declares before any face is
-         * cropped, so a face reads it where vanilla's normalised UVs land on its own.
+         * <p>Each face is the cube's strip of the whole sheet, normalised by the sheet size the shell
+         * declares, as the client's cube normalises it - so a fractional strip keeps its fraction, a
+         * strip off the sheet reads the sheet as its sampler addresses it, and a sheet of another size
+         * is read whole. {@link Face#DOWN} is read bottom up, as {@link HumanoidPart#textures} reads
+         * the body's: the box builder's {@link CornerPhase#BAKERY} walk puts a region's top row on the
+         * box's max-Z edge, while the cube's own polygon puts it on the edge {@link AxisSigns#HALF_X}
+         * carries to min Z.
          */
         @Override
-        public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
-            PixelBuffer read = MissingSprite.stretchedTo(sheet, this.sheetSize.width(), this.sheetSize.height());
-            return face -> {
-                PixelBuffer strip = this.unwrap.crop(read, MODEL_FRAME.apply(face));
-                if (face != Face.DOWN) return strip;
-
-                PixelBuffer reversed = strip.copy();
-                reversed.flipVertical();
-                return reversed;
-            };
+        public @NotNull FaceTextures textures(@NotNull SampledTexture sheet) {
+            return face -> FaceTextures.Region.of(sheet, this.unwrap.read(MODEL_FRAME.apply(face)),
+                this.sheetSize.width(), this.sheetSize.height(), false, face == Face.DOWN);
         }
     }
 
@@ -202,12 +195,12 @@ public sealed interface WornBox {
         /**
          * {@inheritDoc}
          *
-         * <p>The stand-in sprite is laid across the equipment sheet's declared size before the part's
-         * rectangles crop it, so a face reads it where vanilla's normalised UVs land on its own.
+         * <p>The part's rectangles are normalised by the equipment sheet's declared size, which stops
+         * above every left-limb rectangle, so a left limb reads its right limb's strip mirrored.
          */
         @Override
-        public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
-            return this.part.textures(MissingSprite.stretchedTo(sheet, SHEET_WIDTH, SHEET_HEIGHT), this.overlay);
+        public @NotNull FaceTextures textures(@NotNull SampledTexture sheet) {
+            return this.part.textures(sheet, SHEET_WIDTH, SHEET_HEIGHT, this.overlay);
         }
     }
 

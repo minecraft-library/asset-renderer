@@ -383,7 +383,7 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 ## B27 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/geometry/AxisSigns.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/CornerPhase.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Face.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/FaceTextures.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java`, `src/main/java/lib/minecraft/renderer/engine/light/FaceShade.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/geometry/AxisSigns.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/CornerPhase.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Face.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java`, `src/main/java/lib/minecraft/renderer/engine/light/FaceShade.java`, `src/main/java/lib/minecraft/renderer/engine/mesh/FaceTextures.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing CornerPhase.java: 11 of its declared sees moved and both declared blind held. A face is named in serialised model data, so the graph reaches a dump from here and flipping the table leaves every dump file byte-identical, which is what the demotion carries.

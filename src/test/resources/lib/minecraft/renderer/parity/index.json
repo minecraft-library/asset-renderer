@@ -58,9 +58,9 @@
       "entries": 97,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 6260,
-      "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
-      "sha256": "9a79191fe5bdaf64142f82454f58c2513a1a57c8f73c32d30523d37eac4f2bb7"
+      "last_duration_ms": 6081,
+      "promoted_at": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
+      "sha256": "f89a8f49710d8869a8458fe5f5ad7216349ed0aae69d4499e734826ac60bcf71"
     },
     "manifest.portal": {
       "baselined": true,
@@ -129,8 +129,8 @@
       "file": "pins/player-crc.json",
       "kind": "pin-set",
       "last_duration_ms": 3041,
-      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
-      "sha256": "44b087f432f0df2ab61686f7ecf058ff1d1a87b8fa5024e7f7fb7efb6da52200"
+      "promoted_at": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
+      "sha256": "57220c4559db0646fd125abb90d3dfe52dfa0785750ff5aba3c1d0c9a901f285"
     },
     "pin.portal-crc": {
       "baselined": true,
@@ -236,10 +236,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 1943,
-      "promoted_at": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
-      "sha256": "49dc594c583779cf67bd1f7312ab19b9e693118a4920dc47ae41cd5d47a4a062",
-      "sum": "527.7353"
+      "last_duration_ms": 1981,
+      "promoted_at": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
+      "sha256": "fac7f61e974e8f6dcad7ef3eeb4c1bef9153397e3b4f8aa8fa00973819294a70",
+      "sum": "527.6585"
     },
     "sweep.item": {
       "baselined": true,

@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import org.jetbrains.annotations.NotNull;

@@ -6,17 +6,18 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
@@ -48,8 +49,7 @@ import static org.hamcrest.Matchers.is;
  * X extremes before it builds a vertex and reverses each polygon only after pairing its UVs, so the
  * vertex at a corner carries the UV the unmirrored cube gives the corner across the box's X centre, on
  * the polygon {@link AxisSigns#MIRROR_X} names. The renderer builds each upright box with
- * {@link CornerPhase#BAKERY} corners instead - over whole-face crops for the parts and the shell, over
- * paired UV corners for the shield - and every corner of every face has to sample the texel vanilla's
+ * {@link CornerPhase#BAKERY} corners instead, over regions of the whole sheet, and every corner of every face has to sample the texel vanilla's
  * polygon gives the same corner.
  * <p>
  * The probe sheet paints each texel with its own {@code (u, v)} - {@code u} in red, {@code v} in green -
@@ -109,9 +109,10 @@ class HumanoidFrameTest {
     @TestFactory
     @DisplayName("every corner of every part's faces, on both layers, samples the texel vanilla's walk puts there")
     Stream<DynamicTest> everyPartCornerSamplesVanillasTexel() {
-        PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
+        SampledTexture probe = SampledTexture.of(probe(SHEET_SIZE, SHEET_SIZE));
         return Stream.of(HumanoidPart.values()).flatMap(part -> Stream.of(false, true).flatMap(overlay -> {
-            ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(part.box(1f), part.textures(probe, overlay), ColorMath.WHITE);
+            ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(part.box(1f),
+                part.textures(probe, SHEET_SIZE, SHEET_SIZE, overlay), ColorMath.WHITE);
             Box box = bounds(triangles);
             Vector3f size = new Vector3f(part.pixelWidth(), part.pixelHeight(), box.maxZ() - box.minZ());
             Unwrap.Atlas unwrap = new Unwrap.Atlas((overlay ? OVERLAY_ORIGINS : BASE_ORIGINS).get(part), size, false);
@@ -124,9 +125,10 @@ class HumanoidFrameTest {
     @TestFactory
     @DisplayName("a legacy sheet's left limbs sample the texel vanilla's mirrored right-limb walk puts there")
     Stream<DynamicTest> legacyLeftLimbsSampleTheMirroredRightLimb() {
-        PixelBuffer probe = probe(SHEET_SIZE, LEGACY_HEIGHT);
+        SampledTexture probe = SampledTexture.of(probe(SHEET_SIZE, LEGACY_HEIGHT));
         return Stream.of(HumanoidPart.LEFT_ARM, HumanoidPart.LEFT_LEG).flatMap(part -> {
-            ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(part.box(1f), part.textures(probe, false), ColorMath.WHITE);
+            ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(part.box(1f),
+                part.textures(probe, SHEET_SIZE, LEGACY_HEIGHT, false), ColorMath.WHITE);
             Unwrap.Atlas unwrap = part == HumanoidPart.LEFT_ARM ? LEGACY_ARM : LEGACY_LEG;
             return Stream.of(Face.values()).map(face -> DynamicTest.dynamicTest(
                 part + " " + face,
@@ -137,7 +139,7 @@ class HumanoidFrameTest {
     @TestFactory
     @DisplayName("every corner of a worn shell cube, plain or mirrored, samples the texel vanilla's walk puts there")
     Stream<DynamicTest> shellCubesSampleVanillasTexel() {
-        PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
+        SampledTexture probe = SampledTexture.of(probe(SHEET_SIZE, SHEET_SIZE));
         return Stream.of(false, true).flatMap(mirror -> {
             Unwrap.Atlas unwrap = new Unwrap.Atlas(new Vector2f(40f, 16f), new Vector3f(4f, 12f, 4f), mirror);
             WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, new TextureSize(SHEET_SIZE, SHEET_SIZE), Concurrent.newSet(),
@@ -150,12 +152,12 @@ class HumanoidFrameTest {
     }
 
     @TestFactory
-    @DisplayName("a supplier asked for DOWN twice answers the same reversed strip and leaves its first answer as it was")
+    @DisplayName("a supplier asked for DOWN twice answers the same region of the same sheet")
     Stream<DynamicTest> aSecondDownLeavesTheFirstAsItWas() {
-        PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
+        SampledTexture probe = SampledTexture.of(probe(SHEET_SIZE, SHEET_SIZE));
         Stream<DynamicTest> parts = Stream.of(HumanoidPart.values()).flatMap(part -> Stream.of(false, true).map(overlay ->
             DynamicTest.dynamicTest(part + (overlay ? " overlay" : " base"),
-                () -> assertSecondDownLeavesTheFirst(part.textures(probe, overlay)))));
+                () -> assertSecondDownLeavesTheFirst(part.textures(probe, SHEET_SIZE, SHEET_SIZE, overlay)))));
         Stream<DynamicTest> shells = Stream.of(false, true).map(mirror -> {
             Unwrap.Atlas unwrap = new Unwrap.Atlas(new Vector2f(40f, 16f), new Vector3f(4f, 12f, 4f), mirror);
             WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, new TextureSize(SHEET_SIZE, SHEET_SIZE), Concurrent.newSet(),
@@ -216,17 +218,18 @@ class HumanoidFrameTest {
     }
 
     /**
-     * Asks a supplier for {@link Face#DOWN} twice and asserts that both answers hold the same pixels,
-     * the first one unchanged by the second ask.
+     * Asks a supplier for {@link Face#DOWN} twice and asserts that both answers are the same region of
+     * the same sheet, read bottom up, with the sheet's pixels as they were.
      *
      * @param textures the supplier to ask
      */
     private static void assertSecondDownLeavesTheFirst(@NotNull FaceTextures textures) {
-        PixelBuffer first = textures.byFace(Face.DOWN);
-        PixelBuffer held = first.copy();
-        PixelBuffer second = textures.byFace(Face.DOWN);
-        assertThat("the second DOWN is the first's strip", second, is(held));
-        assertThat("the first DOWN is as it was after the second ask", first, is(held));
+        FaceTextures.Region first = textures.byFace(Face.DOWN);
+        PixelBuffer held = first.texture().pixels().copy();
+        FaceTextures.Region second = textures.byFace(Face.DOWN);
+        assertThat("the second DOWN is the first's region", second, is(first));
+        assertThat("DOWN is read bottom up", first.uv().y() > first.uv().w(), is(true));
+        assertThat("the sheet is as it was after the second ask", second.texture().pixels(), is(held));
     }
 
     /**
@@ -301,7 +304,7 @@ class HumanoidFrameTest {
     /**
      * Reads the texel a corner UV lands on, the texel just inside the face's UV span at that corner.
      *
-     * @param texture the texture the vertex samples - a whole-face crop, or the sheet itself
+     * @param texture the sheet the vertex samples
      * @param uv the vertex's UV
      * @param span the least and greatest UV over the face's vertices, as {@code (uMin, vMin, uMax, vMax)}
      * @return the probe texel the texture holds at that corner

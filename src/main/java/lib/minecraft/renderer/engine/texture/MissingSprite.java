@@ -15,11 +15,11 @@ import org.jetbrains.annotations.NotNull;
  * halves are integer divisions, so an odd dimension splits unevenly - a 17-texel span is eight texels
  * then nine. It is generated at class load and ships as no file.
  * <p>
- * A reader sampling a texture across a face's normalised UV space draws the sprite as vanilla draws its
- * own, at whatever size the sheet declares. A reader cropping a sheet by texel coordinates - a skin, an
- * armour sheet, a cape, a banner mask - would find a sixteen-texel sprite covering only the sheet's
- * corner, so it reads the texture through {@link #stretchedTo}, which lays the sprite across the whole
- * sheet first.
+ * A reader sampling a texture across a face's normalised UV space - every box face, a skin, cape or
+ * armour sheet's included - draws the sprite as vanilla draws its own, at whatever size the sheet
+ * declares. A reader cropping a sheet by texel coordinates - the flat player composite's skin and
+ * armour, a banner mask - would find a sixteen-texel sprite covering only the sheet's corner, so it
+ * reads the texture through {@link #stretchedTo}, which lays the sprite across the whole sheet first.
  */
 @UtilityClass
 public class MissingSprite {

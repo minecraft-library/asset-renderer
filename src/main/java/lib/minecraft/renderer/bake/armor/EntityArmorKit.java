@@ -4,7 +4,6 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
@@ -101,8 +100,8 @@ public class EntityArmorKit {
      * orthographic fit sizes from measured bounds rather than from the rendered triangles, so a shell
      * nobody measured crops at the canvas edge.
      *
-     * <p>Measured per equipped slot through that slot's own composited sheet, read nearest as the
-     * shell's crops read it, the same alpha-tight
+     * <p>Measured per equipped slot through that slot's own composited sheet, read by the sampler the
+     * shell's faces read it through, the same alpha-tight
      * walk an equipment overlay gets, over the very parts and deformations
      * {@link #buildEntityArmor3D} will draw. Empty when nothing is equipped, so an unarmored render
      * is untouched.
@@ -129,11 +128,11 @@ public class EntityArmorKit {
         Box union = null;
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : ArmorKit.inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
-            Optional<PixelBuffer> sheet = ArmorKit.resolveArmorTexture(context, entry.getValue(),
+            Optional<SampledTexture> sheet = ArmorKit.resolveArmorTexture(context, entry.getValue(),
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
             Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, walk, slot),
-                screenTransform, modelScale, SampledTexture.of(sheet.get()));
+                screenTransform, modelScale, sheet.get());
             union = union == null ? slotBounds : union.union(slotBounds);
         }
         return Optional.ofNullable(union);

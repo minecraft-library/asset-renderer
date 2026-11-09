@@ -105,11 +105,11 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
   raster texture, so nothing measures it against the card, and the card's filter precision is not
   modelled, as its interpolation setup is not (below).
 - **A texture a reader prepares before the draw is read nearest and repeating**, whatever its sheet's
-  section sets: a box face's crop of a skin, cape or worn armour sheet, and an equipment composite whose
-  layers are pasted or tinted into one, each a buffer of the renderer's own, so a filter or a clamp at its
-  edge would read the buffer where the client reads the sheet. An entity's own texture, a single flat
-  equipment layer, the wings, a skull and the statue reach the raster whole and are read by their own
-  sampler.
+  section sets: an equipment composite whose layers are pasted or tinted into one, a buffer of the
+  renderer's own, so a filter or a clamp at its edge would read the buffer where the client reads the
+  sheet. An entity's own texture, a single flat equipment layer, the wings, a skull and the statue reach
+  the raster whole and are read by their own sampler, and so does a skin, cape or worn armour sheet,
+  every box face of which is a region of the whole sheet.
 - A perspective lens interpolates the coordinate perspective-correctly - each corner's weight
   re-weighted by its inverse clip-`w`, then normalized - and turns the exact read off. Those two are
   everything the `perspectiveCorrect` flag forks; depth reads one plane under every lens.

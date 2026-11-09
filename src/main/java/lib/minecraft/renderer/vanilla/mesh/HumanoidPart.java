@@ -6,15 +6,16 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -64,6 +65,17 @@ public enum HumanoidPart {
     LEFT_ARM ("left_arm",    4,  -4, -2,     8,  8,  2,    32, 48,    48, 48),
     RIGHT_LEG("right_leg",  -4, -16, -2,     0, -4,  2,     0, 16,     0, 32),
     LEFT_LEG ("left_leg",    0, -16, -2,     4, -4,  2,    16, 48,     0, 48);
+
+    /**
+     * The width of the skin sheet vanilla's player model declares, and the height of the full square
+     * layout, in texels.
+     */
+    public static final int SKIN_SIZE = 64;
+
+    /**
+     * The height of the legacy skin layout, the top half of the square sheet, in texels.
+     */
+    public static final int LEGACY_SKIN_HEIGHT = 32;
 
     /**
      * The armor-mesh bone this part is the player's counterpart of. The shell vanilla dresses a
@@ -192,7 +204,8 @@ public enum HumanoidPart {
 
     /**
      * Crops a single face out of the given skin image using the base or overlay rectangle for this
-     * part's face.
+     * part's face - the picture the flat front-facing composite blits, which lays no box. A box reads
+     * its faces as regions of the whole sheet instead, through {@link #textures}.
      * <p>
      * Legacy 64x32 skins and the 64x32 equipment atlases carry only the top half of the modern
      * layout - head, body, the <b>right</b> arm and the <b>right</b> leg - with no dedicated
@@ -229,29 +242,63 @@ public enum HumanoidPart {
     }
 
     /**
-     * Returns this part's six skin rectangles as a per-face supplier, ready to feed a box builder.
+     * Returns this part's six rectangles of a sheet as a per-face supplier, ready to feed a box builder.
      * <p>
-     * Every face is its {@link #crop}, and {@link Face#DOWN} is handed with its rows reversed. A box
-     * builder lays a crop with {@link CornerPhase#BAKERY}'s walk, which puts {@code DOWN}'s top row on
-     * the box's max-Z edge, while vanilla's cube puts that strip's top row on its model-frame max-Z
-     * edge, which the {@link AxisSigns#HALF_X upright turn} carries to min Z. A face map picks a strip
-     * and cannot turn it in its own plane, so the turn is made on a copy of the crop, which leaves
-     * the crop as it was, rather than in the table {@link #crop} reads.
+     * Every face is its rectangle of the whole sheet, normalised by the sheet size the model declares
+     * and read through the sheet's own sampler, as the client lays a cube face - so a pixel past a
+     * face's edge reads the sheet's neighbouring texel, and a sheet of another size than the one
+     * declared is read whole. Where the declared sheet stops above a base-layer rectangle - a legacy
+     * 64x32 skin, or the 64x32 equipment sheet the armour reads - a left limb reads its right limb's
+     * opposite strip right to left, the mirror {@link #crop} makes.
+     * <p>
+     * {@link Face#DOWN} is read bottom up. A box builder lays a region with {@link CornerPhase#BAKERY}'s
+     * walk, which puts {@code DOWN}'s top row on the box's max-Z edge, while vanilla's cube puts that
+     * strip's top row on its model-frame max-Z edge, which the {@link AxisSigns#HALF_X upright turn}
+     * carries to min Z. A face map picks a strip and cannot turn it in its own plane, so the turn is
+     * made on the region's coordinates.
      *
-     * @param skin the source skin image
-     * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return a supplier cropping this part's face out of {@code skin} on demand, {@code DOWN} with its
-     *     rows reversed
+     * @param sheet the whole sheet, with the sampler it is read through
+     * @param sheetWidth the sheet width the model declares, in texels
+     * @param sheetHeight the sheet height the model declares, in texels
+     * @param overlayLayer whether to read the overlay layer instead of the base layer
+     * @return a supplier answering this part's region of {@code sheet} for each face, {@code DOWN} read
+     *     bottom up
      */
-    public @NotNull FaceTextures textures(@NotNull PixelBuffer skin, boolean overlayLayer) {
+    public @NotNull FaceTextures textures(
+        @NotNull SampledTexture sheet,
+        int sheetWidth,
+        int sheetHeight,
+        boolean overlayLayer
+    ) {
         return face -> {
-            PixelBuffer strip = crop(skin, face, overlayLayer);
-            if (face != Face.DOWN) return strip;
+            Rectangle rect = rect(face, overlayLayer);
+            boolean mirrored = false;
 
-            PixelBuffer reversed = strip.copy();
-            reversed.flipVertical();
-            return reversed;
+            if (!overlayLayer && rect.y + rect.height > sheetHeight) {
+                HumanoidPart mirror = legacyMirrorSource();
+
+                if (mirror != this) {
+                    rect = mirror.rect(AxisSigns.MIRROR_X.apply(face), false);
+                    mirrored = true;
+                }
+            }
+
+            Vector4f pixels = new Vector4f(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+            return FaceTextures.Region.of(sheet, pixels, sheetWidth, sheetHeight, mirrored, face == Face.DOWN);
         };
+    }
+
+    /**
+     * The height of the skin sheet a player model declares for a skin, in texels.
+     * <p>
+     * A skin half as tall as it is wide is the legacy layout, which declares the top half alone and
+     * carries no left-limb or overlay regions; every other skin declares the full square sheet.
+     *
+     * @param skin the skin to measure
+     * @return {@link #LEGACY_SKIN_HEIGHT} for a legacy skin, {@link #SKIN_SIZE} otherwise
+     */
+    public static int skinSheetHeight(@NotNull PixelBuffer skin) {
+        return 2 * skin.height() <= skin.width() ? LEGACY_SKIN_HEIGHT : SKIN_SIZE;
     }
 
     /**

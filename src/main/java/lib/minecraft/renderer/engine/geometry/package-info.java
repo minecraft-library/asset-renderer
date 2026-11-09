@@ -19,8 +19,7 @@
  * starts at and pairs each corner with its UV slot, which fixes the diagonal the quad splits on;
  * {@link lib.minecraft.renderer.engine.geometry.Unwrap Unwrap} derives a face's texture rectangle,
  * either projected from an element's own bounds or read as a strip of one shared sheet from a cube's
- * origin, size and mirror flag. {@link lib.minecraft.renderer.engine.geometry.FaceTextures
- * FaceTextures} answers the texture a box paints, asked one face at a time.
+ * origin, size and mirror flag.
  *
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or

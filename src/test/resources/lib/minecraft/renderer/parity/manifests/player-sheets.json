@@ -144,11 +144,11 @@
     },
     {
       "path": "facing.png",
-      "sha256": "4a6446ae02fe55ef3b6b33fdd535e94f47e6b5a1361a5cc7aad997a168993915"
+      "sha256": "4a924c1671924493d455214c753488230e53eb9c6a089d6dfc87c15d587adebb"
     },
     {
       "path": "facing/cavalier_default.png",
-      "sha256": "161cc4924a71b4933d7f6508d7c6d8be23f0033030ad2fd37dc214bf508d2f88"
+      "sha256": "9a34fc3c9000fa0403ac85dab98d872c26739269dc2e1febcf6f03619a4a73cf"
     },
     {
       "path": "facing/cavalier_mirrored.png",
@@ -252,11 +252,11 @@
     },
     {
       "path": "projections.png",
-      "sha256": "220eb9bbf57a782632702373904af5e896d8192dd26776a7639e8c4e080d70f3"
+      "sha256": "5889319bd4fd412730dcd99abc0fa2d006859f90edb103c95187d24d17bc2e73"
     },
     {
       "path": "projections/cabinet.png",
-      "sha256": "8b8b7062013bfd97604b2d7c147eed14a69b3b8514b11603ef6e2a397548467e"
+      "sha256": "a15188b7db3a800e0a051d45663d5fa4e3b177e35a2e9ae47ae5ed9986457941"
     },
     {
       "path": "projections/dimetric.png",
@@ -272,7 +272,7 @@
     },
     {
       "path": "projections/one_point.png",
-      "sha256": "50a2564114d385f69a908201a085b65ca50670dde7d7a661bea065871f115981"
+      "sha256": "013275af90505b27884b74c27f8019e15981a3992a9e0073fdf44b4dcdefa7d5"
     },
     {
       "path": "projections/portrait.png",
@@ -396,22 +396,21 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
-    "asset_dirty": false,
-    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
+    "asset_content_digest": "8acaa2144945de48b039dac133bdc7321cf9a7c4b1c40e4bcda70f3b6f2245f4",
+    "asset_dirty": true,
+    "asset_sha": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
     "counts": {
       "files": 97
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
+    "reason": "Box faces read as regions of the whole skin, cape and armour sheet through its sampler (6b161c0b): the armoured player pin, the perspective and oblique player sheets, and the glint sweep's leather leggings, mean_argb_delta 84.1385 -> 84.0617",
     "root": "cache/visual/player-render",
-    "timestamp": "2026-11-04T16:15:49Z",
+    "timestamp": "2026-11-09T22:54:24Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 6416
+    "wall_time_ms": 6081
   }
 }

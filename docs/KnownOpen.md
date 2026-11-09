@@ -121,33 +121,6 @@ differing pixels into 154. Closing the 18 needs the card's interpolation setup a
 position and the GUI atlas's layout, and modelling the card is refused in
 [Texel rules](renderer/TexelFetch.md). Nobody has taken it on.
 
-## A skin, cape or armour face is read from its own crop, not from the whole sheet
-
-The skin, the cape and the worn armour layers are cut into one buffer per box face, and each face is
-laid over that buffer, where the client lays each face as its rectangle of the whole sheet. Three things
-follow. The sampler the sheet's sidecar sets never reaches these faces, so a blurred or clamped sheet
-draws nearest and repeating here. At a texel boundary that a pixel centre sits on, a mirrored face (an
-armoured player's left arm and left leg, every mirrored shell cube), a face read bottom up and the
-cape's cap strips read the texel on the other side of the edge from the client's, and every face reads
-the crop's own far edge where the client reads the sheet's neighbouring texel. A fractional shell strip
-is resampled to whole texels, and a strip that lies off its sheet draws clear.
-
-The fix lays each face as its region of the whole sheet with the sheet's sampler: `FaceTextures`
-answering a region, `BoxKit` laying its corners, and `HumanoidPart`, `WornBox` and the cape normalising
-their rectangles by the declared layout. It is not byte-neutral at vanilla's sheet size, because a
-boundary pixel then reads the sheet's texel, so it moves stored player, armour, entity and glint rows
-and the player pin, each named by a before/after run ahead of its capture. It also closes the next
-entry. Nobody has taken it on.
-
-## A skin, cape or armour texture of another size is cropped at vanilla's sheet coordinates
-
-The croppers above cut at the texel coordinates of the sheet size the model declares, so a texture of
-another size - a pack's high-resolution skin or armour layer, or a strip a sidecar declares several
-frames of - draws that sheet's top-left texels, where the client normalises the model's UVs by the
-declared size and draws the whole file. No source in reach ships a skin, cape, armour or wing texture at
-a size other than vanilla's. Laying each face as its region of the whole sheet, the previous entry's
-fix, closes it. Nobody has taken it on.
-
 ## An equipment asset's layers are pasted into one picture before they are drawn
 
 `EquipmentKit` tints a dyeable layer's texture to a byte and copies an asset's layers into one buffer,

@@ -21,14 +21,14 @@ Values this store holds, one file each.
 | `manifest.fluid` | `manifests/fluid.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `manifest.pack-tooltips` | `manifests/pack-tooltips.json` | 44 | 44 entries | `5f2174f3c4e0f23707ff31931da0659c7b298b4e` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 9 | 9 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 97 | 97 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 97 | 97 entries | `56f9deeddded86fff3fd04a5a4f439d4931cdea1` | yes |
 | `manifest.portal` | `manifests/portal.json` | 6 | 6 entries | `d99fbb39861a7ecb8af36502129de262820a7977` | yes |
 | `manifest.references` | `manifests/references.json` | 9846 | 9846 entries | `f3a33d46ce971755f1ab77d932a28f65a527ecdb` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `ddf501fd7368b826e7c8718e16d41c2b2a96ac62` | yes |
 | `manifest.visual` | `manifests/visual.json` | 169 | 169 entries | `336520d912aebf292671cc1472c937d24d727aa4` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
-| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
+| `pin.player-crc` | `pins/player-crc.json` | 3 | 3 entries | `56f9deeddded86fff3fd04a5a4f439d4931cdea1` | yes |
 | `pin.portal-crc` | `pins/portal-crc.json` | 2 | 2 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `pin.vanilla-iso-pose` | `pins/vanilla-iso-pose.json` | 1 | 1 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
@@ -39,7 +39,7 @@ Values this store holds, one file each.
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 10.9966 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 134 | sum 1.8479 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 134 | sum 1.8886 | `4756faf3a8c3dd8502d19c00bd4cb207901b3ab7` | yes |
-| `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.7353 | `6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de` | yes |
+| `sweep.glint` | `sweeps/glint.json` | 11 | sum 527.6585 | `56f9deeddded86fff3fd04a5a4f439d4931cdea1` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0398 | `181f4ab9b8180f98fafc72869bb9232a390fb1cc` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 15 | sum 0.1182 | `560a68449662f6fefb9713bcd6cd6d712a38c8d3` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
