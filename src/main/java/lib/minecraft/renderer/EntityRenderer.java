@@ -445,7 +445,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Map<EntityMesh, Object> sharedGeometry = new IdentityHashMap<>();
             ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit.buildTriangles(posedSubject.model(), frameTexture,
                 new EntityGeometryKit.EntityBuildParams(
-                    kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb()), sharedGeometry).triangles();
+                    kitFrame, resolved.bodyPass(), resolved.baseTintArgb()), sharedGeometry).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(posedSubject, options, wings, babyWings, posedSubject.model(),
                 frameTexture, kitFrame, textures, tick, sharedGeometry);
@@ -672,9 +672,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                         for (EquipmentKit.Layer layer : EquipmentKit.layers(
                             ctx.context(), assetId.get(), equipment.layerType(),
                             dye, CitResult.NONE, OptionalInt.of(ctx.tick())))
-                            sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), layer.texture(),
-                                new EntityGeometryKit.EntityBuildParams(
-                                ctx.frame(), PassDeclaration.DEFAULT, layer.tint())).triangles());
+                            sink.addAll(equipmentLayerTriangles(equipment.model(), layer, ctx.frame()));
                     });
                 }
             }
@@ -791,6 +789,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick,
         @NotNull Map<EntityMesh, Object> sharedGeometry
     ) { }
+
+    /**
+     * Builds one equipment layer over the mesh its slot draws, through the
+     * {@link PassDeclaration#CUTOUT cutout pass}: vanilla's {@code EquipmentLayerRenderer} submits every
+     * layer through {@code armorCutoutNoCull}, a pipeline declaring no blend function, so a fragment
+     * surviving the alpha cutout is written whole rather than blended at its alpha.
+     *
+     * @param model the mesh the equipment slot draws
+     * @param layer the layer's texture and the vertex colour it is drawn in
+     * @param frame the render frame the body's own geometry was built through
+     * @return the layer's triangles
+     */
+    static @NotNull ConcurrentList<VisibleTriangle> equipmentLayerTriangles(
+        @NotNull EntityMesh model, @NotNull EquipmentKit.Layer layer, @NotNull FitFrame frame) {
+
+        return EntityGeometryKit.buildTriangles(model, layer.texture(),
+            new EntityGeometryKit.EntityBuildParams(frame, PassDeclaration.CUTOUT, layer.tint())).triangles();
+    }
 
     /**
      * One pass's triangles sampling where its render type says, or the list itself where it says

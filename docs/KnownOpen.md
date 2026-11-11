@@ -121,20 +121,6 @@ differing pixels into 154. Closing the 18 needs the card's interpolation setup a
 position and the GUI atlas's layout, and modelling the card is refused in
 [Texel rules](renderer/TexelFetch.md). Nobody has taken it on.
 
-## A cutout pass is blended where the client writes it whole
-
-The client draws an entity's cutout textures, every equipment layer, the wings, a skull and the copper
-golem statue through cutout pipelines that set no blend: a fragment at or above the 0.1 cutout writes its
-colour whole, in submission order. Each of those passes here is the default pass, which blends a partly
-transparent fragment at its alpha (`PassDeclaration.DEFAULT`). Read nearest, only a partly transparent
-texel makes one - of vanilla's 85 equipment textures, three carry such a texel: the strider saddle (six,
-at alpha 253 or 254) and the black and cyan llama decor (one each). Read through a texture whose sidecar
-blurs, every edge between a clear texel and a drawn one makes one. No stored stack blurs such a texture,
-and whether a stored strider row draws a partial texel is not measured.
-
-The fix is a cutout pass kind - written whole at or above the cutout, no blend - for those passes. It
-changes how the rasterizer composites them, so it wants its own measurement. Nobody has taken it on.
-
 ## A custom_model_data flag condition and string select never read the stack
 
 A `condition` node on `custom_model_data` drops its `index` when it is read, and the walk answers

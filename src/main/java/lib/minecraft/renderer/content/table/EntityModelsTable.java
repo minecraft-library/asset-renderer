@@ -82,10 +82,13 @@ public record EntityModelsTable(
      *
      * @param scale the render-time scale, boxed so an absent member falls to {@code 1f} not {@code 0f}
      * @param tint the per-entity base tint as a hex string, or {@code null} for white
+     * @param blend the body pipeline's blend token, or {@code null} for a cutout body - the pipeline
+     *     every model draws through unless it names another
      */
     public record RawRender(
         @Nullable Float scale,
-        @Nullable String tint
+        @Nullable String tint,
+        @Nullable String blend
     ) {}
 
     /**

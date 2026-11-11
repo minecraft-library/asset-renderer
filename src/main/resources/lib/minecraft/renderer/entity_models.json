@@ -6,6 +6,9 @@
   "models": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -736,6 +739,9 @@
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -4913,6 +4919,9 @@
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -5028,6 +5037,9 @@
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -6847,6 +6859,9 @@
     },
     "minecraft:vex": {
       "renderer": "net/minecraft/client/renderer/entity/VexRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -8374,6 +8389,9 @@
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {

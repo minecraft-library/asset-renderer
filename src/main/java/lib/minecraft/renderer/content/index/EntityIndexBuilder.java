@@ -290,6 +290,7 @@ public final class EntityIndexBuilder {
             .blockOverlays(form.blockOverlays())
             .baseTintArgb(ctx.baseTint())
             .rendererScale(ctx.rendererScale())
+            .bodyPass(bodyPassOf(ctx.family().render()))
             .pose(pose)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
@@ -823,6 +824,23 @@ public final class EntityIndexBuilder {
         if (when.tinted())
             return Optional.of(new AppearanceGate.TintedGate(tintBy, tintArgb));
         return Optional.empty();
+    }
+
+    /**
+     * The pass a family's body draws through. A row whose {@code render} names no {@code blend} draws
+     * through vanilla's cutout pipeline, which is what {@code EntityModel} hands every model naming no
+     * render type of its own, so its body is the {@link PassDeclaration#CUTOUT cutout pass}; a row
+     * naming one draws the pass its token composes by, {@code translucent} being the
+     * {@link PassDeclaration#DEFAULT default pass}.
+     *
+     * @param render the row's {@code render} tuning, or {@code null} where it ships none
+     * @return the body's pass
+     * @throws ContentException if the token is not one the tooling emits
+     */
+    private static @NotNull PassDeclaration bodyPassOf(@Nullable RawRender render) {
+        if (render == null || render.blend() == null) return PassDeclaration.CUTOUT;
+        BlendMode blend = parseBlend(render.blend());
+        return blend == BlendMode.NORMAL ? PassDeclaration.DEFAULT : new PassDeclaration(false, blend, 1f, true, false);
     }
 
     /**

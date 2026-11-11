@@ -4,6 +4,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,7 +75,7 @@ public final class EntityPipelineTraits {
      * The {@code blend} token of a pipeline that declares no blend function at all - it writes each
      * surviving fragment over the destination verbatim, alpha included, rather than compositing it.
      */
-    static final @NotNull String BLEND_CUTOUT = "cutout";
+    public static final @NotNull String BLEND_CUTOUT = "cutout";
 
     /**
      * Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local).
@@ -187,6 +189,39 @@ public final class EntityPipelineTraits {
             }
         });
         return blend[0];
+    }
+
+    /**
+     * The {@code RenderTypes} factory a model class draws through - the method reference the nearest
+     * constructor up its superclass chain hands {@code Model} as its render-type function.
+     * {@code EntityModel} hands {@code entityCutout} on behalf of a subclass that names none, and a
+     * subclass naming its own - {@code AllayModel}'s {@code entityTranslucent} - is nearer.
+     *
+     * @param modelClass the model class's JVM internal name
+     * @return the factory name, or {@code null} when no constructor up the chain names one
+     * @throws ToolingException if the nearest class naming one names two, which one model cannot draw through
+     */
+    public @Nullable String modelFactory(@NotNull String modelClass) {
+        Set<String> named = new LinkedHashSet<>();
+        ClassNode declarer = ClassKit.walkSuperChainUntil(this.cache, modelClass, cn -> {
+            for (MethodNode method : cn.methods)
+                if (ClassKit.INIT.equals(method.name))
+                    AsmWalker.over(method)
+                        .opcode(Opcodes.INVOKEDYNAMIC)
+                        .ofType(InvokeDynamicInsnNode.class)
+                        .forEach(indy -> {
+                            if (indy.bsmArgs == null) return;
+                            for (Object arg : indy.bsmArgs)
+                                if (arg instanceof Handle handle && SourceClasses.Types.RENDER_TYPES.equals(handle.getOwner()))
+                                    named.add(handle.getName());
+                        });
+            return !named.isEmpty();
+        });
+        if (declarer == null) return null;
+        if (named.size() > 1)
+            throw new ToolingException("Model '%s' names render types %s in its constructors, and one model draws through one",
+                declarer.name, named);
+        return named.iterator().next();
     }
 
     /**

@@ -26,10 +26,11 @@ import org.jetbrains.annotations.NotNull;
  *     controls shading (lit vs full-bright), {@code blend} controls colour composition (source-over
  *     vs additive)
  * @param blend the colour-composition mode the rasterizer composites the fragment with -
- *     {@link BlendMode#NORMAL} (source-over, the default for every body and texture-alpha
- *     translucent surface), {@link BlendMode#ADD} (the creeper / wither energy swirl) or
- *     {@link BlendMode#REPLACE} (a cutout pass, which writes the fragment over the destination
- *     rather than into it). Declared per-overlay by the {@code blend} JSON node; distinct from
+ *     {@link BlendMode#NORMAL} (source-over, for a translucent body, a block, an item and a
+ *     texture-alpha translucent surface), {@link BlendMode#ADD} (the creeper / wither energy
+ *     swirl) or {@link BlendMode#REPLACE} (a cutout pass, which writes the fragment over the
+ *     destination rather than into it - see {@link #CUTOUT}). Declared per overlay by the
+ *     {@code blend} JSON node and per body by the row's {@code render.blend}; distinct from
  *     {@link #emissive} (shading) and from the sorting a partial-alpha surface asks for
  * @param alpha the per-fragment opacity multiplier in {@code [0, 1]} applied to the sampled texel's
  *     alpha before the {@link #blend} composite - {@code 1.0} (no-op) for every surface except a pass
@@ -72,12 +73,26 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
     }
 
     /**
-     * The pass every body, block, item and texture-alpha overlay draws through - shaded, compositing
-     * {@link BlendMode#NORMAL source-over} at full opacity, writing depth and drawn in emission order.
-     * Only an overlay carrying an explicit {@code pipeline} JSON node declares anything else.
+     * The pass a block, an item, a translucent body and a texture-alpha overlay draw through - shaded,
+     * compositing {@link BlendMode#NORMAL source-over} at full opacity, writing depth and drawn in
+     * emission order.
      */
     public static final @NotNull PassDeclaration DEFAULT =
         new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false);
+
+    /**
+     * The pass vanilla draws through a cutout pipeline, which declares no blend function - shaded,
+     * writing a fragment that survives the alpha cutout {@link BlendMode#REPLACE over} the destination,
+     * alpha included, at full opacity, writing depth and drawn in emission order.
+     *
+     * <p>An entity body whose model names no translucent render type, every equipment layer, worn
+     * armour and its trims, the wings and every block entity's bone model draw through one. It differs
+     * from {@link #DEFAULT} only at a fragment whose alpha lies strictly between the cutout and opaque,
+     * which a partly transparent texel read nearest makes, and so does every edge between a clear texel
+     * and a drawn one read through a filtering sampler.
+     */
+    public static final @NotNull PassDeclaration CUTOUT =
+        new PassDeclaration(false, BlendMode.REPLACE, 1f, true, false);
 
     /**
      * The opacity at or under which a pass draws no fragment - where vanilla's
@@ -122,6 +137,20 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
         return value == this.emissive
             ? this
             : new PassDeclaration(value, this.blend, this.alpha, this.writesDepth, this.sorted, this.wrapsTexture);
+    }
+
+    /**
+     * Returns the declaration a re-framed copy of a triangle drawn under this one carries - its
+     * full-bright flag and its blend kept, its opacity, depth write, sort and wrap at the
+     * {@link #DEFAULT default's} - or this declaration itself when it already is that. Asked by the
+     * block-side copies that move or refit assembled geometry, which hold a block's own faces and a
+     * block entity's cutout bones in one list.
+     *
+     * @return the declaration the copy carries
+     */
+    public @NotNull PassDeclaration reframed() {
+        PassDeclaration copy = new PassDeclaration(this.emissive, this.blend, 1f, true, false);
+        return copy.equals(this) ? this : copy;
     }
 
     /**

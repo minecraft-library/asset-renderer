@@ -88,9 +88,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 24190,
-      "promoted_at": "ddf501fd7368b826e7c8718e16d41c2b2a96ac62",
-      "sha256": "7c001841f242e8c58dafbf6a4eb186867fee6118dcd2b7b0741c3e9e880472c3"
+      "last_duration_ms": 10497,
+      "promoted_at": "aa4b209252cbea0701802fd75bce357dacff05df",
+      "sha256": "a210593ea9629042224a045baf2e8c01633fdd5c98bf47440121fe6f93ab3810"
     },
     "manifest.visual": {
       "baselined": true,
@@ -203,10 +203,10 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 11696,
-      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
-      "sha256": "dbf103dd243a0937ecdfdf7ef85787be982cfd6ba55fe304aba1a6c42521cc6a",
-      "sum": "10.8251"
+      "last_duration_ms": 8151,
+      "promoted_at": "aa4b209252cbea0701802fd75bce357dacff05df",
+      "sha256": "d868d2c7a6c9fcb00edfbd5b7326b84a29777a375441cfd511c8e51a48032332",
+      "sum": "10.8139"
     },
     "sweep.entity-animation": {
       "baselined": true,

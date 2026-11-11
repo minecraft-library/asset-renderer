@@ -760,7 +760,7 @@ class MissingTextureFamilyTest {
     void aRowNamingNoTextureDrawsTheEmptyFrame() {
         Entity creeper = vanilla.findEntity("minecraft:creeper").orElseThrow();
         Entity untextured = new Entity(creeper.id(), creeper.model(), creeper.overlays(), creeper.blockOverlays(),
-            creeper.baseTintArgb(), creeper.rendererScale(),
+            creeper.baseTintArgb(), creeper.rendererScale(), creeper.bodyPass(),
             new Entity.Axes(creeper.axes().baby(), creeper.axes().shape(), Entity.Variation.none(),
                 creeper.axes().size(), creeper.axes().variant(), creeper.axes().carried(), creeper.axes().equipment()),
             creeper.layers(), creeper.members(), creeper.styles(), creeper.pose());

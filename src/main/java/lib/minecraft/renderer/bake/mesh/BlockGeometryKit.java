@@ -74,6 +74,12 @@ public class BlockGeometryKit {
      * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
      * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
      * <p>
+     * Every face is drawn through the {@link PassDeclaration#CUTOUT cutout pass}: every block entity
+     * renderer this draws submits its bone model through a pipeline declaring no blend function -
+     * {@code entityCutout}, {@code entityCutoutCull}, {@code entityCutoutZOffset} or
+     * {@code entitySolid} - a player head included, which binds the default skin through
+     * {@code entityCutoutZOffset} where it carries no owner profile.
+     * <p>
      * <b>Frame scope:</b> this emits in the bone tree's <b>native</b> orientation (Y-down, no entity
      * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
      * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
@@ -156,7 +162,7 @@ public class BlockGeometryKit {
                         boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture.pixels());
                         BoxKit.addQuad(triangles, corners, uv,
                             texture, tintArgb, normal, Lighting.inventory(normal),
-                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
+                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.CUTOUT), null);
                     });
             }
         }
@@ -629,9 +635,10 @@ public class BlockGeometryKit {
 
     /**
      * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-     * and surface normals. Preserves each triangle's {@code cullBackFaces},
-     * {@code directionalLight} and {@code emissive} traits while resetting {@code translucent} /
-     * {@code glinted} to {@code false} - block geometry carries neither. The directional-light
+     * and surface normals. Preserves each triangle's {@code cullBackFaces} and
+     * {@code directionalLight} traits and its pass's full-bright flag and blend
+     * ({@link PassDeclaration#reframed}) while resetting {@code translucent} / {@code glinted} to
+     * {@code false} - block geometry carries neither. The directional-light
      * flag has to survive because the block-icon relight runs after this, and it is what tells
      * the relight to leave a {@code "shade": false} face full-bright.
      *
@@ -650,7 +657,7 @@ public class BlockGeometryKit {
                 tri.normal().transformNormal(rotation),
                 tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
                     tri.traits().directionalLight(),
-                    PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
+                    tri.traits().pass().reframed())
             ))
             .collect(Concurrent.toWideList());
     }
@@ -697,6 +704,8 @@ public class BlockGeometryKit {
      *     its authored Y levels and the rim naturally extends above the block top
      *     line just like vanilla's inventory icon.</li>
      * </ul>
+     * Each copy keeps its pass's full-bright flag and blend ({@link PassDeclaration#reframed}), so a
+     * block entity's cutout bones stay cutout beside a block's own faces.
      *
      * @param triangles the assembled triangles to fit
      * @return the fitted triangle list, the input itself when it already fits
@@ -724,7 +733,7 @@ public class BlockGeometryKit {
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
                     t.traits().directionalLight(),
-                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+                    t.traits().pass().reframed())
             ))
             .collect(Concurrent.toWideList());
     }

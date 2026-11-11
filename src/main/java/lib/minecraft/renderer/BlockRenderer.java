@@ -32,7 +32,6 @@ import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
-import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -890,7 +889,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                                 t.uv0(), t.uv1(), t.uv2(),
                                 t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
                                     t.traits().directionalLight(),
-                                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+                                    t.traits().pass().reframed())
                             ))
                             .collect(Concurrent.toWideList());
                     }

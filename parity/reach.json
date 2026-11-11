@@ -166,6 +166,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/CutoutPassTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/DrawsNothingTest": {
       "artifacts": [],
       "source": "derived"

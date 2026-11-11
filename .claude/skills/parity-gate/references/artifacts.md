@@ -34,7 +34,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 11696 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 8151 ms | yes |
 | `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 10727 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 2605 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 883 ms | yes |
@@ -55,7 +55,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6818 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 9 | 3014 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 20261 ms | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 24190 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 10497 ms | yes |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 3041 ms | yes |
 | `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |
 | `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |

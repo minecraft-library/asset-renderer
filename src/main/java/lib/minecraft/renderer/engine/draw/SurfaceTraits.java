@@ -9,9 +9,10 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * A triangle's surface character is declared once at construction rather than threaded as loose
  * flags. {@link #withCullBackFaces} and {@link #withDirectionalLight} compose a new traits value for
- * a derived triangle; neither mutates a built {@code VisibleTriangle}. Every body, block and item
- * surface carries {@link PassDeclaration#DEFAULT}; only an overlay declaring an explicit
- * {@code pipeline} node in {@code entity_models.json} carries anything else.
+ * a derived triangle; neither mutates a built {@code VisibleTriangle}. A block, item or translucent
+ * body surface carries {@link PassDeclaration#DEFAULT}; a cutout body, an equipment layer, worn
+ * armour, the wings and a block entity's bones carry {@link PassDeclaration#CUTOUT}; and an overlay
+ * carries what its {@code pipeline} node in {@code entity_models.json} declares.
  *
  * @param cullBackFaces when {@code true} the engine's back-face culling pass may discard this
  *     triangle; set to {@code false} for two-sided geometry such as leaves, glass panes, banners, and
@@ -46,8 +47,9 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
         new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);
 
     /**
-     * Worn-armour geometry - two-sided and glinted. It differs from {@link #OPAQUE_BODY} in exactly
-     * these two bits, which is the whole of how armour geometry differs from block geometry.
+     * Worn-armour geometry - two-sided, glinted and drawn through the
+     * {@link PassDeclaration#CUTOUT cutout pass}. It differs from {@link #OPAQUE_BODY} in exactly these
+     * three, which is the whole of how armour geometry differs from block geometry.
      * <p>
      * <b>The cull flag is a coverage contract before it is a lighting one.</b> Vanilla submits worn
      * armour through a pipeline that binds no culling alongside an alpha cutout, so where a box's near
@@ -63,9 +65,13 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
      * The glint flag is what puts the enchantment foil on the armour rather than on the whole
      * silhouette: the rasterizer records a per-pixel mask wherever a glinted fragment wins the depth
      * test, and the compositor applies the foil only there.
+     * <p>
+     * The pass is vanilla's {@code armorCutoutNoCull}: every layer and trim of a worn piece is drawn
+     * through a pipeline declaring no blend function, so a fragment surviving the alpha cutout is
+     * written whole rather than blended at its alpha.
      */
     public static final SurfaceTraits WORN_SHELL =
-        new SurfaceTraits(false, false, true, true, PassDeclaration.DEFAULT);
+        new SurfaceTraits(false, false, true, true, PassDeclaration.CUTOUT);
 
     /**
      * Returns a copy of these traits with {@link #cullBackFaces()} set to the given value.
