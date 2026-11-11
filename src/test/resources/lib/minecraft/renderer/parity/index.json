@@ -8,9 +8,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 16113,
-      "promoted_at": "ddf501fd7368b826e7c8718e16d41c2b2a96ac62",
-      "sha256": "24bb098344113bf549dcffa1b795cc0333ba7d4a75f9b18869e3e4078f7082ca"
+      "last_duration_ms": 6858,
+      "promoted_at": "aed4b272d4a627b470e81ac6d851189586c6cba5",
+      "sha256": "e601e58184aa51e88a53f7208755851ccd5b40b155b4d79151c310ebc96df4c6"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -18,9 +18,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 16113,
-      "promoted_at": "ddf501fd7368b826e7c8718e16d41c2b2a96ac62",
-      "sha256": "45ce1218710ec03513a123d8d0ed4ba1a65be571893a5a684ac35b2fea9b4327"
+      "last_duration_ms": 6858,
+      "promoted_at": "aed4b272d4a627b470e81ac6d851189586c6cba5",
+      "sha256": "b04514b5dbfd744776135d0691275ceae0979509502f988915d3d7007646c2be"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -88,9 +88,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 10497,
-      "promoted_at": "aa4b209252cbea0701802fd75bce357dacff05df",
-      "sha256": "a210593ea9629042224a045baf2e8c01633fdd5c98bf47440121fe6f93ab3810"
+      "last_duration_ms": 10300,
+      "promoted_at": "aed4b272d4a627b470e81ac6d851189586c6cba5",
+      "sha256": "3436685ae8c0db5694f0ce2aa7f0d3e4973e74574f22c60b121b32288b8bede0"
     },
     "manifest.visual": {
       "baselined": true,

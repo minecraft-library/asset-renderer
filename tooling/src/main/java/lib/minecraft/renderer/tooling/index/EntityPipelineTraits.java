@@ -192,6 +192,60 @@ public final class EntityPipelineTraits {
     }
 
     /**
+     * The texture-taking {@code RenderTypes} factories a layer reaches through another class it hands
+     * its pass to - each factory called with an {@code Identifier} by a method the layer's instance
+     * methods invoke on a class other than its own. A decor layer submits no render type of its own
+     * and hands its texture to {@code EquipmentLayerRenderer}, which submits it through
+     * {@code armorCutoutNoCull}; the glint it adds takes no texture and so is not one of them.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return the factory names in the order first reached, empty where the layer delegates to none
+     */
+    public @NotNull Set<String> delegatedTextureFactories(@NotNull String layerClass) {
+        String textureFactory = "(" + SourceClasses.Descs.IDENTIFIER_REF + ")"
+            + SourceClasses.Descs.ref(SourceClasses.Types.RENDER_TYPE);
+        Set<String> factories = new LinkedHashSet<>();
+        ClassNode layer = this.cache.load(layerClass);
+        if (layer == null) return factories;
+        for (MethodNode method : layer.methods) {
+            if ((method.access & Opcodes.ACC_STATIC) != 0 || ClassKit.INIT.equals(method.name)) continue;
+            AsmWalker.over(method)
+                .opcode(Opcodes.INVOKEVIRTUAL, Opcodes.INVOKEINTERFACE)
+                .ofType(MethodInsnNode.class)
+                .forEach(call -> {
+                    if (!layerClass.equals(call.owner))
+                        collectDelegateFactories(call.owner, call.name, call.desc, textureFactory, factories,
+                            new HashSet<>(), HELPER_HOPS);
+                });
+        }
+        return factories;
+    }
+
+    /**
+     * Collects the texture-taking factories one delegate method calls, descending into the delegate's
+     * own methods it calls in turn while hops remain - an overload that forwards to the one submitting
+     * the pass is the shape {@code EquipmentLayerRenderer.renderLayers} takes.
+     */
+    private void collectDelegateFactories(@NotNull String owner, @NotNull String name, @NotNull String desc,
+                                          @NotNull String textureFactory, @NotNull Set<String> factories,
+                                          @NotNull Set<String> visited, int hops) {
+        if (!visited.add(owner + '.' + name + desc)) return;
+        MethodNode target = ClassKit.findMethodInHierarchy(this.cache, owner, name, desc);
+        if (target == null) return;
+        AsmWalker.over(target)
+            .opcode(Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL)
+            .ofType(MethodInsnNode.class)
+            .forEach(call -> {
+                if (SourceClasses.Types.RENDER_TYPES.equals(call.owner)) {
+                    if (textureFactory.equals(call.desc)) factories.add(call.name);
+                    return;
+                }
+                if (hops > 0 && owner.equals(call.owner))
+                    collectDelegateFactories(owner, call.name, call.desc, textureFactory, factories, visited, hops - 1);
+            });
+    }
+
+    /**
      * The {@code RenderTypes} factory a model class draws through - the method reference the nearest
      * constructor up its superclass chain hands {@code Model} as its render-type function.
      * {@code EntityModel} hands {@code entityCutout} on behalf of a subclass that names none, and a

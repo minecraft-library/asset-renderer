@@ -32,7 +32,7 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "5e5245892d1440fa86c088bb753da47ca91c831450b5112857f0dc6e050b3d09"
+      "sha256": "77bbbfc55428455a98c6bed21f85b9a30d816dc67a8b0753350b71f167957fbe"
     },
     {
       "path": "entity_poses.json",
@@ -62,9 +62,9 @@
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "76ba6f9b14e515e578365b89302612cbdb017ef346318944e9de40fccc278dc3",
+    "asset_content_digest": "d1c4d6d0320b5cd130a2794f8584395a5cbf51312ddbb4e09e9d930911aab1c6",
     "asset_dirty": true,
-    "asset_sha": "aa4b209252cbea0701802fd75bce357dacff05df",
+    "asset_sha": "aed4b272d4a627b470e81ac6d851189586c6cba5",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,10 +74,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "Cutout passes write a surviving fragment whole: the strider saddle's alpha-254 texels land as vanilla writes them (755 pixels of the raw render changed, every one now equal to the reference, coverage unchanged); entity_models.json gains render.blend translucent on the allay, breeze, vex and three piglins, and the entityModels log their six info lines",
+    "reason": "Every overlay row names the pipeline its layer submits through: collars, profession passes, crackiness and the trader llama decor declare cutout, horse markings translucent and sorted; the loaded entities dump moves by 42 pass blends NORMAL to REPLACE and 16 sorts false to true and nothing else, and every render sweep holds",
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-11-11T06:45:38Z",
+    "timestamp": "2026-11-11T07:10:03Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 10497
+    "wall_time_ms": 10300
   }
 }
