@@ -98,11 +98,10 @@ exactly, defaulting to `auto`; and `alpha_cutoff_bias`, a JSON number defaulting
 is drawn by the first two - linear filtering where it blurs, clamped to the edge where it clamps, nearest
 and repeating otherwise, as the client builds a texture's sampler (`MCMeta.sampler`,
 `engine.draw.Sampler`) - on every draw that reads it whole: the book, the glint, the end portal's two, and
-every texture the 3D raster draws an entity, a single flat equipment layer, the wings, a skull or the
-statue with. Three readers prepare a plain texture before the draw and read what they make nearest and
-repeating whatever its section sets, where the client samples the texture itself by it: a skin, cape or
-worn armour face cut out of its sheet, an equipment asset's layers pasted or tinted into one picture, and
-a shipped container's panel composed from its sheet. An atlas sprite is read by its atlas's sampler
+every texture the 3D raster draws an entity, each equipment layer, the wings, a skull or the statue with,
+and the skin, cape or worn armour sheet a box face reads its region of. One reader prepares a plain
+texture before the draw and reads what it makes nearest and repeating whatever its section sets, where
+the client samples the texture itself by it: a shipped container's panel composed from its sheet. An atlas sprite is read by its atlas's sampler
 whatever its section sets, and the missing texture, standing in for any texture, nearest and repeating.
 No render reads the other two. How the animation section is read, and the frame table it builds, is
 [Timelines](Timelines.md).

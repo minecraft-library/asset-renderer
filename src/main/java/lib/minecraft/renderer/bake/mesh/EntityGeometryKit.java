@@ -559,10 +559,38 @@ public class EntityGeometryKit {
      *     transform; pass 1 when no per-renderer scale is in effect
      * @param texture the entity texture used for per-face alpha-tight clipping, whose sampler decides
      *     how far a face's opaque texels reach; pass {@code null} to fall back to AABB-corner walk
-     * @return the opaque-sub-rectangle screen-space bounds; the X and Y extents drive canvas sizing,
-     *     the Z extent is depth and not consumed by the canvas-fit math
+     * @return the opaque-sub-rectangle screen-space bounds, or a zero box where no face holds an opaque
+     *     texel; the X and Y extents drive canvas sizing, the Z extent is depth and not consumed by the
+     *     canvas-fit math
+     * @see #opaqueScreenBounds
      */
     public static @NotNull Box computeScreenBounds(
+        @NotNull EntityMesh model,
+        @NotNull Matrix4f screenTransform,
+        float modelScale,
+        SampledTexture texture
+    ) {
+        return opaqueScreenBounds(model, screenTransform, modelScale, texture)
+            .orElseGet(() -> new Box(0f, 0f, 0f, 0f, 0f, 0f));
+    }
+
+    /**
+     * Measures the same alpha-tight screen-space bounds as {@link #computeScreenBounds}, answering
+     * nothing where no face of the mesh holds an opaque texel.
+     * <p>
+     * A caller unioning several textures over one mesh - an equipment asset's layers, each drawn as a
+     * pass of its own - takes this form, since a layer clear everywhere on the mesh draws nothing and
+     * so bounds nothing, where the zero box {@link #computeScreenBounds} answers for it would pull the
+     * screen origin into the union.
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param screenTransform model-to-screen transform to apply before bounds accumulation
+     * @param modelScale per-entity scale applied to every cube vertex before the screen transform
+     * @param texture the texture used for per-face alpha-tight clipping, whose sampler decides how far a
+     *     face's opaque texels reach; {@code null} to walk every cube's outer corners
+     * @return the opaque-sub-rectangle screen-space bounds, or empty where nothing was measured
+     */
+    public static @NotNull Optional<Box> opaqueScreenBounds(
         @NotNull EntityMesh model,
         @NotNull Matrix4f screenTransform,
         float modelScale,
@@ -628,7 +656,7 @@ public class EntityGeometryKit {
             }
         }
 
-        return acc.toBox();
+        return acc.isEmpty() ? Optional.empty() : Optional.of(acc.toBox());
     }
 
     /**
@@ -919,6 +947,15 @@ public class EntityGeometryKit {
             if (p.y() > maxY) maxY = p.y();
             if (p.z() < minZ) minZ = p.z();
             if (p.z() > maxZ) maxZ = p.z();
+        }
+
+        /**
+         * Whether no point has been accumulated.
+         *
+         * @return {@code true} before the first {@link #add}
+         */
+        boolean isEmpty() {
+            return minX == Float.POSITIVE_INFINITY;
         }
 
         /**

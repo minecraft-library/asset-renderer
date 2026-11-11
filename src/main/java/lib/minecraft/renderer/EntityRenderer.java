@@ -245,7 +245,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (model.getBones().isEmpty())
             return Timeline.empty();
 
-        // Resolve each selected equipment overlay's composited texture ONCE, up front: it decides both
+        // Resolve each selected equipment overlay's layers ONCE, up front: they decide both
         // whether the overlay bounds the canvas at all and, on the orthographic path below, the
         // alpha-tight silhouette it contributes. An overlay whose asset declares no layer that draws
         // draws nothing, so it is absent here rather than bounding the canvas with a mesh that never
@@ -332,8 +332,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
-            // sizes from these bounds, not the rendered triangles). Measured through the overlay's own
-            // composited texture, so it bounds the canvas by what it actually draws - the same
+            // sizes from these bounds, not the rendered triangles). Measured through each of the overlay's
+            // own layers, so it bounds the canvas by what it actually draws - the same
             // alpha-tight walk the base body already gets. Equipment textures are mostly transparent
             // (a saddle is a few straps over a whole equine body), so the geometric AABB would size the
             // canvas for a silhouette an order of magnitude larger than the render. Gated on the
@@ -344,8 +344,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (int frame = 0; frame < timeline.frames(); frame++) {
                 Entity posedSubject = posed.at(timeline.tickAt(frame));
                 for (EquippedOverlay equipment : equipped)
-                    screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
-                        equipment.meshIn(posedSubject), renderOrient, modelScale, equipment.texture()));
+                    for (EquipmentKit.Layer layer : equipment.layers()) {
+                        // A layer clear everywhere on the mesh draws nothing, so it bounds nothing.
+                        Optional<Box> layerBounds = EntityGeometryKit.opaqueScreenBounds(
+                            equipment.meshIn(posedSubject), renderOrient, modelScale, layer.texture());
+                        if (layerBounds.isPresent()) screenBounds = screenBounds.union(layerBounds.get());
+                    }
             }
             // Measured through the wings' own texture, like the equipment overlays. The walk keeps each
             // face's opaque-texel sub-rectangle, and each wing's outward face is opaque along all four
@@ -645,9 +649,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * Equipment overlays (saddle / body armor): a saddle or armor mesh with its own baked geometry
          * rendered on the body only when the {@code equipment} axis selects its slot. The axis-selected
          * material (or the layer default - horse leather armor / the saddle - when the slot is selected
-         * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
-         * same way worn humanoid armor does - a single flat layer drawn by its own sampler, layers pasted
-         * or tinted into one read nearest; a material naming no asset of the layer draws nothing, and a
+         * without one) names an equipment asset, whose layers resolve through {@link EquipmentKit} the
+         * same way worn humanoid armor's do - each drawn over the mesh as a pass of its own, by its own
+         * sampler, tinted by its colour; a material naming no asset of the layer draws nothing, and a
          * layer texture the asset names that no pack supplies, or that cannot be read, draws the
          * checkerboard. The {@link TintAxis#EQUIPMENT} dye is the wearer's, tinting whichever of the
          * asset's layers declare
@@ -665,13 +669,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (assetId.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
-                        Optional<SampledTexture> equipmentTex = EquipmentKit.composite(
+                        for (EquipmentKit.Layer layer : EquipmentKit.layers(
                             ctx.context(), assetId.get(), equipment.layerType(),
-                            dye, CitResult.NONE, OptionalInt.of(ctx.tick()));
-                        if (equipmentTex.isEmpty()) return;
-                        sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), equipmentTex.get(),
-                            new EntityGeometryKit.EntityBuildParams(
-                            ctx.frame(), PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles());
+                            dye, CitResult.NONE, OptionalInt.of(ctx.tick())))
+                            sink.addAll(EntityGeometryKit.buildTriangles(equipment.model(), layer.texture(),
+                                new EntityGeometryKit.EntityBuildParams(
+                                ctx.frame(), PassDeclaration.DEFAULT, layer.tint())).triangles());
                     });
                 }
             }
@@ -1511,7 +1514,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The equipment overlays that will actually draw, each paired with the texture it draws - mirrors
+     * The equipment overlays that will actually draw, each paired with the layers it draws - mirrors
      * the {@code EQUIPMENT} feature's render gate exactly, so the bounds union folds in the equipment
      * meshes that appear and only those. An overlay is absent when its slot carries no selected
      * material (the default appearance), when its mesh is empty, or when the asset its material names
@@ -1534,23 +1537,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             .stream()
             .filter(equipment -> !equipment.model().getBones().isEmpty())
             .flatMap(equipment -> equipment.assetFor(appearance.equipmentMaterial(equipment.slot()))
-                .flatMap(assetId -> EquipmentKit.composite(textures, assetId, equipment.layerType(),
+                .map(assetId -> EquipmentKit.layers(textures, assetId, equipment.layerType(),
                     appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick)))
-                .map(texture -> new EquippedOverlay(equipment, texture))
+                .filter(layers -> !layers.isEmpty())
+                .map(layers -> new EquippedOverlay(equipment, layers))
                 .stream())
             .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /**
-     * One equipment overlay that will draw, with the composited texture it draws - resolved once so
-     * the canvas-bounds walk and the render agree on both membership and silhouette.
+     * One equipment overlay that will draw, with the layers it draws - resolved once so the
+     * canvas-bounds walk and the render agree on both membership and silhouette.
      *
      * @param overlay the equipment overlay
-     * @param texture the composited texture the overlay draws, with the sampler it is read through
+     * @param layers the layers the overlay draws, back to front, never empty
      */
     private record EquippedOverlay(
         @NotNull Entity.EquipmentOverlay overlay,
-        @NotNull SampledTexture texture
+        @NotNull List<EquipmentKit.Layer> layers
     ) {
 
         /**

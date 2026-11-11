@@ -48,9 +48,9 @@
       "entries": 9,
       "file": "manifests/player-raw.json",
       "kind": "manifest",
-      "last_duration_ms": 3103,
-      "promoted_at": "336520d912aebf292671cc1472c937d24d727aa4",
-      "sha256": "cd0ec05af4e427f1db7e51c48cac59fa53c9721842ef61b365b42ad9bfa0acbb"
+      "last_duration_ms": 3360,
+      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
+      "sha256": "f34198b3721fdfb64d98703745c1c3d4e306cee08db908688186070cdc007de6"
     },
     "manifest.player-sheets": {
       "baselined": true,
@@ -58,9 +58,9 @@
       "entries": 97,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 6081,
-      "promoted_at": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
-      "sha256": "f89a8f49710d8869a8458fe5f5ad7216349ed0aae69d4499e734826ac60bcf71"
+      "last_duration_ms": 6818,
+      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
+      "sha256": "8e640919ae7d0078fbfd95bc0802aab1ab9f8a9294d2665afbd0da8abf21a3f9"
     },
     "manifest.portal": {
       "baselined": true,
@@ -170,10 +170,10 @@
       "entries": 7,
       "file": "sweeps/armor.json",
       "kind": "sweep-table",
-      "last_duration_ms": 2220,
-      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
-      "sha256": "f4bfd6e7b0b0770795f9587ff0f7b9ad3c05379edb24eb449e593f6e02980ba4",
-      "sum": "17.7355"
+      "last_duration_ms": 2395,
+      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
+      "sha256": "25f3353f481ecead9e3c050e65914be5a38bbc721654d4455e1a5b1fac55719e",
+      "sum": "17.4150"
     },
     "sweep.block": {
       "baselined": true,
@@ -203,10 +203,10 @@
       "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 9681,
-      "promoted_at": "4756faf3a8c3dd8502d19c00bd4cb207901b3ab7",
-      "sha256": "55dcc0d963cf25d268048ef3a70ae63c4b6b94dbedcf74ad408ac20cdc0a050e",
-      "sum": "10.9966"
+      "last_duration_ms": 11696,
+      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
+      "sha256": "dbf103dd243a0937ecdfdf7ef85787be982cfd6ba55fe304aba1a6c42521cc6a",
+      "sum": "10.8251"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -236,10 +236,10 @@
       "entries": 11,
       "file": "sweeps/glint.json",
       "kind": "sweep-table",
-      "last_duration_ms": 1981,
-      "promoted_at": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
-      "sha256": "fac7f61e974e8f6dcad7ef3eeb4c1bef9153397e3b4f8aa8fa00973819294a70",
-      "sum": "527.6585"
+      "last_duration_ms": 2337,
+      "promoted_at": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
+      "sha256": "d32435c30702e8a6f4873e72d4a70efec97b08301155f9651b0301fad61129f0",
+      "sum": "527.6675"
     },
     "sweep.item": {
       "baselined": true,

@@ -12,7 +12,7 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__piglin_leather-dyeb04030_baby/java.png",
-      "sha256": "c36c23fdd7c52da86ee1f393e7841957381512ba7753bfa9668cc472ba2fba3b"
+      "sha256": "7f1f790dcb3c51b91796514de687145dd74aaf54c4cdff34ba048aab8ae7a2a3"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_iron/java.png",
@@ -24,11 +24,11 @@
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030/java.png",
-      "sha256": "998df1c071db89c0061e17c695ae286813360bfea1ac30c8a0f1a61482e3d6b4"
+      "sha256": "2b7481721fd326af9a78a701e8d2d136ed2016ca97e85ac601c7ca7d3ea218be"
     },
     {
       "path": "armor-parity-vanilla/minecraft__zombie_leather-dyeb04030_baby/java.png",
-      "sha256": "7fc1be9107598596a6e1679c4e60e2c2a62f767d72a3e547342cdc84e125bc00"
+      "sha256": "e7a01304ab628f7b825070f53a55de072dd12ea62f455ed4e095204fcaf01afb"
     },
     {
       "path": "player-parity-vanilla/full/java.png",
@@ -44,22 +44,21 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-raw",
-    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
-    "asset_dirty": false,
-    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
+    "asset_content_digest": "71a6e06593a3c400d0d9e30c582368b1c9da78ea4fe85d405977a9e806b5af5a",
+    "asset_dirty": true,
+    "asset_sha": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
     "counts": {
       "files": 9
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "playerRawSweepSet",
-    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
+    "reason": "Each equipment layer drawn as its own pass, its colour the vertex tint rounded once with the light: the leather-dressed armour rows, the dyed and undyed body-armour entity rows, the worn-leather glint rows and the leather player sheets and raw renders",
     "root": "cache/visual",
-    "timestamp": "2026-11-04T16:15:49Z",
+    "timestamp": "2026-11-11T05:23:57Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 5905
+    "wall_time_ms": 3360
   }
 }

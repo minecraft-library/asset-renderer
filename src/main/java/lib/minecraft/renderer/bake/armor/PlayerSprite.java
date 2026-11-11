@@ -14,13 +14,13 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.slot.PlayerSlot2D;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -39,7 +39,7 @@ import java.util.Optional;
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box really does read
- * on both paths - so {@link HumanoidPart#textures(SampledTexture, int, int, boolean) textures} and
+ * on both paths - so {@link HumanoidPart#textures textures} and
  * {@link HumanoidPart#crop(PixelBuffer, Face, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
@@ -167,10 +167,12 @@ public class PlayerSprite {
         // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
-        Optional<PixelBuffer> armorTexture =
-            ArmorKit.resolveArmorTexture(context, piece, ArmorForm.ADULT.layerType(slot), item)
-                .map(SampledTexture::pixels);
-        armorTexture.ifPresent(tex -> blit2D(target, mask, row, tex));
+        // Each layer is blitted in turn, back to front, tinted by its own colour - the flat counterpart
+        // of the passes the 3D armour draws.
+        for (EquipmentKit.Layer layer : ArmorKit.resolveArmorLayers(context, piece, ArmorForm.ADULT.layerType(slot), item)) {
+            PixelBuffer pixels = layer.texture().pixels();
+            blit2D(target, mask, row, layer.tint() == ColorMath.WHITE ? pixels : Shading.apply(pixels, layer.tint(), 1f));
+        }
 
         piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
             .flatMap(layer -> ArmorKit.resolveTrimTexture(context, layer, trim.pattern(), trim.color()))

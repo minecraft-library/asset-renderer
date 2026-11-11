@@ -61,9 +61,8 @@ entry rather than the entity's.
   their own edges, meets its UV box, read as the sampler addresses them, the opaque sub-rectangle grown
   by half a texel a side and clipped to the box - the harness reading the sampler off the texture's own
   `texture` section, as the client's loader does. The renderer measures a face through the sampler it
-  draws it with, so a worn shell's composite and an equipment composite of pasted layers measure nearest
-  there, where the harness measures the client's filtered draw, and on a texture whose section blurs the
-  two canvases part by the filter's half texel.
+  draws it with, and an equipment asset or a worn shell slot through each of its layers, so the two
+  measure the same filtered draw.
 - **A canvas sized to its subject ends at the subject's first pixel**, with no fixed transparent
   margin even where the client reserves one: an entity's `UNION_BOUNDS` canvas at its silhouette,
   which the bounds walk measures, and a tooltip's at what its chrome draws - the sprite pair over the

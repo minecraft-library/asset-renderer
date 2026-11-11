@@ -602,6 +602,31 @@ class EntityGeometryKitTest {
     }
 
     /**
+     * Pins that a texture clear everywhere on a mesh measures nothing rather than a box at the screen origin. An
+     * equipment asset's layers are measured one by one over the same mesh and unioned, so a layer clear on every
+     * face - the leather overlay on most of a baby's shell - must leave the union where the other layers put it.
+     * The fixture is the 8x8 plane offset well clear of the origin, measured through a clear texture and through
+     * one opaque texel.
+     */
+    @Test
+    @DisplayName("a texture clear everywhere on a mesh measures nothing, so a union of layers keeps clear of the origin")
+    void aClearTextureMeasuresNothing() {
+        EntityMesh mesh = plane();
+        Matrix4f offset = Matrix4f.IDENTITY.translate(new Vector3f(40f, 40f, 0f));
+        int[] pixels = new int[64 * 64];
+        pixels[3 * 64 + 3] = 0xFFFFFFFF;
+        SampledTexture one = SampledTexture.of(PixelBuffer.ofStraight(pixels, 64, 64));
+        SampledTexture clear = SampledTexture.of(PixelBuffer.straight(64, 64));
+
+        assertThat("a clear texture measures nothing",
+            EntityGeometryKit.opaqueScreenBounds(mesh, offset, 1f, clear).isPresent(), equalTo(false));
+        Box drawn = EntityGeometryKit.opaqueScreenBounds(mesh, offset, 1f, one).orElseThrow();
+        assertThat("the opaque texel sits clear of the origin", drawn.minX(), greaterThan(30f));
+        assertBoxEquals("the zero-box form answers the same opaque bounds", drawn,
+            EntityGeometryKit.computeScreenBounds(mesh, offset, 1f, one), 1e-6f);
+    }
+
+    /**
      * Pins that a face read linearly is measured only by the texels whose reach meets its UV box. The fixture is
      * a 7x7 plane, declared on a 64-texel sheet and handed a 48-texel texture, so both faces' boxes end at texel
      * 5.25 on the vertical axis, and one opaque texel at {@code (2, 6)}: the filter reads texel 6 over

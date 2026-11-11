@@ -121,20 +121,6 @@ differing pixels into 154. Closing the 18 needs the card's interpolation setup a
 position and the GUI atlas's layout, and modelling the card is refused in
 [Texel rules](renderer/TexelFetch.md). Nobody has taken it on.
 
-## An equipment asset's layers are pasted into one picture before they are drawn
-
-`EquipmentKit` tints a dyeable layer's texture to a byte and copies an asset's layers into one buffer,
-which the raster then shades and rounds again. The client draws each layer as its own pass, its colour
-the vertex colour, multiplied with the light once and read through the layer's own sampler. So a dyed or
-undyed-coloured layer's colour is rounded twice - undyed and dyed leather, a horse's leather armour and
-every dyeable layer take it - and a composite is read nearest whatever its layers' sidecars select. A
-single flat layer is no composite and keeps its own sampler.
-
-The fix answers each layer with its colour and draws it as its own pass, tinted once with the light.
-It moves the stored rows that dress a dyeable layer - the armour sweep's leather zombie and piglin, the
-glint sweep's leather-clad player, the entity sweep's horse - by a channel step where the two roundings
-part. Nobody has taken it on.
-
 ## A cutout pass is blended where the client writes it whole
 
 The client draws an entity's cutout textures, every equipment layer, the wings, a skull and the copper

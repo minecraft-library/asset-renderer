@@ -134,9 +134,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * Each sprite and plain family is drawn once more with its texture beside a sidecar flipping its texture
  * section's blur. A plain family whose reader draws the texture whole is filtered by it, as the client
  * samples a plain texture by its sidecar, so it draws a picture other than its reference - a skin, cape
- * or armour sheet among them, whose faces are regions of the whole sheet; a plain family whose reader
- * prepares a picture out of the texture first - layers pasted into one, the composed container panel -
- * reads that picture nearest, and draws its reference exactly, as does every atlas sprite, which its
+ * or armour sheet among them, whose faces are regions of the whole sheet, and every equipment layer,
+ * each drawn as a pass of its own; a plain family whose reader prepares a picture out of the texture
+ * first - the composed container panel - reads that picture nearest, and draws its reference exactly, as does every atlas sprite, which its
  * atlas reads by its own sampler. A family served a solid sheet is staged as a
  * two-tone sheet instead, since a filter leaves a uniform texture as it is. After its zero-byte break, a
  * drawn plain family is broken once more beside a sidecar that blurs, and draws the checkerboard hard, as
@@ -272,11 +272,11 @@ class MissingTextureFamilyTest {
         "cape on the wings", "elytra source");
 
     /**
-     * The plain families whose reader prepares a picture out of the texture before it is drawn - an armour
-     * asset's layers pasted into one under a pack rule, or the composed container panel - which is read nearest and repeating
-     * whatever the sheet's sidecar selects, so a blur sidecar leaves the family's picture as it is.
+     * The plain families whose reader prepares a picture out of the texture before it is drawn - the
+     * composed container panel - which is read nearest and repeating whatever the sheet's sidecar
+     * selects, so a blur sidecar leaves the family's picture as it is.
      */
-    private static final Set<String> PREPARED = Set.of("pack-rule armour tile", "container sheet");
+    private static final Set<String> PREPARED = Set.of("container sheet");
 
     /**
      * The families served a solid sheet by their intact context, which the blur stack stages as

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.annotations.UtilityClass;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -13,38 +13,47 @@ import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
- * The equipment-model texture composite - the single place an equipment asset id plus a render layer
- * becomes one drawable buffer, shared by worn humanoid armor and mob equipment (saddles, body armor,
- * llama decor). A single flat layer is its own texture, read by the sampler its sidecar's texture
- * section selects; layers pasted or tinted into one are read nearest and repeating whatever their
- * sidecars select.
+ * The equipment-model layer resolution - the single place an equipment asset id plus a render layer
+ * becomes the passes that draw it, shared by worn humanoid armor and mob equipment (saddles, body
+ * armor, llama decor).
  *
  * <p>An asset declares its layers back-to-front per layer type: one flat layer for a plain material,
  * or a dyed base plus an undyed detail pass for leather-style armor. Each layer resolves to a texture
- * under the layer type's subdir and, when the layer is {@link EquipmentModel.Dyeable dyeable}, is
- * tinted by the wearer's dye or the layer's own undyed fallback colour. A dyeable layer with no
+ * under the layer type's subdir and, when the layer is {@link EquipmentModel.Dyeable dyeable}, carries
+ * the wearer's dye or the layer's own undyed fallback colour as its tint. A dyeable layer with no
  * fallback resolves to colour 0 and is skipped, which is how a render-only-when-dyed pass (the
  * armadillo-scute overlay) stays invisible on an undyed wearer.
  *
+ * <p>Each layer is answered as the client draws it - its own pass over the same geometry, its texture
+ * read through its own sampler and its colour the vertex colour, which the raster multiplies with the
+ * light in one rounding. Nothing is pasted or tinted into a picture first, so a dyed layer's colour is
+ * rounded once, and every layer keeps the sampler its sidecar selects.
+ *
  * <p>Every layer texture is read through the context's
  * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a texture a layer names that
- * no pack supplies, or that cannot be read, is the checkerboard - never a layer quietly left out of the
- * composite.
+ * no pack supplies, or that cannot be read, is the checkerboard - never a layer quietly left out.
  */
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 public class EquipmentKit {
 
     /**
-     * Resolves and composites one equipment asset's layers for a render layer.
+     * One pass an equipment asset draws - a layer's texture and the vertex colour it is drawn with.
      *
-     * <p>A single flat layer with no pack-rule override returns its resolved buffer directly rather
-     * than blitting onto a fresh one, so the common case does not depend on the composite path.
+     * @param texture the layer's texture, with the sampler it is read through
+     * @param tint the opaque ARGB vertex colour the layer is drawn with, {@link ColorMath#WHITE} for an
+     *     undyed layer
+     */
+    public record Layer(@NotNull SampledTexture texture, int tint) {}
+
+    /**
+     * Resolves one equipment asset's layers for a render layer, in the order they draw.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param assetId the equipment asset id ({@code minecraft:iron}, {@code minecraft:saddle})
@@ -54,12 +63,10 @@ public class EquipmentKit {
      *     {@code layerN} the overlays); {@link CitResult#NONE} leaves every layer on the model
      * @param tick the animation tick to sample each layer texture at, or empty to take the texture
      *     unsampled
-     * @return the composited texture and the sampler it is read through - a single flat layer's own,
-     *     being that layer's texture, and nearest and repeating for layers pasted or tinted into one - or
-     *     empty when the asset declares no layer that draws for this render layer - none at all, or only
-     *     dyed-only passes on an undyed wearer
+     * @return the layers that draw, back to front - empty when the asset declares no layer that draws
+     *     for this render layer, none at all or only dyed-only passes on an undyed wearer
      */
-    public static @NotNull Optional<SampledTexture> composite(
+    public static @NotNull List<Layer> layers(
         @NotNull RendererContext context,
         @NotNull ResourceId assetId,
         @NotNull LayerType layerType,
@@ -67,47 +74,34 @@ public class EquipmentKit {
         @NotNull CitResult cit,
         @NotNull OptionalInt tick
     ) {
-        List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(assetId, layerType);
-        // A texture override absent rather than empty is a result no rule produced.
-        if (layers.isEmpty() && cit.texture().isAbsent()) return Optional.empty();
+        List<EquipmentModel.Layer> declared = context.resolveEquipmentLayers(assetId, layerType);
+        List<Layer> layers = new ArrayList<>(declared.size());
 
-        // A single flat (non-dyeable) layer with no pack-rule override returns its resolved buffer
-        // directly - the exact single-texture path, so byte-identity does not rest on a blit onto a fresh buffer.
-        if (cit.texture().isAbsent() && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
-            return resolve(context, layers.getFirst().textureLocation(layerType).id(), tick);
+        for (int i = 0; i < declared.size(); i++) {
+            EquipmentModel.Layer layer = declared.get(i);
+            // A dyeable layer draws in the wearer's dye or its own undyed colour; one with neither draws
+            // nothing, and its texture is never read, so it never reports a texture it would not draw.
+            int tint = ColorMath.WHITE;
+            if (layer.dyeable().isPresent()) {
+                int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
+                if (color == 0) continue;
+                tint = 0xFF000000 | color;
+            }
 
-        PixelBuffer combined = null;
-        for (int i = 0; i < layers.size(); i++) {
-            EquipmentModel.Layer layer = layers.get(i);
             // A matching CIT rule replaces this layer's texture (layer0 the base, layerN the overlays);
-            // absent an override the equipment model's own path resolves. NONE answers absent for every
-            // layer, so the fallback is byte-identical to the model-only path.
+            // absent an override the equipment model's own path resolves.
             String textureId = cit.textureFor("layer" + i)
                 .map(ResourceId::id)
                 .orElseGet(() -> layer.textureLocation(layerType).id());
-            // A layer's texture is read once its dye says it draws, so a dyed-only pass on an undyed
-            // wearer, which draws nothing, never reports a texture it would never draw.
-            PixelBuffer painted;
-            if (layer.dyeable().isPresent()) {
-                int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
-                if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
-                painted = resolve(context, textureId, tick).orElseThrow().pixels().tint(color);
-            } else {
-                painted = resolve(context, textureId, tick).orElseThrow().pixels();
-            }
-
-            if (combined == null) combined = PixelBuffer.straight(painted.width(), painted.height());
-            combined.blit(painted, 0, 0);
+            layers.add(new Layer(resolve(context, textureId, tick), tint));
         }
-        // The composite is this kit's own picture of the layers, read nearest and repeating: the client
-        // draws each layer through its own sampler, which a pasted or tinted copy cannot be read through.
-        return Optional.ofNullable(combined).map(SampledTexture::of);
+
+        return layers;
     }
 
     /**
      * Reads one layer texture as the client reads an equipment layer, a plain texture, through the
-     * context's missing-texture wrapper, sampling its animation frame when the caller supplies a tick -
-     * never empty, since the wrapper answers every texture with pixels.
+     * context's missing-texture wrapper, sampling its animation frame when the caller supplies a tick.
      *
      * @param context the texture context the layer texture is read through
      * @param textureId the layer texture's namespaced id
@@ -115,14 +109,14 @@ public class EquipmentKit {
      * @return the layer's texture and the sampler it is read through, the checkerboard where no pack
      *     supplies the texture or it cannot be read
      */
-    private static @NotNull Optional<SampledTexture> resolve(
+    private static @NotNull SampledTexture resolve(
         @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
         RendererContext textures = context.withMissingTexture();
         SampledTexture texture = textures.resolvePlainTexture(textureId).get();
-        return Optional.of(tick.isEmpty() ? texture : Flipbook.atTick(texture, textures.findFlipbook(textureId), tick.getAsInt()));
+        return tick.isEmpty() ? texture : Flipbook.atTick(texture, textures.findFlipbook(textureId), tick.getAsInt());
     }
 
 }
