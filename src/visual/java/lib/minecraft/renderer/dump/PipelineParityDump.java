@@ -1981,7 +1981,6 @@ public final class PipelineParityDump {
         root.add("bone_model", boneModel(entity.boneModel()));
         root.addProperty("texture_id", entity.textureId());
         root.add("tint", CanonicalJson.argb(entity.tintArgb()));
-        root.addProperty("icon_rotation", entity.iconRotation());
         root.addProperty("additive", entity.additive());
         root.addProperty("plain_texture", entity.plainTexture());
         root.add("parts", CanonicalJson.ordered(entity.parts(), part -> {
@@ -1997,8 +1996,7 @@ public final class PipelineParityDump {
     /**
      * Returns a block-entity bone model. {@code inventory_transform} is a {@code @Nullable} array of
      * VARIABLE length (the trailing scale slot is optional), not an {@code Optional} - it is omitted
-     * when null. {@code inventory_y_rotation} is emitted here and nowhere else, this being the only
-     * bone model an inventory yaw reaches.
+     * when null.
      * <p>
      * {@code presentation()} is deliberately absent: it is computed from the fields above, so dumping it
      * would double-count them and could mask a diff behind its own arithmetic.
@@ -2010,7 +2008,6 @@ public final class PipelineParityDump {
         JsonObject root = new JsonObject();
         root.add("model", entityModel(model.model()));
         root.addProperty("source_y_up", model.sourceYUp());
-        root.add("inventory_y_rotation", CanonicalJson.number(model.inventoryYRotation()));
         root.addProperty("entity_flip", model.entityFlip());
         root.addProperty("tinted", model.tinted());
         if (model.inventoryTransform() != null) root.add("inventory_transform", floats(model.inventoryTransform()));

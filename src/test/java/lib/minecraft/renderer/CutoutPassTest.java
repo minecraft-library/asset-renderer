@@ -106,11 +106,10 @@ class CutoutPassTest {
             Entity zombie = context.findEntity("minecraft:zombie").orElseThrow();
             return passOf(BlockGeometryKit.buildFromBones(zombie.model(), SHEET, ColorMath.WHITE));
         });
-        passes.put("a block entity's bones turned and refitted", () -> {
+        passes.put("a block entity's bones turned", () -> {
             Entity zombie = context.findEntity("minecraft:zombie").orElseThrow();
             ConcurrentList<VisibleTriangle> bones = BlockGeometryKit.buildFromBones(zombie.model(), SHEET, ColorMath.WHITE);
-            ConcurrentList<VisibleTriangle> turned = BlockGeometryKit.applyRotation(bones, Matrix4f.createRotationY(1f));
-            return passOf(BlockGeometryKit.recenterAndFit(turned));
+            return passOf(BlockGeometryKit.applyRotation(bones, Matrix4f.createRotationY(1f)));
         });
         return passes;
     }

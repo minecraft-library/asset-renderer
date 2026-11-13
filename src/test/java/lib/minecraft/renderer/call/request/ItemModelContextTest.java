@@ -285,7 +285,7 @@ class ItemModelContextTest {
             assertThat(removed.hasComponent("minecraft:dyed_color"), is(false));
             assertThat(removed.hasComponent("dyed_color", true), is(true));
             assertThat(removed.conditionValue(new ItemModelNode.Condition(
-                "minecraft:has_component", "minecraft:dyed_color", true, Optional.empty(), ON_TRUE, ON_FALSE)), is(true));
+                "minecraft:has_component", "minecraft:dyed_color", true, 0, Optional.empty(), ON_TRUE, ON_FALSE)), is(true));
             assertThat(removed.conditionValue(condition("minecraft:has_component", "minecraft:dyed_color")), is(false));
 
             ItemModelContext set = withComponents(components("minecraft:dyed_color", new IntTag(0xFF0000)));
@@ -366,7 +366,7 @@ class ItemModelContextTest {
 
         /** A component condition testing a component's presence. */
         private static ItemModelNode.Condition presence(String component) {
-            return new ItemModelNode.Condition("minecraft:component", "", false,
+            return new ItemModelNode.Condition("minecraft:component", "", false, 0,
                 Optional.of(predicate(component, "{}")), ON_TRUE, ON_FALSE);
         }
 
@@ -471,7 +471,7 @@ class ItemModelContextTest {
             assertThat(customData("\"{}\"").matches(Optional.of(components("minecraft:damage", new IntTag(3)))), is(true));
             assertThat(customData("{\"id\":\"X\"}").matches(Optional.empty()), is(false));
             assertThat(withComponents(null).conditionValue(new ItemModelNode.Condition(
-                "minecraft:component", "", false, Optional.of(customData("{}")), ON_TRUE, ON_FALSE)), is(true));
+                "minecraft:component", "", false, 0, Optional.of(customData("{}")), ON_TRUE, ON_FALSE)), is(true));
         }
 
         @Test
@@ -575,7 +575,7 @@ class ItemModelContextTest {
         @Test
         @DisplayName("reads a stack's item model from its patch, else its item's id, and none where the patch removes it")
         void readsTheItemModelForASelect() {
-            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", "item_model", Optional.of(DecodedComponent.ITEM_MODEL),
+            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", 0, "item_model", Optional.of(DecodedComponent.ITEM_MODEL),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("minecraft:diamond"), ON_TRUE)),
                 ON_FALSE);
             ItemModelContext diamond = ItemModelContext.gui().withItemId("minecraft:diamond");
@@ -593,11 +593,11 @@ class ItemModelContextTest {
         void tellsAnUnheldComponentFromAnUnreadableOne() {
             // Not held is a value the context evaluated and found missing; a value that does not
             // decode, and a component no decoder here reads, are values it could not evaluate.
-            ItemModelNode.Select dyed = new ItemModelNode.Select("minecraft:component", "", "dyed_color",
+            ItemModelNode.Select dyed = new ItemModelNode.Select("minecraft:component", "", 0, "dyed_color",
                 Optional.of(DecodedComponent.DYED_COLOR),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("255"), ON_TRUE)),
                 ON_FALSE);
-            ItemModelNode.Select rarity = new ItemModelNode.Select("minecraft:component", "", "rarity", Optional.empty(),
+            ItemModelNode.Select rarity = new ItemModelNode.Select("minecraft:component", "", 0, "rarity", Optional.empty(),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("epic"), ON_TRUE)),
                 ON_FALSE);
             ItemModelContext dyedRed = ItemModelContext.gui().withComponents(components("minecraft:dyed_color", new IntTag(255)));
@@ -900,6 +900,152 @@ class ItemModelContextTest {
 
     }
 
+    /** Builds a component map whose {@code minecraft:custom_model_data} entry carries the given {@code flags} list, each a byte tag. */
+    private static CompoundTag customModelDataFlags(boolean... flags) {
+        ListTag<ByteTag> list = new ListTag<>();
+        for (boolean flag : flags) list.add(new ByteTag((byte) (flag ? 1 : 0)));
+        CompoundTag component = new CompoundTag();
+        component.put("flags", list);
+        return components("minecraft:custom_model_data", component);
+    }
+
+    /** Decodes a {@code custom_model_data} condition through the definition reader, with the {@code index} member given, or none where that is {@code null}. */
+    private static ItemModelNode.Condition flagCondition(Integer index) {
+        String member = index == null ? "" : ",\"index\":" + index;
+        return (ItemModelNode.Condition) parse("{\"type\":\"minecraft:condition\",\"property\":\"minecraft:custom_model_data\"" + member
+            + ",\"on_true\":" + LEAF + ",\"on_false\":" + LEAF + "}");
+    }
+
+    @Nested
+    @DisplayName("custom_model_data flags")
+    class CustomModelDataFlags {
+
+        @Test
+        @DisplayName("keeps the index a condition names, and reads index zero where it names none")
+        void keepsTheConditionsIndex() {
+            assertThat(flagCondition(3).index(), is(3));
+            assertThat(flagCondition(null).index(), is(0));
+        }
+
+        @Test
+        @DisplayName("answers the stack's flag at the condition's index, as the client reads flags[index]")
+        void answersTheFlagAtTheIndex() {
+            ItemModelContext carrying = withComponents(customModelDataFlags(false, true));
+            assertThat(carrying.conditionValue(flagCondition(null)), is(false));
+            assertThat(carrying.conditionValue(flagCondition(0)), is(false));
+            assertThat(carrying.conditionValue(flagCondition(1)), is(true));
+            assertThat("and walks to the branch it picks",
+                carrying.resolve(new ItemModelNode.Condition("custom_model_data", "", false, 1, Optional.empty(), ON_TRUE, ON_FALSE)).modelId(),
+                is(Optional.of("minecraft:item/on")));
+        }
+
+        @Test
+        @DisplayName("answers false off the list's end, at a negative index, and for a stack with no flags")
+        void answersFalseWhereNoFlagIsSet() {
+            ItemModelContext carrying = withComponents(customModelDataFlags(true));
+            assertThat(carrying.conditionValue(flagCondition(1)), is(false));
+            assertThat(carrying.conditionValue(new ItemModelNode.Condition("custom_model_data", "", false, -1, Optional.empty(), ON_TRUE, ON_FALSE)),
+                is(false));
+            assertThat(ItemModelContext.gui().conditionValue(flagCondition(0)), is(false));
+            assertThat(withComponents(new CompoundTag()).conditionValue(flagCondition(0)), is(false));
+            assertThat("a stack carrying only floats", withComponents(customModelData(1f)).conditionValue(flagCondition(0)), is(false));
+        }
+
+        @Test
+        @DisplayName("reads a flag written as any number by its low byte, as a boolean decodes from NBT")
+        void readsAnyNumberByItsLowByte() {
+            ListTag<IntTag> ints = new ListTag<>();
+            ints.add(new IntTag(1));
+            ints.add(new IntTag(256));
+            CompoundTag component = new CompoundTag();
+            component.put("flags", ints);
+            ItemModelContext carrying = withComponents(components("minecraft:custom_model_data", component));
+            assertThat(carrying.conditionValue(flagCondition(0)), is(true));
+            assertThat("256 has a low byte of zero", carrying.conditionValue(flagCondition(1)), is(false));
+        }
+
+        @Test
+        @DisplayName("reads a mod's custom_model_data property as unevaluable")
+        void readsAModsPropertyAsUnevaluable() {
+            ItemModelContext carrying = withComponents(customModelDataFlags(true));
+            assertThat(carrying.conditionValue(new ItemModelNode.Condition("somepack:custom_model_data", "", false, 0, Optional.empty(), ON_TRUE, ON_FALSE)),
+                is(false));
+        }
+
+    }
+
+    /** Builds a component map whose {@code minecraft:custom_model_data} entry carries the given {@code strings} list. */
+    private static CompoundTag customModelDataStrings(String... strings) {
+        ListTag<StringTag> list = new ListTag<>();
+        for (String value : strings) list.add(new StringTag(value));
+        CompoundTag component = new CompoundTag();
+        component.put("strings", list);
+        return components("minecraft:custom_model_data", component);
+    }
+
+    /** Decodes a {@code custom_model_data} select through the definition reader, with the {@code index} member given, or none where that is {@code null}, and one case on {@code when}. */
+    private static ItemModelNode.Select stringSelect(Integer index, String when) {
+        String member = index == null ? "" : ",\"index\":" + index;
+        return (ItemModelNode.Select) parse("{\"type\":\"minecraft:select\",\"property\":\"minecraft:custom_model_data\"" + member
+            + ",\"cases\":[{\"when\":\"" + when + "\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"}}]"
+            + ",\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}");
+    }
+
+    @Nested
+    @DisplayName("custom_model_data strings")
+    class CustomModelDataStrings {
+
+        @Test
+        @DisplayName("keeps the index a select names, and reads index zero where it names none")
+        void keepsTheSelectsIndex() {
+            assertThat(stringSelect(2, "red").index(), is(2));
+            assertThat(stringSelect(null, "red").index(), is(0));
+        }
+
+        @Test
+        @DisplayName("answers the stack's string at the select's index, as the client reads strings[index], and walks to the case it names")
+        void answersTheStringAtTheIndex() {
+            ItemModelContext carrying = withComponents(customModelDataStrings("blue", "red"));
+            assertThat(carrying.selectValue(stringSelect(null, "red")), is(Possible.of("blue")));
+            assertThat(carrying.selectValue(stringSelect(1, "red")), is(Possible.of("red")));
+            assertThat("the case on the string is taken", carrying.resolve(stringSelect(1, "red")).modelId(), is(Optional.of("minecraft:item/on")));
+            assertThat("and another string takes the fallback", carrying.resolve(stringSelect(0, "red")).modelId(), is(Optional.of("minecraft:item/off")));
+        }
+
+        @Test
+        @DisplayName("answers no string off the list's end, at a negative index, and for a stack with no strings, so the select takes its fallback")
+        void answersNoStringWhereNoneIsSet() {
+            ItemModelContext carrying = withComponents(customModelDataStrings("red"));
+            assertThat(carrying.selectValue(stringSelect(1, "red")), is(Possible.empty()));
+            assertThat(carrying.selectValue(new ItemModelNode.Select("custom_model_data", "", -1, "", Optional.empty(),
+                Concurrent.newUnmodifiableList(), ON_FALSE)), is(Possible.empty()));
+            assertThat(ItemModelContext.gui().selectValue(stringSelect(0, "red")), is(Possible.empty()));
+            assertThat("a stack carrying only floats", withComponents(customModelData(1f)).selectValue(stringSelect(0, "red")),
+                is(Possible.empty()));
+            assertThat(ItemModelContext.gui().resolve(stringSelect(0, "red")).modelId(), is(Optional.of("minecraft:item/off")));
+        }
+
+        @Test
+        @DisplayName("reads an entry that is not a string as undecodable, the component's codec reading strings alone")
+        void readsANonStringAsUndecodable() {
+            ListTag<IntTag> ints = new ListTag<>();
+            ints.add(new IntTag(3));
+            CompoundTag component = new CompoundTag();
+            component.put("strings", ints);
+            assertThat(withComponents(components("minecraft:custom_model_data", component)).selectValue(stringSelect(0, "3")),
+                is(Possible.absent()));
+        }
+
+        @Test
+        @DisplayName("reads a mod's custom_model_data property as unevaluable")
+        void readsAModsPropertyAsUnevaluable() {
+            ItemModelContext carrying = withComponents(customModelDataStrings("red"));
+            assertThat(carrying.selectValue(new ItemModelNode.Select("somepack:custom_model_data", "", 0, "", Optional.empty(),
+                Concurrent.newUnmodifiableList(), ON_FALSE)), is(Possible.absent()));
+        }
+
+    }
+
     @Nested
     @DisplayName("select keys")
     class SelectKeys {
@@ -933,7 +1079,7 @@ class ItemModelContextTest {
         @Test
         @DisplayName("reads a block_state select's property out of the stack's block_state component, as the client does")
         void readsTheBlockStateComponent() {
-            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:block_state", "honey_level", "", Optional.empty(),
+            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:block_state", "honey_level", 0, "", Optional.empty(),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("5"), ON_TRUE)),
                 ON_FALSE);
             CompoundTag full = new CompoundTag();
@@ -1050,7 +1196,7 @@ class ItemModelContextTest {
             CompoundTag customData = compound("id", new StringTag("ASPECT_OF_THE_END"));
             CompoundTag stack = components("minecraft:custom_data", customData);
             ItemModelContext context = ItemModelContext.gui().withComponents(stack);
-            ItemModelNode.Condition condition = new ItemModelNode.Condition("minecraft:component", "", false,
+            ItemModelNode.Condition condition = new ItemModelNode.Condition("minecraft:component", "", false, 0,
                 Optional.of(customData("{\"id\":\"ASPECT_OF_THE_END\"}")), ON_TRUE, ON_FALSE);
             ItemModelContext before = ItemModelContext.gui().withComponents(stack);
 

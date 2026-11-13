@@ -135,9 +135,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * section's blur. A plain family whose reader draws the texture whole is filtered by it, as the client
  * samples a plain texture by its sidecar, so it draws a picture other than its reference - a skin, cape
  * or armour sheet among them, whose faces are regions of the whole sheet, and every equipment layer,
- * each drawn as a pass of its own; a plain family whose reader prepares a picture out of the texture
- * first - the composed container panel - reads that picture nearest, and draws its reference exactly, as does every atlas sprite, which its
- * atlas reads by its own sampler. A family served a solid sheet is staged as a
+ * each drawn as a pass of its own, and a container sheet, whose panel is its regions blitted off the
+ * whole sheet; every atlas sprite draws its reference exactly, its atlas reading it by its own sampler. A
+ * family served a solid sheet is staged as a
  * two-tone sheet instead, since a filter leaves a uniform texture as it is. After its zero-byte break, a
  * drawn plain family is broken once more beside a sidecar that blurs, and draws the checkerboard hard, as
  * the client's missing texture is read.
@@ -270,13 +270,6 @@ class MissingTextureFamilyTest {
     private static final Set<String> WHOLE_SITES = Set.of(
         "book page", "container sheet", "armour glint", "item glint", "portal noise", "end sky",
         "cape on the wings", "elytra source");
-
-    /**
-     * The plain families whose reader prepares a picture out of the texture before it is drawn - the
-     * composed container panel - which is read nearest and repeating whatever the sheet's sidecar
-     * selects, so a blur sidecar leaves the family's picture as it is.
-     */
-    private static final Set<String> PREPARED = Set.of("container sheet");
 
     /**
      * The families served a solid sheet by their intact context, which the blur stack stages as
@@ -685,7 +678,7 @@ class MissingTextureFamilyTest {
     }
 
     @TestFactory
-    @DisplayName("a blur sidecar filters a plain texture its reader draws whole, and no picture a reader prepares first, nor any atlas sprite")
+    @DisplayName("a blur sidecar filters every plain texture a reader draws, and no atlas sprite")
     @NotNull Stream<DynamicTest> aBlurSidecarFiltersOnlyAPlainTextureDrawnWhole() {
         return perFamily(family -> family.read() != Read.PERMUTATION_INPUT && family.drawn(), family -> {
             RendererContext intact = family.intact().apply(vanilla);
@@ -696,11 +689,12 @@ class MissingTextureFamilyTest {
             RenderResult drawn = family.render().draw(staged(intact, id, blurred));
 
             assertThat(family + " names no stand-in", drawn.substitutions(), is(empty()));
-            if (family.read() == Read.PLAIN && !PREPARED.contains(family.name())) {
-                assertThat(family + " is filtered by its sidecar, as the client samples a plain texture drawn whole",
+            if (family.read() == Read.PLAIN) {
+                assertThat(family + " is filtered by its sidecar, as the client samples a plain texture",
                     picture(drawn), is(not(reference)));
             } else {
-                assertThat(family + " draws its reference, read nearest whatever its sidecar selects", picture(drawn), is(reference));
+                assertThat(family + " draws its reference, read by its atlas's sampler whatever its sidecar selects",
+                    picture(drawn), is(reference));
             }
         });
     }

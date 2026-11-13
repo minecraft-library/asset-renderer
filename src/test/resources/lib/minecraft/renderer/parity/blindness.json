@@ -1517,6 +1517,7 @@
         "harness/src/client/java/lib/minecraft/refharness/frame/BlockIconGeometry.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/FirstVariantRandomSource.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/ItemDefinitionWalk.java",
+        "harness/src/client/java/lib/minecraft/refharness/frame/SlotLayers.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/BlockSweep.java"
       ]
     },

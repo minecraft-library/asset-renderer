@@ -121,45 +121,21 @@ differing pixels into 154. Closing the 18 needs the card's interpolation setup a
 position and the GUI atlas's layout, and modelling the card is refused in
 [Texel rules](renderer/TexelFetch.md). Nobody has taken it on.
 
-## A custom_model_data flag condition and string select never read the stack
+## The copper golem statue's block icon is drawn head-down, as the bind render draws it
 
-A `condition` node on `custom_model_data` drops its `index` when it is read, and the walk answers
-`false` for it and absent for a `custom_model_data` select (`ItemModelContext`), where the 26.1 client
-answers `flags[index] == true` and `strings[index]`. With no stack both agree. A stack that sets `flags`
-or `strings` - which is how ItemsAdder packs switch a composite's layers - draws those layers in the
-client and never here.
+A block whose item the client draws through specials alone is drawn as its slot draws it in the bind
+render, with no `setupAnim`: the bones at their bind pose, each dispatch node's and the special's own
+`transformation`, then the base's `display.gui`. For the eight copper golem statues that is head-down.
+Their `select` carries `scale(1, -1, -1)` translated `(0.5, 1.5, 0.5)`, the base turns the icon a half
+turn about Z, and the bones stand at the layer's own root, which `CopperGolemModel.createBodyLayer`
+translates by `(0, 24, 0)`. The harness draws the same thing, since its freeze skips every model's
+`setupAnim` in a static sweep, so the two agree byte for byte.
 
-Reading them is two small walk arms and the kept index, but it widens the set of component tests the
-walk answers, which [RequestsAndResults](renderer/RequestsAndResults.md)'s *Decisions that stay closed*
-refuses ("Do not widen the component tests an item definition's walk answers"). That refusal rests on
-the set being every component test the definitions on hand use; a user's ItemsAdder pack uses the flag
-condition 2016 times, and these two choose how an item looks, from the same component the range dispatch
-already reads. Whether that reopens the decision is the owner's call. Nobody has taken it on.
+A real inventory draws the statue upright. `CopperGolemStatueModel.setupAnim` is not an animation but a
+fixed pose: it sets the root's `y` to 0 and its `zRot` to pi, and the client runs it for every draw. No
+hand-written flip stands in for it: the renderer and tooling pose a block entity from the client's data
+alone.
 
-## A special reached through a dispatch root takes the default pose when no stack picks it
-
-`BlockIndexBuilder.iconGuiFor` reads a special model's base for its icon pose only where the item
-definition's root is itself a `model` or `special` node; under a `select`, `range_dispatch` or
-`condition` root it gives the default iso pose (`[30, 225, 0]` at 0.625), reads the base from `item/`
-models only and falls back to the block model's gui transform. The client poses the picked special by
-its base under any root and falls back to no transform. The harness's `BlockGuiTransform` mirrors the
-renderer, so no parity row sees it. In vanilla it decides `chest`, `trapped_chest` and the eight copper
-golem statues: `chest` and `copper_chest`, which the client poses identically, are drawn a half turn
-apart here and in the references, and which of the two a real inventory shows is not measured. A pack
-that wraps the player head in a `range_dispatch` draws its plain head a half turn round and smaller.
-
-The fix reads the neutral branch's base under any root, from every model, with no transform where it
-declares none, and the harness reads the picked layer's properties to match. It moves ten vanilla
-references, which are re-rendered and promoted, and the chest family's turn wants a client inventory
-capture to settle. Nobody has taken it on.
-
-## A container sheet is composed at one texel per Minecraft pixel
-
-A shipped screen's sheet is resized to 256 texels before its blits are copied into the panel
-(`Window.Sliced`'s `compose` and `paintPanel`), so a sheet of another size draws at one texel per
-Minecraft pixel where the client draws it at full resolution, and the panel is laid nearest whatever
-the sheet's sidecar selects, where the client filters or clamps each blit off the sheet. The fix keeps
-the blits the panel is composed from and lays each off the sheet through the client's region blit, at
-the sheet's own resolution and sampler. A 256-texel vanilla sheet laid blit by blit with nearest
-sampling is the copy's texels, so no stored menu moves; no stored stack ships a sheet of another size or
-with a texture section. Nobody has taken it on.
+Drawing it upright without hand data means carrying that root override as data - tooling reading the
+statue model's `setupAnim` root assignments into the statue's geometry - and the harness letting that
+one model's `setupAnim` run in the static sweep. Nobody has taken it on.

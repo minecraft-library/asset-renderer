@@ -55,7 +55,6 @@ public final class BlockEntityAssembler {
             if (model.blocks() == null) continue;   // part-only sub-models carry no blocks[]
 
             Block.BlockEntity.BoneModel boneModel = buildBoneModel(modelId, model, geometries);
-            int iconRotation = model.icon() != null ? model.icon().rotation() : 0;
             boolean additive = model.icon() != null && model.icon().additive();
 
             for (BlockRef block : model.blocks()) {
@@ -76,7 +75,7 @@ public final class BlockEntityAssembler {
 
                 ConcurrentList<Block.BlockEntity.Part> parts = buildParts(models, model, geometries, textureId);
                 int tintArgb = block.tint() != null ? resolveTint(block.tint()) : ColorMath.WHITE;
-                result.put(blockId, new Block.BlockEntity(boneModel, textureId, tintArgb, iconRotation, parts, additive, model.plainTexture()));
+                result.put(blockId, new Block.BlockEntity(boneModel, textureId, tintArgb, parts, additive, model.plainTexture()));
             }
         }
 
@@ -106,16 +105,14 @@ public final class BlockEntityAssembler {
         boolean sourceYUp = "UP".equals(model.yAxis());
         boolean tinted = model.tinted();
 
-        float inventoryYRotation = 0f;
         boolean entityFlip = false;
         float @Nullable [] inventoryTransform = null;
         InventoryDto inventory = model.inventory();
         if (inventory != null) {
-            inventoryYRotation = inventory.yRotation();
             entityFlip = inventory.flip();
             if (inventory.transform() != null) inventoryTransform = inventory.transform();
         }
-        return new Block.BlockEntity.BoneModel(mesh, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted);
+        return new Block.BlockEntity.BoneModel(mesh, sourceYUp, entityFlip, inventoryTransform, tinted);
     }
 
     /**

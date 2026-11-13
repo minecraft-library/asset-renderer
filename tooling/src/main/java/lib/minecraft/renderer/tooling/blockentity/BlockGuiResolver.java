@@ -11,12 +11,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The GUI half of the {@code inventory} node plus the {@code icon} node:
- * {@code inventory.y_rotation} + {@code inventory.flip} and {@code icon} {@code {rotation?, additive?}}.
- * The bytecode {@code inventory.transform} is the other contributor (InventoryTransformResolver).
+ * The GUI half of the {@code inventory} node plus the {@code icon} node: {@code inventory.flip} and
+ * {@code icon} {@code {additive?}}. The bytecode {@code inventory.transform} is the other contributor
+ * (InventoryTransformResolver).
  *
- * <p>{@code y_rotation} is the camera-facing convention from {@link BlockTransformPolicies}
- * (not a {@code display.gui} yaw read - the yaw does not determine it). {@code flip} is TRUE for
+ * <p>{@code flip} is TRUE for
  * every transform-bearing family (they never consult the icon); for the three raw-pose families
  * (chest / bell / copper_golem_statue) it reads the item-model {@code display.gui} roll (180 means
  * flip) via {@link ClassNodeCache#readJson}, with the bell suppressed and a flat-sprite default of
@@ -32,16 +31,6 @@ public final class BlockGuiResolver {
 
     /** split id -> resolved display.gui roll (absent = not yet computed; present-null = unresolved). */
     private final @NotNull Map<String, Float> rollBySplitId = new HashMap<>();
-
-    /**
-     * The split's inventory yaw (the camera-facing convention).
-     *
-     * @param splitId the models key
-     * @return {@code 180f} for the camera-facing families, else {@code 0f}
-     */
-    float yRotation(@NotNull String splitId) {
-        return BlockTransformPolicies.inventoryYRotation(splitId);
-    }
 
     /**
      * The split's entity-flip gate.
@@ -62,16 +51,11 @@ public final class BlockGuiResolver {
      * The split's {@code icon} node, or {@code null} when it carries no icon presentation facts.
      *
      * @param splitId the models key
-     * @return the {@code {rotation?, additive?}} node, or {@code null}
+     * @return the {@code {additive}} node, or {@code null}
      */
     @Nullable JsonTree icon(@NotNull String splitId) {
-        Integer rotation = BlockTransformPolicies.iconRotation(splitId);
-        boolean additive = BlockTransformPolicies.isIconAdditive(splitId);
-        if (rotation == null && !additive) return null;
-        JsonTree icon = JsonTree.object();
-        if (rotation != null) icon.putInt("rotation", rotation);
-        if (additive) icon.put("additive", true);
-        return icon;
+        if (!BlockTransformPolicies.isIconAdditive(splitId)) return null;
+        return JsonTree.object().put("additive", true);
     }
 
     /** The {@code display.gui} roll of the split's item icon, or {@code null} when unresolved. */

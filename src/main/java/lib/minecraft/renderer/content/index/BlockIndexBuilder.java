@@ -113,13 +113,13 @@ public class BlockIndexBuilder {
      * Its counterpart {@link BakedTables} carries what the bake produces, and the split is the point
      * rather than a size limit: a raw {@link ApplyDto} and a resolved {@link Block.Variant} are
      * different types, so no pass downstream of the bake can reach an unbaked apply at all.
-     * {@link #attachOrphanBlockEntities} reads six of the ten - an orphan block entity has no model,
+     * {@link #attachOrphanBlockEntities} reads six of the nine - an orphan block entity has no model,
      * no tint and no item-def override - and takes the record whole rather than naming a sixth of it
      * in its own signature.
      *
      * @param blockModels the parsed block model data keyed by full model id
      * @param models every parsed model keyed by full model id, whatever its path under {@code models/},
-     *     which a blockstate's model id resolves against
+     *     which a blockstate's model id resolves against and {@code iconGui} is baked from
      * @param blockTints the block tint bindings keyed by stripped block id
      * @param itemDefinitions the inventory item-def model overrides keyed by stripped block id
      * @param blockDefaultStates the default-state property maps keyed by namespaced block id
@@ -127,7 +127,6 @@ public class BlockIndexBuilder {
      * @param blockEntities the block-entity geometry table
      * @param beVariants the block-entity state-conditional variants
      * @param itemTrees the parsed item dispatch trees keyed by item id, for baking {@code iconGui}
-     * @param itemModels the parsed item models keyed by full model id, for baking {@code iconGui}
      */
     public record BlockTables(
         @NotNull ConcurrentMap<String, ModelData> blockModels,
@@ -138,8 +137,7 @@ public class BlockIndexBuilder {
         @NotNull Map<String, String> blockItemAliases,
         @NotNull ConcurrentMap<String, Block.BlockEntity> blockEntities,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, ModelData> itemModels
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees
     ) {}
 
     /**
@@ -447,45 +445,52 @@ public class BlockIndexBuilder {
 
     /**
      * Bakes the {@code display.gui} transform a block's inventory icon poses through, resolving it the
-     * same way the in-game inventory does: the item-block's dispatch tree at the neutral
-     * {@link ItemModelContext#gui() gui context} (a {@code special} leaf resolves to its {@code base}
-     * item model, a plain leaf to its own resolved model, both falling back to {@code <ns>:item/<name>}),
-     * reading that model's {@code display.gui}, then falling back to the block model's own gui. A
-     * plain or special root reads its leaf, and so does a dispatch root whose neutral branch is one
-     * block model - the {@linkplain ItemModelNode.Resolution#blockModel() test} the block-item
-     * projection applies, so it holds exactly for a dispatch-rooted block icon. Any other dispatch or
-     * composite root exposes no readable transform, so it resolves to empty.
+     * same way the in-game inventory does, from the item-block's dispatch tree walked at the neutral
+     * {@link ItemModelContext#gui() gui context}.
+     * <p>
+     * Where every layer the walk lands on is a special on one base, the icon is posed by that base, as
+     * vanilla poses each special layer by its own base whatever root reaches it - a {@code special}, a
+     * {@code select}, a {@code condition}, a {@code range_dispatch} or a {@code composite}: the base's
+     * {@code display.gui}, the nearest file up its chain to declare one, read from every model whatever
+     * folder it sits in, and the identity where none does or no pack ships the base, which the client
+     * reads as its missing model.
+     * <p>
+     * Otherwise a plain root reads its leaf's model, and so does a dispatch root whose neutral branch is
+     * one block model - the {@linkplain ItemModelNode.Resolution#blockModel() test} the block-item
+     * projection applies - each falling back to {@code <ns>:item/<name>} where the walk names no model,
+     * then to the block model's own gui. Any other dispatch or composite root exposes no readable
+     * transform, so it resolves to empty.
      *
      * @param itemBlockId the block whose inventory item this icon poses through ({@link #itemBlockIdFor})
      * @param blockModel the block's own model, the final gui fallback
      * @param itemTrees the parsed item dispatch trees keyed by item id
-     * @param itemModels the parsed item models keyed by full model id
+     * @param models every parsed model keyed by full model id, whatever its path under {@code models/}
      * @return the resolved {@code display.gui}, or empty when none is authored anywhere
      */
     private static @NotNull Optional<ModelTransform> iconGuiFor(
         @NotNull ResourceId itemBlockId, @NotNull ModelData blockModel,
-        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees, @NotNull ConcurrentMap<String, ModelData> itemModels) {
+        @NotNull ConcurrentMap<String, ItemModelTree> itemTrees, @NotNull ConcurrentMap<String, ModelData> models) {
         String itemId = itemBlockId.id();
         Optional<ItemModelTree> tree = itemTrees.getOptional(itemId);
         Optional<ItemModelNode.Resolution> neutral = tree.map(t -> ItemModelContext.gui().resolve(t));
 
-        // The gui transform survives on a direct model or special item wrapper, and on the block
-        // model a dispatch root's neutral branch draws alone, which is that item's icon. Any other
-        // dispatch or composite root exposes no readable transform, so the icon renders at the
-        // default iso pose.
+        Optional<String> base = neutral.flatMap(ItemModelDispatch::specialBase);
+        if (base.isPresent()) {
+            return Optional.of(models.getOptional(base.get())
+                .flatMap(model -> model.getDisplay().getOptional(ItemModelContext.DISPLAY_CONTEXT_GUI))
+                .orElse(ModelTransform.IDENTITY));
+        }
+
+        // The gui transform survives on a direct model wrapper, and on the block model a dispatch
+        // root's neutral branch draws alone, which is that item's icon. Any other dispatch or
+        // composite root exposes no readable transform, so the icon renders at the default iso pose.
         ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
-        boolean wrapper = root instanceof ItemModelNode.Model || root instanceof ItemModelNode.Special;
-        if (root != null && !wrapper && neutral.flatMap(ItemModelNode.Resolution::blockModel).isEmpty())
+        if (root != null && !(root instanceof ItemModelNode.Model) && neutral.flatMap(ItemModelNode.Resolution::blockModel).isEmpty())
             return Optional.empty();
 
-        String resolved = neutral
-            .map(resolution -> resolution.special()
-                .map(ItemModelNode.Special::base)
-                .orElseGet(() -> resolution.modelId().orElse(null)))
-            .orElse(null);
-        String modelId = resolved != null ? resolved : itemBlockId.namespace() + ":item/" + itemBlockId.name();
-
-        Optional<ModelTransform> itemGui = itemModels.getOptional(modelId).map(model -> model.getDisplay().get("gui"));
+        String modelId = neutral.flatMap(ItemModelNode.Resolution::modelId)
+            .orElse(itemBlockId.namespace() + ":item/" + itemBlockId.name());
+        Optional<ModelTransform> itemGui = models.getOptional(modelId).map(model -> model.getDisplay().get("gui"));
         if (itemGui.isPresent()) return itemGui;
         return Optional.ofNullable(blockModel.getDisplay().get("gui"));
     }
@@ -599,7 +604,7 @@ public class BlockIndexBuilder {
             source,
             defaultStateFor(tables.blockDefaultStates(), blockId),
             itemBlockId,
-            iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
+            iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.models()),
             modelIcon,
             flipbooksOf(stack, modelToUse, variants, multipart, entity)
         );
@@ -648,7 +653,7 @@ public class BlockIndexBuilder {
                 Block.Source.TILE_ENTITY,
                 defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, model, tables.itemTrees(), tables.itemModels()),
+                iconGuiFor(itemBlockId, model, tables.itemTrees(), tables.models()),
                 false,
                 flipbooksOf(stack, model, variants, multipart, be)
             ));
@@ -750,7 +755,7 @@ public class BlockIndexBuilder {
                 source,
                 defaultStateFor(tables.blockDefaultStates(), blockId),
                 itemBlockId,
-                iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.itemModels()),
+                iconGuiFor(itemBlockId, modelToUse, tables.itemTrees(), tables.models()),
                 // The resolver tries the item def first, so the model is vanilla's icon exactly when
                 // that is where it came from; a first-variant fallback is this pipeline's stand-in.
                 hit.modelId().equals(tables.itemDefinitions().get(blockId)),

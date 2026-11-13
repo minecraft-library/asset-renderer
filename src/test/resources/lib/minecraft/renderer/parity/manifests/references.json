@@ -356,11 +356,11 @@
     },
     {
       "path": "blocks/minecraft__black_banner.png",
-      "sha256": "f90745e606a31ee6c165e29ccad6aa7bc2b1f166c37e63f64dd278a5bbe97510"
+      "sha256": "314514e1cf7c2c252c0826531968d81c8209ce438f8f2ce8b6c37328a38a288f"
     },
     {
       "path": "blocks/minecraft__black_bed.png",
-      "sha256": "b325544e6f2b469c79442d2cb695b0d130fef22df7da59fb5c35edc549f2a0a2"
+      "sha256": "ce1694b3e8c69048deb3943c7818b86eb2abd3142f4f2316f22122b4befe8b24"
     },
     {
       "path": "blocks/minecraft__black_candle.png",
@@ -400,7 +400,7 @@
     },
     {
       "path": "blocks/minecraft__black_wall_banner.png",
-      "sha256": "5a7cc1f5021491677f5a20e6870cd5dd94411630180b4eb87f655967b15be6e6"
+      "sha256": "314514e1cf7c2c252c0826531968d81c8209ce438f8f2ce8b6c37328a38a288f"
     },
     {
       "path": "blocks/minecraft__black_wool.png",
@@ -428,11 +428,11 @@
     },
     {
       "path": "blocks/minecraft__blue_banner.png",
-      "sha256": "d21c76fa28868db97a8589eeb3506fcc3b050945c537cf6078322db9e5d07b26"
+      "sha256": "c4e79c9a7901b7fbd9800f59b735c5347f84919c50657a05d753d55da2c05d09"
     },
     {
       "path": "blocks/minecraft__blue_bed.png",
-      "sha256": "03e4a3fde41bf7f469e23d4d21b22b15f5d5f0946a98cfea18f01cec40bcdcfe"
+      "sha256": "c47033ad2729f362e246cc78a4f2c257ca23744fa05b3e355d51955c2fba305b"
     },
     {
       "path": "blocks/minecraft__blue_candle.png",
@@ -480,7 +480,7 @@
     },
     {
       "path": "blocks/minecraft__blue_wall_banner.png",
-      "sha256": "82e34ae3ce08db0a462062258b17eaec4308614928e8d1090a341b94489b5323"
+      "sha256": "c4e79c9a7901b7fbd9800f59b735c5347f84919c50657a05d753d55da2c05d09"
     },
     {
       "path": "blocks/minecraft__blue_wool.png",
@@ -532,11 +532,11 @@
     },
     {
       "path": "blocks/minecraft__brown_banner.png",
-      "sha256": "0556f4a448c99760db57d34571a445eff9a22fb1c65f745c1bea2a3a3bc14319"
+      "sha256": "d7cee18242f84763f71d8ec73849bd1a2fd7f3993264aa2ce51e2637db3eb800"
     },
     {
       "path": "blocks/minecraft__brown_bed.png",
-      "sha256": "29b95c9bf523a849dedc0375e67e7c897c494a5390d6984f0d0a4796c0301e41"
+      "sha256": "eeb130aec80a7a8bb4321e8c3a94fee58bfda56d1fc0910107f929a58f807209"
     },
     {
       "path": "blocks/minecraft__brown_candle.png",
@@ -584,7 +584,7 @@
     },
     {
       "path": "blocks/minecraft__brown_wall_banner.png",
-      "sha256": "5120ded9d3742aabf9def96b18a44ee57b9d7b3d5a888ac3b6b0858222eef82f"
+      "sha256": "d7cee18242f84763f71d8ec73849bd1a2fd7f3993264aa2ce51e2637db3eb800"
     },
     {
       "path": "blocks/minecraft__brown_wool.png",
@@ -896,7 +896,7 @@
     },
     {
       "path": "blocks/minecraft__copper_chest.png",
-      "sha256": "e2414ede7ec1f20a670b5dc532dce4da9266d7970f146f78889779634342ad69"
+      "sha256": "f061eb923cbe8ecc571b545d4dabb8ad5737f349e7420b830932cbff34d39ec4"
     },
     {
       "path": "blocks/minecraft__copper_door.png",
@@ -904,7 +904,7 @@
     },
     {
       "path": "blocks/minecraft__copper_golem_statue.png",
-      "sha256": "cd34edc63e5bb162b10eb3e9813daa0ee85b483bcb54de1432bf1b4aa61c10ee"
+      "sha256": "5ec899cffc19535719986f40edee5d3725f6aef91588edc2894b7fca1bde8dac"
     },
     {
       "path": "blocks/minecraft__copper_grate.png",
@@ -968,11 +968,11 @@
     },
     {
       "path": "blocks/minecraft__creeper_head.png",
-      "sha256": "135d2c166eb6b343fd4951a8a16c950112cf48f16d3f8284b6acfa21f3e95075"
+      "sha256": "9f08b379ed6d5340a4794e35c019f33650c5ea35d1288cb3e2ba71acc2258aa5"
     },
     {
       "path": "blocks/minecraft__creeper_wall_head.png",
-      "sha256": "135d2c166eb6b343fd4951a8a16c950112cf48f16d3f8284b6acfa21f3e95075"
+      "sha256": "9f08b379ed6d5340a4794e35c019f33650c5ea35d1288cb3e2ba71acc2258aa5"
     },
     {
       "path": "blocks/minecraft__crimson_button.png",
@@ -1084,11 +1084,11 @@
     },
     {
       "path": "blocks/minecraft__cyan_banner.png",
-      "sha256": "e34456a791d24c2df8f16b16885172700fe7b01baccb92fe816432e18733fa24"
+      "sha256": "9f66104b2c2cbccac69326e8aec8e712509f68deb75b1068f565ca5975d52c66"
     },
     {
       "path": "blocks/minecraft__cyan_bed.png",
-      "sha256": "1055ce1a488f5486463c31cf64cf49969f04da72456e1ca7659d6e68521f0c17"
+      "sha256": "b0f2b2e5551d67d1eec5a0619910d64c6e4e46f66fd3ebfac71830d52288a91b"
     },
     {
       "path": "blocks/minecraft__cyan_candle.png",
@@ -1128,7 +1128,7 @@
     },
     {
       "path": "blocks/minecraft__cyan_wall_banner.png",
-      "sha256": "eabfb7d499243b74c18f7dd40fbb77ea3b1cfed20d9f2d8b15b4230735350740"
+      "sha256": "9f66104b2c2cbccac69326e8aec8e712509f68deb75b1068f565ca5975d52c66"
     },
     {
       "path": "blocks/minecraft__cyan_wool.png",
@@ -1316,7 +1316,7 @@
     },
     {
       "path": "blocks/minecraft__decorated_pot.png",
-      "sha256": "b8b25efdb44b74619f2c55176bb7f8c0cd346117d91292e6e691374382d400fb"
+      "sha256": "f21b53039ffb3944e9ef3fbecea7678818fd6d6f7b82171155f1408fe1a15ca6"
     },
     {
       "path": "blocks/minecraft__deepslate.png",
@@ -1432,11 +1432,11 @@
     },
     {
       "path": "blocks/minecraft__dragon_head.png",
-      "sha256": "eea8aea759e0cbedb6c409146bcf9444a91589ab1e7035566c8f934791a8feaf"
+      "sha256": "d5a7147c26f8f55e695b322fdd29943bd0a34adffae9fc41960e4b2c6436b9cf"
     },
     {
       "path": "blocks/minecraft__dragon_wall_head.png",
-      "sha256": "eea8aea759e0cbedb6c409146bcf9444a91589ab1e7035566c8f934791a8feaf"
+      "sha256": "d5a7147c26f8f55e695b322fdd29943bd0a34adffae9fc41960e4b2c6436b9cf"
     },
     {
       "path": "blocks/minecraft__dried_ghast.png",
@@ -1496,7 +1496,7 @@
     },
     {
       "path": "blocks/minecraft__ender_chest.png",
-      "sha256": "620a1e0104253a7dae04e36e015faaf793dbfccc8a2a38e0f2cc4c6e587ac439"
+      "sha256": "d80a98c431969c1c9eba71fdfe4dd76099cf48be1537dad0f71f5e22411da2ad"
     },
     {
       "path": "blocks/minecraft__exposed_chiseled_copper.png",
@@ -1520,7 +1520,7 @@
     },
     {
       "path": "blocks/minecraft__exposed_copper_chest.png",
-      "sha256": "1aed1fd3a2ca021dd1ec70242c4042c04e6bb4390b0579bafb31090b05aa1af6"
+      "sha256": "b2dfac1f803a2d3e485dca2dfbba965e333194b53da744c26456902a77f72046"
     },
     {
       "path": "blocks/minecraft__exposed_copper_door.png",
@@ -1528,7 +1528,7 @@
     },
     {
       "path": "blocks/minecraft__exposed_copper_golem_statue.png",
-      "sha256": "b3cb347216f78713f25a60388a5591fe4558bc1c8400f868417995af7456babb"
+      "sha256": "b3f1625f172263d957a55758927ee7ba0ea3ff90803bc9e0d92877f1e8e425ef"
     },
     {
       "path": "blocks/minecraft__exposed_copper_grate.png",
@@ -1668,11 +1668,11 @@
     },
     {
       "path": "blocks/minecraft__gray_banner.png",
-      "sha256": "8ba59c116be7582e5698da0fa8f1a0f3a3b8c96d310f8b4bfaeddcbf2438b7ca"
+      "sha256": "c29e81c989c57a816caa3c571dad0c92e92f535658cff9aa6aa123d2cfb6aef4"
     },
     {
       "path": "blocks/minecraft__gray_bed.png",
-      "sha256": "1a0a547f5be2ddef660f9a062e4b8db6b4c34b18f2bfb6a5fe3a544409ee86ec"
+      "sha256": "9d30075fe2b0631d8d318229ff3e582abdec46814b9a0246b1a00e3a0eb00ca6"
     },
     {
       "path": "blocks/minecraft__gray_candle.png",
@@ -1712,7 +1712,7 @@
     },
     {
       "path": "blocks/minecraft__gray_wall_banner.png",
-      "sha256": "3dc351afa3a80cf1b63e3bf30275c8828b26e0880df447adff4719fc902bf4ab"
+      "sha256": "c29e81c989c57a816caa3c571dad0c92e92f535658cff9aa6aa123d2cfb6aef4"
     },
     {
       "path": "blocks/minecraft__gray_wool.png",
@@ -1720,11 +1720,11 @@
     },
     {
       "path": "blocks/minecraft__green_banner.png",
-      "sha256": "490728757472c0704c6816f9eab1854b2fc62755aa100141ba0bcb1c27fba14e"
+      "sha256": "c09883a84d35f22cab29915b9669f0b26940d80fb437101fbc21a22d611a1b87"
     },
     {
       "path": "blocks/minecraft__green_bed.png",
-      "sha256": "4a0741ea9237cd26ccd753610ad8c1868b5ba2c0c67d1de51deb51386fe9cf1a"
+      "sha256": "f94ae7b5c211794c3a74c1d1561534d9f22ef4ab34f73ae3aa13d515a0318f14"
     },
     {
       "path": "blocks/minecraft__green_candle.png",
@@ -1764,7 +1764,7 @@
     },
     {
       "path": "blocks/minecraft__green_wall_banner.png",
-      "sha256": "29af08d1394330796940e63dfa23d885458274ffa5db94450fe27a5f6ddbd9f7"
+      "sha256": "c09883a84d35f22cab29915b9669f0b26940d80fb437101fbc21a22d611a1b87"
     },
     {
       "path": "blocks/minecraft__green_wool.png",
@@ -2008,11 +2008,11 @@
     },
     {
       "path": "blocks/minecraft__light_blue_banner.png",
-      "sha256": "b8e670de23e1023310b21a24ebcfd2525eda42ce9b6548b96be303f44cb3ef62"
+      "sha256": "73e236d22c8a7061f52962340369aa9a238a631fa165596c3a2d745a644020e7"
     },
     {
       "path": "blocks/minecraft__light_blue_bed.png",
-      "sha256": "f9a9de5ecc305a935e0f8eb2eb4b6a7094a916b4daf2d8698a3aa2824de43958"
+      "sha256": "e9864806e23f20e0906942175a95ccb2895cf6e8088f0a6fb46861cfec2f40b0"
     },
     {
       "path": "blocks/minecraft__light_blue_candle.png",
@@ -2052,7 +2052,7 @@
     },
     {
       "path": "blocks/minecraft__light_blue_wall_banner.png",
-      "sha256": "24b78c5ebdfc72f4d575130923968c50d4b4b680b140289f88d17adccb395490"
+      "sha256": "73e236d22c8a7061f52962340369aa9a238a631fa165596c3a2d745a644020e7"
     },
     {
       "path": "blocks/minecraft__light_blue_wool.png",
@@ -2060,11 +2060,11 @@
     },
     {
       "path": "blocks/minecraft__light_gray_banner.png",
-      "sha256": "2e5ecadc688d4be186a28317397abb97ed2eef38f44b27210d40d6a7370df21f"
+      "sha256": "a0bc845629032ed276c65bd11c42c1b8851ef1a0958975d9930d32812867a2dd"
     },
     {
       "path": "blocks/minecraft__light_gray_bed.png",
-      "sha256": "861ca300f965e898e950e8d32a15ff97eb9049641b32cc2bebfa2efbec750605"
+      "sha256": "732aa81a826cc0eb8857cecee89a6a97f73b741ddcaddbeff7127aaa546a8400"
     },
     {
       "path": "blocks/minecraft__light_gray_candle.png",
@@ -2104,7 +2104,7 @@
     },
     {
       "path": "blocks/minecraft__light_gray_wall_banner.png",
-      "sha256": "961629b42adf47848ac9788fbf7d5c6f9fc3c71f7d21d75f6390434485c6e2f4"
+      "sha256": "a0bc845629032ed276c65bd11c42c1b8851ef1a0958975d9930d32812867a2dd"
     },
     {
       "path": "blocks/minecraft__light_gray_wool.png",
@@ -2132,11 +2132,11 @@
     },
     {
       "path": "blocks/minecraft__lime_banner.png",
-      "sha256": "3a694b450298e35ab7eccae2e3be75454398f391c2725732955531057551d581"
+      "sha256": "8da4aaee08ee041b493dfc6c31f8160b5c6c7fdd02ca2ee1c8cf0bc41a48ee91"
     },
     {
       "path": "blocks/minecraft__lime_bed.png",
-      "sha256": "5a8329b0c38efdd8781fd4391670319d71c53fb3defa13e0bcf00cc74b5be2e1"
+      "sha256": "74a802fe1affc1ef7679aa746d565745cdc2e99674c21cdb05a24f14554fe28f"
     },
     {
       "path": "blocks/minecraft__lime_candle.png",
@@ -2176,7 +2176,7 @@
     },
     {
       "path": "blocks/minecraft__lime_wall_banner.png",
-      "sha256": "6add2067ca31a7c8e91597b3893127174d9baac3abebcbc0db1552daccc3d859"
+      "sha256": "8da4aaee08ee041b493dfc6c31f8160b5c6c7fdd02ca2ee1c8cf0bc41a48ee91"
     },
     {
       "path": "blocks/minecraft__lime_wool.png",
@@ -2192,11 +2192,11 @@
     },
     {
       "path": "blocks/minecraft__magenta_banner.png",
-      "sha256": "3cf2d3f50232ecc3da513d353b8aa96a4ecf84a114575916e61c88020e673db9"
+      "sha256": "a75c5c5be6f624b01760272f86b4b334adc3f992a959e05669285827216e53e0"
     },
     {
       "path": "blocks/minecraft__magenta_bed.png",
-      "sha256": "87680131908603bd3f0da44c865e6f93794ca6869a65a86b2b7209d7bb4bda7f"
+      "sha256": "6955cf625bae91e5711ad5e23a860af1797dee3930bd97c8153bae9dd285d0d9"
     },
     {
       "path": "blocks/minecraft__magenta_candle.png",
@@ -2236,7 +2236,7 @@
     },
     {
       "path": "blocks/minecraft__magenta_wall_banner.png",
-      "sha256": "a829bf7c6c7045c006d5ff37aa68dc25d2b0af92e9cb2438774f44b2627d16fe"
+      "sha256": "a75c5c5be6f624b01760272f86b4b334adc3f992a959e05669285827216e53e0"
     },
     {
       "path": "blocks/minecraft__magenta_wool.png",
@@ -2548,11 +2548,11 @@
     },
     {
       "path": "blocks/minecraft__orange_banner.png",
-      "sha256": "4cf0f65916823ebf7c0134d58eb118f66f4f116f70fb9f3cee4f4af3cc4e26de"
+      "sha256": "dc7ab3582c219b9dbcd14b6baa113ca5de14fd98ee7b7d9daba82fc55833baa5"
     },
     {
       "path": "blocks/minecraft__orange_bed.png",
-      "sha256": "b54e93fa9d2abbafd2f0ef473e219887dba4179909ab03080a84cf055a5427e8"
+      "sha256": "e6107de6487cd215af7936da1aea03b773291eb928efff48568e27d8ba7dda74"
     },
     {
       "path": "blocks/minecraft__orange_candle.png",
@@ -2596,7 +2596,7 @@
     },
     {
       "path": "blocks/minecraft__orange_wall_banner.png",
-      "sha256": "e65fda6c153f30647d4d1ecadf034f4506ec179fb810b3386c5cb1e376b6d59b"
+      "sha256": "dc7ab3582c219b9dbcd14b6baa113ca5de14fd98ee7b7d9daba82fc55833baa5"
     },
     {
       "path": "blocks/minecraft__orange_wool.png",
@@ -2628,7 +2628,7 @@
     },
     {
       "path": "blocks/minecraft__oxidized_copper_chest.png",
-      "sha256": "e54c44b117bc8603abcee16137aa793339cd06e355b8c0ffe6d952aee5eabf28"
+      "sha256": "30397f718097b8073c5f1280ca8f4fbf440549418d89980a06668510c315f672"
     },
     {
       "path": "blocks/minecraft__oxidized_copper_door.png",
@@ -2636,7 +2636,7 @@
     },
     {
       "path": "blocks/minecraft__oxidized_copper_golem_statue.png",
-      "sha256": "7e59f88e4f8e13ed454ca48ba45d435c63f79821603d2e8cb8260e320b30eeaf"
+      "sha256": "4ee122c581a1604ab1854cfed3e2a82bfdb57230e9b4cfa7de92c1a7277ebf2e"
     },
     {
       "path": "blocks/minecraft__oxidized_copper_grate.png",
@@ -2772,19 +2772,19 @@
     },
     {
       "path": "blocks/minecraft__piglin_head.png",
-      "sha256": "cee4877cad8cda3d3a231125861dd5ee236162646108fc4c525429c6417a263f"
+      "sha256": "264265eacc659de54f86184c2c06e3ab0b879f3364a7d9ab6f608977ce229087"
     },
     {
       "path": "blocks/minecraft__piglin_wall_head.png",
-      "sha256": "cee4877cad8cda3d3a231125861dd5ee236162646108fc4c525429c6417a263f"
+      "sha256": "264265eacc659de54f86184c2c06e3ab0b879f3364a7d9ab6f608977ce229087"
     },
     {
       "path": "blocks/minecraft__pink_banner.png",
-      "sha256": "064606614e04e133fbd5382b0165f44519b14fad8a41b792120a922b66837ddc"
+      "sha256": "e1138d33848a69a28ea28772b1465abcb1c4561229947633a2633f1fa994dc48"
     },
     {
       "path": "blocks/minecraft__pink_bed.png",
-      "sha256": "d9dd7797fc34db7abd5cda00cf9a064260de1fb988e3cd347deb3e3589f11280"
+      "sha256": "3f247e87226e43000a5628f276da8fbff0f051b6696f1a353d505dade23db50d"
     },
     {
       "path": "blocks/minecraft__pink_candle.png",
@@ -2832,7 +2832,7 @@
     },
     {
       "path": "blocks/minecraft__pink_wall_banner.png",
-      "sha256": "628c388e18e1194b16e0b0739fc805bba5fe9fc569c259fd3dbedc6d95e0a70e"
+      "sha256": "e1138d33848a69a28ea28772b1465abcb1c4561229947633a2633f1fa994dc48"
     },
     {
       "path": "blocks/minecraft__pink_wool.png",
@@ -2852,11 +2852,11 @@
     },
     {
       "path": "blocks/minecraft__player_head.png",
-      "sha256": "bcfe2ae60acd9528ae544a5c315f31bbfdd448b3b9caedf739b3a8f145e57ed7"
+      "sha256": "7a6def0c90fd68e385ee9a61884d9c66b2d606bc8a2533f7002b4903e537ef5c"
     },
     {
       "path": "blocks/minecraft__player_wall_head.png",
-      "sha256": "bcfe2ae60acd9528ae544a5c315f31bbfdd448b3b9caedf739b3a8f145e57ed7"
+      "sha256": "7a6def0c90fd68e385ee9a61884d9c66b2d606bc8a2533f7002b4903e537ef5c"
     },
     {
       "path": "blocks/minecraft__podzol.png",
@@ -3036,11 +3036,11 @@
     },
     {
       "path": "blocks/minecraft__purple_banner.png",
-      "sha256": "ed69073a4214ad788d26ea73dcf73568c08fca827016d2c621d0de5543fdbb2d"
+      "sha256": "9919f8006411832889aa0836ed15e4a064b36fb5876e1df2c79d23720567fbff"
     },
     {
       "path": "blocks/minecraft__purple_bed.png",
-      "sha256": "e8dc42ed251a8fecc2e1409864eebebf3a88f9f48d7b03ce0568ec1d6b3ea4b1"
+      "sha256": "9e3fa9bcd19c2119514c08412ea677e0765b012a32d1f344ba16a427860981c6"
     },
     {
       "path": "blocks/minecraft__purple_candle.png",
@@ -3080,7 +3080,7 @@
     },
     {
       "path": "blocks/minecraft__purple_wall_banner.png",
-      "sha256": "c1fa2fdcc8b080b6e9eafe0e4b07245f82ddcac2df926d61020c2eab67c8ecba"
+      "sha256": "9919f8006411832889aa0836ed15e4a064b36fb5876e1df2c79d23720567fbff"
     },
     {
       "path": "blocks/minecraft__purple_wool.png",
@@ -3140,11 +3140,11 @@
     },
     {
       "path": "blocks/minecraft__red_banner.png",
-      "sha256": "dd54b2ded5ff36f04643b6d73eccf99a77640cec6dc99f01fc93a6f6edce1066"
+      "sha256": "8559e8ba4fe7632fdba772955e2f6a5fc2bb6321f1d7908cdf0e312774576fb9"
     },
     {
       "path": "blocks/minecraft__red_bed.png",
-      "sha256": "1cc6bafea23f2c37a18c39c1d1b721917f47c02d233fcede27773cb190b91737"
+      "sha256": "5c24086ee6c9dc929d3f0299bf6494718b05de85cba756cadd998b52d4d91587"
     },
     {
       "path": "blocks/minecraft__red_candle.png",
@@ -3232,7 +3232,7 @@
     },
     {
       "path": "blocks/minecraft__red_wall_banner.png",
-      "sha256": "86ef0665bc5de8081490afbb004bc5c06040d32d19069f9a9e7fb911ee6374d5"
+      "sha256": "8559e8ba4fe7632fdba772955e2f6a5fc2bb6321f1d7908cdf0e312774576fb9"
     },
     {
       "path": "blocks/minecraft__red_wool.png",
@@ -3384,11 +3384,11 @@
     },
     {
       "path": "blocks/minecraft__skeleton_skull.png",
-      "sha256": "6452b0f6ee84c66a39b69eb2e4854b90c6e2ebc225979433ed12d61509a1f425"
+      "sha256": "c443b0f7d3cf0acaea06b0bf5427c39bbd51fee1fb95ef2caa0c6aef5ae54b59"
     },
     {
       "path": "blocks/minecraft__skeleton_wall_skull.png",
-      "sha256": "6452b0f6ee84c66a39b69eb2e4854b90c6e2ebc225979433ed12d61509a1f425"
+      "sha256": "c443b0f7d3cf0acaea06b0bf5427c39bbd51fee1fb95ef2caa0c6aef5ae54b59"
     },
     {
       "path": "blocks/minecraft__slime_block.png",
@@ -3992,7 +3992,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_copper_chest.png",
-      "sha256": "e2414ede7ec1f20a670b5dc532dce4da9266d7970f146f78889779634342ad69"
+      "sha256": "f061eb923cbe8ecc571b545d4dabb8ad5737f349e7420b830932cbff34d39ec4"
     },
     {
       "path": "blocks/minecraft__waxed_copper_door.png",
@@ -4000,7 +4000,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_copper_golem_statue.png",
-      "sha256": "cd34edc63e5bb162b10eb3e9813daa0ee85b483bcb54de1432bf1b4aa61c10ee"
+      "sha256": "5ec899cffc19535719986f40edee5d3725f6aef91588edc2894b7fca1bde8dac"
     },
     {
       "path": "blocks/minecraft__waxed_copper_grate.png",
@@ -4048,7 +4048,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_chest.png",
-      "sha256": "1aed1fd3a2ca021dd1ec70242c4042c04e6bb4390b0579bafb31090b05aa1af6"
+      "sha256": "b2dfac1f803a2d3e485dca2dfbba965e333194b53da744c26456902a77f72046"
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_door.png",
@@ -4056,7 +4056,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_golem_statue.png",
-      "sha256": "b3cb347216f78713f25a60388a5591fe4558bc1c8400f868417995af7456babb"
+      "sha256": "b3f1625f172263d957a55758927ee7ba0ea3ff90803bc9e0d92877f1e8e425ef"
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_grate.png",
@@ -4112,7 +4112,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_chest.png",
-      "sha256": "e54c44b117bc8603abcee16137aa793339cd06e355b8c0ffe6d952aee5eabf28"
+      "sha256": "30397f718097b8073c5f1280ca8f4fbf440549418d89980a06668510c315f672"
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_door.png",
@@ -4120,7 +4120,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_golem_statue.png",
-      "sha256": "7e59f88e4f8e13ed454ca48ba45d435c63f79821603d2e8cb8260e320b30eeaf"
+      "sha256": "4ee122c581a1604ab1854cfed3e2a82bfdb57230e9b4cfa7de92c1a7277ebf2e"
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_grate.png",
@@ -4172,7 +4172,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_chest.png",
-      "sha256": "44a5e0b073ec17310207d81bc970c087fedd808beb2dad9892d36b408b93d15b"
+      "sha256": "8ea687a48d1aab6671ee23facb414cb80ab6e5e5336178684b4a98352d107c0f"
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_door.png",
@@ -4180,7 +4180,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_golem_statue.png",
-      "sha256": "e141b80f940ca8d3ef939b989303061f98d637b17a3c2cf1b31ba7dddc04fa8d"
+      "sha256": "464adf34510a766b9b99a11ca052c0152558da52256052e6183c095c7a276af8"
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_grate.png",
@@ -4232,7 +4232,7 @@
     },
     {
       "path": "blocks/minecraft__weathered_copper_chest.png",
-      "sha256": "44a5e0b073ec17310207d81bc970c087fedd808beb2dad9892d36b408b93d15b"
+      "sha256": "8ea687a48d1aab6671ee23facb414cb80ab6e5e5336178684b4a98352d107c0f"
     },
     {
       "path": "blocks/minecraft__weathered_copper_door.png",
@@ -4240,7 +4240,7 @@
     },
     {
       "path": "blocks/minecraft__weathered_copper_golem_statue.png",
-      "sha256": "e141b80f940ca8d3ef939b989303061f98d637b17a3c2cf1b31ba7dddc04fa8d"
+      "sha256": "464adf34510a766b9b99a11ca052c0152558da52256052e6183c095c7a276af8"
     },
     {
       "path": "blocks/minecraft__weathered_copper_grate.png",
@@ -4284,11 +4284,11 @@
     },
     {
       "path": "blocks/minecraft__white_banner.png",
-      "sha256": "7476a03221c6518a958d148703e7761c9543d085c35f0114d371e8e0e70eebcb"
+      "sha256": "35731cbb050b6a21527d29ea8395c3d0dc9faa5ff7855be00cc0eb6fb9fe79e8"
     },
     {
       "path": "blocks/minecraft__white_bed.png",
-      "sha256": "b9c3d22a9fb677f5913f66594f69328a55d1b4fe00fda0ec338123f364725715"
+      "sha256": "1b6c40ffe4c0403d22c6a0f391318a2a77728f1e5ca160c20b38f09e5c4f34d2"
     },
     {
       "path": "blocks/minecraft__white_candle.png",
@@ -4332,7 +4332,7 @@
     },
     {
       "path": "blocks/minecraft__white_wall_banner.png",
-      "sha256": "cbc4032eba00d745178e9723d039833b8e8f7816b5f0622d84598876e7d9da00"
+      "sha256": "35731cbb050b6a21527d29ea8395c3d0dc9faa5ff7855be00cc0eb6fb9fe79e8"
     },
     {
       "path": "blocks/minecraft__white_wool.png",
@@ -4348,19 +4348,19 @@
     },
     {
       "path": "blocks/minecraft__wither_skeleton_skull.png",
-      "sha256": "58ced617fd3c4fe46016e874eadb926707fb4a55ea2a9a97e049d10304fe850e"
+      "sha256": "8fec41e72b650c98aa776a7d734c53a3d0e196b932d06510c700094d435ac272"
     },
     {
       "path": "blocks/minecraft__wither_skeleton_wall_skull.png",
-      "sha256": "58ced617fd3c4fe46016e874eadb926707fb4a55ea2a9a97e049d10304fe850e"
+      "sha256": "8fec41e72b650c98aa776a7d734c53a3d0e196b932d06510c700094d435ac272"
     },
     {
       "path": "blocks/minecraft__yellow_banner.png",
-      "sha256": "02a9268a98161ca2faa4a2069285605c80f4c4d25add6a623c7e5ba59702d12f"
+      "sha256": "13556908363943b443654db709ba0aaf520d7dbc3bf0ee549f4b7e46487ca088"
     },
     {
       "path": "blocks/minecraft__yellow_bed.png",
-      "sha256": "67407526d796a61895ee372707fa1c3b58d633b29ce80e577f0054f342393fae"
+      "sha256": "a6e2247270a528ad63fb8ab7bfb997f847b17664988d5f31b91e08574550acec"
     },
     {
       "path": "blocks/minecraft__yellow_candle.png",
@@ -4400,7 +4400,7 @@
     },
     {
       "path": "blocks/minecraft__yellow_wall_banner.png",
-      "sha256": "24072f493a3b5f2513ed424efe54258128f6bb8023899905079ce5f3b2e5abc0"
+      "sha256": "13556908363943b443654db709ba0aaf520d7dbc3bf0ee549f4b7e46487ca088"
     },
     {
       "path": "blocks/minecraft__yellow_wool.png",
@@ -4408,11 +4408,11 @@
     },
     {
       "path": "blocks/minecraft__zombie_head.png",
-      "sha256": "83e2514ecc142bbe73d738a37a1b2144418f14597a2cea66bfffdd2604a83748"
+      "sha256": "617ec22c59e608b0be6b7710b8d66b5994c4f11fabd38d7523c2078c252939de"
     },
     {
       "path": "blocks/minecraft__zombie_wall_head.png",
-      "sha256": "83e2514ecc142bbe73d738a37a1b2144418f14597a2cea66bfffdd2604a83748"
+      "sha256": "617ec22c59e608b0be6b7710b8d66b5994c4f11fabd38d7523c2078c252939de"
     },
     {
       "path": "books/alt_font.png",
@@ -39392,9 +39392,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "3ad8d8c4a0a48e5e3f913ff59409c84c1c1cc7b365a3de51a749e0fa812a6c24",
+    "asset_content_digest": "6c6fb10ac7270b5fa185dc6782488d872f33962d207ea0d17dfca6bb12c47f47",
     "asset_dirty": true,
-    "asset_sha": "f3a33d46ce971755f1ab77d932a28f65a527ecdb",
+    "asset_sha": "1f1d076dd680e786eb8dabe2bdeaffeb722f22ee",
     "counts": {
       "files": 9846
     },
@@ -39402,13 +39402,12 @@
     "flags": {},
     "mc_version": "26.1.2",
     "mode": "EVERY,ANIMATION,WALK",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "The reset page joins the book roster: books/ gains its one file, 18 pages to 19, 9845 members to 9846; a render of the book references alone and the whole-tree boot drew it byte for byte the same, and every other member held",
+    "reason": "Special-drawn block icons held to the client's slot drawing: the harness draws a block whose item specials alone draw through ItemFrameRenderer, and the renderer poses those icons by each layer's composed transformation and the base display.gui with no facing table, icon turn or fit. Tables lose y_rotation and the bed icon turn; the copper golem geometry carries its layer root (0,24,0), moving its posed entity rows by 0.0001. sweep.block sum 7.6024 -> 3.3561.",
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-11-06T02:38:10Z",
+    "timestamp": "2026-11-13T00:33:06Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 106359
+    "wall_time_ms": 112956
   }
 }

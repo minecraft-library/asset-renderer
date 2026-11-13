@@ -15,6 +15,8 @@ import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
@@ -202,6 +204,14 @@ class WindowSlicedTest {
      * menu paints its chrome, and reads the result back in Minecraft pixels.
      */
     private static PixelBuffer paint(Window window, MenuLayout layout) {
+        return readDown(chrome(window, layout));
+    }
+
+    /**
+     * Paints a window's panel, every cell and every mark of a layout at the font's scale, in the order a
+     * menu paints its chrome, and answers the output pixels.
+     */
+    private static PixelBuffer chrome(Window window, MenuLayout layout) {
         PixelBuffer buffer = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
 
         window.paintPanel(buffer, layout.box());
@@ -210,7 +220,22 @@ class WindowSlicedTest {
         for (Mark.Placement mark : layout.marks())
             window.paintDecoration(buffer, Window.Box.of(mark), mark.kind());
 
-        return readDown(buffer);
+        return buffer;
+    }
+
+    /**
+     * Builds a square sheet of a side every texel of which is a colour of its own, opaque.
+     *
+     * @param side the sheet's side in texels
+     * @return the sheet, texel {@code (x, y)} coloured {@code FF000000 | x << 12 | y}
+     */
+    private static PixelBuffer distinct(int side) {
+        PixelBuffer sheet = PixelBuffer.straight(side, side);
+        for (int y = 0; y < side; y++)
+            for (int x = 0; x < side; x++)
+                sheet.setPixel(x, y, 0xFF000000 | x << 12 | y);
+
+        return sheet;
     }
 
     /** Reads a buffer painted at the font's scale back in Minecraft pixels, the first output pixel of each block. */
@@ -448,6 +473,73 @@ class WindowSlicedTest {
 
         assertThat("the panel is the anvil's", size(window.panelArt()), is(equalTo("176x166")));
         assertThat("composed from the sheet as the shipped one is", differing(window.panelArt(), clientBlits(anvil)), is(equalTo(0)));
+
+        // Two texels to a Minecraft pixel at a scale of two output pixels to one: every output pixel reads
+        // the texel the shipped sheet's block was doubled from, so the panel is the shipped panel. The
+        // panel alone, because the stub holds none of the GUI sprites drawn over it.
+        MenuLayout layout = MenuLayout.of(anvil.screen(), true);
+        PixelBuffer fromDoubled = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
+        window.paintPanel(fromDoubled, layout.box());
+        PixelBuffer fromShipped = PixelBuffer.canvas(layout.width() * S, layout.height() * S);
+        named(anvil, true).paintPanel(fromShipped, layout.box());
+        assertThat("and painted as the shipped sheet is, output pixel for output pixel",
+            differing(fromDoubled, fromShipped), is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("a sheet authored at twice the client's size is laid at its own resolution, every texel its blits read drawn")
+    void aSheetAtTwiceTheSizeIsLaidAtItsOwnResolution() {
+        PixelBuffer doubled = distinct(512);
+        RendererContext context = stubContext(Map.of(HOPPER, doubled, GENERIC_54, doubled), Map.of());
+
+        // The hopper blits (0, 0, 176, 133) of a 256-texel space, which on this sheet is 352x266 texels,
+        // laid over 352x266 output pixels: output pixel (x, y) reads texel (x, y).
+        ScreenMetrics hopper = ScreenMetrics.hopper();
+        MenuLayout hopperLayout = MenuLayout.of(hopper, true);
+        PixelBuffer painted = chrome(Window.Sliced.resolve(context, ResourceId.parse(HOPPER), Optional.empty(), hopper, hopperLayout),
+            hopperLayout);
+        assertThat("the hopper paints its panel", size(painted), is(equalTo(176 * S + "x" + 133 * S)));
+        assertThat("each output pixel reading its own texel", differing(painted, doubled.crop(0, 0, 176 * S, 133 * S)), is(equalTo(0)));
+
+        // A chest of three rows without the player's section keeps sheet rows 0 to 70 of its first blit,
+        // then closes on the last seven rows of the composition, sheet rows 215 to 221 of its second.
+        ScreenMetrics chest = ScreenMetrics.chest(3);
+        MenuLayout chestLayout = MenuLayout.of(chest, false);
+        PixelBuffer cut = chrome(Window.Sliced.resolve(context, ResourceId.parse(GENERIC_54), Optional.empty(), chest, chestLayout),
+            chestLayout);
+        assertThat("the chest's panel is its own rows and a margin", size(cut), is(equalTo(176 * S + "x" + 78 * S)));
+
+        int misread = 0;
+        for (int y = 0; y < cut.height(); y++) {
+            int mcRow = y / S;
+            int sheetRow = mcRow < 71 ? mcRow : mcRow - 71 + 215;
+            for (int x = 0; x < cut.width(); x++)
+                if (cut.getPixel(x, y) != doubled.getPixel(x, sheetRow * S + y % S)) misread++;
+        }
+
+        assertThat("each output pixel of the cut panel reading its own texel of the rows kept", misread, is(equalTo(0)));
+    }
+
+    @Test
+    @DisplayName("a sheet whose texture section blurs is laid through the linear sampler it selects")
+    void aBlurredSheetIsLaidThroughItsSampler() {
+        PixelBuffer sheet = resolve(HOPPER);
+        MCMeta blur = MCMetaParser.parse("{\"texture\":{\"blur\":true}}", ResourceId.parse(HOPPER));
+        RendererContext context = stubContext(Map.of(HOPPER, sheet), Map.of(HOPPER, blur));
+        ScreenMetrics hopper = ScreenMetrics.hopper();
+        MenuLayout layout = MenuLayout.of(hopper, true);
+        Window.Sliced window = Window.Sliced.resolve(context, ResourceId.parse(HOPPER), Optional.empty(), hopper, layout);
+
+        PixelBuffer painted = PixelBuffer.canvas(176 * S, 133 * S);
+        window.paintPanel(painted, layout.box());
+        PixelBuffer linear = PixelBuffer.canvas(176 * S, 133 * S);
+        NineSliceKit.blit(linear, new SampledTexture(sheet, Sampler.of(true, false)), 0, 0, 0, 0, 176, 133,
+            ScreenMetrics.SHEET, ScreenMetrics.SHEET);
+        PixelBuffer nearest = PixelBuffer.canvas(176 * S, 133 * S);
+        named(shipped(HOPPER), true).paintPanel(nearest, layout.box());
+
+        assertThat("the panel is the hopper's blit read linearly", differing(painted, linear), is(equalTo(0)));
+        assertThat("which is not the sheet read nearest", differing(painted, nearest), is(not(equalTo(0))));
     }
 
     @Test

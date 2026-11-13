@@ -39,10 +39,16 @@ laid by `NineSliceKit` at output-pixel resolution.
   property of the client's blits, and such a screen has none. The panel is read as the client reads a
   container texture, a plain texture: of its sidecar the texture section alone, so its `gui` section is
   never read, container art being blitted rather than nine-sliced, and an animation section neither
-  plays nor loses it. A sheet authored at another size for a shipped screen is read at one texel per
-  Minecraft pixel, where the client draws it at full resolution. The panel composed from it is laid
-  nearest, so a sheet whose texture section blurs or clamps draws as one that sets neither, where the
-  client filters or clamps each blit off the sheet.
+  plays nor loses it, and its texture section selects the sampler the sheet is read through.
+- **A shipped screen's panel is laid blit by blit off the sheet.** `Window.Sliced` keeps the regions
+  the panel is composed from, each placed where it lands - a region crossing the cut of a panel without
+  the player's section kept as its rows on the kept side - and at the panel's own size lays each
+  through the client's region blit, `NineSliceKit.blit`: one quad the region's size, addressed in the
+  256-texel space, each output pixel reading the sheet at its own resolution through its own sampler.
+  So a sheet authored at twice the size draws every texel its blits read, and one whose texture section
+  blurs or clamps is filtered or clamped as the client filters each blit. A 256-texel sheet read
+  nearest is exactly its copy at one texel per Minecraft pixel, which is what `panelArt` holds: the
+  panel's depths and floor are read from it, and the slicer reassembles it at any other size.
 - **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite, the
   anvil's field and its cross, and the recipe-book button are read as the client's GUI atlas holds
   them - the missing texture for one no pack supplies, one that cannot be read and one whose `gui`

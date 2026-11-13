@@ -43,8 +43,7 @@ import java.util.Optional;
  * @param entity rendering override for blocks whose visual geometry comes from a vanilla
  *     {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
  *     decorated_pot, etc.). When present, renderers prefer {@link BlockEntity#boneModel()} over
- *     {@link #model()}, multiply {@link BlockEntity#tintArgb()} against sampled texels, honour
- *     {@link BlockEntity#iconRotation()} for the atlas icon, and optionally compose
+ *     {@link #model()}, multiply {@link BlockEntity#tintArgb()} against sampled texels, and optionally compose
  *     {@link BlockEntity#parts()}
  *     for multi-part atlas views (bed head + foot, decorated_pot body + sides, banner post + flag).
  *     Absent for plain blocks
@@ -354,8 +353,6 @@ public record Block(
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
      *     colouring; {@link ColorMath#WHITE} for no tint
-     * @param iconRotation Y-axis rotation in degrees applied only to the atlas icon (beds use 90°
-     *     to angle the headboard toward the camera)
      * @param parts atlas-time composition instructions - additional entity models merged at an
      *     offset (bed foot merged onto bed head, decorated_pot sides onto the base, banner flag
      *     onto the post). Empty for single-piece entities.
@@ -373,7 +370,6 @@ public record Block(
         @NotNull BoneModel boneModel,
         @NotNull String textureId,
         int tintArgb,
-        int iconRotation,
         @NotNull ConcurrentList<Part> parts,
         boolean additive,
         boolean plainTexture
@@ -385,17 +381,12 @@ public record Block(
          * {@code BlockEntityRenderer} pose, applied at render.
          * The renderer composes the relative {@link #model()} through
          * {@link BlockGeometryKit#buildFromBones}, applying a {@code [0, 16]}-space presentation
-         * built from {@link #inventoryYRotation()} / {@link #entityFlip()} /
-         * {@link #inventoryTransform()}.
+         * built from {@link #entityFlip()} / {@link #inventoryTransform()}.
          *
          * @param model the relative bone/cube geometry in its native source frame (same schema as
          *     {@code entity_geometry.json}); {@link #sourceYUp()} says which Y convention it uses
          * @param sourceYUp whether the bones are authored Y-up (block space already, no Y-flip) or
          *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
-         * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
-         *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
-         *     (the chest's {@code +180}) - the only home an inventory yaw has, read by the block
-         *     presentation and by nothing on the entity path
          * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
          *     the no-inventory-transform path
          * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}
@@ -409,7 +400,6 @@ public record Block(
         public record BoneModel(
             @NotNull EntityMesh model,
             boolean sourceYUp,
-            float inventoryYRotation,
             boolean entityFlip,
             float @Nullable [] inventoryTransform,
             boolean tinted
@@ -420,8 +410,7 @@ public record Block(
              * pose vanilla's {@code BlockEntityRenderer} applies around the bone geometry (the bone
              * chain itself is composed by {@link BlockGeometryKit#buildFromBones}). Column-vector
              * order matches vanilla: the entity-render {@code scale(-1, -1, 1)} flip (or a decomposed
-             * {@link #inventoryTransform()} of {@code scale -> Rx(pitch) -> translate}) applies first,
-             * then the {@link #inventoryYRotation()} yaw about block centre {@code (8, 8, 8)}.
+             * {@link #inventoryTransform()} of {@code scale -> Rx(pitch) -> translate}).
              *
              * @return the presentation matrix in the {@code [0, 16]} block-authoring frame
              */
@@ -445,17 +434,6 @@ public record Block(
                     float sx = this.entityFlip() ? -1f : 1f;
                     float sy = this.sourceYUp() ? 1f : -1f;
                     pre = Matrix4f.createScale(sx, sy, 1f);
-                }
-
-                // Inventory yaw about block centre (8, 8, 8) - the chest's +180 that faces the model
-                // under the standard [30, 225, 0] iso pose. All current block-entity yaws are 180
-                // (symmetric, so the createRotationY sign is immaterial).
-                float yaw = this.inventoryYRotation();
-                if (yaw != 0f) {
-                    Matrix4f yawAboutCentre = Matrix4f.createTranslation(8f, 8f, 8f)
-                        .multiply(Matrix4f.createRotationY((float) Math.toRadians(yaw)))
-                        .multiply(Matrix4f.createTranslation(-8f, -8f, -8f));
-                    pre = yawAboutCentre.multiply(pre);
                 }
                 return pre;
             }

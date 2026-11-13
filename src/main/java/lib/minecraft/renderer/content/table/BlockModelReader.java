@@ -83,19 +83,17 @@ public final class BlockModelReader {
     /**
      * The nested {@code inventory} presentation object.
      *
-     * @param yRotation the inventory Y rotation in degrees
      * @param flip whether the entity model is flipped for the inventory pose
      * @param transform the presentation transform, 6 or 7 floats, or {@code null} when absent
      */
-    public record InventoryDto(@SerializedName("y_rotation") float yRotation, boolean flip, float @Nullable [] transform) {}
+    public record InventoryDto(boolean flip, float @Nullable [] transform) {}
 
     /**
-     * The nested {@code icon} object; both fields default to {@code 0} / {@code false} when absent.
+     * The nested {@code icon} object; {@code additive} defaults to {@code false} when absent.
      *
-     * @param rotation the icon Y rotation in degrees
      * @param additive whether the model's geometry overlays the primary model rather than replacing it
      */
-    public record IconDto(int rotation, boolean additive) {}
+    public record IconDto(boolean additive) {}
 
     /**
      * One {@code parts[]} sub-model reference.

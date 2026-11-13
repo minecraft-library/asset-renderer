@@ -4,6 +4,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.BlendMode;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
 import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.gui.Mark;
@@ -235,9 +237,12 @@ public interface Window {
      * The panel is the art as the client composes it for the screen, and that is the size it is
      * painted at: the regions of its sheet the client blits, and without the player's section those
      * cut after the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Its
-     * cells are the art's own. For a screen the client ships no sheet for, the panel is the texture at
-     * its own size cut to what it draws, which the slicer resizes to the layout. The slicer reassembles
-     * art at its own size unchanged, so one path paints both.
+     * cells are the art's own. At that size the panel is laid as the client lays it, each region off
+     * the sheet through the client's region blit, at the sheet's own resolution and through its own
+     * sampler; {@code panelArt} is the same regions copied at one texel per Minecraft pixel, which is
+     * what the panel's depths are read from and what the slicer reassembles at any other size. For a
+     * screen the client ships no sheet for, the panel is the texture at its own size cut to what it
+     * draws, which the slicer resizes to the layout.
      * <p>
      * The cells, and the marks the client draws as widgets over the art - the anvil's name field in the
      * form its first input gives and its cross, and the crafting table's recipe-book button - are GUI
@@ -250,8 +255,10 @@ public interface Window {
      * The art carries its own colours, so this window has no palette. Re-inking sliced art is a
      * different operation from re-inking drawn geometry and is not one this offers.
      *
-     * @param panelArt the panel the art draws at its own size
+     * @param panelArt the panel the art draws at its own size, one texel per Minecraft pixel
      * @param panel its decomposition
+     * @param sheet the sheet and the regions of it the panel is laid from at its own size, empty for
+     *     art the client blits no regions of
      * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
      * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
      * @param markArt the GUI sprite drawn at each mark the screen places that the client blits, keyed by
@@ -261,6 +268,7 @@ public interface Window {
     record Sliced(
         @NotNull PixelBuffer panelArt,
         @NotNull ChromeDecomposition panel,
+        @NotNull Optional<Sheet> sheet,
         @NotNull Optional<PixelBuffer> cellArt,
         @NotNull Optional<MCMeta.GuiScaling> cellScaling,
         @NotNull ConcurrentMap<Mark, PixelBuffer> markArt,
@@ -309,7 +317,8 @@ public interface Window {
         }
 
         /**
-         * Decomposes the panel and returns the window over it, with the GUI sprites drawn on it.
+         * Decomposes the panel and returns the window over it, with the GUI sprites drawn on it, laid from
+         * the panel's own texels at every size.
          * <p>
          * The panel is container art, which the client blits with no {@code gui} section, so its depths
          * are derived from its pixels. Each GUI sprite is drawn with the scaling given beside it.
@@ -329,7 +338,27 @@ public interface Window {
             @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<MCMeta.GuiScaling> cellScaling,
             @NotNull ConcurrentMap<Mark, PixelBuffer> markArt, @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
         ) {
-            return new Sliced(panelArt, ChromeSlicer.decompose(panelArt, true), cellArt, cellScaling, markArt, markScaling);
+            return of(panelArt, Optional.empty(), cellArt, cellScaling, markArt, markScaling);
+        }
+
+        /**
+         * Decomposes the panel and returns the window over it, laid from the sheet at its own size where
+         * one is given.
+         *
+         * @param panelArt the panel the art draws at its own size, one texel per Minecraft pixel
+         * @param sheet the sheet and the regions of it the panel is laid from at its own size
+         * @param cellArt the GUI sprite drawn over each cell, empty where no cell is drawn
+         * @param cellScaling its {@code gui.scaling}, present exactly when {@code cellArt} is
+         * @param markArt the GUI sprite drawn at each mark, keyed by the mark
+         * @param markScaling each one's {@code gui.scaling}, for exactly the marks {@code markArt} holds
+         * @return the window
+         */
+        private static @NotNull Sliced of(
+            @NotNull PixelBuffer panelArt, @NotNull Optional<Sheet> sheet,
+            @NotNull Optional<PixelBuffer> cellArt, @NotNull Optional<MCMeta.GuiScaling> cellScaling,
+            @NotNull ConcurrentMap<Mark, PixelBuffer> markArt, @NotNull ConcurrentMap<Mark, MCMeta.GuiScaling> markScaling
+        ) {
+            return new Sliced(panelArt, ChromeSlicer.decompose(panelArt, true), sheet, cellArt, cellScaling, markArt, markScaling);
         }
 
         /**
@@ -357,17 +386,17 @@ public interface Window {
          * for the screen.
          * <p>
          * The sheet is read as the client reads a container texture, a plain texture: whole, never
-         * animated, and with its sidecar's texture section alone. The panel composed from it is laid
-         * nearest whatever sampler that section selects, where the client filters or clamps each blit
-         * off the sheet by it. For a screen the client ships, the sheet is read in the
-         * {@link ScreenMetrics#SHEET}-texel space every container blit declares, so a sheet of another
-         * size is read at one texel per Minecraft pixel, and the panel is the regions of it
-         * the client blits, laid one under the other; without the player's section they are cut after
-         * the screen's own rows and closed by their last {@link ScreenMetrics#MARGIN margin}. Either is
-         * the size it is painted at, its cells the art's own, and no cell sprite is read unless the
-         * caller names one. For a screen the client ships no sheet for, the panel is the texture at its
-         * own size cut to what it draws, resized to the layout, and each cell is drawn with the named
-         * sprite or the client's slot.
+         * animated, and with its sidecar's texture section alone, which selects the sampler. For a
+         * screen the client ships, the panel is the regions of the sheet the client blits, laid one under
+         * the other; without the player's section they are cut after the screen's own rows and closed by
+         * their last {@link ScreenMetrics#MARGIN margin}. Each region is addressed in the
+         * {@link ScreenMetrics#SHEET}-texel space every container blit declares and laid off the sheet as
+         * the client's region blit lays it, so a sheet of another size draws at its own resolution and a
+         * sheet whose texture section blurs or clamps is read through that sampler. Either panel is the
+         * size it is painted at, its cells the art's own, and no cell sprite is read unless the caller
+         * names one. For a screen the client ships no sheet for, the panel is the texture at its own size
+         * cut to what it draws, resized to the layout, and each cell is drawn with the named sprite or the
+         * client's slot.
          * <p>
          * A sheet no pack supplies, or that cannot be read, is the checkerboard read the same way, as
          * vanilla draws its missing texture for one it cannot load. It never falls back to the vanilla
@@ -395,8 +424,12 @@ public interface Window {
             @NotNull RendererContext context, @NotNull ResourceId panelId, @NotNull Optional<ResourceId> cellId,
             @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
         ) {
-            PixelBuffer sheet = context.withMissingTexture().resolvePlainTexture(panelId.id()).get().pixels();
-            PixelBuffer panel = compose(sheet, screen, layout);
+            SampledTexture texture = context.withMissingTexture().resolvePlainTexture(panelId.id()).get();
+            Optional<Sheet> sheet = screen.regions().isEmpty()
+                ? Optional.empty()
+                : Optional.of(new Sheet(texture, blits(screen, layout)));
+            PixelBuffer panel = sheet.map(placed -> placed.copy(layout.width(), layout.height()))
+                .orElseGet(() -> texture.pixels().trim());
             Optional<ResourceId> cell = cellId.or(() -> screen.regions().isEmpty()
                 ? Optional.of(SLOT_SPRITE)
                 : Optional.empty());
@@ -411,59 +444,65 @@ public interface Window {
                 });
             }
 
-            return of(panel,
+            return of(panel, sheet,
                 cellArt, cellArt.map(art -> NineSliceKit.scaling(context, cell.orElseThrow(), art)),
                 markArt, markScaling);
         }
 
         /**
-         * Composes a container sheet into the panel the client draws from it for the screen.
+         * Places the regions of a screen's sheet the client blits on the panel the window paints.
          * <p>
-         * A screen with no regions takes the texture at its own size cut to the pixels it draws, which
-         * the slicer resizes to the layout. For any other, the texture is first read into the
-         * {@link ScreenMetrics#SHEET}-texel space the client's blits declare. Each of the screen's
-         * regions is then copied verbatim under the one before, clipped to the panel the screen draws
-         * with the player's section, which drops a declared row its art leaves clear. The panel keeps
-         * that composition's rows down to the layout's bottom margin and closes on the composition's
-         * own, which is the whole of it where the player's section is drawn and cuts it after the
-         * screen's own rows where it is not.
+         * Each of the screen's regions is laid under the one before, clipped to the panel the screen
+         * draws with the player's section, which drops a declared row its art leaves clear. Where the
+         * layout draws the player's section, that composition is the panel whole. Where it does not, the
+         * panel keeps the composition's rows down to the layout's bottom margin and closes on the
+         * composition's own last {@link ScreenMetrics#MARGIN margin}, so a region crossing either cut is
+         * kept as the rows of it on the kept side, each still addressed where it lies on the sheet.
          *
-         * @param texture the container sheet as resolved
          * @param screen the screen whose regions the sheet is composed from
          * @param layout the panel the window paints
-         * @return the panel art the window slices
+         * @return the regions laid, each at its place on the panel
          */
-        private static @NotNull PixelBuffer compose(
-            @NotNull PixelBuffer texture, @NotNull ScreenMetrics screen, @NotNull MenuLayout layout
-        ) {
-            if (screen.regions().isEmpty()) return texture.trim();
-
-            PixelBuffer sheet = texture.resize(ScreenMetrics.SHEET, ScreenMetrics.SHEET, Resample.NEAREST);
+        private static @NotNull ConcurrentList<Sheet.Blit> blits(@NotNull ScreenMetrics screen, @NotNull MenuLayout layout) {
             MenuLayout drawn = MenuLayout.of(screen, true);
-            PixelBuffer composed = PixelBuffer.straight(drawn.width(), drawn.height());
+            ConcurrentList<Sheet.Blit> composed = Concurrent.newList();
             int y = 0;
             for (Rectangle region : screen.regions()) {
-                composed.blit(sheet.crop(region.x, region.y, region.width, region.height), 0, y, BlendMode.REPLACE);
+                int rows = Math.min(region.height, drawn.height() - y);
+                if (rows > 0)
+                    composed.add(new Sheet.Blit(0, y, region.x, region.y, Math.min(region.width, drawn.width()), rows));
                 y += region.height;
             }
 
             int open = layout.height() - ScreenMetrics.MARGIN;
-            PixelBuffer panel = PixelBuffer.straight(layout.width(), layout.height());
-            panel.blit(composed.crop(0, 0, layout.width(), open), 0, 0, BlendMode.REPLACE);
-            panel.blit(composed.crop(0, composed.height() - ScreenMetrics.MARGIN, layout.width(), ScreenMetrics.MARGIN),
-                0, open, BlendMode.REPLACE);
+            int close = drawn.height() - ScreenMetrics.MARGIN;
+            if (open == close) return composed;
+
+            ConcurrentList<Sheet.Blit> panel = Concurrent.newList();
+            for (Sheet.Blit blit : composed) {
+                blit.rows(0, open, 0).ifPresent(panel::add);
+                blit.rows(close, drawn.height(), open - close).ifPresent(panel::add);
+            }
             return panel;
         }
 
         /**
          * {@inheritDoc}
          * <p>
-         * The art, reassembled at the box's size, is laid one Minecraft pixel to a block of
-         * {@link MinecraftFont#MC_PIXEL_SCALE} output pixels, each as the client lays a GUI texel: alpha 0
-         * leaves the destination as it was and the rest blends with {@link BlendMode#NORMAL}.
+         * At the panel's own size, a panel composed from a sheet's regions is laid as the client lays it,
+         * each region off the sheet through the client's region blit, at the sheet's own resolution and
+         * through its own sampler. Any other panel, and one at another size, is the art reassembled at the
+         * box's size and laid one Minecraft pixel to a block of {@link MinecraftFont#MC_PIXEL_SCALE}
+         * output pixels. Either way each pixel is laid as the client lays a GUI texel: alpha 0 leaves the
+         * destination as it was and the rest blends with {@link BlendMode#NORMAL}.
          */
         @Override
         public void paintPanel(@NotNull PixelBuffer dest, @NotNull Box box) {
+            if (this.sheet.isPresent() && box.width() == this.panelArt.width() && box.height() == this.panelArt.height()) {
+                this.sheet.get().lay(dest, box);
+                return;
+            }
+
             int scale = MinecraftFont.MC_PIXEL_SCALE;
             PixelBuffer art = ChromeSlicer.assemble(this.panel, this.panelArt, box.width(), box.height());
             dest.blitScaled(art, box.x() * scale, box.y() * scale, art.width() * scale, art.height() * scale, BlendMode.NORMAL);
@@ -506,6 +545,87 @@ public interface Window {
         @Override
         public @NotNull Extent minimum() {
             return new Extent(this.panel.left() + this.panel.right(), this.panel.top() + this.panel.bottom());
+        }
+
+        /**
+         * A container sheet and the regions of it a panel is laid from, each placed where it lands on the
+         * panel.
+         *
+         * @param texture the sheet as the client reads a container texture - a plain texture, through the
+         *     sampler its sidecar's texture section selects
+         * @param blits the regions laid, each at its place on the panel
+         */
+        public record Sheet(@NotNull SampledTexture texture, @NotNull ConcurrentList<Blit> blits) {
+
+            /**
+             * Constructs a new {@code Sheet}, holding its own copy of the regions.
+             */
+            public Sheet {
+                blits = Concurrent.newUnmodifiableList(blits);
+            }
+
+            /**
+             * Lays every region over the box as the client's region blit lays it - one quad the region's
+             * size, addressed in the {@link ScreenMetrics#SHEET}-texel space every container blit declares,
+             * so each output pixel reads the sheet at its own resolution through its own sampler.
+             *
+             * @param dest the buffer to paint into
+             * @param box the panel rect in Minecraft pixels
+             */
+            void lay(@NotNull PixelBuffer dest, @NotNull Box box) {
+                for (Blit blit : this.blits)
+                    NineSliceKit.blit(dest, this.texture, box.x() + blit.x(), box.y() + blit.y(),
+                        blit.u(), blit.v(), blit.width(), blit.height(), ScreenMetrics.SHEET, ScreenMetrics.SHEET);
+            }
+
+            /**
+             * Copies every region onto a clear panel at one texel per Minecraft pixel, the sheet first read
+             * into the {@link ScreenMetrics#SHEET}-texel space its blits declare.
+             *
+             * @param width the panel's width in Minecraft pixels
+             * @param height the panel's height in Minecraft pixels
+             * @return the panel
+             */
+            @NotNull PixelBuffer copy(int width, int height) {
+                PixelBuffer sheet = this.texture.pixels().resize(ScreenMetrics.SHEET, ScreenMetrics.SHEET, Resample.NEAREST);
+                PixelBuffer panel = PixelBuffer.straight(width, height);
+                for (Blit blit : this.blits)
+                    panel.blit(sheet.crop(blit.u(), blit.v(), blit.width(), blit.height()), blit.x(), blit.y(), BlendMode.REPLACE);
+
+                return panel;
+            }
+
+            /**
+             * One region of a sheet laid on a panel, as wide and as tall on the sheet as on the panel.
+             *
+             * @param x the region's left edge on the panel, in Minecraft pixels
+             * @param y the region's top edge on the panel, in Minecraft pixels
+             * @param u the region's left edge on the sheet, in the {@link ScreenMetrics#SHEET}-texel space
+             * @param v the region's top edge on the sheet, in the {@link ScreenMetrics#SHEET}-texel space
+             * @param width the region's width
+             * @param height the region's height
+             */
+            public record Blit(int x, int y, int u, int v, int width, int height) {
+
+                /**
+                 * Answers the rows of this region that land on a band of panel rows, moved down by a shift -
+                 * the same rows of the sheet, laid where the band is moved to.
+                 *
+                 * @param from the band's first row on the panel, inclusive
+                 * @param to the band's last row on the panel, exclusive
+                 * @param shift the rows the kept part is moved down by
+                 * @return the kept part, empty where no row of this region lands on the band
+                 */
+                @NotNull Optional<Blit> rows(int from, int to, int shift) {
+                    int top = Math.max(from, this.y);
+                    int bottom = Math.min(to, this.y + this.height);
+                    if (top >= bottom) return Optional.empty();
+
+                    return Optional.of(new Blit(this.x, top + shift, this.u, this.v + top - this.y, this.width, bottom - top));
+                }
+
+            }
+
         }
 
     }

@@ -10,6 +10,8 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -20,6 +22,7 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
@@ -53,6 +56,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -343,9 +347,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to {@link Projection#VANILLA_ISO}
          * bit-for-bit, so only blocks whose gui overrides that pose move.
          * <p>
-         * A block-entity's per-family mesh placement rides separately on its model-space presentation
-         * (the item def's special {@code transformation}, captured as the bone presentation), so the
-         * camera is the item gui for every block without a per-family branch. A non-neutral render
+         * A block entity's mesh placement rides separately in model space - each special layer's
+         * {@code transformation} for an icon the client draws through specials alone, its presentation
+         * otherwise - so the camera is the item gui for every block without a per-family branch. A non-neutral render
          * (custom projection, rotation, or facing) falls back to the projection's own resolution so a
          * caller-driven pose is never overridden. The lighting frame tracks the resolved pose.
          * <p>
@@ -397,6 +401,54 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return entity.map(Block.BlockEntity::tintArgb)
                 .filter(argb -> argb != ColorMath.WHITE)
                 .orElseGet(() -> resolveBlockTint(context, block, options));
+        }
+
+        /**
+         * The special layers a block's item draws in a slot, where it draws specials alone: each
+         * layer's {@code transformation}, in paint order, the light the slot draws them in, and the
+         * block entity whose mesh they draw.
+         *
+         * @param poses each special layer's pose - every dispatch node's {@code transformation} above it, then its
+         *     own, in block units - in paint order
+         * @param light the {@code gui_light} of the one base the layers share, the nearest file up its
+         *     chain to declare one, {@link GuiLight#SIDE} where they share none or no pack ships it
+         * @param entity the block entity of the block the item places - a wall form's standing form's,
+         *     its item being that one - whose mesh the specials draw
+         */
+        private record SlotSpecials(
+            @NotNull ConcurrentList<Matrix4f> poses, @NotNull GuiLight light, @NotNull Block.BlockEntity entity
+        ) {
+
+            /**
+             * Reads the special layers the block's item draws at the neutral slot context - the walk
+             * the block's icon pose is baked from - where every layer it draws is a special.
+             *
+             * @param context the render context supplying the item tree and the base model
+             * @param block the block, whose {@link Block#itemBlockId()} names the item
+             * @return the layers, empty where the item has no tree, a refused one, draws anything but
+             *     specials, or places a block with no block entity
+             */
+            static @NotNull Optional<SlotSpecials> of(@NotNull RendererContext context, @NotNull Block block) {
+                Possible<ItemModelTree> tree = context.findItemTree(block.itemBlockId().id());
+                if (!tree.isPresent() || tree.get().isRejected()) return Optional.empty();
+
+                Optional<Block.BlockEntity> entity = context.findBlock(block.itemBlockId().id()).toOptional()
+                    .flatMap(Block::entity)
+                    .or(block::entity);
+                if (entity.isEmpty()) return Optional.empty();
+
+                ConcurrentList<ItemModelNode.Resolution> layers = ItemModelContext.gui().resolve(tree.get()).layers();
+                if (layers.isEmpty() || layers.stream().anyMatch(layer -> layer.special().isEmpty())) return Optional.empty();
+
+                List<String> bases = layers.stream().map(layer -> layer.special().orElseThrow().base()).distinct().toList();
+                GuiLight light = bases.size() == 1
+                    ? context.findModel(bases.getFirst()).toOptional().map(ModelData::getGuiLight).orElse(GuiLight.SIDE)
+                    : GuiLight.SIDE;
+                return Optional.of(new SlotSpecials(
+                    layers.stream().map(layer -> layer.special().orElseThrow().pose()).collect(Concurrent.toUnmodifiableList()),
+                    light, entity.get()));
+            }
+
         }
 
         /**
@@ -502,6 +554,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private final boolean identityModelState;
 
             /**
+             * The special layers the block's item draws in a slot, where the render is the block's icon
+             * and its item is drawn through specials alone - a chest, a bed, a banner, a head, a statue -
+             * empty for every other render.
+             * <p>
+             * Vanilla's special renderers submit their raw model with no placement of their own, so the
+             * slot poses each layer by its special's {@code transformation} and then by its base's
+             * {@code display.gui}, and this render draws the block entity's mesh that way, through no
+             * presentation of its own.
+             */
+            private final @NotNull Optional<SlotSpecials> slotSpecials;
+
+            /**
              * Binds one render's fixed inputs, resolving the pose, the tint and the blockstate from the
              * subject and the caller's options.
              *
@@ -529,7 +593,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Optional<SpecialPose> special = pose.filter(picked -> options.getOutput().isNeutralInventoryIcon());
                 this.view = resolveIconView(block, options.getOutput(), special);
                 this.lighting = this.view.lighting();
-                this.light = special.map(SpecialPose::light).orElse(GuiLight.SIDE);
+                Optional<SlotSpecials> drawn = block.entity().isPresent() && options.getVariant().isEmpty()
+                    ? SlotSpecials.of(context, block)
+                    : Optional.empty();
+                this.slotSpecials = drawn;
+                this.light = special.map(SpecialPose::light)
+                    .or(() -> drawn.map(SlotSpecials::light))
+                    .orElse(GuiLight.SIDE);
                 this.tint = resolveRenderTint(context, block, this.entity, options);
                 this.state = options.getVariant().isEmpty()
                     ? block.defaultState()
@@ -600,6 +670,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
                 LayerStack<GeometryLayer> stack = new LayerStack<>();
 
+                // An icon the client draws through specials alone is its layers posed by their own
+                // transformations, which already place every piece, so it takes no part offsets, no
+                // icon rotation and no fit.
+                if (this.slotSpecials.isPresent()) {
+                    SlotSpecials drawn = this.slotSpecials.get();
+                    stack.append(BlockSlot.PRIMARY, sink -> sink.addAll(specialsAt(drawn.entity(), drawn.poses(), tick)));
+                    Layers.foldInto(stack, this.options.getLayerDecorator(), triangles);
+                    return switch (this.light) {
+                        case FRONT -> Shading.relightForItemsFlat(triangles, this.lighting, false);
+                        case SIDE -> Shading.relightForItems3d(triangles, this.lighting, false);
+                    };
+                }
+
                 stack.append(BlockSlot.PRIMARY, sink -> sink.addAll(primaryAt(tick)));
 
                 // Atlas-time composition: merge Block.BlockEntity parts into the primary geometry (bed foot onto
@@ -615,19 +698,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 Layers.foldInto(stack, this.options.getLayerDecorator(), triangles);
-
-                // Every block entity runs BlockGeometryKit.recenterAndFit: its composed bone geometry isn't
-                // measured up front, and the fit self-gates on extent > 1.4 blocks - a no-op for the
-                // block-sized families (chest, sign, shulker, ...) and only recentring a tall/wide model
-                // (copper_golem_statue, authored X-centred at 0 and Y up to ~24px off the single-block
-                // frame; beds, two blocks wide). iconRotation (beds) applies first.
-                if (this.entity.isPresent()) {
-                    Block.BlockEntity be = this.entity.get();
-                    if (be.iconRotation() != 0)
-                        triangles = BlockGeometryKit.applyRotation(triangles, Matrix4f.createRotationY(
-                            (float) Math.toRadians(be.iconRotation())));
-                    triangles = BlockGeometryKit.recenterAndFit(triangles);
-                }
 
                 // Fallback: when the block's registered model produces no faces (variant- or
                 // multipart-gated blocks where every apply has a {@code when} clause), rebuild
@@ -836,6 +906,48 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                 return BlockGeometryKit.buildFromBones(boneModel.model(), texture, faceTint, boneModel.presentation());
+            }
+
+            /**
+             * Builds the block entity's mesh as the client's slot draws it through special renderers:
+             * each piece - the bone model, then each {@link Block.BlockEntity.Part part} in order - in
+             * its raw model frame, posed by a special layer's {@code transformation} taken from block
+             * units to the {@code [0, 16]} frame, and by no presentation of its own.
+             * <p>
+             * Where the item draws as many special layers as the entity has pieces - the bed's head
+             * and foot - each layer draws its own piece; otherwise every layer draws every piece, a
+             * single special drawing the whole mesh as the banner's draws its pole and its flag.
+             *
+             * @param entity the block entity whose mesh is built
+             * @param poses the special layers' poses, in block units, in paint order
+             * @param tick the animation tick the textures are sampled at
+             * @return the composed block-frame triangle list
+             */
+            private @NotNull ConcurrentList<VisibleTriangle> specialsAt(
+                @NotNull Block.BlockEntity entity, @NotNull ConcurrentList<Matrix4f> poses, int tick
+            ) {
+                ConcurrentList<Block.BlockEntity.BoneModel> pieces = Concurrent.newList(entity.boneModel());
+                ConcurrentList<String> textures = Concurrent.newList(entity.textureId());
+                for (Block.BlockEntity.Part part : entity.parts()) {
+                    pieces.add(part.boneModel());
+                    textures.add(part.texture());
+                }
+
+                boolean onePerPiece = poses.size() == pieces.size();
+                ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
+                for (int layer = 0; layer < poses.size(); layer++) {
+                    Matrix4f pose = Matrix4f.createScale(ModelUnits.PIXELS_PER_BLOCK, ModelUnits.PIXELS_PER_BLOCK, ModelUnits.PIXELS_PER_BLOCK)
+                        .multiply(poses.get(layer))
+                        .multiply(Matrix4f.createScale(1f / ModelUnits.PIXELS_PER_BLOCK, 1f / ModelUnits.PIXELS_PER_BLOCK, 1f / ModelUnits.PIXELS_PER_BLOCK));
+                    for (int piece = 0; piece < pieces.size(); piece++) {
+                        if (onePerPiece && piece != layer) continue;
+                        Block.BlockEntity.BoneModel bones = pieces.get(piece);
+                        SampledTexture texture = entityTexture(entity, textures.get(piece), tick);
+                        int faceTint = bones.tinted() ? this.tint : ColorMath.WHITE;
+                        combined.addAll(BlockGeometryKit.buildFromBones(bones.model(), texture, faceTint, pose));
+                    }
+                }
+                return combined;
             }
 
             /**

@@ -33,8 +33,8 @@ public final class BlockEntityRendererResolver {
             .put("y_axis", this.split.yAxis().name())               // pivot-band heuristic
             .put("tinted", this.tint.isTinted(this.subject.rendererClass(), this.split.factoryClass()))
             .put("plain_texture", this.catalog.bindsTextureFile(this.split.splitId()))  // the client's read of the texture, as each row's reader read it
-            .put("inventory", inventory())                          // { y_rotation, flip, transform? }
-            .putIf("icon", this.gui.icon(this.split.splitId()))     // { rotation?, additive? }
+            .put("inventory", inventory())                          // { flip, transform? }
+            .putIf("icon", this.gui.icon(this.split.splitId()))     // { additive }
             .putIf("parts", BlockPartsResolver.resolve(this.split.splitId()))  // sub-model composition
             .putIf("blocks", this.catalog.blocks(this.split.splitId()));  // ordered {block, texture, variant?, tint?}
     }
@@ -42,7 +42,6 @@ public final class BlockEntityRendererResolver {
     /** The {@code inventory} node - GUI facing (BlockGuiResolver) plus the decomposed bytecode transform. */
     private @NotNull JsonTree inventory() {
         return JsonTree.object()
-            .put("y_rotation", this.gui.yRotation(this.split.splitId()))
             .put("flip", this.gui.flip(this.subject.rendererClass(), this.split.splitId()))
             .putIf("transform", this.transform.resolve(this.subject.rendererClass(), this.split.splitId()));
     }

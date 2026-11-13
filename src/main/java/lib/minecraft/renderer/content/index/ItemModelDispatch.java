@@ -365,7 +365,7 @@ public class ItemModelDispatch {
      * @return the base every layer's special names, empty for a branch drawing nothing, any layer that
      *     is not a special, or specials on more than one base
      */
-    private static @NotNull Optional<String> specialBase(@NotNull ItemModelNode.Resolution resolution) {
+    static @NotNull Optional<String> specialBase(@NotNull ItemModelNode.Resolution resolution) {
         List<Optional<String>> bases = resolution.layers()
             .stream()
             .map(layer -> layer.special().map(ItemModelNode.Special::base))

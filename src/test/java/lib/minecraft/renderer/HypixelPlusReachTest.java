@@ -736,8 +736,8 @@ class HypixelPlusReachTest {
             case ItemModelNode.Composite composite ->
                 new ItemModelNode.Composite(Concurrent.newUnmodifiableList(firstChildOnly(composite.models().getFirst())));
             case ItemModelNode.Condition condition -> new ItemModelNode.Condition(condition.property(), condition.component(),
-                condition.ignoreDefault(), condition.predicate(), firstChildOnly(condition.onTrue()), firstChildOnly(condition.onFalse()));
-            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(), select.component(), select.decoded(),
+                condition.ignoreDefault(), condition.index(), condition.predicate(), firstChildOnly(condition.onTrue()), firstChildOnly(condition.onFalse()));
+            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(), select.index(), select.component(), select.decoded(),
                 select.cases()
                     .stream()
                     .map(option -> new ItemModelNode.Select.Case(option.when(), firstChildOnly(option.model())))
