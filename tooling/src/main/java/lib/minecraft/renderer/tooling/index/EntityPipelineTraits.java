@@ -20,6 +20,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The session-memoized render-pipeline trait classifier - factory name to
@@ -213,36 +215,15 @@ public final class EntityPipelineTraits {
                 .opcode(Opcodes.INVOKEVIRTUAL, Opcodes.INVOKEINTERFACE)
                 .ofType(MethodInsnNode.class)
                 .forEach(call -> {
-                    if (!layerClass.equals(call.owner))
-                        collectDelegateFactories(call.owner, call.name, call.desc, textureFactory, factories,
-                            new HashSet<>(), HELPER_HOPS);
+                    if (layerClass.equals(call.owner)) return;
+                    Set<String> visited = new HashSet<>();
+                    if (!visited.add(callKey(call))) return;
+                    MethodNode delegate = ClassKit.findMethodInHierarchy(this.cache, call.owner, call.name, call.desc);
+                    if (delegate != null)
+                        collectFactoryCalls(delegate, FactoryWalk.delegate(call.owner, textureFactory), factories, visited, HELPER_HOPS);
                 });
         }
         return factories;
-    }
-
-    /**
-     * Collects the texture-taking factories one delegate method calls, descending into the delegate's
-     * own methods it calls in turn while hops remain - an overload that forwards to the one submitting
-     * the pass is the shape {@code EquipmentLayerRenderer.renderLayers} takes.
-     */
-    private void collectDelegateFactories(@NotNull String owner, @NotNull String name, @NotNull String desc,
-                                          @NotNull String textureFactory, @NotNull Set<String> factories,
-                                          @NotNull Set<String> visited, int hops) {
-        if (!visited.add(owner + '.' + name + desc)) return;
-        MethodNode target = ClassKit.findMethodInHierarchy(this.cache, owner, name, desc);
-        if (target == null) return;
-        AsmWalker.over(target)
-            .opcode(Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL)
-            .ofType(MethodInsnNode.class)
-            .forEach(call -> {
-                if (SourceClasses.Types.RENDER_TYPES.equals(call.owner)) {
-                    if (textureFactory.equals(call.desc)) factories.add(call.name);
-                    return;
-                }
-                if (hops > 0 && owner.equals(call.owner))
-                    collectDelegateFactories(owner, call.name, call.desc, textureFactory, factories, visited, hops - 1);
-            });
     }
 
     /**
@@ -421,32 +402,81 @@ public final class EntityPipelineTraits {
         for (MethodNode method : cn.methods) {
             if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
             if (ClassKit.INIT.equals(method.name)) continue;
-            collectFactoryCalls(method, out, new HashSet<>(), HELPER_HOPS);
+            collectFactoryCalls(method, FactoryWalk.STATIC_HELPERS, out, new HashSet<>(), HELPER_HOPS);
         }
         return out;
     }
 
     /**
-     * Collects the {@code RenderTypes} factories one method body reaches, descending into each
-     * static call it makes while hops remain. Resolution walks the super chain the way
-     * {@code invokestatic} does, since javac names the calling class rather than the declaring one
-     * when a subclass invokes an inherited static; a target the jar does not hold ends that branch,
-     * which is what confines the descent to vanilla's own code.
+     * Collects the {@code RenderTypes} factories one method body reaches, descending into each call the
+     * walk follows while hops remain. Resolution walks the super chain the way the JVM does, since javac
+     * names the calling class rather than the declaring one when a subclass invokes an inherited method;
+     * a target the jar does not hold ends that branch, which is what confines the descent to vanilla's
+     * own code.
+     *
+     * @param method the method body to walk
+     * @param walk which calls are read, which factories are kept and which calls are followed
+     * @param out the sink each kept factory's name is added to, in the order reached
+     * @param visited the calls already followed, each as owner, name and descriptor
+     * @param hops how many more calls deep the walk may follow
      */
-    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
-                                     @NotNull Set<String> visited, int hops) {
+    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull FactoryWalk walk,
+                                     @NotNull Collection<String> out, @NotNull Set<String> visited, int hops) {
         AsmWalker.over(method)
-            .opcode(Opcodes.INVOKESTATIC)
+            .opcode(walk.opcodes())
             .ofType(MethodInsnNode.class)
-            .forEach(mi -> {
-                if (SourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
-                    out.add(mi.name);
+            .forEach(call -> {
+                if (SourceClasses.Types.RENDER_TYPES.equals(call.owner)) {
+                    if (walk.keeps().test(call)) out.add(call.name);
                     return;
                 }
-                if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) return;
-                MethodNode helper = ClassKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
-                if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
+                if (hops <= 0 || !walk.follows().test(call) || !visited.add(callKey(call))) return;
+                MethodNode helper = ClassKit.findMethodInHierarchy(this.cache, call.owner, call.name, call.desc);
+                if (helper != null) collectFactoryCalls(helper, walk, out, visited, hops - 1);
             });
+    }
+
+    /**
+     * A call's owner, name and descriptor as one key, what a walk records a followed call by.
+     *
+     * @param call the call
+     * @return its key
+     */
+    private static @NotNull String callKey(@NotNull MethodInsnNode call) {
+        return call.owner + '.' + call.name + call.desc;
+    }
+
+    /**
+     * Which calls a factory walk reads, which {@code RenderTypes} factories it keeps and which other
+     * calls it follows into.
+     *
+     * @param opcodes the invoke opcodes the walk reads
+     * @param keeps whether a {@code RenderTypes} call is a factory the walk collects
+     * @param follows whether a call to another method is one the walk descends into
+     */
+    private record FactoryWalk(int @NotNull [] opcodes, @NotNull Predicate<MethodInsnNode> keeps,
+                               @NotNull Predicate<MethodInsnNode> follows) {
+
+        /**
+         * The layer probe's walk: every factory a static call reaches, through every static helper.
+         */
+        static final @NotNull FactoryWalk STATIC_HELPERS =
+            new FactoryWalk(new int[] { Opcodes.INVOKESTATIC }, call -> true, call -> true);
+
+        /**
+         * The walk of a class a layer hands its pass to: the factories taking a texture, through that
+         * class's own methods it calls in turn - an overload forwarding to the one submitting the pass is
+         * the shape {@code EquipmentLayerRenderer.renderLayers} takes.
+         *
+         * @param owner the class the layer hands its pass to
+         * @param textureFactory the descriptor of a factory taking a texture
+         * @return the walk
+         */
+        static @NotNull FactoryWalk delegate(@NotNull String owner, @NotNull String textureFactory) {
+            return new FactoryWalk(new int[] { Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL },
+                call -> textureFactory.equals(call.desc), call -> owner.equals(call.owner));
+        }
+
     }
 
     // ------------------------------------------------------------------------------------

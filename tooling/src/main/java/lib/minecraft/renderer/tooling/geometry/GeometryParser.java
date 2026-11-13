@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -113,6 +114,10 @@ public final class GeometryParser {
      */
     private static final float FEET_ANCHOR = 24.016f;
 
+    /**
+     * The offset that moves nothing.
+     */
+    private static final float @NotNull [] NO_OFFSET = { 0f, 0f, 0f };
 
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
@@ -161,7 +166,7 @@ public final class GeometryParser {
      * hooks ({@code paramIntValues} / {@code paramFloatValues} / {@code grow} /
      * {@code appliedMeshTransformerScale} / {@code refParam}), runs {@link #walkInstructions},
      * then applies the post-walk passes ({@link #applyRetainedNamesFilter},
-     * {@link #applyClearedBonesFilter}, {@link #applyMeshTransformerScaling}) and replays the
+     * {@link #applyClearedBonesFilter}, {@link #applyRootPose}, {@link #applyBabyMeshTransform}) and replays the
      * registration on the part tree ({@link #replayRegistration}) before serialising the
      * accumulated bones and the tree.
      *
@@ -234,7 +239,6 @@ public final class GeometryParser {
         applyRetainedNamesFilter(state);
         applyClearedBonesFilter(state);
         applyRootPose(state);
-        applyMeshTransformerScaling(state);
         applyBabyMeshTransform(state);
         // Last, because the two passes above rewrite a pivot through the member itself: a bone at
         // the origin is one the feet anchor and the baby offset both move, and dropping its pivot
@@ -399,31 +403,6 @@ public final class GeometryParser {
     }
 
     /**
-     * Bakes the captured {@link WalkState#meshTransformerScale} (from
-     * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
-     * emitted bone. Vanilla's expansion is, per {@code PartPose},
-     * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
-     * around {@link #FEET_ANCHOR}, which carries the derivation, and multiplies the bone's
-     * {@code PartPose.scale} field by F. Both halves land here together; the kit's
-     * {@code EntityGeometryKit#buildTriangles} consumes the
-     * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
-     * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
-     * sitting AFTER the pivot translate and BEFORE the cube render.
-     * <p>
-     * Cubes ({@code origin}, {@code size}, {@code inflate}, {@code uv}) are left untouched -
-     * the kit applies the scale to cube vertices at render time without affecting UV
-     * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
-     * byte-stable legacy + non-scaling entity parses stay byte-stable.
-     * <p>
-     * The feet-anchor {@code +dy} translate is a single root-level translate. Descendants
-     * inherit the translate through the parent chain, so {@code +dy} is applied to top-level
-     * bones only ({@code parent == null}); applying it to every bone would double-count it
-     * down the chain. The {@code f *} spacing scale applies to every bone (chain translations
-     * sum, so a uniform per-bone {@code f} yields a uniform model scale).
-     *
-     * @param state the parse state whose emitted bones are re-walked and scaled in place
-     */
-    /**
      * Drops every bone member that holds what the reading field already holds - a {@code pivot} at
      * the origin, an unturned {@code rotation} and an empty {@code cubes} list.
      *
@@ -461,36 +440,6 @@ public final class GeometryParser {
         return true;
     }
 
-    private static void applyMeshTransformerScaling(@NotNull WalkState state) {
-        float f = state.meshTransformerScale;
-        if (f == 1f) return;
-        float dy = FEET_ANCHOR * (1f - f);
-        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            JsonObject bone = entry.getValue().getAsJsonObject();
-            // Only top-level bones (no parent) get the feet-anchor +dy translate; descendants
-            // inherit it via the parent chain at render time.
-            boolean applyDy = state.boneParents.get(entry.getKey()) == null;
-            JsonArray pivot = bone.getAsJsonArray("pivot");
-            if (pivot != null && pivot.size() == 3) {
-                float px = pivot.get(0).getAsFloat();
-                float py = pivot.get(1).getAsFloat();
-                float pz = pivot.get(2).getAsFloat();
-                JsonArray scaled = new JsonArray();
-                scaled.add(f * px);
-                scaled.add(f * py + (applyDy ? dy : 0f));
-                scaled.add(f * pz);
-                bone.add("pivot", scaled);
-            }
-            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
-            float combined = existing * f;
-            if (combined == 1f) {
-                bone.remove("scale");
-            } else {
-                bone.addProperty("scale", combined);
-            }
-        }
-    }
-
     /**
      * Bakes the captured {@link WalkState#babyTransform} into every emitted bone - the aged-down
      * proportions vanilla's {@code BabyModelTransform} gives a mesh at registration.
@@ -500,7 +449,7 @@ public final class GeometryParser {
      * grandchildren untouched by reference. So the factor and the offset are decided by a bone's
      * <b>top-level ancestor</b>, not by the bone itself.
      *
-     * <p>Two halves, matching the shape {@link #applyMeshTransformerScaling} already has:
+     * <p>Two halves, laid by {@link #rescaleBones} as the root pose's are:
      * <ul>
      *   <li>The <b>offset</b> is a single translate on the top-level bone, applied <em>before</em>
      *       the scale, so a top-level pivot lands at {@code (pivot + offset) * f}. Descendants
@@ -522,31 +471,12 @@ public final class GeometryParser {
     private static void applyBabyMeshTransform(@NotNull WalkState state) {
         BabyMeshTransform transform = state.babyTransform;
         if (transform == null) return;
-        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            String top = topLevelAncestor(entry.getKey(), state.boneParents);
-            boolean head = transform.isHeadPart(top);
-            float f = head ? transform.headFactor() : transform.bodyFactor();
-            float offsetY = head ? transform.headYOffset() : transform.bodyYOffset();
-            float offsetZ = head ? transform.headZOffset() : 0f;
-            boolean isTop = entry.getKey().equals(top);
 
-            JsonObject bone = entry.getValue().getAsJsonObject();
-            JsonArray pivot = bone.getAsJsonArray("pivot");
-            if (pivot != null && pivot.size() == 3) {
-                float px = pivot.get(0).getAsFloat();
-                float py = pivot.get(1).getAsFloat() + (isTop ? offsetY : 0f);
-                float pz = pivot.get(2).getAsFloat() + (isTop ? offsetZ : 0f);
-                JsonArray transformed = new JsonArray();
-                transformed.add(f * px);
-                transformed.add(f * py);
-                transformed.add(f * pz);
-                bone.add("pivot", transformed);
-            }
-            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
-            float combined = existing * f;
-            if (combined == 1f) bone.remove("scale");
-            else bone.addProperty("scale", combined);
-        }
+        SubtreePose head = new SubtreePose(
+            new float[] { 0f, transform.headYOffset(), transform.headZOffset() }, transform.headFactor(), NO_OFFSET);
+        SubtreePose body = new SubtreePose(
+            new float[] { 0f, transform.bodyYOffset(), 0f }, transform.bodyFactor(), NO_OFFSET);
+        rescaleBones(state, top -> transform.isHeadPart(top) ? head : body);
     }
 
     /**
@@ -651,36 +581,78 @@ public final class GeometryParser {
     }
 
     /**
-     * Bakes the root pose {@link #readRootPose} read into every emitted bone. Vanilla draws the root's
-     * children at the root's offset plus its scale times their own offset, so a top-level pivot lands at
-     * {@code rootOffset + rootScale * pivot}; the scale multiplies every bone's pivot and {@code scale},
-     * top-level and descendant alike, because vanilla's bone scale propagates down the chain at render and
-     * this codebase's does not - the inverse {@link #applyBabyMeshTransform} relies on too. Descendants
-     * inherit the offset through the parent chain and are not offset again.
+     * Bakes the mesh's root pose into every emitted bone - the one {@link #readRootPose} read off
+     * {@code MeshDefinition.transformed}, composed under the whole-mesh scale
+     * {@link WalkState#meshTransformerScale} the registration's {@code MeshTransformer.scaling(F)}
+     * applies after the factory returns.
      * <p>
-     * Runs before the whole-mesh scale pass; no 26.1 mesh carries both.
+     * That scale is a root pose of its own: vanilla expands it, per {@code PartPose}, as
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, scaling every pivot about
+     * {@link #FEET_ANCHOR} and multiplying the bone's {@code PartPose.scale} by F. So a factory's root
+     * pose of offset {@code o} and scale {@code s} under a whole-mesh scale {@code F} is the one pose of
+     * offset {@code F * o + (0, 24.016 * (1 - F), 0)} and scale {@code F * s}. No 26.1 mesh carries both.
+     * <p>
+     * Vanilla draws the root's children at the root's offset plus its scale times their own offset, so
+     * a top-level pivot lands at {@code offset + scale * pivot}; the scale multiplies every bone's pivot
+     * and {@code scale}, through {@link #rescaleBones}. Cubes are left untouched: the kit multiplies a
+     * cube's local vertices by its bone's {@code scale} at the pivot translate, which is where vanilla's
+     * own per-vertex {@code poseStack.scale(F)} lands. A mesh posed at the identity is left as it was
+     * built.
      *
      * @param state the parse state whose emitted bones are re-walked and transformed in place
      */
     private static void applyRootPose(@NotNull WalkState state) {
-        float[] offset = state.rootOffset;
-        float scale = state.rootScale;
+        float f = state.meshTransformerScale;
+        float[] offset = {
+            f * state.rootOffset[0],
+            f * state.rootOffset[1] + FEET_ANCHOR * (1f - f),
+            f * state.rootOffset[2]
+        };
+        float scale = f * state.rootScale;
         if (scale == 1f && offset[0] == 0f && offset[1] == 0f && offset[2] == 0f) return;
 
+        SubtreePose pose = new SubtreePose(NO_OFFSET, scale, offset);
+        rescaleBones(state, top -> pose);
+    }
+
+    /**
+     * A translate before a scale and a translate after it - the share of a whole-mesh pose one
+     * top-level bone takes, its descendants taking the factor alone.
+     *
+     * @param before the offset added to the top-level bone's pivot before the factor
+     * @param factor the factor every pivot and bone {@code scale} under the top-level bone is multiplied by
+     * @param after the offset added to the top-level bone's pivot after the factor
+     */
+    private record SubtreePose(float @NotNull [] before, float factor, float @NotNull [] after) {}
+
+    /**
+     * Re-walks every emitted bone under the pose its top-level ancestor takes. A top-level pivot
+     * lands at {@code factor * (pivot + before) + after}, and every other pivot at
+     * {@code factor * pivot}, since descendants inherit a top-level bone's offset through the parent
+     * chain. Every bone's {@code scale} is multiplied by the factor, top-level and descendant alike,
+     * because vanilla's bone scale propagates down the chain at render and this codebase's does not.
+     *
+     * @param state the parse state whose emitted bones are re-walked and transformed in place
+     * @param poseOf the pose of the subtree under each top-level bone, keyed by that bone's name
+     */
+    private static void rescaleBones(@NotNull WalkState state, @NotNull Function<String, SubtreePose> poseOf) {
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            boolean isTop = state.boneParents.get(entry.getKey()) == null;
+            String top = topLevelAncestor(entry.getKey(), state.boneParents);
+            SubtreePose pose = poseOf.apply(top);
+            boolean isTop = entry.getKey().equals(top);
+
             JsonObject bone = entry.getValue().getAsJsonObject();
             JsonArray pivot = bone.getAsJsonArray("pivot");
-            float px = pivot != null && pivot.size() == 3 ? pivot.get(0).getAsFloat() : 0f;
-            float py = pivot != null && pivot.size() == 3 ? pivot.get(1).getAsFloat() : 0f;
-            float pz = pivot != null && pivot.size() == 3 ? pivot.get(2).getAsFloat() : 0f;
-            JsonArray moved = new JsonArray();
-            moved.add(scale * px + (isTop ? offset[0] : 0f));
-            moved.add(scale * py + (isTop ? offset[1] : 0f));
-            moved.add(scale * pz + (isTop ? offset[2] : 0f));
-            bone.add("pivot", moved);
+            if (pivot != null && pivot.size() == 3) {
+                JsonArray moved = new JsonArray();
+                for (int axis = 0; axis < 3; axis++) {
+                    float p = pivot.get(axis).getAsFloat();
+                    moved.add(isTop ? pose.factor() * (p + pose.before()[axis]) + pose.after()[axis] : pose.factor() * p);
+                }
+                bone.add("pivot", moved);
+            }
 
-            float combined = (bone.has("scale") ? bone.get("scale").getAsFloat() : 1f) * scale;
+            float combined = (bone.has("scale") ? bone.get("scale").getAsFloat() : 1f) * pose.factor();
             if (combined == 1f) bone.remove("scale");
             else bone.addProperty("scale", combined);
         }
@@ -1760,7 +1732,7 @@ public final class GeometryParser {
         // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
         // via {@link Bone#getScale()}
         // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone
-        // tree in {@link #applyMeshTransformerScaling} post-walk so the math agrees with
+        // tree in {@link #applyRootPose} post-walk so the math agrees with
         // vanilla's apply-after-build semantics. Multiplies into any existing capture so
         // sequential {@code .apply(scaling(a)).apply(scaling(b))} chains compose (none
         // observed in vanilla 26.1, but cheap to support). Gated on
@@ -2908,7 +2880,7 @@ public final class GeometryParser {
         /**
          * Whole-layer uniform scale captured from {@code MeshTransformer.scaling(F)} call(s)
          * on the {@code LayerDefinition}; {@code 1f} when no MeshTransformer is applied.
-         * Re-walked into the emitted bone tree by {@link #applyMeshTransformerScaling} after
+         * Re-walked into the emitted bone tree by {@link #applyRootPose} after
          * {@link #walkInstructions} returns. Multiplies on subsequent calls so
          * {@code .apply(scaling(a)).apply(scaling(b))} composes as {@code a * b}.
          */
