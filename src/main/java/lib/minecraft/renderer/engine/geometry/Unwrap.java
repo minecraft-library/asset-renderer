@@ -140,9 +140,7 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
          */
         public @NotNull Vector4f read(@NotNull Face face) {
             if (!this.mirror) return rect(face);
-
-            Vector4f strip = rect(AxisSigns.MIRROR_X.apply(face));
-            return new Vector4f(strip.z(), strip.y(), strip.x(), strip.w());
+            return rect(AxisSigns.MIRROR_X.apply(face)).reversedU();
         }
 
     }

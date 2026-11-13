@@ -229,16 +229,8 @@ public enum HumanoidPart {
         @NotNull Face face,
         boolean overlayLayer
     ) {
-        Rectangle rect = rect(face, overlayLayer);
-
-        if (!overlayLayer && rect.y + rect.height > skin.height()) {
-            HumanoidPart mirror = legacyMirrorSource();
-
-            if (mirror != this)
-                return cropRect(skin, mirror.rect(AxisSigns.MIRROR_X.apply(face), false), true);
-        }
-
-        return cropRect(skin, rect, false);
+        Strip strip = strip(face, overlayLayer, skin.height());
+        return cropRect(skin, strip.rect(), strip.mirrored());
     }
 
     /**
@@ -271,22 +263,56 @@ public enum HumanoidPart {
         boolean overlayLayer
     ) {
         return face -> {
-            Rectangle rect = rect(face, overlayLayer);
-            boolean mirrored = false;
-
-            if (!overlayLayer && rect.y + rect.height > sheetHeight) {
-                HumanoidPart mirror = legacyMirrorSource();
-
-                if (mirror != this) {
-                    rect = mirror.rect(AxisSigns.MIRROR_X.apply(face), false);
-                    mirrored = true;
-                }
-            }
-
+            Strip strip = strip(face, overlayLayer, sheetHeight);
+            Rectangle rect = strip.rect();
             Vector4f pixels = new Vector4f(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
-            return FaceTextures.Region.of(sheet, pixels, sheetWidth, sheetHeight, mirrored, face == Face.DOWN);
+            if (strip.mirrored()) pixels = pixels.reversedU();
+            if (face == Face.DOWN) pixels = pixels.reversedV();
+            return new FaceTextures.Region(sheet, pixels, sheetWidth, sheetHeight);
         };
     }
+
+    /**
+     * Returns this part's six rectangles of a player skin as a per-face supplier, at the layout the skin
+     * declares - {@link #textures} over a sheet {@link #SKIN_SIZE} wide and
+     * {@link #skinSheetHeight its layout's} height.
+     *
+     * @param skin the whole skin, with the sampler it is read through
+     * @param overlayLayer whether to read the overlay layer instead of the base layer
+     * @return a supplier answering this part's region of {@code skin} for each face
+     */
+    public @NotNull FaceTextures skinTextures(@NotNull SampledTexture skin, boolean overlayLayer) {
+        return this.textures(skin, SKIN_SIZE, skinSheetHeight(skin.pixels()), overlayLayer);
+    }
+
+    /**
+     * Returns the rectangle one face reads and whether it reads it mirrored. Where the sheet stops above
+     * a base-layer rectangle - the tell-tale of a legacy 64x32 layout - a left limb reads its right
+     * limb's opposite strip, right to left; every other face reads its own rectangle.
+     *
+     * @param face the cube face
+     * @param overlayLayer whether to read the overlay layer instead of the base layer
+     * @param sheetHeight the height the sheet stops at, in texels
+     * @return the face's strip
+     */
+    private @NotNull Strip strip(@NotNull Face face, boolean overlayLayer, int sheetHeight) {
+        Rectangle rect = rect(face, overlayLayer);
+
+        if (!overlayLayer && rect.y + rect.height > sheetHeight) {
+            HumanoidPart mirror = legacyMirrorSource();
+            if (mirror != this) return new Strip(mirror.rect(AxisSigns.MIRROR_X.apply(face), false), true);
+        }
+
+        return new Strip(rect, false);
+    }
+
+    /**
+     * The rectangle of a sheet one face reads, and whether it reads it right to left.
+     *
+     * @param rect the rectangle, in the sheet's texels
+     * @param mirrored whether the face reads it right to left, as a left limb reads its right limb's
+     */
+    private record Strip(@NotNull Rectangle rect, boolean mirrored) {}
 
     /**
      * The height of the skin sheet a player model declares for a skin, in texels.

@@ -132,12 +132,8 @@ public class EntityArmorKit {
             List<EquipmentKit.Layer> layers = ArmorKit.resolveArmorLayers(context, entry.getValue(),
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (layers.isEmpty()) continue;
-            EntityMesh mesh = slotMesh(shell, walk, slot);
-            for (EquipmentKit.Layer layer : layers) {
-                Optional<Box> layerBounds = EntityGeometryKit.opaqueScreenBounds(mesh, screenTransform, modelScale, layer.texture());
-                if (layerBounds.isEmpty()) continue;
-                union = union == null ? layerBounds.get() : union.union(layerBounds.get());
-            }
+            Optional<Box> drawn = EquipmentKit.screenBounds(layers, slotMesh(shell, walk, slot), screenTransform, modelScale);
+            if (drawn.isPresent()) union = union == null ? drawn.get() : union.union(drawn.get());
         }
         return Optional.ofNullable(union);
     }

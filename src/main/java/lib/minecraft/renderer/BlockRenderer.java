@@ -959,9 +959,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                                 new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
                                 new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
                                 t.uv0(), t.uv1(), t.uv2(),
-                                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
-                                    t.traits().directionalLight(),
-                                    t.traits().pass().reframed())
+                                t.texture(), t.tintArgb(), t.normal(), t.shading(), t.traits().reframed()
                             ))
                             .collect(Concurrent.toWideList());
                     }

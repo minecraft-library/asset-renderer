@@ -3,10 +3,14 @@ package lib.minecraft.renderer.bake.armor;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -97,6 +101,28 @@ public class EquipmentKit {
         }
 
         return layers;
+    }
+
+    /**
+     * Measures the alpha-tight screen-space bounds the layers draw over one mesh - each layer's
+     * {@link EntityGeometryKit#opaqueScreenBounds opaque bounds}, unioned. A layer clear everywhere on
+     * the mesh draws nothing, so it bounds nothing.
+     *
+     * @param layers the layers drawn over the mesh
+     * @param mesh the mesh the layers are drawn over
+     * @param screenTransform the model-to-screen transform the bounds are measured through
+     * @param modelScale the per-entity scale applied to every cube vertex before the screen transform
+     * @return the union of the layers' bounds, empty where no layer holds an opaque texel on the mesh
+     */
+    public static @NotNull Optional<Box> screenBounds(
+        @NotNull List<Layer> layers, @NotNull EntityMesh mesh, @NotNull Matrix4f screenTransform, float modelScale
+    ) {
+        Box union = null;
+        for (Layer layer : layers) {
+            Optional<Box> bounds = EntityGeometryKit.opaqueScreenBounds(mesh, screenTransform, modelScale, layer.texture());
+            if (bounds.isPresent()) union = union == null ? bounds.get() : union.union(bounds.get());
+        }
+        return Optional.ofNullable(union);
     }
 
     /**

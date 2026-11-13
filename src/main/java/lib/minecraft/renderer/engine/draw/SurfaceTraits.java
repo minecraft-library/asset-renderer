@@ -97,4 +97,18 @@ public record SurfaceTraits(boolean cullBackFaces, boolean translucent, boolean 
             : new SurfaceTraits(this.cullBackFaces, this.translucent, this.glinted, value, this.pass);
     }
 
+    /**
+     * Returns the traits a re-framed copy of a triangle carries - its cull and directional-light flags
+     * kept, neither translucent nor glinted, which block geometry never is, and its pass
+     * {@link PassDeclaration#reframed() re-framed}. Asked by the block-side copies that move or refit
+     * assembled geometry, which hold a block's own faces and a block entity's cutout bones in one list;
+     * the directional-light flag has to survive because the block-icon relight runs after them, and it
+     * is what tells the relight to leave a {@code "shade": false} face full-bright.
+     *
+     * @return the traits the copy carries
+     */
+    public @NotNull SurfaceTraits reframed() {
+        return new SurfaceTraits(this.cullBackFaces, false, false, this.directionalLight, this.pass.reframed());
+    }
+
 }

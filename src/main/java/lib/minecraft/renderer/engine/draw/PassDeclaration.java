@@ -142,9 +142,8 @@ public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float 
     /**
      * Returns the declaration a re-framed copy of a triangle drawn under this one carries - its
      * full-bright flag and its blend kept, its opacity, depth write, sort and wrap at the
-     * {@link #DEFAULT default's} - or this declaration itself when it already is that. Asked by the
-     * block-side copies that move or refit assembled geometry, which hold a block's own faces and a
-     * block entity's cutout bones in one list.
+     * {@link #DEFAULT default's} - or this declaration itself when it already is that. The pass half of
+     * {@link SurfaceTraits#reframed()}.
      *
      * @return the declaration the copy carries
      */

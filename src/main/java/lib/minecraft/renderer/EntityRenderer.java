@@ -343,13 +343,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // up onto its brow, a striding horse's armour - can reach past where it rests.
             for (int frame = 0; frame < timeline.frames(); frame++) {
                 Entity posedSubject = posed.at(timeline.tickAt(frame));
-                for (EquippedOverlay equipment : equipped)
-                    for (EquipmentKit.Layer layer : equipment.layers()) {
-                        // A layer clear everywhere on the mesh draws nothing, so it bounds nothing.
-                        Optional<Box> layerBounds = EntityGeometryKit.opaqueScreenBounds(
-                            equipment.meshIn(posedSubject), renderOrient, modelScale, layer.texture());
-                        if (layerBounds.isPresent()) screenBounds = screenBounds.union(layerBounds.get());
-                    }
+                for (EquippedOverlay equipment : equipped) {
+                    Optional<Box> drawn = EquipmentKit.screenBounds(
+                        equipment.layers(), equipment.meshIn(posedSubject), renderOrient, modelScale);
+                    if (drawn.isPresent()) screenBounds = screenBounds.union(drawn.get());
+                }
             }
             // Measured through the wings' own texture, like the equipment overlays. The walk keeps each
             // face's opaque-texel sub-rectangle, and each wing's outward face is opaque along all four

@@ -77,12 +77,13 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
   It fires where the declared sheet stops above the part's rectangle - the 64x32 equipment sheet, or a
   skin half as tall as it is wide (`HumanoidPart.skinSheetHeight`).
 - **A box face is a region of the whole sheet, never a crop of it.** `FaceTextures` answers each face as
-  a `Region` - the texture with its sampler, and the face's left, top, right and bottom coordinates -
-  and `buildBox` lays those coordinates on the face's corners, as the client's cube does. Each
-  rectangle is normalised by the sheet size its model declares (`FaceTextures.Region.of`): 64x64 for a
-  skin, 64x32 for a legacy one, the equipment sheet and the cape, and a shell's own `TextureSize`. So
-  the sheet's sampler reaches every face; a mirrored face, a `DOWN` face and the cape's cap strips
-  interpolate a descending pair, and read a boundary pixel on the side the client's polygon does; a
+  a `Region` - the texture with its sampler, the face's left, top, right and bottom coordinates in the
+  declared sheet's texels, and that declared size - and `buildBox` lays those coordinates on the face's
+  corners through `Vector4f.toUvCorners`, which divides each by the declared size as the client's cube
+  does: 64x64 for a skin, 64x32 for a legacy one, the equipment sheet and the cape, and a shell's own
+  `TextureSize`. A face read right to left or bottom up is a swapped pair (`Vector4f.reversedU`,
+  `reversedV`). So the sheet's sampler reaches every face; a mirrored face, a `DOWN` face and the cape's
+  cap strips interpolate a descending pair, and read a boundary pixel on the side the client's polygon does; a
   pixel past a face's edge reads the sheet's neighbouring texel; a fractional shell strip keeps its
   fraction; a strip off its sheet reads the sheet as its sampler addresses it; and a texture of another
   size than the one declared draws whole.

@@ -228,7 +228,7 @@ class HumanoidFrameTest {
         PixelBuffer held = first.texture().pixels().copy();
         FaceTextures.Region second = textures.byFace(Face.DOWN);
         assertThat("the second DOWN is the first's region", second, is(first));
-        assertThat("DOWN is read bottom up", first.uv().y() > first.uv().w(), is(true));
+        assertThat("DOWN is read bottom up", first.pixels().y() > first.pixels().w(), is(true));
         assertThat("the sheet is as it was after the second ask", second.texture().pixels(), is(held));
     }
 

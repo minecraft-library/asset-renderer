@@ -25,6 +25,7 @@ import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
@@ -201,12 +202,9 @@ public class PlayerAssembly {
         @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
-        int sheetHeight = HumanoidPart.skinSheetHeight(skin.pixels());
-        triangles.addAll(BoxKit.buildBox(box,
-            part.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, false), ColorMath.WHITE));
+        triangles.addAll(BoxKit.buildBox(box, part.skinTextures(skin, false), ColorMath.WHITE));
         if (options.getSkin().isRenderOverlay() && hasOverlay(skin.pixels()))
-            triangles.addAll(BoxKit.buildBox(box.expand(OVERLAY_INFLATE),
-                part.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, true), ColorMath.WHITE));
+            triangles.addAll(BoxKit.buildBox(box.expand(OVERLAY_INFLATE), part.skinTextures(skin, true), ColorMath.WHITE));
     }
 
     /**
@@ -246,9 +244,9 @@ public class PlayerAssembly {
     private static @NotNull FaceTextures capeTextures(@NotNull SampledTexture cape) {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(CapeMesh.CAPE_UV, CapeMesh.CAPE_SIZE, false);
         return face -> {
-            boolean turned = face.axis() == 1;
-            return FaceTextures.Region.of(cape, unwrap.read(CAPE_FRAME.apply(face)),
-                CapeMesh.SHEET_WIDTH, CapeMesh.SHEET_HEIGHT, turned, turned);
+            Vector4f strip = unwrap.read(CAPE_FRAME.apply(face));
+            return new FaceTextures.Region(cape, face.axis() == 1 ? strip.reversedU().reversedV() : strip,
+                CapeMesh.SHEET_WIDTH, CapeMesh.SHEET_HEIGHT);
         };
     }
 

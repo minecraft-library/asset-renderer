@@ -59,59 +59,34 @@ public interface FaceTextures {
     }
 
     /**
-     * A rectangle of one texture a face reads, in the texture's normalised coordinates.
+     * A rectangle of one texture a face reads, in the texels of the sheet its model declares.
      * <p>
      * The rectangle is held as the coordinate at the face's left edge, at its top edge, at its right
      * edge and at its bottom edge, in that order, so a face read right to left or bottom up carries a
-     * descending pair rather than a flag: a mirrored cube's face, the {@link Face#DOWN} strip a box built
-     * upright reverses, and the cape's turned cap strips. The raster interpolates whichever way the pair
-     * runs, as the client's polygon does.
+     * descending pair rather than a flag - {@link Vector4f#reversedU()} and {@link Vector4f#reversedV()}:
+     * a mirrored cube's face, the {@link Face#DOWN} strip a box built upright reverses, and the cape's
+     * turned cap strips. The raster interpolates whichever way the pair runs, as the client's polygon
+     * does.
+     * <p>
+     * The box builder divides each coordinate by the declared size on its own, through
+     * {@link Vector4f#toUvCorners}, as the client's cube divides each corner's texel coordinate, so a
+     * texture of another size than the one declared is read whole, stretched across the same rectangle.
      *
      * @param texture the whole texture, with the sampler it is read through
-     * @param uv the face's left, top, right and bottom coordinates, normalised to the texture's size
+     * @param pixels the face's left, top, right and bottom coordinates, in the declared sheet's texels
+     * @param sheetWidth the sheet width the model declares, in texels
+     * @param sheetHeight the sheet height the model declares, in texels
      */
-    record Region(@NotNull SampledTexture texture, @NotNull Vector4f uv) {
+    record Region(@NotNull SampledTexture texture, @NotNull Vector4f pixels, float sheetWidth, float sheetHeight) {
 
         /**
          * Answers the whole of a texture, left to right and top down.
          *
          * @param texture the texture
-         * @return the region spanning {@code [0, 1]} on both axes
+         * @return the region spanning the whole of a unit sheet
          */
         public static @NotNull Region whole(@NotNull SampledTexture texture) {
-            return new Region(texture, new Vector4f(0f, 0f, 1f, 1f));
-        }
-
-        /**
-         * Answers a pixel rectangle of a sheet, normalised by the sheet size its model declares.
-         * <p>
-         * Each coordinate is divided by the declared size on its own, as the client's cube divides each
-         * corner's texel coordinate, so a texture of another size than the one declared is read whole,
-         * stretched across the same rectangle.
-         *
-         * @param texture the whole sheet, with the sampler it is read through
-         * @param pixels the rectangle as {@code (left, top, right, bottom)} in the declared sheet's texels
-         * @param sheetWidth the sheet width the model declares, in texels
-         * @param sheetHeight the sheet height the model declares, in texels
-         * @param reverseU whether the face reads the rectangle right to left
-         * @param reverseV whether the face reads the rectangle bottom up
-         * @return the face's region
-         */
-        public static @NotNull Region of(
-            @NotNull SampledTexture texture,
-            @NotNull Vector4f pixels,
-            float sheetWidth,
-            float sheetHeight,
-            boolean reverseU,
-            boolean reverseV
-        ) {
-            float u0 = pixels.x() / sheetWidth;
-            float v0 = pixels.y() / sheetHeight;
-            float u1 = pixels.z() / sheetWidth;
-            float v1 = pixels.w() / sheetHeight;
-            return new Region(texture, new Vector4f(
-                reverseU ? u1 : u0, reverseV ? v1 : v0,
-                reverseU ? u0 : u1, reverseV ? v0 : v1));
+            return new Region(texture, new Vector4f(0f, 0f, 1f, 1f), 1f, 1f);
         }
 
     }

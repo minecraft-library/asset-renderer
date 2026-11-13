@@ -9,6 +9,7 @@ import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
@@ -142,8 +143,11 @@ public sealed interface WornBox {
          */
         @Override
         public @NotNull FaceTextures textures(@NotNull SampledTexture sheet) {
-            return face -> FaceTextures.Region.of(sheet, this.unwrap.read(MODEL_FRAME.apply(face)),
-                this.sheetSize.width(), this.sheetSize.height(), false, face == Face.DOWN);
+            return face -> {
+                Vector4f strip = this.unwrap.read(MODEL_FRAME.apply(face));
+                return new FaceTextures.Region(sheet, face == Face.DOWN ? strip.reversedV() : strip,
+                    this.sheetSize.width(), this.sheetSize.height());
+            };
         }
     }
 

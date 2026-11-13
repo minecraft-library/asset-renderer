@@ -344,7 +344,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             SampledTexture skin = resolveSkin(this.parent, options);
-            int sheetHeight = HumanoidPart.skinSheetHeight(skin.pixels());
             View view = playerView(options);
             Rasterizer engine = playerEngine(this.parent, view);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
@@ -359,11 +358,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             Box head = PlayerOptions.Type.SKULL.lattice().boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
                 sink.addAll(BoxKit.buildBox(head,
-                    HumanoidPart.HEAD.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, false), ColorMath.WHITE));
+                    HumanoidPart.HEAD.skinTextures(skin, false), ColorMath.WHITE));
                 if (options.getSkin().isRenderOverlay())
                     sink.addAll(BoxKit.buildBox(
                         head.expand(SKULL_OVERLAY_INFLATE),
-                        HumanoidPart.HEAD.textures(skin, HumanoidPart.SKIN_SIZE, sheetHeight, true), ColorMath.WHITE));
+                        HumanoidPart.HEAD.skinTextures(skin, true), ColorMath.WHITE));
             });
             RendererContext textures = textures(this.parent);
             PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, textures);

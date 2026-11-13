@@ -190,7 +190,7 @@ class BlockGeometryKitQuadFanTest {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Face.forEach(face -> {
             FaceTextures.Region region = textures.byFace(face);
-            Vector2f[] uv = region.uv().toUvCorners(1f, 1f, 0, false);
+            Vector2f[] uv = region.pixels().toUvCorners(region.sheetWidth(), region.sheetHeight(), 0, false);
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
             SampledTexture texture = region.texture();

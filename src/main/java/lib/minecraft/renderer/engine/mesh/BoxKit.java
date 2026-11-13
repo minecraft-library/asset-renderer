@@ -118,10 +118,11 @@ public class BoxKit {
 
         Face.forEach(face -> {
             FaceTextures.Region region = textures.byFace(face);
-            // The region's left, top, right and bottom coordinates as the face's TL, BL, BR and TR
-            // corners - the order BAKERY walks a face's corners in. A descending pair is a face read
-            // right to left or bottom up, and stays one: the normaliser is 1 and no mirror is asked.
-            Vector2f[] uv = region.uv().toUvCorners(1f, 1f, 0, false);
+            // The region's left, top, right and bottom coordinates, each divided by the declared sheet
+            // size, as the face's TL, BL, BR and TR corners - the order BAKERY walks a face's corners
+            // in. A descending pair is a face read right to left or bottom up, and stays one: no mirror
+            // is asked.
+            Vector2f[] uv = region.pixels().toUvCorners(region.sheetWidth(), region.sheetHeight(), 0, false);
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
             addQuad(

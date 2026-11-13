@@ -881,7 +881,9 @@ class MissingTextureFamilyTest {
             FaceTextures faces = row.textures(SampledTexture.of(MissingSprite.sprite()));
             for (Face face : Face.values()) {
                 FaceTextures.Region region = faces.byFace(face);
-                Vector4f uv = region.uv();
+                Vector4f px = region.pixels();
+                Vector4f uv = new Vector4f(px.x() / region.sheetWidth(), px.y() / region.sheetHeight(),
+                    px.z() / region.sheetWidth(), px.w() / region.sheetHeight());
                 // Every point of the face's region, sampled on a grid finer than any strip's texels.
                 for (int j = 0; j <= COVER_STEPS; j++)
                     for (int i = 0; i <= COVER_STEPS; i++) {

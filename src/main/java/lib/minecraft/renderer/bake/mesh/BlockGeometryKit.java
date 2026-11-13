@@ -635,12 +635,8 @@ public class BlockGeometryKit {
 
     /**
      * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-     * and surface normals. Preserves each triangle's {@code cullBackFaces} and
-     * {@code directionalLight} traits and its pass's full-bright flag and blend
-     * ({@link PassDeclaration#reframed}) while resetting {@code translucent} / {@code glinted} to
-     * {@code false} - block geometry carries neither. The directional-light
-     * flag has to survive because the block-icon relight runs after this, and it is what tells
-     * the relight to leave a {@code "shade": false} face full-bright.
+     * and surface normals, each copy carrying its triangle's {@link SurfaceTraits#reframed() re-framed}
+     * traits.
      *
      * @param triangles the triangles to rotate
      * @param rotation the rotation applied to every vertex position and normal
@@ -655,9 +651,7 @@ public class BlockGeometryKit {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 tri.normal().transformNormal(rotation),
-                tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
-                    tri.traits().directionalLight(),
-                    tri.traits().pass().reframed())
+                tri.shading(), tri.traits().reframed()
             ))
             .collect(Concurrent.toWideList());
     }
