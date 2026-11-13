@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.call.request;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
@@ -459,6 +460,10 @@ public record ItemModelContext(
      * root of a refused definition or a node whose type sits in a mod's namespace, is vanilla's missing
      * item model, {@link ItemModelNode.Resolution#MISSING}.
      *
+     * <p>Each dispatch node the walk passes through hands its {@code transformation} down, as vanilla's
+     * bake hands each child the matrix its parent composed, so a special leaf resolves carrying every one
+     * above it in its {@linkplain ItemModelNode.Resolution#placement() placement}.
+     *
      * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
      * derived model id and tint list - bar the properties that have one honest answer for an icon
      * whatever the caller ({@code display_context}, {@code context_dimension}), which select their
@@ -468,17 +473,42 @@ public record ItemModelContext(
      * @return the resolved branch, {@linkplain ItemModelNode.Resolution#isEmpty() empty} when the branch renders nothing
      */
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
+        return this.resolve(node, Concurrent.newUnmodifiableList());
+    }
+
+    /**
+     * Resolves a dispatch node under the transformations of the dispatch nodes the walk already passed
+     * through, outermost first.
+     */
+    private @NotNull ItemModelNode.Resolution resolve(
+        @NotNull ItemModelNode node, @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement
+    ) {
         return switch (node) {
             case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false, false);
-            case ItemModelNode.Condition condition -> resolve(this.branch(condition));
-            case ItemModelNode.Select select -> resolve(this.branch(select));
-            case ItemModelNode.RangeDispatch range -> resolve(this.branch(range));
-            case ItemModelNode.Composite composite -> resolveComposite(composite);
-            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false, false);
+            case ItemModelNode.Condition condition -> this.resolve(this.branch(condition), placed(placement, condition.transform()));
+            case ItemModelNode.Select select -> this.resolve(this.branch(select), placed(placement, select.transform()));
+            case ItemModelNode.RangeDispatch range -> this.resolve(this.branch(range), placed(placement, range.transform()));
+            case ItemModelNode.Composite composite -> this.resolveComposite(composite, placed(placement, composite.transform()));
+            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(),
+                Optional.of(special), placement, false, false, Concurrent.newUnmodifiableList());
             case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.MISSING;
         };
+    }
+
+    /**
+     * The placement a dispatch node hands its children: the one it was handed, with its own transformation innermost where it declares one.
+     */
+    private static @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placed(
+        @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement, @NotNull ItemModelNode.SpecialTransform transform
+    ) {
+        if (transform.isIdentity()) return placement;
+
+        ConcurrentList<ItemModelNode.SpecialTransform> nested = Concurrent.newList();
+        nested.addAll(placement);
+        nested.add(transform);
+        return nested.toUnmodifiable();
     }
 
     /**
@@ -564,12 +594,14 @@ public record ItemModelContext(
     }
 
     /**
-     * The branch a {@code composite} walk takes: every child walked, and the layers each draws joined in order into one resolution.
+     * The branch a {@code composite} walk takes: every child walked under the placement the composite hands down, and the layers each draws joined in order into one resolution.
      */
-    private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
+    private @NotNull ItemModelNode.Resolution resolveComposite(
+        @NotNull ItemModelNode.Composite composite, @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement
+    ) {
         return ItemModelNode.Resolution.composite(composite.models()
             .stream()
-            .map(child -> this.resolve(child))
+            .map(child -> this.resolve(child, placement))
             .toList());
     }
 
@@ -578,42 +610,41 @@ public record ItemModelContext(
      */
     private float customModelDataFloat(int index) {
         if (this.customModelData.isPresent()) return this.customModelData.get();
-        if (index < 0) return 0f;
-        Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
-            .filter(CompoundTag.class::isInstance)
-            .map(CompoundTag.class::cast);
-        if (customModelData.isEmpty()) return 0f;
-        ListTag<?> floats = customModelData.get().getListTag("floats");
-        if (floats == null || index >= floats.size()) return 0f;
-        return floats.get(index) instanceof FloatTag value ? value.floatValue() : 0f;
+        return this.customModelDataEntry("floats", index)
+            .map(entry -> entry instanceof FloatTag value ? value.floatValue() : 0f)
+            .orElse(0f);
     }
 
     /**
      * The {@code custom_model_data} flag at an index, as the client's condition reads it: true where the component's {@code flags[index]} is a number whose low byte is not zero, the way a boolean decodes from NBT, and false where it is zero, where the list ends before the index, where the stack carries no such component and at a negative index.
      */
     private boolean customModelDataFlag(int index) {
-        if (index < 0) return false;
-        Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
-            .filter(CompoundTag.class::isInstance)
-            .map(CompoundTag.class::cast);
-        if (customModelData.isEmpty()) return false;
-        ListTag<?> flags = customModelData.get().getListTag("flags");
-        if (flags == null || index >= flags.size()) return false;
-        return flags.get(index) instanceof NumericalTag<?> flag && flag.byteValue() != 0;
+        return this.customModelDataEntry("flags", index)
+            .map(entry -> entry instanceof NumericalTag<?> flag && flag.byteValue() != 0)
+            .orElse(false);
     }
 
     /**
      * The {@code custom_model_data} string at an index, as the client's select reads it: the component's {@code strings[index]}, empty where the list ends before the index, where the stack carries no such component and at a negative index, so the select takes its fallback, and absent where the entry is not a string, the component's codec reading strings alone.
      */
     private @NotNull Possible<String> customModelDataString(int index) {
-        if (index < 0) return Possible.empty();
+        return this.customModelDataEntry("strings", index)
+            .map(entry -> entry instanceof StringTag string ? Possible.of(string.getValue()) : Possible.<String>absent())
+            .orElseGet(Possible::empty);
+    }
+
+    /**
+     * The entry at an index of one of the stack's {@code custom_model_data} lists, or empty where the stack carries no such component, the list is missing or ends before the index, or the index is negative.
+     */
+    private @NotNull Optional<Tag<?>> customModelDataEntry(@NotNull String list, int index) {
+        if (index < 0) return Optional.empty();
         Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
             .filter(CompoundTag.class::isInstance)
             .map(CompoundTag.class::cast);
-        if (customModelData.isEmpty()) return Possible.empty();
-        ListTag<?> strings = customModelData.get().getListTag("strings");
-        if (strings == null || index >= strings.size()) return Possible.empty();
-        return strings.get(index) instanceof StringTag string ? Possible.of(string.getValue()) : Possible.absent();
+        if (customModelData.isEmpty()) return Optional.empty();
+        ListTag<?> entries = customModelData.get().getListTag(list);
+        if (entries == null || index >= entries.size()) return Optional.empty();
+        return Optional.<Tag<?>>of(entries.get(index));
     }
 
     /**

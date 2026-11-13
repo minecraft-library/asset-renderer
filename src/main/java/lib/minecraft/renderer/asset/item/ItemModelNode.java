@@ -42,7 +42,7 @@ import java.util.stream.Stream;
  * {@link Absent#INSTANCE} - so resolution never dereferences a missing case.
  *
  * <p>Two operands are types of their own: the {@link ComponentPredicate} a {@code minecraft:component}
- * condition tests, and the {@link SpecialTransform} a special leaf carries.
+ * condition tests, and the {@link SpecialTransform} a special leaf and each dispatch node carry.
  */
 public sealed interface ItemModelNode
     permits ItemModelNode.Model, ItemModelNode.Condition, ItemModelNode.Select,
@@ -73,17 +73,20 @@ public sealed interface ItemModelNode
      * @param predicate the decoded test of a {@code minecraft:component} condition, empty for every other property
      * @param onTrue the branch when the property is true
      * @param onFalse the branch when the property is false or unevaluable
+     * @param transform the node's transformation, which vanilla's bake composes onto every special leaf
+     *     beneath it, {@link SpecialTransform#IDENTITY} when absent
      */
     record Condition(
         @NotNull String property, @NotNull String component, boolean ignoreDefault, int index,
         @NotNull Optional<ComponentPredicate> predicate,
-        @NotNull ItemModelNode onTrue, @NotNull ItemModelNode onFalse
+        @NotNull ItemModelNode onTrue, @NotNull ItemModelNode onFalse, @NotNull SpecialTransform transform
     ) implements ItemModelNode {
 
         /**
          * Constructs a condition that carries no component test, reads a {@code has_component}
-         * target with the item's defaults counted and reads flag {@code 0} - the shape every property
-         * but {@code component} takes where the definition writes no {@code index}.
+         * target with the item's defaults counted, reads flag {@code 0} and declares no transformation -
+         * the shape every property but {@code component} takes where the definition writes no
+         * {@code index}.
          *
          * @param property the dispatch property id, as the definition writes it
          * @param component the component a {@code has_component} condition tests, or empty string when absent
@@ -94,7 +97,7 @@ public sealed interface ItemModelNode
             @NotNull String property, @NotNull String component,
             @NotNull ItemModelNode onTrue, @NotNull ItemModelNode onFalse
         ) {
-            this(property, component, false, 0, Optional.empty(), onTrue, onFalse);
+            this(property, component, false, 0, Optional.empty(), onTrue, onFalse, SpecialTransform.IDENTITY);
         }
 
     }
@@ -115,10 +118,13 @@ public sealed interface ItemModelNode
      * @param decoded the component a {@code minecraft:component} select keys on, decoded, or empty for every other property and for a component this renderer does not decode
      * @param cases the ordered cases, no value repeated across or within them
      * @param fallback the branch when no case matches or the property is unevaluable, {@link Absent#INSTANCE} when the definition declares none
+     * @param transform the node's transformation, which vanilla's bake composes onto every special leaf
+     *     beneath it - the copper golem statue's carries one - {@link SpecialTransform#IDENTITY} when absent
      */
     record Select(
         @NotNull String property, @NotNull String blockStateProperty, int index, @NotNull String component,
-        @NotNull Optional<DecodedComponent> decoded, @NotNull ConcurrentList<Case> cases, @NotNull ItemModelNode fallback
+        @NotNull Optional<DecodedComponent> decoded, @NotNull ConcurrentList<Case> cases, @NotNull ItemModelNode fallback,
+        @NotNull SpecialTransform transform
     ) implements ItemModelNode {
 
         /**
@@ -149,10 +155,12 @@ public sealed interface ItemModelNode
      * @param index the {@code custom_model_data} float-list index this dispatch reads ({@code 0} for other properties)
      * @param entries the threshold entries (any order; the walker picks the highest satisfied)
      * @param fallback the branch when no threshold is satisfied, {@link Absent#INSTANCE} when the definition declares none
+     * @param transform the node's transformation, which vanilla's bake composes onto every special leaf
+     *     beneath it, {@link SpecialTransform#IDENTITY} when absent
      */
     record RangeDispatch(
         @NotNull String property, float scale, @NotNull String target, int index,
-        @NotNull ConcurrentList<Entry> entries, @NotNull ItemModelNode fallback
+        @NotNull ConcurrentList<Entry> entries, @NotNull ItemModelNode fallback, @NotNull SpecialTransform transform
     ) implements ItemModelNode {
 
         /**
@@ -189,8 +197,10 @@ public sealed interface ItemModelNode
      * of one {@link Resolution}, through {@link Resolution#composite(List)}.
      *
      * @param models the child nodes, in paint order
+     * @param transform the node's transformation, which vanilla's bake composes onto every special leaf
+     *     beneath it, {@link SpecialTransform#IDENTITY} when absent
      */
-    record Composite(@NotNull ConcurrentList<ItemModelNode> models) implements ItemModelNode {}
+    record Composite(@NotNull ConcurrentList<ItemModelNode> models, @NotNull SpecialTransform transform) implements ItemModelNode {}
 
     /**
      * A {@code minecraft:special} leaf - a hardcoded render kind ({@code bed}, {@code shield},
@@ -209,57 +219,11 @@ public sealed interface ItemModelNode
      * @param base the base item model id (e.g. {@code minecraft:item/white_bed})
      * @param fields the kind's inline string fields (e.g. {@code part}/{@code texture} for bed)
      * @param transform the special-node transformation, {@link SpecialTransform#IDENTITY} when absent
-     * @param ancestors the transformations of the dispatch nodes above this leaf that declare one,
-     *     outermost first - the copper golem statue's {@code select} carries one - which vanilla's bake
-     *     composes onto this leaf's own
      */
     record Special(
         @NotNull String kind, @NotNull String base,
-        @NotNull ConcurrentMap<String, String> fields, @NotNull SpecialTransform transform,
-        @NotNull ConcurrentList<SpecialTransform> ancestors
+        @NotNull ConcurrentMap<String, String> fields, @NotNull SpecialTransform transform
     ) implements ItemModelNode {
-
-        /**
-         * Constructs a special leaf no dispatch node above carries a transformation for.
-         *
-         * @param kind the special kind (the inner {@code model.type}, e.g. {@code minecraft:bed})
-         * @param base the base item model id (e.g. {@code minecraft:item/white_bed})
-         * @param fields the kind's inline string fields (e.g. {@code part}/{@code texture} for bed)
-         * @param transform the special-node transformation, {@link SpecialTransform#IDENTITY} when absent
-         */
-        public Special(
-            @NotNull String kind, @NotNull String base,
-            @NotNull ConcurrentMap<String, String> fields, @NotNull SpecialTransform transform
-        ) {
-            this(kind, base, fields, transform, Concurrent.newUnmodifiableList());
-        }
-
-        /**
-         * Composes the pose vanilla's bake gives this leaf: every ancestor's transformation, outermost
-         * first, then this leaf's own, each as {@link SpecialTransform#toMatrix()} composes it, so the
-         * leaf's own reaches a vertex first.
-         *
-         * @return the composed model-space pose, in block units
-         */
-        public @NotNull Matrix4f pose() {
-            Matrix4f pose = Matrix4f.IDENTITY;
-            for (SpecialTransform ancestor : this.ancestors)
-                pose = pose.multiply(ancestor.toMatrix());
-
-            return pose.multiply(this.transform.toMatrix());
-        }
-
-        /**
-         * Answers this leaf under one more dispatch node, outside every ancestor it already has.
-         *
-         * @param outer the transformation of the dispatch node above
-         * @return this leaf with {@code outer} as its outermost ancestor
-         */
-        public @NotNull Special under(@NotNull SpecialTransform outer) {
-            ConcurrentList<SpecialTransform> ancestors = Concurrent.newList(outer);
-            ancestors.addAll(this.ancestors);
-            return new Special(this.kind, this.base, this.fields, this.transform, Concurrent.newUnmodifiableList(ancestors));
-        }
 
         /**
          * Whether this leaf's kind maps onto an existing render path.
@@ -344,6 +308,7 @@ public sealed interface ItemModelNode
      * @param modelId the resolved plain-model id, or empty for a special, missing or nothing branch
      * @param tints the per-layer tints from the resolved model branch, empty when untinted
      * @param special the resolved special leaf, or empty for a plain-model, missing or nothing branch
+     * @param placement the transformations of the dispatch nodes the walk passed through on its way to the special leaf, outermost first, each declaring one; empty for every other branch
      * @param composed whether the walk reached this branch through a {@code composite}, whose other children draw beside it
      * @param missing whether the branch is vanilla's missing item model - a {@code select} or {@code range_dispatch} that declares no fallback, or a definition the loader refused
      * @param later the layers a {@code composite} draws over this one, in paint order, each one leaf reached through the composite and holding no later layers of its own; empty where no composite reached the branch or none of its other children draws
@@ -352,6 +317,7 @@ public sealed interface ItemModelNode
         @NotNull Optional<String> modelId,
         @NotNull ConcurrentList<LayerTint> tints,
         @NotNull Optional<Special> special,
+        @NotNull ConcurrentList<SpecialTransform> placement,
         boolean composed,
         boolean missing,
         @NotNull ConcurrentList<Resolution> later
@@ -370,7 +336,7 @@ public sealed interface ItemModelNode
             new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, true);
 
         /**
-         * Constructs a resolution that draws one leaf and no later layers.
+         * Constructs a resolution that draws one leaf, placed by no dispatch node, and no later layers.
          *
          * @param modelId the resolved plain-model id, or empty for a special, missing or nothing branch
          * @param tints the per-layer tints from the resolved model branch, empty when untinted
@@ -382,7 +348,23 @@ public sealed interface ItemModelNode
             @NotNull Optional<String> modelId, @NotNull ConcurrentList<LayerTint> tints,
             @NotNull Optional<Special> special, boolean composed, boolean missing
         ) {
-            this(modelId, tints, special, composed, missing, Concurrent.newUnmodifiableList());
+            this(modelId, tints, special, Concurrent.newUnmodifiableList(), composed, missing, Concurrent.newUnmodifiableList());
+        }
+
+        /**
+         * Composes the pose vanilla's bake gives this branch's special leaf: every
+         * {@link #placement} transformation, outermost first, then the leaf's own, each as
+         * {@link SpecialTransform#toMatrix()} composes it, so the leaf's own reaches a vertex first.
+         *
+         * @return the composed model-space pose, in block units - the identity for a branch drawing no special
+         */
+        public @NotNull Matrix4f pose() {
+            Matrix4f pose = Matrix4f.IDENTITY;
+            for (SpecialTransform outer : this.placement)
+                pose = pose.multiply(outer.toMatrix());
+
+            if (this.special.isPresent()) pose = pose.multiply(this.special.get().transform().toMatrix());
+            return pose;
         }
 
         /**
@@ -403,7 +385,7 @@ public sealed interface ItemModelNode
             if (layers.isEmpty()) return NOTHING.throughComposite();
 
             Resolution first = layers.getFirst();
-            return new Resolution(first.modelId, first.tints, first.special, true, first.missing,
+            return new Resolution(first.modelId, first.tints, first.special, first.placement, true, first.missing,
                 Concurrent.newUnmodifiableList(layers.subList(1, layers.size())));
         }
 
@@ -428,7 +410,8 @@ public sealed interface ItemModelNode
             if (this.later.isEmpty()) return Concurrent.newUnmodifiableList(this);
 
             return Stream.concat(
-                    Stream.of(new Resolution(this.modelId, this.tints, this.special, this.composed, this.missing)),
+                    Stream.of(new Resolution(this.modelId, this.tints, this.special, this.placement, this.composed, this.missing,
+                        Concurrent.newUnmodifiableList())),
                     this.later.stream())
                 .collect(Concurrent.toUnmodifiableList());
         }
@@ -440,7 +423,7 @@ public sealed interface ItemModelNode
          * @return this resolution with {@link #composed} set
          */
         private @NotNull Resolution throughComposite() {
-            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true, this.missing, this.later);
+            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, this.placement, true, this.missing, this.later);
         }
 
         /**
@@ -473,9 +456,10 @@ public sealed interface ItemModelNode
      * decomposition ({@code items/player_head.json} et al.), a {@code T . Rleft . S . Rright} pose
      * carried in model space, in block units. Identity when the node declares no transformation.
      *
-     * <p>A special leaf holds its own and those of the dispatch nodes above it, which
-     * {@link Special#pose()} composes as vanilla's bake does; a block icon the client draws through
-     * specials alone is posed by that composition, and by no presentation of the block entity's own.
+     * <p>A special leaf and each dispatch node hold their own. The walk collects the dispatch nodes'
+     * on its way to a special leaf, and {@link Resolution#pose()} composes them over the leaf's as
+     * vanilla's bake does; a block icon the client draws through specials alone is posed by that
+     * composition, and by no presentation of the block entity's own.
      *
      * <p>The quaternions arrive as raw {@code [x, y, z, w]} components, so none of the Tait-Bryan
      * factory ordering in docs/renderer/Geometry.md 'JOML factories' applies to them.

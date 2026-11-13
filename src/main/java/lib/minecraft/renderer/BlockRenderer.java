@@ -11,7 +11,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
-import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -22,12 +21,12 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
-import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.BlockSlot;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.SpecialPose;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.VariantMatcher;
@@ -56,7 +55,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -404,54 +402,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * The special layers a block's item draws in a slot, where it draws specials alone: each
-         * layer's {@code transformation}, in paint order, the light the slot draws them in, and the
-         * block entity whose mesh they draw.
-         *
-         * @param poses each special layer's pose - every dispatch node's {@code transformation} above it, then its
-         *     own, in block units - in paint order
-         * @param light the {@code gui_light} of the one base the layers share, the nearest file up its
-         *     chain to declare one, {@link GuiLight#SIDE} where they share none or no pack ships it
-         * @param entity the block entity of the block the item places - a wall form's standing form's,
-         *     its item being that one - whose mesh the specials draw
-         */
-        private record SlotSpecials(
-            @NotNull ConcurrentList<Matrix4f> poses, @NotNull GuiLight light, @NotNull Block.BlockEntity entity
-        ) {
-
-            /**
-             * Reads the special layers the block's item draws at the neutral slot context - the walk
-             * the block's icon pose is baked from - where every layer it draws is a special.
-             *
-             * @param context the render context supplying the item tree and the base model
-             * @param block the block, whose {@link Block#itemBlockId()} names the item
-             * @return the layers, empty where the item has no tree, a refused one, draws anything but
-             *     specials, or places a block with no block entity
-             */
-            static @NotNull Optional<SlotSpecials> of(@NotNull RendererContext context, @NotNull Block block) {
-                Possible<ItemModelTree> tree = context.findItemTree(block.itemBlockId().id());
-                if (!tree.isPresent() || tree.get().isRejected()) return Optional.empty();
-
-                Optional<Block.BlockEntity> entity = context.findBlock(block.itemBlockId().id()).toOptional()
-                    .flatMap(Block::entity)
-                    .or(block::entity);
-                if (entity.isEmpty()) return Optional.empty();
-
-                ConcurrentList<ItemModelNode.Resolution> layers = ItemModelContext.gui().resolve(tree.get()).layers();
-                if (layers.isEmpty() || layers.stream().anyMatch(layer -> layer.special().isEmpty())) return Optional.empty();
-
-                List<String> bases = layers.stream().map(layer -> layer.special().orElseThrow().base()).distinct().toList();
-                GuiLight light = bases.size() == 1
-                    ? context.findModel(bases.getFirst()).toOptional().map(ModelData::getGuiLight).orElse(GuiLight.SIDE)
-                    : GuiLight.SIDE;
-                return Optional.of(new SlotSpecials(
-                    layers.stream().map(layer -> layer.special().orElseThrow().pose()).collect(Concurrent.toUnmodifiableList()),
-                    light, entity.get()));
-            }
-
-        }
-
-        /**
          * One isometric render's fixed inputs, bound once, and the per-tick geometry build that reads
          * them.
          * <p>
@@ -560,10 +510,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * <p>
              * Vanilla's special renderers submit their raw model with no placement of their own, so the
              * slot poses each layer by its special's {@code transformation} and then by its base's
-             * {@code display.gui}, and this render draws the block entity's mesh that way, through no
-             * presentation of its own.
+             * {@code display.gui}, and this render draws the {@link #itemEntity}'s mesh that way, through
+             * no presentation of its own.
              */
-            private final @NotNull Optional<SlotSpecials> slotSpecials;
+            private final @NotNull Optional<SpecialPose> slotSpecials;
+
+            /**
+             * The block entity of the block the item places, whose mesh {@link #slotSpecials} draw - a wall
+             * form's standing form's, its item being that one - and this block's own where the item places
+             * a block carrying none.
+             */
+            private final @NotNull Optional<Block.BlockEntity> itemEntity;
 
             /**
              * Binds one render's fixed inputs, resolving the pose, the tint and the blockstate from the
@@ -593,12 +550,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Optional<SpecialPose> special = pose.filter(picked -> options.getOutput().isNeutralInventoryIcon());
                 this.view = resolveIconView(block, options.getOutput(), special);
                 this.lighting = this.view.lighting();
-                Optional<SlotSpecials> drawn = block.entity().isPresent() && options.getVariant().isEmpty()
-                    ? SlotSpecials.of(context, block)
+                this.itemEntity = context.findBlock(block.itemBlockId().id()).toOptional()
+                    .flatMap(Block::entity)
+                    .or(block::entity);
+                this.slotSpecials = this.entity.isPresent() && options.getVariant().isEmpty()
+                    ? ItemModelDispatch.iconSpecials(context, block.itemBlockId().id())
                     : Optional.empty();
-                this.slotSpecials = drawn;
-                this.light = special.map(SpecialPose::light)
-                    .or(() -> drawn.map(SlotSpecials::light))
+                this.light = special.or(() -> this.slotSpecials)
+                    .map(SpecialPose::light)
                     .orElse(GuiLight.SIDE);
                 this.tint = resolveRenderTint(context, block, this.entity, options);
                 this.state = options.getVariant().isEmpty()
@@ -674,8 +633,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // transformations, which already place every piece, so it takes no part offsets, no
                 // icon rotation and no fit.
                 if (this.slotSpecials.isPresent()) {
-                    SlotSpecials drawn = this.slotSpecials.get();
-                    stack.append(BlockSlot.PRIMARY, sink -> sink.addAll(specialsAt(drawn.entity(), drawn.poses(), tick)));
+                    ConcurrentList<ItemModelNode.Resolution> layers = this.slotSpecials.get().layers();
+                    stack.append(BlockSlot.PRIMARY, sink -> sink.addAll(specialsAt(this.itemEntity.orElseThrow(), layers, tick)));
                     Layers.foldInto(stack, this.options.getLayerDecorator(), triangles);
                     return switch (this.light) {
                         case FRONT -> Shading.relightForItemsFlat(triangles, this.lighting, false);
@@ -919,12 +878,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * single special drawing the whole mesh as the banner's draws its pole and its flag.
              *
              * @param entity the block entity whose mesh is built
-             * @param poses the special layers' poses, in block units, in paint order
+             * @param layers the special layers, each posed in block units by its
+             *     {@link ItemModelNode.Resolution#pose() pose}, in paint order
              * @param tick the animation tick the textures are sampled at
              * @return the composed block-frame triangle list
              */
             private @NotNull ConcurrentList<VisibleTriangle> specialsAt(
-                @NotNull Block.BlockEntity entity, @NotNull ConcurrentList<Matrix4f> poses, int tick
+                @NotNull Block.BlockEntity entity, @NotNull ConcurrentList<ItemModelNode.Resolution> layers, int tick
             ) {
                 ConcurrentList<Block.BlockEntity.BoneModel> pieces = Concurrent.newList(entity.boneModel());
                 ConcurrentList<String> textures = Concurrent.newList(entity.textureId());
@@ -933,11 +893,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     textures.add(part.texture());
                 }
 
-                boolean onePerPiece = poses.size() == pieces.size();
+                boolean onePerPiece = layers.size() == pieces.size();
                 ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
-                for (int layer = 0; layer < poses.size(); layer++) {
+                for (int layer = 0; layer < layers.size(); layer++) {
                     Matrix4f pose = Matrix4f.createScale(ModelUnits.PIXELS_PER_BLOCK, ModelUnits.PIXELS_PER_BLOCK, ModelUnits.PIXELS_PER_BLOCK)
-                        .multiply(poses.get(layer))
+                        .multiply(layers.get(layer).pose())
                         .multiply(Matrix4f.createScale(1f / ModelUnits.PIXELS_PER_BLOCK, 1f / ModelUnits.PIXELS_PER_BLOCK, 1f / ModelUnits.PIXELS_PER_BLOCK));
                     for (int piece = 0; piece < pieces.size(); piece++) {
                         if (onePerPiece && piece != layer) continue;

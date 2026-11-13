@@ -29,9 +29,11 @@ multipart assembly.
   statue's `select` carries one), and then by its base's `display.gui`, the nearest file up its chain
   to declare one, read from every model, and the identity where none does. `iconGuiFor` bakes that
   base's pose under any root - a `select`, a `condition`, a `range_dispatch` or a `composite` - wherever
-  every layer the neutral walk lands on is a special on one base; `BlockRenderer` draws the block
-  entity's bones at their bind pose through each layer's `ItemModelNode.Special#pose`, lit by the base's
-  `gui_light`, with no presentation, icon turn or fit of its own. Where the item draws as many specials
+  every layer the neutral walk lands on is a special on one base; `BlockRenderer` reads the layers with
+  `ItemModelDispatch.iconSpecials`, the reader `specialPose` shares, and draws the block entity's bones
+  at their bind pose through each layer's `ItemModelNode.Resolution#pose` - the walk collecting every
+  dispatch node's transformation on its way to the leaf - lit by the base's `gui_light`, with no
+  presentation, icon turn or fit of its own. Where the item draws as many specials
   as the entity has pieces - the bed's head and foot - each layer draws its own piece; otherwise every
   layer draws the whole mesh. A wall form's item is its standing form's, so it draws that icon.
 - A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them

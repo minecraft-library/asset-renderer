@@ -285,7 +285,7 @@ class ItemModelContextTest {
             assertThat(removed.hasComponent("minecraft:dyed_color"), is(false));
             assertThat(removed.hasComponent("dyed_color", true), is(true));
             assertThat(removed.conditionValue(new ItemModelNode.Condition(
-                "minecraft:has_component", "minecraft:dyed_color", true, 0, Optional.empty(), ON_TRUE, ON_FALSE)), is(true));
+                "minecraft:has_component", "minecraft:dyed_color", true, 0, Optional.empty(), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)), is(true));
             assertThat(removed.conditionValue(condition("minecraft:has_component", "minecraft:dyed_color")), is(false));
 
             ItemModelContext set = withComponents(components("minecraft:dyed_color", new IntTag(0xFF0000)));
@@ -367,7 +367,7 @@ class ItemModelContextTest {
         /** A component condition testing a component's presence. */
         private static ItemModelNode.Condition presence(String component) {
             return new ItemModelNode.Condition("minecraft:component", "", false, 0,
-                Optional.of(predicate(component, "{}")), ON_TRUE, ON_FALSE);
+                Optional.of(predicate(component, "{}")), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
         }
 
     }
@@ -471,7 +471,7 @@ class ItemModelContextTest {
             assertThat(customData("\"{}\"").matches(Optional.of(components("minecraft:damage", new IntTag(3)))), is(true));
             assertThat(customData("{\"id\":\"X\"}").matches(Optional.empty()), is(false));
             assertThat(withComponents(null).conditionValue(new ItemModelNode.Condition(
-                "minecraft:component", "", false, 0, Optional.of(customData("{}")), ON_TRUE, ON_FALSE)), is(true));
+                "minecraft:component", "", false, 0, Optional.of(customData("{}")), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)), is(true));
         }
 
         @Test
@@ -577,7 +577,7 @@ class ItemModelContextTest {
         void readsTheItemModelForASelect() {
             ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", 0, "item_model", Optional.of(DecodedComponent.ITEM_MODEL),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("minecraft:diamond"), ON_TRUE)),
-                ON_FALSE);
+                ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
             ItemModelContext diamond = ItemModelContext.gui().withItemId("minecraft:diamond");
             assertThat(diamond.selectValue(select), is(Possible.of("minecraft:diamond")));
             assertThat(diamond.withComponents(components("minecraft:item_model", new StringTag("fsr:locked"))).selectValue(select),
@@ -596,10 +596,10 @@ class ItemModelContextTest {
             ItemModelNode.Select dyed = new ItemModelNode.Select("minecraft:component", "", 0, "dyed_color",
                 Optional.of(DecodedComponent.DYED_COLOR),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("255"), ON_TRUE)),
-                ON_FALSE);
+                ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
             ItemModelNode.Select rarity = new ItemModelNode.Select("minecraft:component", "", 0, "rarity", Optional.empty(),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("epic"), ON_TRUE)),
-                ON_FALSE);
+                ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
             ItemModelContext dyedRed = ItemModelContext.gui().withComponents(components("minecraft:dyed_color", new IntTag(255)));
             ItemModelContext unreadable = ItemModelContext.gui().withComponents(components("minecraft:dyed_color", new StringTag("red")));
             ItemModelContext undyed = ItemModelContext.gui().withComponents(components("minecraft:custom_data", new CompoundTag()));
@@ -935,7 +935,7 @@ class ItemModelContextTest {
             assertThat(carrying.conditionValue(flagCondition(0)), is(false));
             assertThat(carrying.conditionValue(flagCondition(1)), is(true));
             assertThat("and walks to the branch it picks",
-                carrying.resolve(new ItemModelNode.Condition("custom_model_data", "", false, 1, Optional.empty(), ON_TRUE, ON_FALSE)).modelId(),
+                carrying.resolve(new ItemModelNode.Condition("custom_model_data", "", false, 1, Optional.empty(), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)).modelId(),
                 is(Optional.of("minecraft:item/on")));
         }
 
@@ -944,7 +944,7 @@ class ItemModelContextTest {
         void answersFalseWhereNoFlagIsSet() {
             ItemModelContext carrying = withComponents(customModelDataFlags(true));
             assertThat(carrying.conditionValue(flagCondition(1)), is(false));
-            assertThat(carrying.conditionValue(new ItemModelNode.Condition("custom_model_data", "", false, -1, Optional.empty(), ON_TRUE, ON_FALSE)),
+            assertThat(carrying.conditionValue(new ItemModelNode.Condition("custom_model_data", "", false, -1, Optional.empty(), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)),
                 is(false));
             assertThat(ItemModelContext.gui().conditionValue(flagCondition(0)), is(false));
             assertThat(withComponents(new CompoundTag()).conditionValue(flagCondition(0)), is(false));
@@ -968,7 +968,7 @@ class ItemModelContextTest {
         @DisplayName("reads a mod's custom_model_data property as unevaluable")
         void readsAModsPropertyAsUnevaluable() {
             ItemModelContext carrying = withComponents(customModelDataFlags(true));
-            assertThat(carrying.conditionValue(new ItemModelNode.Condition("somepack:custom_model_data", "", false, 0, Optional.empty(), ON_TRUE, ON_FALSE)),
+            assertThat(carrying.conditionValue(new ItemModelNode.Condition("somepack:custom_model_data", "", false, 0, Optional.empty(), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)),
                 is(false));
         }
 
@@ -1018,7 +1018,7 @@ class ItemModelContextTest {
             ItemModelContext carrying = withComponents(customModelDataStrings("red"));
             assertThat(carrying.selectValue(stringSelect(1, "red")), is(Possible.empty()));
             assertThat(carrying.selectValue(new ItemModelNode.Select("custom_model_data", "", -1, "", Optional.empty(),
-                Concurrent.newUnmodifiableList(), ON_FALSE)), is(Possible.empty()));
+                Concurrent.newUnmodifiableList(), ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)), is(Possible.empty()));
             assertThat(ItemModelContext.gui().selectValue(stringSelect(0, "red")), is(Possible.empty()));
             assertThat("a stack carrying only floats", withComponents(customModelData(1f)).selectValue(stringSelect(0, "red")),
                 is(Possible.empty()));
@@ -1041,7 +1041,7 @@ class ItemModelContextTest {
         void readsAModsPropertyAsUnevaluable() {
             ItemModelContext carrying = withComponents(customModelDataStrings("red"));
             assertThat(carrying.selectValue(new ItemModelNode.Select("somepack:custom_model_data", "", 0, "", Optional.empty(),
-                Concurrent.newUnmodifiableList(), ON_FALSE)), is(Possible.absent()));
+                Concurrent.newUnmodifiableList(), ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY)), is(Possible.absent()));
         }
 
     }
@@ -1081,7 +1081,7 @@ class ItemModelContextTest {
         void readsTheBlockStateComponent() {
             ItemModelNode.Select select = new ItemModelNode.Select("minecraft:block_state", "honey_level", 0, "", Optional.empty(),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("5"), ON_TRUE)),
-                ON_FALSE);
+                ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
             CompoundTag full = new CompoundTag();
             full.put("honey_level", new StringTag("5"));
             CompoundTag other = new CompoundTag();
@@ -1197,7 +1197,7 @@ class ItemModelContextTest {
             CompoundTag stack = components("minecraft:custom_data", customData);
             ItemModelContext context = ItemModelContext.gui().withComponents(stack);
             ItemModelNode.Condition condition = new ItemModelNode.Condition("minecraft:component", "", false, 0,
-                Optional.of(customData("{\"id\":\"ASPECT_OF_THE_END\"}")), ON_TRUE, ON_FALSE);
+                Optional.of(customData("{\"id\":\"ASPECT_OF_THE_END\"}")), ON_TRUE, ON_FALSE, ItemModelNode.SpecialTransform.IDENTITY);
             ItemModelContext before = ItemModelContext.gui().withComponents(stack);
 
             customData.put("id", new StringTag("HYPERION"));

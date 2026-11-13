@@ -114,71 +114,16 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
         return switch (vanillaType.get()) {
             case "model" -> new ItemModelNode.Model(modelId(node, "model"), tints(node, context));
-            case "condition" -> under(condition(node, context), node);
-            case "select" -> under(select(node, context), node);
-            case "range_dispatch" -> under(new ItemModelNode.RangeDispatch(
+            case "condition" -> condition(node, context);
+            case "select" -> select(node, context);
+            case "range_dispatch" -> new ItemModelNode.RangeDispatch(
                 property(node, ItemModelProperties::isRange, "range_dispatch"), floatValue(node, "scale", 1f), string(node, "target"),
-                intValue(node, "index", 0), entries(node, context), fallback(node, context)), node);
-            case "composite" -> under(new ItemModelNode.Composite(models(node, context)), node);
+                intValue(node, "index", 0), entries(node, context), fallback(node, context), transform(node));
+            case "composite" -> new ItemModelNode.Composite(models(node, context), transform(node));
             case "special" -> special(node);
             case "bundle/selected_item" -> new ItemModelNode.Bundle();
             case "empty" -> ItemModelNode.Empty.INSTANCE;
             default -> throw new JsonParseException(String.format("Unknown item model type '%s'", nodeType));
-        };
-    }
-
-    /**
-     * Answers a dispatch node with the {@code transformation} it declares composed onto every special leaf
-     * beneath it, outside the ones nearer the leaf, as vanilla's bake hands each child the matrix its parent
-     * composed - the copper golem statue's {@code select} declares one. A node declaring none, or a value
-     * that is not an object, answers the node unchanged.
-     *
-     * @param built the dispatch node, its children already built
-     * @param node the node's JSON
-     * @return the node with its transformation carried down to its special leaves
-     */
-    private static @NotNull ItemModelNode under(@NotNull ItemModelNode built, @NotNull JsonObject node) {
-        JsonElement value = node.get("transformation");
-        if (value == null || !value.isJsonObject()) return built;
-
-        return under(built, transform(node));
-    }
-
-    /**
-     * Carries a dispatch node's transformation down to every special leaf of a subtree.
-     *
-     * @param node the subtree
-     * @param outer the transformation of the dispatch node above it
-     * @return the subtree with {@code outer} the outermost ancestor of every special leaf in it
-     */
-    private static @NotNull ItemModelNode under(@NotNull ItemModelNode node, @NotNull SpecialTransform outer) {
-        return switch (node) {
-            case ItemModelNode.Special special -> special.under(outer);
-            case ItemModelNode.Condition condition -> new ItemModelNode.Condition(condition.property(), condition.component(),
-                condition.ignoreDefault(), condition.index(), condition.predicate(),
-                under(condition.onTrue(), outer), under(condition.onFalse(), outer));
-            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(),
-                select.index(), select.component(), select.decoded(),
-                select.cases()
-                    .stream()
-                    .map(option -> new ItemModelNode.Select.Case(option.when(), under(option.model(), outer)))
-                    .collect(Concurrent.toUnmodifiableList()),
-                under(select.fallback(), outer));
-            case ItemModelNode.RangeDispatch range -> new ItemModelNode.RangeDispatch(range.property(), range.scale(),
-                range.target(), range.index(),
-                range.entries()
-                    .stream()
-                    .map(entry -> new ItemModelNode.RangeDispatch.Entry(entry.threshold(), under(entry.model(), outer)))
-                    .collect(Concurrent.toUnmodifiableList()),
-                under(range.fallback(), outer));
-            case ItemModelNode.Composite composite -> new ItemModelNode.Composite(composite.models()
-                .stream()
-                .map(child -> under(child, outer))
-                .collect(Concurrent.toUnmodifiableList()));
-            case ItemModelNode.Model model -> model;
-            case ItemModelNode.Bundle bundle -> bundle;
-            case ItemModelNode.Empty empty -> empty;
-            case ItemModelNode.Absent absent -> absent;
         };
     }
 
@@ -198,7 +143,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             : Optional.empty();
         return new ItemModelNode.Condition(
             property, component, hasComponent && flag(node, "ignore_default"), intValue(node, "index", 0), predicate,
-            required(node, "on_true", context), required(node, "on_false", context));
+            required(node, "on_true", context), required(node, "on_false", context), transform(node));
     }
 
     /**
@@ -265,7 +210,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         Optional<DecodedComponent> decoded = componentSelect ? DecodedComponent.of(component) : Optional.empty();
         return new ItemModelNode.Select(
             property, string(node, "block_state_property"), intValue(node, "index", 0), component, decoded,
-            cases(node, path, decoded, context), fallback(node, context));
+            cases(node, path, decoded, context), fallback(node, context), transform(node));
     }
 
     /**
