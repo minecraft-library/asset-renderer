@@ -180,3 +180,23 @@ laid by `NineSliceKit` at output-pixel resolution.
   byte-exact about chrome, costs seconds and boots no client; the harness menu sweep renders each
   screen through the client's own GUI pipeline and is the only one that sees what a composed screen
   adds - its labels, its slots through vanilla's GUI item atlas, and the composition itself.
+
+## Decisions that stay closed
+
+- **Do not chase the tooltip frame's side ramp on exact-boundary rows.** The frame sprite stretches
+  its centre slice (`stretch_inner`), and `NineSliceKit` maps each output row of that slice to a
+  sprite row with a pixel-centred integer sample: row `off` of the centre reads sprite row
+  `border + (2 * off + 1) * centreSprite / (2 * centreDest)`, `border` being the near border in sprite
+  rows (10 for the frame) and the quotient rounded down. Where that quotient is whole the pixel's
+  centre sits on the edge between two texels, and the kit takes the next one. The client interpolates
+  the quad's texture coordinate on the card, and on such a row it lands on either side - even across
+  the two output columns of one Minecraft pixel, as at `hex_colours_chrome` row 9, though the side
+  quad's sprite row does not change along a row. Only the card's own rounding tells two pixels of one
+  row apart, and it follows the quad's place in the client's render target, so no rule over a row or
+  over the quad reproduces it: that takes the card's interpolation setup at the client's screen
+  position, over corners that are the sprite's place in the GUI atlas rounded to float, and modelling
+  the card is refused in [Texel rules](TexelFetch.md). Of the 172 visible exact-boundary pixels of the
+  26.1 tooltip sweep's box-alone rows over the sprite box, the kit's rule reads 154 as the client
+  does, and reading the texel before the edge, as the entity raster does, would read only those 18
+  the kit misses. They are what stays: one ramp level each on the frame's side ramp, none near a
+  corner - 1 in `hex_colours_chrome`, 16 in `item_like_chrome` and 1 in `narrow_chrome`.
