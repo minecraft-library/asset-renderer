@@ -6727,6 +6727,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/blockentity/NoInputSetupAnim": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/blockentity/TransformWalker": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -7010,6 +7016,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/geometry/EntityMeshShift": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/FixedRootPose": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

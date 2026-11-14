@@ -1838,22 +1838,31 @@
         }
       }
     },
-    "CopperGolemModel#createBodyLayer": {
+    "CopperGolemModel#createBodyLayer@setup=CopperGolemStatueModel": {
       "source": {
         "class": "net/minecraft/client/model/animal/golem/CopperGolemModel",
-        "method": "createBodyLayer"
+        "method": "createBodyLayer",
+        "setup": "CopperGolemStatueModel"
       },
       "texture_size": [
         64,
         64
       ],
       "bones": {
+        "root": {
+          "rotation": [
+            0.0,
+            0.0,
+            180.0
+          ]
+        },
         "body": {
           "pivot": [
             0.0,
-            19.0,
+            -5.0,
             0.0
           ],
+          "parent": "root",
           "cubes": [
             {
               "origin": [
@@ -2005,9 +2014,10 @@
         "right_leg": {
           "pivot": [
             0.0,
-            19.0,
+            -5.0,
             0.0
           ],
+          "parent": "root",
           "cubes": [
             {
               "origin": [
@@ -2030,9 +2040,10 @@
         "left_leg": {
           "pivot": [
             0.0,
-            19.0,
+            -5.0,
             0.0
           ],
+          "parent": "root",
           "cubes": [
             {
               "origin": [

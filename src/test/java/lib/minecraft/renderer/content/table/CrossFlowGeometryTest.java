@@ -40,8 +40,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * which is the reverse-closure assertion being weakened rather than a test being moved.
  *
  * <p>So that half reports rather than merges. A duplicate across the two tables is not on its own an
- * error - the copper golem is a real subject that a block render and an entity render both need - and
- * what earns the digest its place is naming the NEXT one rather than fixing this one.
+ * error - a real subject a block render and an entity render both need would be one - and what earns
+ * the digest its place is naming the next one rather than fixing it. None is shared today: the copper
+ * golem's two flows bake different meshes, the block entity's under its statue model's fixed root pose
+ * ({@code CopperGolemModel#createBodyLayer@setup=CopperGolemStatueModel}), so they mint different keys.
  *
  * <p>The two tables do not write a mesh's bones in one order. The entity table holds vanilla's bake
  * order and the block-entity table its factory's declaration order, the rule `docs/renderer/Depth.md`
@@ -78,8 +80,7 @@ class CrossFlowGeometryTest {
             shared.put(coordinate, verdict);
         });
 
-        assertEquals(Map.of("CopperGolemModel#createBodyLayer", "one bone set, two orders"), shared,
-            "coordinates both geometry flows bake");
+        assertEquals(Map.of(), shared, "coordinates both geometry flows bake");
     }
 
     @Test

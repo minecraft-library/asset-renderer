@@ -23,7 +23,7 @@ import java.util.Map;
  * discriminators come first, in their own canonical order; derivations follow in theirs.
  *
  * <p>Request discriminators appear only when set, in the declared canonical order {@code grow},
- * {@code fparam}, {@code scaled}, {@code baby}, {@code pose}, {@code iparam}, {@code ref}:
+ * {@code fparam}, {@code scaled}, {@code baby}, {@code setup}, {@code pose}, {@code iparam}, {@code ref}:
  * <ul>
  *   <li><b>{@code @grow=<v>}</b> / <b>{@code @grow=<x,y,z>}</b> - the request's grow
  *       pre-seed (scalar form when uniform), absent at zero. A <em>pre-seed</em> of the
@@ -36,6 +36,9 @@ import java.util.Map;
  *   <li><b>{@code @baby=<SimpleClass.FIELD>}</b> - the aged-down whole-mesh transformer the
  *       registration applies, named the way {@code @ref} names an enum constant rather than
  *       spelling its seven values; absent for a mesh registered untransformed.</li>
+ *   <li><b>{@code @setup=<SimpleClass>}</b> - the model whose {@code setupAnim} takes no input and
+ *       writes the root a fixed pose on every draw, named rather than spelling the pose; absent for
+ *       a model whose {@code setupAnim} animates or writes nothing.</li>
  *   <li><b>{@code @pose=<x,y,z>}</b> - the bound {@code PartPose} offset (the baby piglin's
  *       armor arm offset), absent at the zero pose the generic baby shell is built at.</li>
  *   <li><b>{@code @iparam=<slot>:<v>[,...]}</b> - the bound int-parameter slots
@@ -98,6 +101,8 @@ public final class GeometryIds {
             key.append("@scaled=").append(request.appliedMeshTransformerScale());
         BabyMeshTransform baby = request.babyTransform();
         if (baby != null) key.append("@baby=").append(baby.discriminator());
+        FixedRootPose setup = request.fixedRootPose();
+        if (setup != null) key.append("@setup=").append(setup.discriminator());
         GeometryRequest.PoseParam pose = request.poseParam();
         if (pose != null && (pose.offset()[0] != 0f || pose.offset()[1] != 0f || pose.offset()[2] != 0f))
             key.append("@pose=").append(pose.offset()[0])

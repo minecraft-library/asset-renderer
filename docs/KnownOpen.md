@@ -79,22 +79,3 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
-
-## The copper golem statue's block icon is drawn head-down, as the bind render draws it
-
-A block whose item the client draws through specials alone is drawn as its slot draws it in the bind
-render, with no `setupAnim`: the bones at their bind pose, each dispatch node's and the special's own
-`transformation`, then the base's `display.gui`. For the eight copper golem statues that is head-down.
-Their `select` carries `scale(1, -1, -1)` translated `(0.5, 1.5, 0.5)`, the base turns the icon a half
-turn about Z, and the bones stand at the layer's own root, which `CopperGolemModel.createBodyLayer`
-translates by `(0, 24, 0)`. The harness draws the same thing, since its freeze skips every model's
-`setupAnim` in a static sweep, so the two agree byte for byte.
-
-A real inventory draws the statue upright. `CopperGolemStatueModel.setupAnim` is not an animation but a
-fixed pose: it sets the root's `y` to 0 and its `zRot` to pi, and the client runs it for every draw. No
-hand-written flip stands in for it: the renderer and tooling pose a block entity from the client's data
-alone.
-
-Drawing it upright without hand data means carrying that root override as data - tooling reading the
-statue model's `setupAnim` root assignments into the statue's geometry - and the harness letting that
-one model's `setupAnim` run in the static sweep. Nobody has taken it on.

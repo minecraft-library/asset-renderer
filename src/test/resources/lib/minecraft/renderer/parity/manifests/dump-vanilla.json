@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "block-entities.json",
-      "sha256": "0801b6110dee5c9a6aae826de1ebaf60c82d86cbdf118f58a04dd59fd5559257"
+      "sha256": "17729552a47c1be3ec487cde8902a8e65a5c6782bf885c0e4db6f13754d8fbc2"
     },
     {
       "path": "block-models.json",
@@ -12,7 +12,7 @@
     },
     {
       "path": "blocks.json",
-      "sha256": "1558f9bd9480f1af2a79b57beb93325e25e0e974fd00f67468c9067d14c8b4aa"
+      "sha256": "4900ed5a603e55ff79510d4028c40c270bb657981903041ed8d1fa820965041e"
     },
     {
       "path": "entities.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "6c6fb10ac7270b5fa185dc6782488d872f33962d207ea0d17dfca6bb12c47f47",
+    "asset_content_digest": "e2227fe68f2cc07f249cb861656462530e354abaa8c251a14cbaaf4b41b9a877",
     "asset_dirty": true,
-    "asset_sha": "1f1d076dd680e786eb8dabe2bdeaffeb722f22ee",
+    "asset_sha": "a0ac64d7f013cf3a84e6a835a489b03d7f9746bb",
     "counts": {
       "files": 14
     },
@@ -75,10 +75,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "Special-drawn block icons held to the client's slot drawing: the harness draws a block whose item specials alone draw through ItemFrameRenderer, and the renderer poses those icons by each layer's composed transformation and the base display.gui with no facing table, icon turn or fit. Tables lose y_rotation and the bed icon turn; the copper golem geometry carries its layer root (0,24,0), moving its posed entity rows by 0.0001. sweep.block sum 7.6024 -> 3.3561.",
+    "reason": "Copper golem statue upright: tooling reads CopperGolemStatueModel's input-free setupAnim (root y=0, zRot=pi) into its block geometry, keyed @setup=CopperGolemStatueModel with a root bone; the harness freeze lets a Unit-fed setupAnim run. The 8 statue references re-render upright (two boots agree on all 9843 files), block_models and block_geometry move and the two dumps serialising them follow; the renderer's statue icon is byte-identical to the new reference",
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-11-13T00:31:06Z",
+    "timestamp": "2026-11-14T16:38:49Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 14150
+    "wall_time_ms": 7340
   }
 }

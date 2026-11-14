@@ -1117,7 +1117,7 @@
     },
     "minecraft:copper_golem_statue": {
       "renderer": "net/minecraft/client/renderer/blockentity/CopperGolemStatueBlockRenderer",
-      "geometry": "CopperGolemModel#createBodyLayer",
+      "geometry": "CopperGolemModel#createBodyLayer@setup=CopperGolemStatueModel",
       "y_axis": "DOWN",
       "tinted": false,
       "plain_texture": true,

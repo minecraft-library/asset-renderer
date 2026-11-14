@@ -7,6 +7,7 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.EnderDragonRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
+import net.minecraft.util.Unit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -46,7 +47,17 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  *       and many other animation-driven poses leaked through this gap until 2026-05-15.</li>
  * </ol>
  * After both redirects, every {@link ModelPart ModelPart} keeps its authored {@code PartPose}
- * from {@code createBodyLayer}. {@link FreezeAnimationStateMixin} still pins the per-tick
+ * from {@code createBodyLayer}.
+ *
+ * <h2>What it lets through</h2>
+ * A {@code setupAnim} handed {@link Unit} reads no input, so every draw runs the same body: what it
+ * writes is a fixed pose, part of the mesh rather than an animation of it, and the static sweep runs
+ * it as a real inventory does. The copper golem statue's sets its root's {@code y} and {@code zRot}
+ * on every draw, standing the statue upright; {@code Model$Simple}'s body is empty, and every other
+ * model handed {@code Unit} - a banner, a shield, a trident - inherits {@code Model.setupAnim}, which
+ * puts the parts back at the bind pose they already hold.
+ * asset-renderer's tooling reads the same input-free bodies into the statue's geometry, so the two
+ * sides draw one pose. {@link FreezeAnimationStateMixin} still pins the per-tick
  * animation state fields so any non-{@code LivingEntityRenderer} path (e.g.
  * {@link EnderDragonRenderer EnderDragonRenderer} which extends the base
  * {@code EntityRenderer}, not {@code LivingEntityRenderer}) gets a stable frame-0 input.
@@ -92,7 +103,7 @@ public abstract class SkipSetupAnimMixin {
         require = 0
     )
     private void refharness$skipFeatureRendererSetupAnim(Model<?> model, Object state) {
-        if (Boolean.getBoolean("refharness.headless") && !PoseState.posed()) return;
+        if (Boolean.getBoolean("refharness.headless") && !PoseState.posed() && !(state instanceof Unit)) return;
         @SuppressWarnings({"unchecked", "rawtypes"})
         Model raw = model;
         raw.setupAnim(state);
