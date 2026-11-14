@@ -66,7 +66,8 @@ public record Item(
 
         /**
          * A {@code minecraft:potion} tint - the potion-contents colour. Resolves from the render
-         * options' potion override, else the first potion effect's colour, else the JSON default
+         * options' potion override, else the stack's {@code minecraft:potion_contents}
+         * {@code custom_color}, else the potion effects' colours blended, else the JSON default
          * ({@code #385DC6}, water).
          *
          * @param defaultColor the ARGB applied when no potion colour is supplied

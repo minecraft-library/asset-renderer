@@ -48,7 +48,7 @@ import java.util.Optional;
  * @param displayName the item display name, if any
  * @param nbt the item's NBT tree - a 26.1 stack, or any compound the CIT rules walk - or empty when the caller supplied neither NBT nor a synthesisable scalar
  * @param enchantments the item enchantments keyed by namespaced id (e.g. {@code minecraft:sharpness} to {@code 5})
- * @param potionEffects the potion effects on this item, in application order; the first drives the liquid tint
+ * @param potionEffects the potion effects on this item, in application order, each one amplifier-0 instance; their colours blend into the liquid tint
  */
 @Parity(claim = "asset-layer")
 @Parity(claim = "pack-rule-layer")

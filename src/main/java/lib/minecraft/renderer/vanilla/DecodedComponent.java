@@ -120,6 +120,9 @@ public enum DecodedComponent {
     /** The component a {@code minecraft:custom_model_data} tint source reads its colours from, which no select here keys on. */
     private static final @NotNull String CUSTOM_MODEL_DATA = "minecraft:custom_model_data";
 
+    /** The component a {@code minecraft:potion} tint source reads its colour from, which no select here keys on. */
+    private static final @NotNull String POTION_CONTENTS = "minecraft:potion_contents";
+
     /** The qualified component id, the key a stack's component map holds this component's value under. */
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull String id;
@@ -206,6 +209,27 @@ public enum DecodedComponent {
         } catch (IllegalArgumentException unreadable) {
             return OptionalInt.empty();
         }
+    }
+
+    /**
+     * Reads the {@code custom_color} a stack's {@code minecraft:potion_contents} carries, decoded as
+     * vanilla's codec decodes it - any number's int value - the colour a {@code minecraft:potion} tint
+     * source reads before the effects' colour and its default, as vanilla's
+     * {@code PotionContents.getColorOr} answers it. A contents written as a bare potion id carries no
+     * custom colour.
+     *
+     * @param components the stack's component map keyed by qualified component id, or empty when the caller supplies no stack
+     * @return the colour, or empty when the patch does not set the component, its value is not a
+     *     compound, or the compound sets no numeric {@code custom_color}
+     */
+    public static @NotNull OptionalInt potionCustomColor(@NotNull Optional<CompoundTag> components) {
+        Optional<Tag<?>> value = components.map(map -> map.get(POTION_CONTENTS));
+        if (value.isEmpty() || !(value.get() instanceof CompoundTag contents)) return OptionalInt.empty();
+
+        return member(contents, "custom_color")
+            .filter(colour -> isNumber(colour, true))
+            .map(colour -> OptionalInt.of(((NumericalTag<?>) colour).intValue()))
+            .orElseGet(OptionalInt::empty);
     }
 
     /**
