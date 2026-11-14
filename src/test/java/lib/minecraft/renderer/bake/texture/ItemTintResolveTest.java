@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.pixel.AlphaMode;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.IntArrayTag;
@@ -38,7 +39,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * samples the stack's own grass colormap at the definition's climate point, and a map-colour tint takes
  * the caller's colour else its default, opaque either way. A dye tint reads the stack's
  * {@code minecraft:dyed_color} behind the caller's explicit leather colour, and a custom-model-data tint
- * reads the stack's {@code minecraft:custom_model_data} colour at its index ahead of its default. The
+ * reads the stack's {@code minecraft:custom_model_data} colour at its index ahead of its default, as a
+ * potion tint reads the stack's {@code minecraft:potion_contents} custom colour. The
  * colours a model's faces pick by tintindex fill slot 0 with the caller's colour only where the
  * definition lists no tint. A flat item's tinted layers compose onto a straight sheet, so a translucent
  * texel keeps the colour its texture holds.
@@ -167,6 +169,52 @@ class ItemTintResolveTest {
     }
 
     /**
+     * Pins the potion source as vanilla's {@code Potion.calculate} answers it through
+     * {@code PotionContents.getColorOr}: the stack's {@code potion_contents} {@code custom_color}, made
+     * opaque, ahead of the default - the colour a plugin writes onto a potion-based custom item so its
+     * tinted faces draw the texture's own colours rather than water blue. A contents written as a bare
+     * potion id carries no custom colour, and the caller's explicit potion colour outranks the stack.
+     */
+    @Test
+    @DisplayName("a potion tint reads the stack's potion_contents custom_color, else its default")
+    void potionReadsTheStacksCustomColour() {
+        RendererContext context = RendererContext.builder().build();
+        LayerTint water = new LayerTint.Potion(0xFF385DC6);
+
+        assertThat("no stack takes the default", ItemTint.resolve(context, water, options()), is(0xFF385DC6));
+        assertThat("the stack's custom colour, opaque", ItemTint.resolve(context, water,
+            stackOf(potion(new IntTag(0xFFFFFF)))), is(0xFFFFFFFF));
+        assertThat("a bare potion id carries no custom colour", ItemTint.resolve(context, water,
+            stackOf(bare("minecraft:water"))), is(0xFF385DC6));
+        assertThat("an explicit potion colour wins", ItemTint.resolve(context, water,
+            ItemOptions.builder().itemId("minecraft:potion").context(ItemContext.ofStack(stack(potion(new IntTag(0xFFFFFF)))))
+                .decoration(DecorationOptions.builder().potionColor(0xFF00FF00).build()).build()), is(0xFF00FF00));
+    }
+
+    /**
+     * Pins the effects' blend as vanilla's {@code PotionContents.getColorOptional} answers it: each
+     * channel summed over the effects and divided by their count in integer arithmetic, opaque - not the
+     * first effect's colour. An effect with no colour in the table adds nothing, and a stack naming no
+     * coloured effect takes the default.
+     */
+    @Test
+    @DisplayName("a potion tint blends every named effect's colour, not just the first")
+    void potionBlendsTheEffectsColours() {
+        RendererContext context = new EffectColours(RendererContext.builder().build(),
+            Map.of("minecraft:speed", 0xFF33EBFF, "minecraft:night_vision", 0xFFC2FF66));
+        LayerTint water = new LayerTint.Potion(0xFF385DC6);
+
+        assertThat("one effect is its own colour", ItemTint.resolve(context, water,
+            effects("minecraft:speed")), is(0xFF33EBFF));
+        assertThat("two effects average, truncating", ItemTint.resolve(context, water,
+            effects("minecraft:speed", "minecraft:night_vision")), is(0xFF7AF5B2));
+        assertThat("an uncoloured effect adds nothing", ItemTint.resolve(context, water,
+            effects("minecraft:speed", "minecraft:unknown")), is(0xFF33EBFF));
+        assertThat("no coloured effect takes the default", ItemTint.resolve(context, water,
+            effects("minecraft:unknown")), is(0xFF385DC6));
+    }
+
+    /**
      * Pins what a caller's custom colour reaches on a model's faces: tintindex 0, and only where the
      * item definition lists no tint of its own, as a flat sprite's {@code layer0} takes it. A
      * definition tint that falls back to the caller's colour, such as a dye, still takes it through
@@ -279,6 +327,44 @@ class ItemTintResolveTest {
     }
 
     /**
+     * Options for a potion whose context names the given effects, in order.
+     *
+     * @param effectIds the effect ids
+     * @return the options
+     */
+    private static @NotNull ItemOptions effects(@NotNull String @NotNull ... effectIds) {
+        ItemContext.Builder context = ItemContext.builder().itemId("minecraft:potion");
+        for (String effectId : effectIds) context.potionEffect(effectId);
+        return ItemOptions.builder().itemId("minecraft:potion").context(context.build()).build();
+    }
+
+    /**
+     * Builds a component patch whose potion contents carry one custom colour.
+     *
+     * @param colour the {@code custom_color} value
+     * @return the patch
+     */
+    private static @NotNull CompoundTag potion(@NotNull Tag<?> colour) {
+        CompoundTag contents = new CompoundTag();
+        contents.put("custom_color", colour);
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:potion_contents", contents);
+        return components;
+    }
+
+    /**
+     * Builds a component patch whose potion contents are written as a bare potion id.
+     *
+     * @param potionId the potion id
+     * @return the patch
+     */
+    private static @NotNull CompoundTag bare(@NotNull String potionId) {
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:potion_contents", new StringTag(potionId));
+        return components;
+    }
+
+    /**
      * Options for a stack around a component patch.
      *
      * @param components the patch
@@ -313,6 +399,22 @@ class ItemTintResolveTest {
         put(pixels, 127 * 256 + 127, INVENTORY_GRASS);
         put(pixels, 255 * 256, HOT_DRY);
         return new ColorMap("minecraft:colormap/grass", "fixture", TintSource.GRASS, pixels);
+    }
+
+    /**
+     * A context answering effect colours from a fixed table and forwarding every other lookup.
+     *
+     * @param delegate the context every other lookup forwards to
+     * @param colours the effect colours, keyed by effect id
+     */
+    private record EffectColours(@NotNull RendererContext delegate, @NotNull Map<String, Integer> colours) implements RendererContext.Forwarding {
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
+            return this.colours.containsKey(effectId) ? Possible.of(this.colours.get(effectId)) : Possible.absent();
+        }
+
     }
 
     /**

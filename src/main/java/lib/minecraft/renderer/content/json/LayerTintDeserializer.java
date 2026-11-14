@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.json;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
@@ -84,19 +85,41 @@ public final class LayerTintDeserializer implements JsonDeserializer<LayerTint> 
     }
 
     /**
-     * Reads an RGB tint colour from {@code tint[key]} and forces opaque alpha - masks to 24 bits and
-     * OR-s {@code 0xFF000000} so every source normalises to the ARGB the multiply-tint blend expects.
-     * Defaults to white when the key is absent, non-primitive, or non-numeric (a pack author writing the
-     * colour as a quoted hex string {@code "#ffffff"} degrades to white rather than aborting the load).
+     * Reads an RGB tint colour from {@code tint[key]} in either form vanilla's {@code RGB_COLOR_CODEC}
+     * reads - a packed integer, or an array of three floats in {@code [0, 1]}, each channel folded as
+     * vanilla's {@code ARGB.as8BitChannel} folds it - and forces opaque alpha, masking to 24 bits and
+     * OR-ing {@code 0xFF000000} so every source normalises to the ARGB the multiply-tint blend expects.
+     * Defaults to white when the key is absent or holds neither form (a pack author writing the colour
+     * as a quoted hex string {@code "#ffffff"} degrades to white rather than aborting the load).
      */
     private static int argb(@NotNull JsonObject tint, @NotNull String key) {
         JsonElement value = tint.get(key);
-        if (value == null || !value.isJsonPrimitive()) return 0xFFFFFFFF;
+        if (value == null) return 0xFFFFFFFF;
+        if (value.isJsonArray()) return floats(value.getAsJsonArray());
+        if (!value.isJsonPrimitive()) return 0xFFFFFFFF;
         try {
             return 0xFF000000 | (value.getAsInt() & 0xFFFFFF);
         } catch (NumberFormatException ex) {
             return 0xFFFFFFFF;
         }
+    }
+
+    /**
+     * Folds a three-float colour array into opaque ARGB, each channel {@code floor(value * 255)} as
+     * vanilla's {@code ARGB.as8BitChannel} scales it.
+     *
+     * @param channels the array, read as red, green and blue
+     * @return the ARGB colour, or white when the array is not exactly three numbers
+     */
+    private static int floats(@NotNull JsonArray channels) {
+        if (channels.size() != 3) return 0xFFFFFFFF;
+        int argb = 0xFF000000;
+        for (int index = 0; index < 3; index++) {
+            JsonElement channel = channels.get(index);
+            if (!channel.isJsonPrimitive() || !channel.getAsJsonPrimitive().isNumber()) return 0xFFFFFFFF;
+            argb |= ((int) Math.floor(channel.getAsFloat() * 255f) & 0xFF) << (16 - 8 * index);
+        }
+        return argb;
     }
 
     /** The string member under {@code key} when it is a JSON primitive, or {@code ""}. */

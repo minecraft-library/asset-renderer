@@ -77,6 +77,22 @@ class LayerTintDeserializerTest {
             () -> read("{\"type\":\"minecraft:custom_model_data\",\"index\":\"one\",\"default\":0}"));
     }
 
+    /**
+     * Pins the second form vanilla's {@code RGB_COLOR_CODEC} reads a colour in: three floats in
+     * {@code [0, 1]}, each channel {@code floor(value * 255)}. An array of any other length holds
+     * neither form and reads as white.
+     */
+    @Test
+    @DisplayName("a colour written as three floats folds as vanilla folds it")
+    void aThreeFloatColourFolds() {
+        assertThat(read("{\"type\":\"minecraft:dye\",\"default\":[1.0,0.5,0.0]}"),
+            is(new LayerTint.Dye(0xFFFF7F00)));
+        assertThat(read("{\"type\":\"minecraft:constant\",\"value\":[0.0,0.0,1.0]}"),
+            is(new LayerTint.Constant(0xFF0000FF)));
+        assertThat(read("{\"type\":\"minecraft:potion\",\"default\":[0.5,0.5]}"),
+            is(new LayerTint.Potion(0xFFFFFFFF)));
+    }
+
     @Test
     @DisplayName("a source this renderer does not model reads as an untinted constant")
     void anUnmodelledSourceReadsAsWhite() {

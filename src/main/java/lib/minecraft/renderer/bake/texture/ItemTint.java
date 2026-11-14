@@ -105,9 +105,11 @@ public class ItemTint {
      * {@code minecraft:dyed_color}, read from the one {@linkplain ItemOptions#components() component
      * patch} the dispatch walk reads and made opaque as vanilla's dye source makes it →
      * {@link DecorationOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the first
-     * {@link ItemContext#potionEffects() potion effect}'s colour via
-     * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the stack's
+     * {@code minecraft:potion_contents} {@code custom_color}, read from the same component patch and
+     * made opaque as vanilla's potion source makes it → the {@link ItemContext#potionEffects() potion
+     * effects}' {@link #effectsColour blended colour} → {@link DecorationOptions#getTintColor()} →
+     * default.</li>
      * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Grass} - the {@link TintSource#GRASS} colormap sampled at the tint's climate
      * point, else the source's {@link TintSource#defaultArgb() default} on a context built without it.</li>
@@ -133,7 +135,8 @@ public class ItemTint {
                 .orElse(dye.defaultColor());
             case LayerTint.Potion potion ->
                 options.getDecoration().getPotionColor()
-                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(id -> context.findPotionEffectColor(id).toOptional()))
+                    .or(() -> stackPotion(options))
+                    .or(() -> effectsColour(context, options))
                     .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
             case LayerTint.Firework firework ->
                 options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
@@ -172,6 +175,48 @@ public class ItemTint {
     private static @NotNull Optional<Integer> stackDye(@NotNull ItemOptions options) {
         OptionalInt rgb = DecodedComponent.dyedColor(options.components());
         return rgb.isPresent() ? Optional.of(0xFF000000 | rgb.getAsInt()) : Optional.empty();
+    }
+
+    /**
+     * Reads the custom colour the stack's {@code minecraft:potion_contents} carries, opaque as vanilla's
+     * potion tint source answers it.
+     *
+     * @param options the caller's options, supplying the stack's component patch
+     * @return the ARGB colour, or empty where the patch sets no custom potion colour
+     */
+    private static @NotNull Optional<Integer> stackPotion(@NotNull ItemOptions options) {
+        OptionalInt rgb = DecodedComponent.potionCustomColor(options.components());
+        return rgb.isPresent() ? Optional.of(0xFF000000 | rgb.getAsInt()) : Optional.empty();
+    }
+
+    /**
+     * Blends the colours of the stack's potion effects as vanilla's
+     * {@code PotionContents.getColorOptional} blends them: each channel summed over the effects,
+     * weighted by {@code amplifier + 1}, then divided by the total weight in integer arithmetic, and the
+     * result opaque. Every {@link ItemContext#potionEffects() effect} the caller names is one visible
+     * instance at amplifier {@code 0}, so each weighs {@code 1}; an id the effect colour table does not
+     * carry adds nothing.
+     *
+     * @param context the renderer context the effect colours resolve against
+     * @param options the caller's options, supplying the potion effects
+     * @return the ARGB colour, or empty where no named effect has a colour
+     */
+    private static @NotNull Optional<Integer> effectsColour(@NotNull RendererContext context, @NotNull ItemOptions options) {
+        int red = 0;
+        int green = 0;
+        int blue = 0;
+        int weight = 0;
+        for (String effectId : options.getContext().potionEffects()) {
+            Optional<Integer> colour = context.findPotionEffectColor(effectId).toOptional();
+            if (colour.isEmpty()) continue;
+
+            int argb = colour.get();
+            red += ColorMath.red(argb);
+            green += ColorMath.green(argb);
+            blue += ColorMath.blue(argb);
+            weight++;
+        }
+        return weight == 0 ? Optional.empty() : Optional.of(ColorMath.pack(0xFF, red / weight, green / weight, blue / weight));
     }
 
     /**
