@@ -48,7 +48,8 @@ import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.Sampler;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
+import lib.minecraft.renderer.engine.math.Vector4f;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -132,10 +133,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * <p>
  * Each sprite and plain family is drawn once more with its texture beside a sidecar flipping its texture
  * section's blur. A plain family whose reader draws the texture whole is filtered by it, as the client
- * samples a plain texture by its sidecar, so it draws a picture other than its reference; a plain family
- * whose reader prepares a picture out of the texture first - a skin, cape or armour sheet's crops, the
- * composed container panel - reads that picture nearest, and draws its reference exactly, as does every
- * atlas sprite, which its atlas reads by its own sampler. A family served a solid sheet is staged as a
+ * samples a plain texture by its sidecar, so it draws a picture other than its reference - a skin, cape
+ * or armour sheet among them, whose faces are regions of the whole sheet, and every equipment layer,
+ * each drawn as a pass of its own, and a container sheet, whose panel is its regions blitted off the
+ * whole sheet; every atlas sprite draws its reference exactly, its atlas reading it by its own sampler. A
+ * family served a solid sheet is staged as a
  * two-tone sheet instead, since a filter leaves a uniform texture as it is. After its zero-byte break, a
  * drawn plain family is broken once more beside a sidecar that blurs, and draws the checkerboard hard, as
  * the client's missing texture is read.
@@ -148,9 +150,10 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * temporary pack holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack
  * reader.
  * <p>
- * A reader cropping a sheet by texel coordinates - a skin, an armour sheet, a cape, a banner mask - is
- * held further: what it draws for a missing texture is the stand-in already laid across the sheet it
- * declares, and it covers every pixel a fully opaque sheet would.
+ * A reader laying a sheet by the size it declares - a skin, an armour sheet, a cape, a banner mask - is
+ * held further: what it draws for a missing texture is the stand-in read where the declared sheet's
+ * normalised coordinates land on it - read whole by a box face, laid across the declared sheet first by
+ * a reader that crops by texel coordinates - and it covers every pixel a fully opaque sheet would.
  * <p>
  * Nothing misses on a vanilla stack, so no parity artifact sees any of this. The reporting sets are
  * static and live as long as the process, so each id is broken in each state by one test alone.
@@ -211,6 +214,11 @@ class MissingTextureFamilyTest {
     private static final String TRIM_PALETTE_KEY = "minecraft:trims/color_palettes/trim_palette";
 
     /**
+     * The steps a face's region is sampled at across each axis when its cover is checked.
+     */
+    private static final int COVER_STEPS = 32;
+
+    /**
      * An elytra wing source no pack ships, named through the skin options.
      */
     private static final String ELYTRA_SOURCE = "minecraft:entity/missing_texture_family/elytra_source";
@@ -262,14 +270,6 @@ class MissingTextureFamilyTest {
     private static final Set<String> WHOLE_SITES = Set.of(
         "book page", "container sheet", "armour glint", "item glint", "portal noise", "end sky",
         "cape on the wings", "elytra source");
-
-    /**
-     * The plain families whose reader prepares a picture out of the texture before it is drawn - a crop of a
-     * skin, cape or armour sheet, or the composed container panel - which is read nearest and repeating
-     * whatever the sheet's sidecar selects, so a blur sidecar leaves the family's picture as it is.
-     */
-    private static final Set<String> PREPARED = Set.of(
-        "player skin", "default skin", "cape", "worn armour layer", "pack-rule armour tile", "container sheet");
 
     /**
      * The families served a solid sheet by their intact context, which the blur stack stages as
@@ -678,7 +678,7 @@ class MissingTextureFamilyTest {
     }
 
     @TestFactory
-    @DisplayName("a blur sidecar filters a plain texture its reader draws whole, and no picture a reader prepares first, nor any atlas sprite")
+    @DisplayName("a blur sidecar filters every plain texture a reader draws, and no atlas sprite")
     @NotNull Stream<DynamicTest> aBlurSidecarFiltersOnlyAPlainTextureDrawnWhole() {
         return perFamily(family -> family.read() != Read.PERMUTATION_INPUT && family.drawn(), family -> {
             RendererContext intact = family.intact().apply(vanilla);
@@ -689,11 +689,12 @@ class MissingTextureFamilyTest {
             RenderResult drawn = family.render().draw(staged(intact, id, blurred));
 
             assertThat(family + " names no stand-in", drawn.substitutions(), is(empty()));
-            if (family.read() == Read.PLAIN && !PREPARED.contains(family.name())) {
-                assertThat(family + " is filtered by its sidecar, as the client samples a plain texture drawn whole",
+            if (family.read() == Read.PLAIN) {
+                assertThat(family + " is filtered by its sidecar, as the client samples a plain texture",
                     picture(drawn), is(not(reference)));
             } else {
-                assertThat(family + " draws its reference, read nearest whatever its sidecar selects", picture(drawn), is(reference));
+                assertThat(family + " draws its reference, read by its atlas's sampler whatever its sidecar selects",
+                    picture(drawn), is(reference));
             }
         });
     }
@@ -753,7 +754,7 @@ class MissingTextureFamilyTest {
     void aRowNamingNoTextureDrawsTheEmptyFrame() {
         Entity creeper = vanilla.findEntity("minecraft:creeper").orElseThrow();
         Entity untextured = new Entity(creeper.id(), creeper.model(), creeper.overlays(), creeper.blockOverlays(),
-            creeper.baseTintArgb(), creeper.rendererScale(),
+            creeper.baseTintArgb(), creeper.rendererScale(), creeper.bodyPass(),
             new Entity.Axes(creeper.axes().baby(), creeper.axes().shape(), Entity.Variation.none(),
                 creeper.axes().size(), creeper.axes().variant(), creeper.axes().carried(), creeper.axes().equipment()),
             creeper.layers(), creeper.members(), creeper.styles(), creeper.pose());
@@ -823,7 +824,8 @@ class MissingTextureFamilyTest {
             assertCoversItsSheet(dimension + " skin", context -> player(context, player()
                 .type(PlayerOptions.Type.FULL)
                 .dimension(dimension)
-                .skin(SkinOptions.builder().skin(TextureOptions.builder().id(skinId).build()).build())), skinId, 64, 64);
+                .skin(SkinOptions.builder().skin(TextureOptions.builder().id(skinId).build()).build())), skinId, 64, 64,
+                dimension == PlayerOptions.Dimension.TWO_D);
         }
     }
 
@@ -841,16 +843,16 @@ class MissingTextureFamilyTest {
             .build();
 
         assertCoversItsSheet("adult zombie", context -> entity(context, entity("minecraft:zombie")
-            .armor(armour)), sheet, 64, 32);
+            .armor(armour)), sheet, 64, 32, false);
         // A baby dresses every slot from its own sheet.
         assertCoversItsSheet("baby zombie", context -> entity(context, entity("minecraft:zombie")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
-            .armor(armour)), babySheet, 64, 64);
+            .armor(armour)), babySheet, 64, 64, false);
         for (PlayerOptions.Dimension dimension : PlayerOptions.Dimension.values()) {
             assertCoversItsSheet(dimension + " player", context -> player(context, player()
                 .type(PlayerOptions.Type.FULL)
                 .dimension(dimension)
-                .armor(armour)), sheet, 64, 32);
+                .armor(armour)), sheet, 64, 32, dimension == PlayerOptions.Dimension.TWO_D);
         }
     }
 
@@ -859,12 +861,12 @@ class MissingTextureFamilyTest {
     void aMissingCapeCoversItsSheet() {
         assertCoversItsSheet("cape", context -> player(context, player()
             .skin(SkinOptions.builder().cape(TextureOptions.builder().id(SHEET_CAPE).build()).renderCape(true).build())),
-            SHEET_CAPE, 64, 32);
+            SHEET_CAPE, 64, 32, false);
     }
 
     @Test
-    @DisplayName("every face a worn shell or the player's body crops from the stand-in is covered, adult and baby shells alike")
-    void everyCroppedArmourFaceIsCovered() {
+    @DisplayName("every face a worn shell or the player's body reads off the stand-in is covered, adult and baby shells alike")
+    void everyArmourFaceReadOffTheStandInIsCovered() {
         Entity zombie = vanilla.findEntity("minecraft:zombie").orElseThrow();
         List<Shell> shells = List.of(zombie.humanoidArmor().orElseThrow(),
             AppearanceOptions.builder().age(Age.BABY).build().resolve(zombie).humanoidArmor().orElseThrow());
@@ -876,10 +878,21 @@ class MissingTextureFamilyTest {
         rows.add(new WornBox.Body(HumanoidPart.HEAD, true, Concurrent.newSet(), HumanoidPart.HEAD.box(1f)));
 
         for (WornBox row : rows) {
-            FaceTextures faces = row.textures(MissingSprite.sprite());
-            for (Face face : Face.values())
-                for (int argb : RenderDigest.pixels(faces.byFace(face)))
-                    assertThat(row.trace() + " " + face + " is covered", argb >>> 24, is(0xFF));
+            FaceTextures faces = row.textures(SampledTexture.of(MissingSprite.sprite()));
+            for (Face face : Face.values()) {
+                FaceTextures.Region region = faces.byFace(face);
+                Vector4f px = region.pixels();
+                Vector4f uv = new Vector4f(px.x() / region.sheetWidth(), px.y() / region.sheetHeight(),
+                    px.z() / region.sheetWidth(), px.w() / region.sheetHeight());
+                // Every point of the face's region, sampled on a grid finer than any strip's texels.
+                for (int j = 0; j <= COVER_STEPS; j++)
+                    for (int i = 0; i <= COVER_STEPS; i++) {
+                        float u = uv.x() + (uv.z() - uv.x()) * i / COVER_STEPS;
+                        float v = uv.y() + (uv.w() - uv.y()) * j / COVER_STEPS;
+                        assertThat(row.trace() + " " + face + " is covered",
+                            region.texture().sample(u, v) >>> 24, is(0xFF));
+                    }
+            }
         }
     }
 
@@ -1112,24 +1125,30 @@ class MissingTextureFamilyTest {
     }
 
     /**
-     * Asserts a render reading one texture by texel crops draws, where that texture is missing, exactly
-     * what it draws where the texture is the stand-in already stretched across the sheet the reader
-     * declares, covers every pixel a fully opaque sheet of that size covers, and names the texture as
-     * the one stand-in drawn.
+     * Asserts a render laying one texture by the sheet size it declares draws, where that texture is
+     * missing, exactly what it draws where the texture is the stand-in - read whole by a box face's
+     * normalised coordinates, or already stretched across the declared sheet for a reader that crops it
+     * by texel coordinates - covers every pixel a fully opaque sheet of that size covers, and names the
+     * texture as the one stand-in drawn.
      *
      * @param label what is rendered, for the failure message
      * @param render the render reading the texture
      * @param textureId the texture made missing
      * @param width the width of the sheet the reader declares
      * @param height the height of the sheet the reader declares
+     * @param cropped whether the reader crops the sheet by texel coordinates rather than laying faces
+     *     of it
      */
     private static void assertCoversItsSheet(
-        @NotNull String label, @NotNull Render render, @NotNull String textureId, int width, int height) {
+        @NotNull String label, @NotNull Render render, @NotNull String textureId, int width, int height,
+        boolean cropped) {
         RenderResult drawn = render.draw(vanilla.hiding(textureId));
-        PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), width, height);
+        PixelBuffer standIn = cropped
+            ? MissingSprite.stretchedTo(MissingSprite.sprite(), width, height)
+            : MissingSprite.sprite();
 
         assertThat(label + " draws the stand-in across its sheet", picture(drawn),
-            is(picture(render.draw(vanilla.withTexture(textureId, stretched)))));
+            is(picture(render.draw(vanilla.withTexture(textureId, standIn)))));
         assertThat(label + " leaves no transparent remainder", coverage(drawn),
             is(coverage(render.draw(vanilla.withTexture(textureId, solid(width, height))))));
         assertThat(label + " names the missing texture", drawn.substitutions(),

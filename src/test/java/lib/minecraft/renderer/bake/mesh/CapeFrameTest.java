@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  * rectangle {@link Unwrap.Atlas#rect} gives the face. The cube hangs at a yaw of {@code PI} and is read,
  * like every player part, through the {@link AxisSigns#HALF_X HALF_X} upright turn, so a point of the
  * upright box sits at the cube corner {@link #VANILLA_TURN} maps it to. The renderer builds the upright
- * box with {@link CornerPhase#BAKERY} corners over whole-face crops instead, and every corner of every
+ * box with {@link CornerPhase#BAKERY} corners over regions of the whole sheet instead, and every corner of every
  * face has to sample the texel vanilla's polygon gives the same corner.
  * <p>
  * The probe sheet paints each texel of the cube's strips with its own {@code (u, v)} - {@code u} in red,
@@ -92,14 +93,17 @@ class CapeFrameTest {
         return Stream.of(Face.values()).map(face -> DynamicTest.dynamicTest(face.name(), () -> {
             List<String> misses = new ArrayList<>();
             int checked = 0;
+            List<VisibleTriangle> faceTriangles = triangles.stream()
+                .filter(triangle -> triangle.normal().equals(face.normal()))
+                .toList();
+            Vector4f span = Vector4f.bounds(faceTriangles.stream()
+                .flatMap(triangle -> Stream.of(triangle.uv0(), triangle.uv1(), triangle.uv2()))
+                .toArray(Vector2f[]::new));
 
-            for (VisibleTriangle triangle : triangles) {
-                if (!triangle.normal().equals(face.normal()))
-                    continue;
-
-                compare(misses, face, box, triangle.position0(), triangle.uv0(), triangle.texture().pixels());
-                compare(misses, face, box, triangle.position1(), triangle.uv1(), triangle.texture().pixels());
-                compare(misses, face, box, triangle.position2(), triangle.uv2(), triangle.texture().pixels());
+            for (VisibleTriangle triangle : faceTriangles) {
+                compare(misses, face, box, triangle.position0(), triangle.uv0(), span, triangle.texture().pixels());
+                compare(misses, face, box, triangle.position1(), triangle.uv1(), span, triangle.texture().pixels());
+                compare(misses, face, box, triangle.position2(), triangle.uv2(), span, triangle.texture().pixels());
                 checked += 3;
             }
 
@@ -115,7 +119,7 @@ class CapeFrameTest {
      */
     private static @NotNull ConcurrentList<VisibleTriangle> cape() {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        PlayerAssembly.addCape(triangles, probe(), TORSO_MIN, TORSO_MAX);
+        PlayerAssembly.addCape(triangles, SampledTexture.of(probe()), TORSO_MIN, TORSO_MAX);
         return triangles;
     }
 
@@ -177,24 +181,26 @@ class CapeFrameTest {
         @NotNull Box box,
         @NotNull Vector3f corner,
         @NotNull Vector2f uv,
+        @NotNull Vector4f span,
         @NotNull PixelBuffer texture
     ) {
-        Texel sampled = sampled(texture, uv);
+        Texel sampled = sampled(texture, uv, span);
         Texel expected = vanilla(face, box, corner);
         if (!sampled.equals(expected))
             misses.add(corner + " samples " + sampled + " where vanilla's walk puts " + expected);
     }
 
     /**
-     * Reads the crop texel a corner UV lands on.
+     * Reads the texel a corner UV lands on, the texel just inside the face's UV span at that corner.
      *
-     * @param texture the face's crop
-     * @param uv a corner of the unit UV square
-     * @return the probe texel the crop holds at that corner
+     * @param texture the cape sheet
+     * @param uv the vertex's UV
+     * @param span the least and greatest UV over the face's vertices, as {@code (uMin, vMin, uMax, vMax)}
+     * @return the probe texel the sheet holds at that corner
      */
-    private static @NotNull Texel sampled(@NotNull PixelBuffer texture, @NotNull Vector2f uv) {
-        int x = uv.x() == 0f ? 0 : texture.width() - 1;
-        int y = uv.y() == 0f ? 0 : texture.height() - 1;
+    private static @NotNull Texel sampled(@NotNull PixelBuffer texture, @NotNull Vector2f uv, @NotNull Vector4f span) {
+        int x = uv.x() == span.x() ? Math.round(span.x() * texture.width()) : Math.round(span.z() * texture.width()) - 1;
+        int y = uv.y() == span.y() ? Math.round(span.y() * texture.height()) : Math.round(span.w() * texture.height()) - 1;
         return Texel.decode(texture.getPixel(x, y));
     }
 

@@ -8,9 +8,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * A plain texture carries the sampler its sidecar's texture section selects, and the missing texture standing in
  * for one carries {@link Sampler#NEAREST_REPEAT}. An atlas sprite a 3D kit draws as a texture of its own, a buffer a
- * caller builds, and a picture this renderer cuts or pastes out of a plain texture before it draws it - a box face's
- * crop, a composite of equipment layers - carry {@link Sampler#NEAREST_REPEAT} through {@link #of}; a GUI sprite
- * carries its atlas's sampler, nearest and clamped to the edge.
+ * caller builds, and a picture this renderer makes out of a plain texture before it draws it - a permuted trim, a
+ * composed container panel - carry {@link Sampler#NEAREST_REPEAT} through {@link #of}; a GUI sprite carries its
+ * atlas's sampler, nearest and clamped to the edge.
  *
  * @param pixels the texture's pixels
  * @param sampler the sampler the pixels are read through

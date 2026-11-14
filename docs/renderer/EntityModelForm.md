@@ -88,7 +88,21 @@ draw the arms at rest.
   dye is selected. The render path evaluates the gate; there is no second copy of it.
 - An overlay's `blend` is a composition and `cutout` is the absence of one: `blendTokenOf` emits it
   when a resolved pipeline declares no blend function, and `parseBlend` maps it to
-  `BlendMode.REPLACE`, which differs from `NORMAL` only at partial alpha.
+  `BlendMode.REPLACE`, which differs from `NORMAL` only at partial alpha. Every overlay arm writes the
+  pipeline its layer submits through - off the factories the layer hierarchy reaches, or, for a layer
+  that hands its texture to another renderer (the trader llama's decor to `EquipmentLayerRenderer`),
+  off the one texture-taking factory that renderer reaches - so every vanilla overlay row names its
+  blend.
+- **A body's pass is the render type its model hands `Model`, and cutout is its identity.** A row's
+  `render.blend` is written only where the body draws through a blending pipeline - `translucent` for
+  the allay, the breeze, the vex and the three piglins. The body and every overlay row are read by
+  one `EntityIndexBuilder.passOf`, the body's `render.blend` as a `pipeline` block holding that member
+  alone; the caller names the blend a block naming none composes by, because the two defaults are
+  opposite. A body's absent blend is `BlendMode.REPLACE`, the cutout pass, because `EntityModel` hands
+  `entityCutout` to every model naming nothing else; an overlay's is source-over, reached only by a
+  row whose walk resolved no pipeline. Equipment layers, worn armour,
+  the wings and a block entity's bones are cutout by construction - vanilla submits each through a
+  pipeline declaring no blend function - so none of them reads a token.
 - **An overlay's `texture_scroll` moves where the pass SAMPLES and never where it stands.** Vanilla
   builds the offset into the texture matrix of the render type the layer submits through, so it is a
   property of the layer rather than of any mesh it draws, and the breeze's wind holds one silhouette

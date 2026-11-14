@@ -8,6 +8,8 @@ import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
 import lib.minecraft.refharness.frame.BlockFrameRenderer;
 import lib.minecraft.refharness.frame.ItemDefinitionWalk;
+import lib.minecraft.refharness.frame.ItemFrameRenderer;
+import lib.minecraft.refharness.frame.SlotLayers;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -32,9 +34,14 @@ import java.util.Map;
 
 /**
  * Block sweep. Every block's ground truth is a 3D render at the standard iso pose: the inventory
- * icon vanilla draws where it draws one from a block model, and the block's own 3D model where that
- * icon is a flat sprite. Per block:
+ * icon vanilla draws where it draws one from a block model or through special renderers, and the
+ * block's own 3D model where that icon is a flat sprite. Per block:
  * <ol>
+ *   <li><b>Blocks whose item the client draws through special renderers alone</b> (chest, bed,
+ *       banner and wall banner, head and wall head, shulker_box, conduit, decorated_pot,
+ *       copper_golem_statue) render through {@link ItemFrameRenderer}, the client's slot drawing:
+ *       each layer posed by its special's {@code transformation} and its base's {@code display.gui},
+ *       read by {@link SlotLayers}.</li>
  *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} at the block's authored
  *       {@code display.gui} pose. A block whose item definition walks to a {@code model} leaf
  *       naming a block model - a plain root naming one, or a dispatch whose neutral branch does -
@@ -42,8 +49,8 @@ import java.util.Map;
  *       item model uses {@code item/generated} as a parent (rails, vines, ladders, lily_pad,
  *       seagrass, sculk_vein, doors, hanging signs) has no 3D icon to reproduce and draws its
  *       blockstate model instead, a flat 2D billboard being no use as block ground truth.</li>
- *   <li><b>{@link EntityBlock} blocks</b> with a registered block-entity renderer (chest,
- *       shulker_box, banner, sign, decorated_pot, skull, bell, beacon, ...) render through
+ *   <li><b>Other {@link EntityBlock} blocks</b> with a registered block-entity renderer (sign,
+ *       hanging_sign, bell, beacon, ...) render through
  *       {@link BlockEntityFrameRenderer} so their per-entity art is captured. Its static block
  *       half takes the same split as the plain path, so a shelf and a structure_block draw the
  *       icon vanilla bakes for them and their block entity still submits on top.</li>
@@ -73,6 +80,7 @@ public final class BlockSweep implements Sweep<BlockSweep.Drawing> {
 
     private final BlockFrameRenderer blockRenderer = new BlockFrameRenderer();
     private final BlockEntityFrameRenderer beRenderer = new BlockEntityFrameRenderer();
+    private final ItemFrameRenderer itemRenderer = new ItemFrameRenderer();
 
     /**
      * One drawing, which is one reference: a block drawn from its default state, and the
@@ -134,13 +142,20 @@ public final class BlockSweep implements Sweep<BlockSweep.Drawing> {
 
     @Override
     public boolean render(SweepContext ctx, Drawing drawing, Canvas canvas, Path out) throws IOException {
-        // Block-entity blocks: try the BE-renderer path first (the actual 3D in-world geometry for
-        // signs / beds / banners / heads / shulker_boxes / bell). When it declines - no registered
-        // renderer - fall back to the PLAIN-BLOCK 3D path, not the item-model path. This is a
-        // block-parity sweep: the ground truth is the 3D in-world block at the iso pose, not the
-        // inventory icon, which for these blocks is either a flat sprite or a divergent model.
+        // A block whose item the client draws through special renderers alone - a chest, a bed, a
+        // banner, a head, a shulker box, a statue - is drawn as the client's slot draws it: each layer
+        // posed by its special's transformation and its base's display.gui, which nothing composed
+        // here reproduces. A wall form's item is its standing form's, so it draws that icon.
         BlockState state = drawing.block().defaultBlockState();
         ItemStack stack = drawing.stack();
+        if (SlotLayers.specialsAlone(ctx.client(), stack))
+            return itemRenderer.render(ctx.client(), stack, canvas, out);
+
+        // Block-entity blocks: try the BE-renderer path first (the actual 3D in-world geometry for
+        // signs / bells / beacons). When it declines - no registered renderer - fall back to the
+        // PLAIN-BLOCK 3D path, not the item-model path. This is a block-parity sweep: the ground
+        // truth is the 3D in-world block at the iso pose, not the inventory icon, which for these
+        // blocks is either a flat sprite or a divergent model.
         if (drawing.block() instanceof EntityBlock
             && beRenderer.render(ctx.client(), state, stack, canvas, out)) return true;
         return blockRenderer.render(ctx.client(), state, stack, canvas, out);

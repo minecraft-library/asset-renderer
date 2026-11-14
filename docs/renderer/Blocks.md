@@ -21,7 +21,21 @@ multipart assembly.
   whose neutral branch names one: `beehive`, `bee_nest` and `test_block` select on a block state and
   draw their fallback block model in a slot. A composite's icon paints every child, so it is not one
   block model. The icon's `display.gui` follows the same leaf: `BlockIndexBuilder.iconGuiFor` reads
-  a plain or special root's leaf, and a dispatch root's only where it passes this test.
+  a plain root's leaf, and a dispatch root's only where it passes this test.
+- **A block whose item the client draws through specials alone is drawn as its slot draws it** - a
+  chest, a bed, a banner, a head, a shulker box, the conduit, the decorated pot, a copper golem statue.
+  Vanilla's special renderers submit their raw model with no placement of their own, so the slot poses
+  each layer by its special's `transformation`, composed under every dispatch node's above it (the
+  statue's `select` carries one), and then by its base's `display.gui`, the nearest file up its chain
+  to declare one, read from every model, and the identity where none does. `iconGuiFor` bakes that
+  base's pose under any root - a `select`, a `condition`, a `range_dispatch` or a `composite` - wherever
+  every layer the neutral walk lands on is a special on one base; `BlockRenderer` reads the layers with
+  `ItemModelDispatch.iconSpecials`, the reader `specialPose` shares, and draws the block entity's bones
+  at their bind pose through each layer's `ItemModelNode.Resolution#pose` - the walk collecting every
+  dispatch node's transformation on its way to the leaf - lit by the base's `gui_light`, with no
+  presentation, icon turn or fit of its own. Where the item draws as many specials
+  as the entity has pieces - the bed's head and foot - each layer draws its own piece; otherwise every
+  layer draws the whole mesh. A wall form's item is its standing form's, so it draws that icon.
 - A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them
   in every display context. `GuiIcon` hands them to `BlockRenderer`'s icon build, which gives each
   face of the identity build the tint its tintindex names, white where the definition names none.
@@ -77,6 +91,10 @@ multipart assembly.
   ships, a select to its `gui` display-context case, its overworld dimension case or its fallback, a
   range dispatch at value `0`, a composite refused - and takes the quads vanilla's own
   `ItemModelResolver` lands on for a GUI stack.
+- The harness draws a block whose item the client draws through specials alone as the client's slot
+  draws it, through `ItemFrameRenderer`, wherever every layer `ItemModelResolver` builds for its GUI
+  stack is a special (`SlotLayers`). Its static sweep skips every model's `setupAnim`, so the drawing is
+  the bind render, as this renderer's is.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
 
 ## The block index and its first variant
@@ -106,5 +124,7 @@ whether that entry survives the `rendersNothing` filter at all.
 
 ## Decisions that stay closed
 
-- Do not wire `SpecialTransform` - a block entity's `presentation()` transform already carries that
-  pose, so applying it again double-applies.
+- Do not pose a special-drawn block icon by hand - no facing table, icon turn, flip or fit. The slot's
+  pose is the client's own data, the specials' `transformation`s and the base's `display.gui`, applied
+  to bind-pose bones; where the bind render disagrees with a real inventory, as for the copper golem
+  statue, the fix is the missing data rather than a correction.

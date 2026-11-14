@@ -734,21 +734,21 @@ class HypixelPlusReachTest {
     private static @NotNull ItemModelNode firstChildOnly(@NotNull ItemModelNode node) {
         return switch (node) {
             case ItemModelNode.Composite composite ->
-                new ItemModelNode.Composite(Concurrent.newUnmodifiableList(firstChildOnly(composite.models().getFirst())));
+                new ItemModelNode.Composite(Concurrent.newUnmodifiableList(firstChildOnly(composite.models().getFirst())), composite.transform());
             case ItemModelNode.Condition condition -> new ItemModelNode.Condition(condition.property(), condition.component(),
-                condition.ignoreDefault(), condition.predicate(), firstChildOnly(condition.onTrue()), firstChildOnly(condition.onFalse()));
-            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(), select.component(), select.decoded(),
+                condition.ignoreDefault(), condition.index(), condition.predicate(), firstChildOnly(condition.onTrue()), firstChildOnly(condition.onFalse()), condition.transform());
+            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(), select.index(), select.component(), select.decoded(),
                 select.cases()
                     .stream()
                     .map(option -> new ItemModelNode.Select.Case(option.when(), firstChildOnly(option.model())))
                     .collect(Concurrent.toUnmodifiableList()),
-                firstChildOnly(select.fallback()));
+                firstChildOnly(select.fallback()), select.transform());
             case ItemModelNode.RangeDispatch range -> new ItemModelNode.RangeDispatch(range.property(), range.scale(), range.target(), range.index(),
                 range.entries()
                     .stream()
                     .map(entry -> new ItemModelNode.RangeDispatch.Entry(entry.threshold(), firstChildOnly(entry.model())))
                     .collect(Concurrent.toUnmodifiableList()),
-                firstChildOnly(range.fallback()));
+                firstChildOnly(range.fallback()), range.transform());
             default -> node;
         };
     }

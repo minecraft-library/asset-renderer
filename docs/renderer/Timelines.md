@@ -43,10 +43,10 @@ context's `findFlipbook` answer and one of its two reads - `resolveTexture` for 
   skull's and the copper golem statue's - frame 0 at rest and the strip when a caller names frames,
   where vanilla draws the whole strip; every other plain read samples no table and draws the whole file,
   as vanilla does. A reader that spreads its UVs over the texture - an entity's mesh, the wings, a
-  skull, the glint, the book's quad, a container sheet, the portal shader - draws what it is handed
-  squeezed into the sheet its model declares, as the client draws it; one that crops by texel
-  coordinates - a skin, a cape, a worn armour or trim layer - draws the declared sheet's texels, where
-  the client draws a texture of another size whole.
+  skull, the glint, the book's quad, a container sheet, the portal shader, and a skin, cape, worn armour
+  or trim layer on a box - draws what it is handed squeezed into the sheet its model declares, as the
+  client draws it; one that crops by texel coordinates - the flat front-facing player composite -
+  draws the declared sheet's texels, where the client draws a texture of another size whole.
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
   strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`

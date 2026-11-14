@@ -4,6 +4,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -19,13 +20,16 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The session-memoized render-pipeline trait classifier - factory name to
@@ -73,7 +77,7 @@ public final class EntityPipelineTraits {
      * The {@code blend} token of a pipeline that declares no blend function at all - it writes each
      * surviving fragment over the destination verbatim, alpha included, rather than compositing it.
      */
-    static final @NotNull String BLEND_CUTOUT = "cutout";
+    public static final @NotNull String BLEND_CUTOUT = "cutout";
 
     /**
      * Field descriptor of a {@code java.util.function.Function}-backed factory field (JDK name, kit-local).
@@ -187,6 +191,72 @@ public final class EntityPipelineTraits {
             }
         });
         return blend[0];
+    }
+
+    /**
+     * The texture-taking {@code RenderTypes} factories a layer reaches through another class it hands
+     * its pass to - each factory called with an {@code Identifier} by a method the layer's instance
+     * methods invoke on a class other than its own. A decor layer submits no render type of its own
+     * and hands its texture to {@code EquipmentLayerRenderer}, which submits it through
+     * {@code armorCutoutNoCull}; the glint it adds takes no texture and so is not one of them.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return the factory names in the order first reached, empty where the layer delegates to none
+     */
+    public @NotNull Set<String> delegatedTextureFactories(@NotNull String layerClass) {
+        String textureFactory = "(" + SourceClasses.Descs.IDENTIFIER_REF + ")"
+            + SourceClasses.Descs.ref(SourceClasses.Types.RENDER_TYPE);
+        Set<String> factories = new LinkedHashSet<>();
+        ClassNode layer = this.cache.load(layerClass);
+        if (layer == null) return factories;
+        for (MethodNode method : layer.methods) {
+            if ((method.access & Opcodes.ACC_STATIC) != 0 || ClassKit.INIT.equals(method.name)) continue;
+            AsmWalker.over(method)
+                .opcode(Opcodes.INVOKEVIRTUAL, Opcodes.INVOKEINTERFACE)
+                .ofType(MethodInsnNode.class)
+                .forEach(call -> {
+                    if (layerClass.equals(call.owner)) return;
+                    Set<String> visited = new HashSet<>();
+                    if (!visited.add(callKey(call))) return;
+                    MethodNode delegate = ClassKit.findMethodInHierarchy(this.cache, call.owner, call.name, call.desc);
+                    if (delegate != null)
+                        collectFactoryCalls(delegate, FactoryWalk.delegate(call.owner, textureFactory), factories, visited, HELPER_HOPS);
+                });
+        }
+        return factories;
+    }
+
+    /**
+     * The {@code RenderTypes} factory a model class draws through - the method reference the nearest
+     * constructor up its superclass chain hands {@code Model} as its render-type function.
+     * {@code EntityModel} hands {@code entityCutout} on behalf of a subclass that names none, and a
+     * subclass naming its own - {@code AllayModel}'s {@code entityTranslucent} - is nearer.
+     *
+     * @param modelClass the model class's JVM internal name
+     * @return the factory name, or {@code null} when no constructor up the chain names one
+     * @throws ToolingException if the nearest class naming one names two, which one model cannot draw through
+     */
+    public @Nullable String modelFactory(@NotNull String modelClass) {
+        Set<String> named = new LinkedHashSet<>();
+        ClassNode declarer = ClassKit.walkSuperChainUntil(this.cache, modelClass, cn -> {
+            for (MethodNode method : cn.methods)
+                if (ClassKit.INIT.equals(method.name))
+                    AsmWalker.over(method)
+                        .opcode(Opcodes.INVOKEDYNAMIC)
+                        .ofType(InvokeDynamicInsnNode.class)
+                        .forEach(indy -> {
+                            if (indy.bsmArgs == null) return;
+                            for (Object arg : indy.bsmArgs)
+                                if (arg instanceof Handle handle && SourceClasses.Types.RENDER_TYPES.equals(handle.getOwner()))
+                                    named.add(handle.getName());
+                        });
+            return !named.isEmpty();
+        });
+        if (declarer == null) return null;
+        if (named.size() > 1)
+            throw new ToolingException("Model '%s' names render types %s in its constructors, and one model draws through one",
+                declarer.name, named);
+        return named.iterator().next();
     }
 
     /**
@@ -332,32 +402,81 @@ public final class EntityPipelineTraits {
         for (MethodNode method : cn.methods) {
             if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
             if (ClassKit.INIT.equals(method.name)) continue;
-            collectFactoryCalls(method, out, new HashSet<>(), HELPER_HOPS);
+            collectFactoryCalls(method, FactoryWalk.STATIC_HELPERS, out, new HashSet<>(), HELPER_HOPS);
         }
         return out;
     }
 
     /**
-     * Collects the {@code RenderTypes} factories one method body reaches, descending into each
-     * static call it makes while hops remain. Resolution walks the super chain the way
-     * {@code invokestatic} does, since javac names the calling class rather than the declaring one
-     * when a subclass invokes an inherited static; a target the jar does not hold ends that branch,
-     * which is what confines the descent to vanilla's own code.
+     * Collects the {@code RenderTypes} factories one method body reaches, descending into each call the
+     * walk follows while hops remain. Resolution walks the super chain the way the JVM does, since javac
+     * names the calling class rather than the declaring one when a subclass invokes an inherited method;
+     * a target the jar does not hold ends that branch, which is what confines the descent to vanilla's
+     * own code.
+     *
+     * @param method the method body to walk
+     * @param walk which calls are read, which factories are kept and which calls are followed
+     * @param out the sink each kept factory's name is added to, in the order reached
+     * @param visited the calls already followed, each as owner, name and descriptor
+     * @param hops how many more calls deep the walk may follow
      */
-    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull List<String> out,
-                                     @NotNull Set<String> visited, int hops) {
+    private void collectFactoryCalls(@NotNull MethodNode method, @NotNull FactoryWalk walk,
+                                     @NotNull Collection<String> out, @NotNull Set<String> visited, int hops) {
         AsmWalker.over(method)
-            .opcode(Opcodes.INVOKESTATIC)
+            .opcode(walk.opcodes())
             .ofType(MethodInsnNode.class)
-            .forEach(mi -> {
-                if (SourceClasses.Types.RENDER_TYPES.equals(mi.owner)) {
-                    out.add(mi.name);
+            .forEach(call -> {
+                if (SourceClasses.Types.RENDER_TYPES.equals(call.owner)) {
+                    if (walk.keeps().test(call)) out.add(call.name);
                     return;
                 }
-                if (hops <= 0 || !visited.add(mi.owner + '.' + mi.name + mi.desc)) return;
-                MethodNode helper = ClassKit.findMethodInHierarchy(this.cache, mi.owner, mi.name, mi.desc);
-                if (helper != null) collectFactoryCalls(helper, out, visited, hops - 1);
+                if (hops <= 0 || !walk.follows().test(call) || !visited.add(callKey(call))) return;
+                MethodNode helper = ClassKit.findMethodInHierarchy(this.cache, call.owner, call.name, call.desc);
+                if (helper != null) collectFactoryCalls(helper, walk, out, visited, hops - 1);
             });
+    }
+
+    /**
+     * A call's owner, name and descriptor as one key, what a walk records a followed call by.
+     *
+     * @param call the call
+     * @return its key
+     */
+    private static @NotNull String callKey(@NotNull MethodInsnNode call) {
+        return call.owner + '.' + call.name + call.desc;
+    }
+
+    /**
+     * Which calls a factory walk reads, which {@code RenderTypes} factories it keeps and which other
+     * calls it follows into.
+     *
+     * @param opcodes the invoke opcodes the walk reads
+     * @param keeps whether a {@code RenderTypes} call is a factory the walk collects
+     * @param follows whether a call to another method is one the walk descends into
+     */
+    private record FactoryWalk(int @NotNull [] opcodes, @NotNull Predicate<MethodInsnNode> keeps,
+                               @NotNull Predicate<MethodInsnNode> follows) {
+
+        /**
+         * The layer probe's walk: every factory a static call reaches, through every static helper.
+         */
+        static final @NotNull FactoryWalk STATIC_HELPERS =
+            new FactoryWalk(new int[] { Opcodes.INVOKESTATIC }, call -> true, call -> true);
+
+        /**
+         * The walk of a class a layer hands its pass to: the factories taking a texture, through that
+         * class's own methods it calls in turn - an overload forwarding to the one submitting the pass is
+         * the shape {@code EquipmentLayerRenderer.renderLayers} takes.
+         *
+         * @param owner the class the layer hands its pass to
+         * @param textureFactory the descriptor of a factory taking a texture
+         * @return the walk
+         */
+        static @NotNull FactoryWalk delegate(@NotNull String owner, @NotNull String textureFactory) {
+            return new FactoryWalk(new int[] { Opcodes.INVOKESTATIC, Opcodes.INVOKEVIRTUAL, Opcodes.INVOKESPECIAL },
+                call -> textureFactory.equals(call.desc), call -> owner.equals(call.owner));
+        }
+
     }
 
     // ------------------------------------------------------------------------------------

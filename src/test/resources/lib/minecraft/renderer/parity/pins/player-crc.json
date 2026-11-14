@@ -6,9 +6,9 @@
   "kind": "pin-set",
   "provenance": {
     "artifact": "pin.player-crc",
-    "asset_content_digest": "014f16cd342ccef8b4b5d628309f06e8a97f27c0ee657795de516e0658077e9f",
+    "asset_content_digest": "8acaa2144945de48b039dac133bdc7321cf9a7c4b1c40e4bcda70f3b6f2245f4",
     "asset_dirty": true,
-    "asset_sha": "6aaf4c2d2f42e30267c80c9d7bcb7cec2beb64de",
+    "asset_sha": "56f9deeddded86fff3fd04a5a4f439d4931cdea1",
     "counts": {
       "values": 3
     },
@@ -16,25 +16,14 @@
     "flags": {},
     "mc_version": "26.1.2",
     "parity_class": "moving",
-    "producer": "test",
-    "reason": "The depth plane is solved from the corners coverage and texture coordinates read after the 1/256 snap, where it read the unsnapped corners, so a sample between the snapped and unsnapped edge of two faces no longer reads both planes extrapolated - the GPU interpolates depth over the snapped window positions. Measured against vanilla, the moved rows' summed mean delta falls 7.9051 to 3.1258 on the still sweep (75 better, 3 worse), 0.9401 to 0.8345 idle and 2.1624 to 1.6190 walking with no idle or walk row worse, and 14.1761 to 13.9362 on the armour sweep; the largest gains are the baby drowned still 0.9674 to 0.0193, the giant in iron 0.6855 to 0.0055, the baby husk walk 0.0923 to 0.0047 and the sheep walk 0.0869 to 0.0201. Two rows grow, each traced to a corner sitting on a 1/512 snap midpoint, which now tilts the depth plane as it already moved coverage: the charged creeper still 1.1823 to 1.7686 (its swirl's doubling, while its wrong pixels fall 1327 to 835) and the zombie villager in iron 0.0002 to 0.1112. The two leather glint diagnostics rise by under 0.01. pin.player-crc's armoured iso body moves 0xF82EAD8A to 0x1AC298B3, and the armour sweep's raw renders, the player sheets and the zombie's projection sheets move with the same depth reads; the block, item, menu, fluid and portal artifacts hold.",
-    "reference_counts": {
-      "armor": 7,
-      "blocks": 1096,
-      "entities": 406,
-      "glint": 330,
-      "idle": 2547,
-      "items": 479,
-      "menus": 10,
-      "players": 2,
-      "walk": 4896
-    },
-    "timestamp": "2026-10-23T13:31:06Z",
+    "producer": "parityPinTest",
+    "reason": "Box faces read as regions of the whole skin, cape and armour sheet through its sampler (6b161c0b): the armoured player pin, the perspective and oblique player sheets, and the glint sweep's leather leggings, mean_argb_delta 84.1385 -> 84.0617",
+    "timestamp": "2026-11-09T22:54:26Z",
     "tool_version": "1.0.0"
   },
   "values": {
     "armored_full_vanilla_iso": {
-      "crc32": "0x1AC298B3",
+      "crc32": "0xD9BF0609",
       "subject": "Type.FULL + ArmorMaterial.IRON helmet/chestplate/leggings/boots, THREE_D, VANILLA_ISO, canvas 256, ssaa 1, aa off, steve skin",
       "type": "crc32"
     },

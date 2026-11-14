@@ -190,8 +190,7 @@ public final class IndexedRendererContext implements RendererContext {
             blockItemAliases,
             blockEntities,
             beResult.variants(),
-            itemTrees,
-            models.items()
+            itemTrees
         );
         IndexRows<Block> blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
         IndexRows<Item> itemRows = ItemIndexBuilder.load(

@@ -74,6 +74,12 @@ public class BlockGeometryKit {
      * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
      * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
      * <p>
+     * Every face is drawn through the {@link PassDeclaration#CUTOUT cutout pass}: every block entity
+     * renderer this draws submits its bone model through a pipeline declaring no blend function -
+     * {@code entityCutout}, {@code entityCutoutCull}, {@code entityCutoutZOffset} or
+     * {@code entitySolid} - a player head included, which binds the default skin through
+     * {@code entityCutoutZOffset} where it carries no owner profile.
+     * <p>
      * <b>Frame scope:</b> this emits in the bone tree's <b>native</b> orientation (Y-down, no entity
      * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
      * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
@@ -156,7 +162,7 @@ public class BlockGeometryKit {
                         boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture.pixels());
                         BoxKit.addQuad(triangles, corners, uv,
                             texture, tintArgb, normal, Lighting.inventory(normal),
-                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
+                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.CUTOUT), null);
                     });
             }
         }
@@ -629,11 +635,8 @@ public class BlockGeometryKit {
 
     /**
      * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-     * and surface normals. Preserves each triangle's {@code cullBackFaces},
-     * {@code directionalLight} and {@code emissive} traits while resetting {@code translucent} /
-     * {@code glinted} to {@code false} - block geometry carries neither. The directional-light
-     * flag has to survive because the block-icon relight runs after this, and it is what tells
-     * the relight to leave a {@code "shade": false} face full-bright.
+     * and surface normals, each copy carrying its triangle's {@link SurfaceTraits#reframed() re-framed}
+     * traits.
      *
      * @param triangles the triangles to rotate
      * @param rotation the rotation applied to every vertex position and normal
@@ -648,9 +651,7 @@ public class BlockGeometryKit {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 tri.normal().transformNormal(rotation),
-                tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
-                    tri.traits().directionalLight(),
-                    PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
+                tri.shading(), tri.traits().reframed()
             ))
             .collect(Concurrent.toWideList());
     }
@@ -681,52 +682,6 @@ public class BlockGeometryKit {
             result = result.rotateY((float) Math.toRadians(-variant.y()));
 
         return result;
-    }
-
-    /**
-     * Recenters and scales a triangle list so all geometry fits within the standard
-     * 1.4 unit extent. Used for multi-block entity models that extend beyond the
-     * standard 0-16 single-block bounds.
-     * <p>
-     * Applies two distinct behaviours depending on how far the geometry overflows:
-     * <ul>
-     * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 - shrinks uniformly to
-     *     1.4 and recenters around the bbox midpoint so both halves fit one tile.</li>
-     * <li><b>Slightly tall single-block (decorated_pot rim y=17..20):</b> extent just
-     *     above 1.0 - leaves scale at 1 and skips recentering, so the element keeps
-     *     its authored Y levels and the rim naturally extends above the block top
-     *     line just like vanilla's inventory icon.</li>
-     * </ul>
-     *
-     * @param triangles the assembled triangles to fit
-     * @return the fitted triangle list, the input itself when it already fits
-     */
-    public static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(@NotNull ConcurrentList<VisibleTriangle> triangles) {
-        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
-        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-        for (VisibleTriangle t : triangles) {
-            for (Vector3f v : new Vector3f[]{ t.position0(), t.position1(), t.position2() }) {
-                minX = Math.min(minX, v.x()); maxX = Math.max(maxX, v.x());
-                minY = Math.min(minY, v.y()); maxY = Math.max(maxY, v.y());
-                minZ = Math.min(minZ, v.z()); maxZ = Math.max(maxZ, v.z());
-            }
-        }
-        float extent = Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
-        if (extent <= 1.4f) return triangles;
-        float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
-        float scale = 1.4f / extent;
-
-        return triangles.stream()
-            .map(t -> new VisibleTriangle(
-                new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
-                new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
-                new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
-                t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
-                    t.traits().directionalLight(),
-                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-            ))
-            .collect(Concurrent.toWideList());
     }
 
 }

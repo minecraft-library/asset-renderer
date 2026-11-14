@@ -56,9 +56,9 @@ public class ArmorKit {
 
     /**
      * One armor box ready to build: the row it was resolved from, and its corners in the frame it is
-     * drawn in. The row travels rather than a resolved crop because a slot's boxes are textured twice -
-     * once from the armor sheet and once from the trim - and each crop is a read of the same row
-     * against a different sheet.
+     * drawn in. The row travels rather than resolved regions because a slot's boxes are textured twice -
+     * once from the armor sheet and once from the trim - and each is a read of the same row against a
+     * different sheet.
      *
      * @param row the row the box was resolved from, which answers for its texture and its trace name
      * @param bounds the box in the frame it is drawn in
@@ -134,8 +134,9 @@ public class ArmorKit {
      * is grown or inflated here.
      *
      * <p>The sheet and the trim atlas are the form's answers for the slot - a worn shell hands its own
-     * form, and the player is dressed in the adult one - and every box is textured twice when the piece
-     * carries a trim, once from each sheet in that order.
+     * form, and the player is dressed in the adult one. Each of the asset's layers is drawn over every
+     * box as a pass of its own, tinted by its colour, back to front, as the client draws an equipment
+     * layer; a trim is one more pass over every box after the last layer.
      */
     private static void addSlot3D(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
@@ -146,25 +147,27 @@ public class ArmorKit {
         @NotNull Optional<ItemContext> item,
         @NotNull RendererContext context
     ) {
-        Optional<PixelBuffer> armorTexture =
-            resolveArmorTexture(context, piece, form.layerType(slot), item);
-        if (armorTexture.isEmpty()) return;
+        List<EquipmentKit.Layer> layers = resolveArmorLayers(context, piece, form.layerType(slot), item);
+        if (layers.isEmpty()) return;
 
-        for (SlotBox box : boxes)
-            triangles.addAll(buildBox3D(box, armorTexture.get()));
+        for (EquipmentKit.Layer layer : layers)
+            for (SlotBox box : boxes)
+                triangles.addAll(buildBox3D(box, layer.texture(), layer.tint()));
 
         if (piece.trim().isEmpty()) return;
         ArmorTrim trim = piece.trim().get();
         form.trimLayer(slot)
             .flatMap(layer -> resolveTrimTexture(context, layer, trim.pattern(), trim.color()))
+            .map(SampledTexture::of)
             .ifPresent(trimTexture -> {
                 for (SlotBox box : boxes)
-                    triangles.addAll(buildBox3D(box, trimTexture));
+                    triangles.addAll(buildBox3D(box, trimTexture, ColorMath.WHITE));
             });
     }
 
     /**
-     * Builds one box of armor, read through its own row against the sheet it is textured with.
+     * Builds one box of armor, read through its own row against the sheet it is textured with and
+     * drawn in the pass's vertex colour.
      *
      * <p>A worn shell's row reads its cube's own unwrap, turned into the model frame that unwrap
      * addresses; the player's reads its body part's own skin rectangles, which resolve that turn when
@@ -172,17 +175,18 @@ public class ArmorKit {
      * included: that shell IS the skin unwrap, mirrored left limbs and all.
      */
     private static @NotNull ConcurrentList<VisibleTriangle> buildBox3D(
-        @NotNull SlotBox box, @NotNull PixelBuffer texture) {
+        @NotNull SlotBox box, @NotNull SampledTexture texture, int tint) {
         return BoxKit.buildBox(
-            box.bounds(), box.row().textures(texture), ColorMath.WHITE,
+            box.bounds(), box.row().textures(texture), tint,
             SurfaceTraits.WORN_SHELL,
             DebugChannel.tracingPixels() ? box.row().trace() : null);
     }
 
     /**
-     * Resolves the composited armor texture for a slot: the piece's {@link ArmorPiece#material()
-     * material} asset composited under the given layer type by {@link EquipmentKit#composite}, dyed
-     * by the piece's {@link ArmorPiece#dyeColor() dye}.
+     * Resolves the layers a slot's armor draws: the piece's {@link ArmorPiece#material() material}
+     * asset's layers under the given layer type, each a texture and a colour, resolved by
+     * {@link EquipmentKit#layers}, a dyeable layer coloured by the piece's
+     * {@link ArmorPiece#dyeColor() dye}.
      *
      * <p>A present {@code item} first consults the pack-rule (CIT) override
      * ({@link RendererContext#resolveArmorTextureOverride}); a matching
@@ -196,10 +200,10 @@ public class ArmorKit {
      *     {@link LayerType#HUMANOID_LEGGINGS})
      * @param item the equipped item identity, for the pack-rule override; empty leaves the layers on
      *     the equipment model
-     * @return the composited texture's pixels, which every box crops its faces from, so no sampler of its
-     *     own is read; empty when the asset declares no layer that draws for the slot
+     * @return the layers, back to front, each with the sampler every box reads its faces of it through;
+     *     empty when the asset declares no layer that draws for the slot
      */
-    static @NotNull Optional<PixelBuffer> resolveArmorTexture(
+    static @NotNull List<EquipmentKit.Layer> resolveArmorLayers(
         @NotNull RendererContext context,
         @NotNull ArmorPiece piece,
         @NotNull LayerType layerType,
@@ -208,8 +212,8 @@ public class ArmorKit {
         CitResult cit = item
             .map(itemContext -> context.resolveArmorTextureOverride(piece.material(), layerType, itemContext))
             .orElse(CitResult.NONE);
-        return EquipmentKit.composite(context, piece.material().assetId(), layerType,
-            piece.dyeColor(), cit, OptionalInt.empty()).map(SampledTexture::pixels);
+        return EquipmentKit.layers(context, piece.material().assetId(), layerType,
+            piece.dyeColor(), cit, OptionalInt.empty());
     }
 
     /**
@@ -222,7 +226,8 @@ public class ArmorKit {
      * @param layer the entity trim layer ({@code humanoid} or {@code humanoid_leggings})
      * @param pattern the trim pattern supplying the grayscale base texture key
      * @param color the trim material supplying the colour palette key
-     * @return the permuted trim overlay - never empty, as {@link TrimKit#permuteFrom} answers it
+     * @return the permuted trim overlay, a picture of the renderer's own read nearest and repeating -
+     *     never empty, as {@link TrimKit#permuteFrom} answers it
      */
     static @NotNull Optional<PixelBuffer> resolveTrimTexture(
         @NotNull RendererContext context,

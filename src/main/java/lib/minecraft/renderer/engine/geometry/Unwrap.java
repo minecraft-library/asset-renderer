@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.engine.geometry;
 
-import dev.simplified.image.PixelBuffer;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
@@ -104,8 +103,8 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
      * A mirrored cube reads the opposite side's strip, which is {@link AxisSigns#MIRROR_X} applied to the
      * face, and callers apply that themselves because several of them need the unmirrored rectangle:
      * the entity kit's cull and translucency predicates ask what a face's <em>own</em> strip contains.
-     * {@link #crop} needs no such caller because it paints one face's pixels, so it applies both the
-     * strip swap and the left-to-right texel flip itself.
+     * {@link #read} answers what one face paints, so it applies both the strip swap and the
+     * right-to-left read itself.
      *
      * @param origin the cube's texture origin in pixels on the source image
      * @param size the cube's extent along each axis in model units
@@ -127,42 +126,21 @@ public sealed interface Unwrap permits Unwrap.Element, Unwrap.Atlas {
         }
 
         /**
-         * Reads one face of this cube out of the sheet its own unwrap addresses, for the consumers that
-         * paint a box from six cropped images rather than from interpolated UVs.
+         * Returns the rectangle one face of this cube reads, as the coordinate at the face's left edge,
+         * at its top, at its right and at its bottom, in this unwrap's own pixel space.
          * <p>
-         * The crop is a nearest-neighbour resample rather than a rectangle copy, because a vanilla
-         * cube's size need not be a whole number of texels - the baby armor shell's waist is
-         * {@code 5.9 x 2 x 2.9}. Each destination texel is sampled at its own centre, which is exactly a
-         * rectangle copy whenever the strip is whole-numbered and the closest thing to vanilla's own
-         * sampling when it is not.
+         * On an unmirrored cube that is {@link #rect}. A mirrored cube reads the opposite side's strip
+         * on the two side faces and reads every strip right to left, so its left and right coordinates
+         * come back swapped - the pair a mirrored polygon interpolates descending. A strip need not be a
+         * whole number of texels - the baby armour shell's waist is {@code 5.9 x 2 x 2.9} - and the
+         * rectangle keeps it fractional, as the client's polygon does.
          *
-         * @param sheet the source image
-         * @param face the model-frame face to crop
-         * @return a new buffer holding that face's texels, transparent where the strip falls off the
-         *     sheet
+         * @param face the model-frame face to read
+         * @return the face's left, top, right and bottom coordinates, in pixels
          */
-        public @NotNull PixelBuffer crop(@NotNull PixelBuffer sheet, @NotNull Face face) {
-            // A mirrored cube reads the opposite side's strip on the two side faces and reads every
-            // strip right to left, which is the same pair of moves the skin table's legacy left-limb
-            // fallback makes.
-            Vector4f rect = rect(this.mirror ? AxisSigns.MIRROR_X.apply(face) : face);
-            float u0 = rect.x();
-            float v0 = rect.y();
-            float uSpan = rect.z() - u0;
-            float vSpan = rect.w() - v0;
-            int width = Math.max(1, Math.round(uSpan));
-            int height = Math.max(1, Math.round(vSpan));
-
-            int[] pixels = new int[width * height];
-            for (int y = 0; y < height; y++) {
-                int sy = (int) Math.floor(v0 + (y + 0.5f) * vSpan / height);
-                for (int x = 0; x < width; x++) {
-                    int sx = (int) Math.floor(u0 + (x + 0.5f) * uSpan / width);
-                    if (sx < 0 || sx >= sheet.width() || sy < 0 || sy >= sheet.height()) continue;
-                    pixels[y * width + (this.mirror ? width - 1 - x : x)] = sheet.getPixel(sx, sy);
-                }
-            }
-            return PixelBuffer.ofStraight(pixels, width, height);
+        public @NotNull Vector4f read(@NotNull Face face) {
+            if (!this.mirror) return rect(face);
+            return rect(AxisSigns.MIRROR_X.apply(face)).reversedU();
         }
 
     }

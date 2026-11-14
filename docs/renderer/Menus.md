@@ -39,10 +39,16 @@ laid by `NineSliceKit` at output-pixel resolution.
   property of the client's blits, and such a screen has none. The panel is read as the client reads a
   container texture, a plain texture: of its sidecar the texture section alone, so its `gui` section is
   never read, container art being blitted rather than nine-sliced, and an animation section neither
-  plays nor loses it. A sheet authored at another size for a shipped screen is read at one texel per
-  Minecraft pixel, where the client draws it at full resolution. The panel composed from it is laid
-  nearest, so a sheet whose texture section blurs or clamps draws as one that sets neither, where the
-  client filters or clamps each blit off the sheet.
+  plays nor loses it, and its texture section selects the sampler the sheet is read through.
+- **A shipped screen's panel is laid blit by blit off the sheet.** `Window.Sliced` keeps the regions
+  the panel is composed from, each placed where it lands - a region crossing the cut of a panel without
+  the player's section kept as its rows on the kept side - and at the panel's own size lays each
+  through the client's region blit, `NineSliceKit.blit`: one quad the region's size, addressed in the
+  256-texel space, each output pixel reading the sheet at its own resolution through its own sampler.
+  So a sheet authored at twice the size draws every texel its blits read, and one whose texture section
+  blurs or clamps is filtered or clamped as the client filters each blit. A 256-texel sheet read
+  nearest is exactly its copy at one texel per Minecraft pixel, which is what `panelArt` holds: the
+  panel's depths and floor are read from it, and the slicer reassembles it at any other size.
 - **A window sliced from art draws a GUI sprite as the client draws one.** A cell sprite, the
   anvil's field and its cross, and the recipe-book button are read as the client's GUI atlas holds
   them - the missing texture for one no pack supplies, one that cannot be read and one whose `gui`
@@ -174,3 +180,23 @@ laid by `NineSliceKit` at output-pixel resolution.
   byte-exact about chrome, costs seconds and boots no client; the harness menu sweep renders each
   screen through the client's own GUI pipeline and is the only one that sees what a composed screen
   adds - its labels, its slots through vanilla's GUI item atlas, and the composition itself.
+
+## Decisions that stay closed
+
+- **Do not chase the tooltip frame's side ramp on exact-boundary rows.** The frame sprite stretches
+  its centre slice (`stretch_inner`), and `NineSliceKit` maps each output row of that slice to a
+  sprite row with a pixel-centred integer sample: row `off` of the centre reads sprite row
+  `border + (2 * off + 1) * centreSprite / (2 * centreDest)`, `border` being the near border in sprite
+  rows (10 for the frame) and the quotient rounded down. Where that quotient is whole the pixel's
+  centre sits on the edge between two texels, and the kit takes the next one. The client interpolates
+  the quad's texture coordinate on the card, and on such a row it lands on either side - even across
+  the two output columns of one Minecraft pixel, as at `hex_colours_chrome` row 9, though the side
+  quad's sprite row does not change along a row. Only the card's own rounding tells two pixels of one
+  row apart, and it follows the quad's place in the client's render target, so no rule over a row or
+  over the quad reproduces it: that takes the card's interpolation setup at the client's screen
+  position, over corners that are the sprite's place in the GUI atlas rounded to float, and modelling
+  the card is refused in [Texel rules](TexelFetch.md). Of the 172 visible exact-boundary pixels of the
+  26.1 tooltip sweep's box-alone rows over the sprite box, the kit's rule reads 154 as the client
+  does, and reading the texel before the edge, as the entity raster does, would read only those 18
+  the kit misses. They are what stays: one ramp level each on the frame's side ramp, none near a
+  corner - 1 in `hex_colours_chrome`, 16 in `item_like_chrome` and 1 in `narrow_chrome`.

@@ -14,15 +14,15 @@ import java.util.Set;
 
 /**
  * The declared GUI / inventory-transform facts a bytecode walk cannot settle - which renderer
- * member builds each GUI {@code Transformation}, the per-model camera-facing yaw convention, the
- * bell no-flip exception, and the bed icon rotation. Declared here with mandatory provenance;
+ * member builds each GUI {@code Transformation} and the bell no-flip exception. Declared here with
+ * mandatory provenance;
  * never fetches ({@code PolicyPurityTest}).
  *
  * <p>The mechanics stay bytecode: {@code TransformWalker} re-enters at the declared entry
  * coordinate and decomposes the {@code PoseStack} chain, and {@link BlockGuiResolver} reads the
  * item-model {@code display.gui} roll for the non-transform families. This enum only supplies the
  * entry coordinates and the handful of facts that a bytecode walk genuinely cannot see (why the
- * same gui-yaw maps to different inventory rotations; why the bell hangs un-flipped).
+ * bell hangs un-flipped).
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 enum BlockTransformPolicies implements NavigationPolicy {
@@ -58,20 +58,6 @@ enum BlockTransformPolicies implements NavigationPolicy {
             + " members, so a return-type scan is ambiguous and this stays the sole hand-curated map"),
 
     /**
-     * The nine split ids whose inventory icon faces the GUI camera at yaw 180. NOT derivable
-     * from {@code display.gui} yaw - skull and conduit both carry gui-yaw 45 yet map to 180 / 0,
-     * so it is a per-model facing convention, not something a bytecode walk alone can determine.
-     */
-    INVENTORY_Y_ROTATION(
-        Set.of(
-            "minecraft:chest",
-            "minecraft:banner", "minecraft:wall_banner", "minecraft:banner_flag", "minecraft:wall_banner_flag",
-            "minecraft:skull_head", "minecraft:skull_humanoid_head", "minecraft:skull_dragon_head", "minecraft:skull_piglin_head"),
-        "the split ids whose GUI icon renders at inventory yaw 180. NOT a display.gui derivation: skull and"
-            + " conduit share gui-yaw 45 yet map to 180 against 0 - a camera-facing convention, not the raw gui"
-            + " yaw. Every other split defaults to 0"),
-
-    /**
      * The split ids the entity flip is suppressed on. Only {@code bell_body}:
      * {@code BellRenderer.submit} draws with the raw block {@code PoseStack} (no
      * {@code scale(-1, -1, 1)}), and the bell icon is a flat {@code item/generated} sprite with
@@ -94,14 +80,6 @@ enum BlockTransformPolicies implements NavigationPolicy {
         Map.of("minecraft:sign", "FLOOR", "minecraft:wall_sign", "WALL"),
         "the standing-sign icon attachment per split - sign renders floor-attached, wall_sign takes"
             + " the PlainSignBlock$Attachment.WALL branch offset in StandingSignRenderer.baseTransformation"),
-
-    /**
-     * The split ids whose inventory icon renders rotated a quarter turn, and the rotation.
-     * Only the bed head (90 degrees) - a GUI presentation policy, not bytecode.
-     */
-    ICON_ROTATION(
-        Map.of("minecraft:bed_head", 90),
-        "the bed inventory icon renders rotated 90 degrees - a GUI presentation policy, not bytecode"),
 
     /**
      * The split ids whose icon draws additively. Only {@code bell_body}: the bell body is drawn
@@ -163,7 +141,7 @@ enum BlockTransformPolicies implements NavigationPolicy {
         1e-3f,
         "UNIT_EPS 1e-3 - the shulker 0.9995 z-fight-fudge snap band, the sign-fold axis preference"
             + " (scale(1,-1,-1)=Rx180, and (-s,-s,+s)->Rx180 by Y-symmetry), and the block-centred"
-            + " rotateAround-180 = the camera-facing flip already carried by the y_rotation");
+            + " rotateAround-180 comparison");
 
     /**
      * Pairs a renderer's internal name with the coordinate under it, so a row names its renderer
@@ -248,17 +226,6 @@ enum BlockTransformPolicies implements NavigationPolicy {
     }
 
     /**
-     * The inventory yaw a split's icon renders at - 180 for the camera-facing families, else 0.
-     *
-     * @param splitId the models key
-     * @return {@code 180f} or {@code 0f}
-     */
-    @SuppressWarnings("unchecked")
-    static float inventoryYRotation(@NotNull String splitId) {
-        return ((Set<String>) INVENTORY_Y_ROTATION.value).contains(splitId) ? 180f : 0f;
-    }
-
-    /**
      * Whether the entity flip is suppressed on a split (the bell hangs un-flipped).
      *
      * @param splitId the models key
@@ -267,18 +234,6 @@ enum BlockTransformPolicies implements NavigationPolicy {
     @SuppressWarnings("unchecked")
     static boolean isFlipSuppressed(@NotNull String splitId) {
         return ((Set<String>) FLIP_SUPPRESSED.value).contains(splitId);
-    }
-
-    /**
-     * The inventory-icon rotation for a split in degrees, or {@code null} when the icon is not
-     * rotated.
-     *
-     * @param splitId the models key
-     * @return the rotation, or {@code null}
-     */
-    @SuppressWarnings("unchecked")
-    static @Nullable Integer iconRotation(@NotNull String splitId) {
-        return ((Map<String, Integer>) ICON_ROTATION.value).get(splitId);
     }
 
     /**

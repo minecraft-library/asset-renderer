@@ -132,6 +132,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/BlockIconPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/BlockRenderer": {
       "artifacts": [
         "manifest.player-raw",
@@ -163,6 +167,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/CustomModelDataTintTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/CutoutPassTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4940,29 +4948,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/engine/geometry/FaceTextures": {
-      "artifacts": [
-        "manifest.fluid",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.portal",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "pin.player-crc",
-        "pin.portal-crc",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.entity-walk",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/engine/geometry/ModelUnits": {
       "artifacts": [
         "manifest.dump.packs",
@@ -5411,11 +5396,15 @@
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
+        "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
+        "pin.fluid-crc",
         "pin.player-crc",
+        "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -5429,6 +5418,29 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/mesh/BoxKit": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/mesh/FaceTextures": {
       "artifacts": [
         "manifest.fluid",
         "manifest.player-raw",

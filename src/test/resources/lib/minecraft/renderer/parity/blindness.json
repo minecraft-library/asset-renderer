@@ -851,9 +851,9 @@
         "src/main/java/lib/minecraft/renderer/engine/geometry/AxisSigns.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/CornerPhase.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
-        "src/main/java/lib/minecraft/renderer/engine/geometry/FaceTextures.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java",
         "src/main/java/lib/minecraft/renderer/engine/light/FaceShade.java",
+        "src/main/java/lib/minecraft/renderer/engine/mesh/FaceTextures.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java"
       ]
     },
@@ -1517,6 +1517,7 @@
         "harness/src/client/java/lib/minecraft/refharness/frame/BlockIconGeometry.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/FirstVariantRandomSource.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/ItemDefinitionWalk.java",
+        "harness/src/client/java/lib/minecraft/refharness/frame/SlotLayers.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/BlockSweep.java"
       ]
     },

@@ -11,11 +11,11 @@ import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -188,13 +188,12 @@ class BlockGeometryKitQuadFanTest {
         @NotNull Box box, @NotNull FaceTextures textures, int tintArgb,
         @NotNull SurfaceTraits surface, String debugPart) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Vector2f[] uv = {
-            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
-        };
         Face.forEach(face -> {
+            FaceTextures.Region region = textures.byFace(face);
+            Vector2f[] uv = region.pixels().toUvCorners(region.sheetWidth(), region.sheetHeight(), 0, false);
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
             Vector3f normal = face.normal();
-            SampledTexture texture = SampledTexture.of(textures.byFace(face));
+            SampledTexture texture = region.texture();
             float shading = Lighting.inventory(normal);
             String debugTag = debugPart == null ? null : debugPart + ":" + face.direction();
             triangles.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2],
@@ -207,8 +206,9 @@ class BlockGeometryKitQuadFanTest {
 
     /** Six distinct {@code 1x1} textures, one for each face, so a triangle painted from the wrong face shows. */
     private static @NotNull FaceTextures perFaceTextures() {
-        Map<Face, PixelBuffer> byFace = new EnumMap<>(Face.class);
-        Face.forEach(face -> byFace.put(face, PixelBuffer.ofStraight(new int[] {0xFF000000 | (face.ordinal() + 1) * 0x2A}, 1, 1)));
+        Map<Face, FaceTextures.Region> byFace = new EnumMap<>(Face.class);
+        Face.forEach(face -> byFace.put(face, FaceTextures.Region.whole(SampledTexture.of(
+            PixelBuffer.ofStraight(new int[] {0xFF000000 | (face.ordinal() + 1) * 0x2A}, 1, 1)))));
         return byFace::get;
     }
 

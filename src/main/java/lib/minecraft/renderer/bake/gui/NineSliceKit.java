@@ -31,7 +31,8 @@ import java.util.Optional;
  * from art its cells and the widgets the client blits over the art - the anvil's name field and cross
  * and the crafting table's recipe-book button. The book's page is laid through it too, from the book
  * texture its caller reads and hands in - a plain texture, no GUI atlas sprite - as one tile over the
- * book's square, the client's one quad, read by its own sampler. A sprite read by id is the one the client's GUI atlas
+ * book's square, the client's one quad, read by its own sampler, and so is a shipped container's sheet, one
+ * region blit at a time, each the client's one quad off the sheet. A sprite read by id is the one the client's GUI atlas
  * holds, the missing texture standing in, stretched, for one no pack supplies, one that cannot be read
  * and one whose {@code gui} section the client's codec refuses.
  * <p>
@@ -53,8 +54,8 @@ import java.util.Optional;
  * texture under the centre, the texel after an edge that runs through it, so a sprite authored at twice
  * its declared size draws every texel; linear, the four texels about the centre less half a texel, each
  * past an edge of the texture read as the sampler addresses it. A GUI sprite is read as the client's GUI
- * atlas reads its sprites, nearest and clamped at the atlas's edges; the book's plain texture by the
- * sampler its sidecar's texture section selects.
+ * atlas reads its sprites, nearest and clamped at the atlas's edges; a plain texture - the book's, a
+ * container sheet - by the sampler its sidecar's texture section selects.
  */
 @UtilityClass
 public class NineSliceKit {
@@ -117,11 +118,59 @@ public class NineSliceKit {
         PixelBuffer pixels = texture.pixels();
         if (w <= 0 || h <= 0 || pixels.width() <= 0 || pixels.height() <= 0) return;
 
+        blitSprite(texture, scaling, x, y, w, h, laid(dest, texture, alphaMul));
+    }
+
+    /**
+     * Blits one region of a texture over the destination rect as the client's region blit,
+     * {@code GuiGraphicsExtractor#blit} with a declared texture size, does: one quad the region's size in
+     * Minecraft pixels, textured from {@code (u, v)} across the region by fraction of the declared size, so
+     * a texture authored at another size is read at its own resolution, each output pixel read through the
+     * texture's own sampler and laid as {@link #draw} lays a texel, clipping to the destination bounds.
+     *
+     * @param dest the target buffer
+     * @param texture the texture and its sampler, at any size
+     * @param x the rect's left edge in mcPixels
+     * @param y the rect's top edge in mcPixels
+     * @param u the region's left edge in the texture, in declared pixels
+     * @param v the region's top edge in the texture, in declared pixels
+     * @param w the region's width in mcPixels, and in declared pixels
+     * @param h the region's height in mcPixels, and in declared pixels
+     * @param textureWidth the texture's declared width
+     * @param textureHeight the texture's declared height
+     */
+    public static void blit(
+        @NotNull PixelBuffer dest,
+        @NotNull SampledTexture texture,
+        int x, int y,
+        int u, int v,
+        int w, int h,
+        int textureWidth, int textureHeight
+    ) {
+        PixelBuffer pixels = texture.pixels();
+        if (w <= 0 || h <= 0 || pixels.width() <= 0 || pixels.height() <= 0) return;
+
+        blitSprite(texture, textureWidth, textureHeight, u, v, x, y, w, h, laid(dest, texture, 1.0f));
+    }
+
+    /**
+     * Answers the quad run that lays each quad of a walk into the destination: every output pixel's taps
+     * read through the texture's sampler, the texel's alpha scaled by the multiplier, a texel left at
+     * alpha 0 discarded and every other blended over the destination with {@link BlendMode#NORMAL},
+     * clipped to the destination bounds.
+     *
+     * @param dest the target buffer
+     * @param texture the texture and its sampler
+     * @param alphaMul the per-texel alpha multiplier
+     * @return the run laying each quad
+     */
+    private static @NotNull QuadRun laid(@NotNull PixelBuffer dest, @NotNull SampledTexture texture, float alphaMul) {
         // The read is decided once a draw, and a row's first tap once a row: a nearest quad reads the
         // one texel its taps name, a linear one the four about them through the sampler.
+        PixelBuffer pixels = texture.pixels();
         Sampler sampler = texture.sampler();
         boolean nearest = sampler.filterMode() == Sampler.FilterMode.NEAREST;
-        blitSprite(texture, scaling, x, y, w, h, (quadX, quadY, columns, rows) -> {
+        return (quadX, quadY, columns, rows) -> {
             int[] columnTexels = columns.first();
             int[] rowTexels = rows.first();
             int fromColumn = Math.max(0, -quadX);
@@ -140,7 +189,7 @@ public class NineSliceKit {
                     if (ColorMath.alpha(argb) != 0) dest.setPixel(dx, dy, ColorMath.blend(argb, dest.getPixel(dx, dy), BlendMode.NORMAL));
                 }
             }
-        });
+        };
     }
 
     /**

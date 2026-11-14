@@ -345,27 +345,68 @@ public class ItemModelDispatch {
         Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
         if (!tree.isPresent() || tree.get().isRejected()) return Optional.empty();
 
-        Optional<String> picked = specialBase(walkedAt(tree, modelContext).resolve(tree.get()));
-        Optional<String> neutral = specialBase(ItemModelContext.gui().resolve(tree.get()));
-        if (picked.isEmpty() || picked.equals(neutral)) return Optional.empty();
+        Optional<SpecialPose> picked = specials(context, walkedAt(tree, modelContext).resolve(tree.get()))
+            .filter(pose -> pose.base().isPresent());
+        Optional<String> neutral = specials(context, ItemModelContext.gui().resolve(tree.get())).flatMap(SpecialPose::base);
+        if (picked.isEmpty() || picked.get().base().equals(neutral)) return Optional.empty();
 
-        Optional<ModelData> base = context.findModel(picked.get()).toOptional();
+        return picked;
+    }
+
+    /**
+     * Resolves the special layers a slot draws an item's plain icon with - the walk at the neutral
+     * {@link ItemModelContext#gui()} context, where every layer it lands on is a special: a chest, a bed,
+     * a banner, a head, a copper golem statue. Their bases need not be one, and where they are not the
+     * pose carries the identity transform and {@link GuiLight#SIDE}.
+     *
+     * @param context the renderer context supplying the tree and the base model
+     * @param itemId the item's id
+     * @return the layers' pose, empty where the item has no tree, a refused one, or a neutral branch
+     *     drawing anything but specials
+     */
+    public static @NotNull Optional<SpecialPose> iconSpecials(@NotNull RendererContext context, @NotNull String itemId) {
+        Possible<ItemModelTree> tree = context.findItemTree(itemId);
+        if (!tree.isPresent() || tree.get().isRejected()) return Optional.empty();
+
+        return specials(context, ItemModelContext.gui().resolve(tree.get()));
+    }
+
+    /**
+     * Reads the pose a slot draws a branch's special layers at, where every layer the branch draws is a
+     * special - a lone special leaf, or a {@code composite} whose drawing children are all specials, as
+     * vanilla's beds are. Vanilla poses and lights each special layer by its own base, read through
+     * {@link RendererContext#findModel(String)}, which answers a template that declares nothing to draw
+     * as it answers any loaded model; a base no pack ships is vanilla's missing model, which declares
+     * neither a pose nor a light.
+     *
+     * @param context the renderer context supplying the base model
+     * @param resolution the resolved branch
+     * @return the pose, empty for a branch drawing nothing or any layer that is not a special
+     */
+    private static @NotNull Optional<SpecialPose> specials(
+        @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution
+    ) {
+        ConcurrentList<ItemModelNode.Resolution> layers = resolution.layers();
+        if (layers.isEmpty() || layers.stream().anyMatch(layer -> layer.special().isEmpty())) return Optional.empty();
+
+        Optional<String> base = specialBase(resolution);
+        Optional<ModelData> model = base.flatMap(id -> context.findModel(id).toOptional());
         return Optional.of(new SpecialPose(
-            base.flatMap(model -> model.getDisplay().getOptional(ItemModelContext.DISPLAY_CONTEXT_GUI)).orElse(ModelTransform.IDENTITY),
-            base.map(ModelData::getGuiLight).orElse(GuiLight.SIDE)
+            layers,
+            base,
+            model.flatMap(found -> found.getDisplay().getOptional(ItemModelContext.DISPLAY_CONTEXT_GUI)).orElse(ModelTransform.IDENTITY),
+            model.map(ModelData::getGuiLight).orElse(GuiLight.SIDE)
         ));
     }
 
     /**
-     * Answers the one base a branch's specials share, where every layer it draws is a special - a lone
-     * special leaf, or a {@code composite} whose drawing children are all specials, as vanilla's beds
-     * are.
+     * Answers the one base a branch's specials share, where every layer it draws is a special.
      *
      * @param resolution the resolved branch
      * @return the base every layer's special names, empty for a branch drawing nothing, any layer that
      *     is not a special, or specials on more than one base
      */
-    private static @NotNull Optional<String> specialBase(@NotNull ItemModelNode.Resolution resolution) {
+    static @NotNull Optional<String> specialBase(@NotNull ItemModelNode.Resolution resolution) {
         List<Optional<String>> bases = resolution.layers()
             .stream()
             .map(layer -> layer.special().map(ItemModelNode.Special::base))
@@ -399,12 +440,19 @@ public class ItemModelDispatch {
     }
 
     /**
-     * The pose and light a slot draws a special branch at, read off the branch's base model.
+     * The special layers a slot draws a branch with, and the pose and light it draws them at, read off
+     * the base the layers share.
      *
-     * @param gui the base's {@code display.gui} transform, the nearest up its chain, the identity where no file in it declares one or no pack ships it
-     * @param light the base's {@code gui_light}, {@link GuiLight#SIDE} where no pack ships it
+     * @param layers the branch's layers, every one a special, in paint order - each one's
+     *     {@link ItemModelNode.Resolution#pose() pose} placing its special in block units
+     * @param base the base every layer's special names, empty where they name more than one
+     * @param gui the base's {@code display.gui} transform, the nearest up its chain, the identity where no file in it declares one, no pack ships it or the layers share no base
+     * @param light the base's {@code gui_light}, {@link GuiLight#SIDE} where no pack ships it or the layers share no base
      */
-    public record SpecialPose(@NotNull ModelTransform gui, @NotNull GuiLight light) {}
+    public record SpecialPose(
+        @NotNull ConcurrentList<ItemModelNode.Resolution> layers, @NotNull Optional<String> base,
+        @NotNull ModelTransform gui, @NotNull GuiLight light
+    ) {}
 
     /**
      * What one frame of an item render draws - the dispatch walk's answer at one evaluation context.

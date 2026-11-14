@@ -37,6 +37,8 @@
     "HideSkyMixin",
     "IllagerArmPoseMixin",
     "IronGolemOfferMixin",
+    "ItemStackRenderStateAccessor",
+    "LayerRenderStateAccessor",
     "LlamaModelMixin",
     "GuiRenderTargetMixin",
     "ParrotStandingMixin",

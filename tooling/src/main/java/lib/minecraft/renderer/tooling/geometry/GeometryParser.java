@@ -39,12 +39,14 @@ import org.objectweb.asm.tree.TableSwitchInsnNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -112,6 +114,10 @@ public final class GeometryParser {
      */
     private static final float FEET_ANCHOR = 24.016f;
 
+    /**
+     * The offset that moves nothing.
+     */
+    private static final float @NotNull [] NO_OFFSET = { 0f, 0f, 0f };
 
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
@@ -160,7 +166,7 @@ public final class GeometryParser {
      * hooks ({@code paramIntValues} / {@code paramFloatValues} / {@code grow} /
      * {@code appliedMeshTransformerScale} / {@code refParam}), runs {@link #walkInstructions},
      * then applies the post-walk passes ({@link #applyRetainedNamesFilter},
-     * {@link #applyClearedBonesFilter}, {@link #applyMeshTransformerScaling}) and replays the
+     * {@link #applyClearedBonesFilter}, {@link #applyRootPose}, {@link #applyBabyMeshTransform}) and replays the
      * registration on the part tree ({@link #replayRegistration}) before serialising the
      * accumulated bones and the tree.
      *
@@ -232,7 +238,7 @@ public final class GeometryParser {
 
         applyRetainedNamesFilter(state);
         applyClearedBonesFilter(state);
-        applyMeshTransformerScaling(state);
+        applyRootPose(state);
         applyBabyMeshTransform(state);
         // Last, because the two passes above rewrite a pivot through the member itself: a bone at
         // the origin is one the feet anchor and the baby offset both move, and dropping its pivot
@@ -397,31 +403,6 @@ public final class GeometryParser {
     }
 
     /**
-     * Bakes the captured {@link WalkState#meshTransformerScale} (from
-     * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
-     * emitted bone. Vanilla's expansion is, per {@code PartPose},
-     * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
-     * around {@link #FEET_ANCHOR}, which carries the derivation, and multiplies the bone's
-     * {@code PartPose.scale} field by F. Both halves land here together; the kit's
-     * {@code EntityGeometryKit#buildTriangles} consumes the
-     * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
-     * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
-     * sitting AFTER the pivot translate and BEFORE the cube render.
-     * <p>
-     * Cubes ({@code origin}, {@code size}, {@code inflate}, {@code uv}) are left untouched -
-     * the kit applies the scale to cube vertices at render time without affecting UV
-     * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
-     * byte-stable legacy + non-scaling entity parses stay byte-stable.
-     * <p>
-     * The feet-anchor {@code +dy} translate is a single root-level translate. Descendants
-     * inherit the translate through the parent chain, so {@code +dy} is applied to top-level
-     * bones only ({@code parent == null}); applying it to every bone would double-count it
-     * down the chain. The {@code f *} spacing scale applies to every bone (chain translations
-     * sum, so a uniform per-bone {@code f} yields a uniform model scale).
-     *
-     * @param state the parse state whose emitted bones are re-walked and scaled in place
-     */
-    /**
      * Drops every bone member that holds what the reading field already holds - a {@code pivot} at
      * the origin, an unturned {@code rotation} and an empty {@code cubes} list.
      *
@@ -459,36 +440,6 @@ public final class GeometryParser {
         return true;
     }
 
-    private static void applyMeshTransformerScaling(@NotNull WalkState state) {
-        float f = state.meshTransformerScale;
-        if (f == 1f) return;
-        float dy = FEET_ANCHOR * (1f - f);
-        for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
-            JsonObject bone = entry.getValue().getAsJsonObject();
-            // Only top-level bones (no parent) get the feet-anchor +dy translate; descendants
-            // inherit it via the parent chain at render time.
-            boolean applyDy = state.boneParents.get(entry.getKey()) == null;
-            JsonArray pivot = bone.getAsJsonArray("pivot");
-            if (pivot != null && pivot.size() == 3) {
-                float px = pivot.get(0).getAsFloat();
-                float py = pivot.get(1).getAsFloat();
-                float pz = pivot.get(2).getAsFloat();
-                JsonArray scaled = new JsonArray();
-                scaled.add(f * px);
-                scaled.add(f * py + (applyDy ? dy : 0f));
-                scaled.add(f * pz);
-                bone.add("pivot", scaled);
-            }
-            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
-            float combined = existing * f;
-            if (combined == 1f) {
-                bone.remove("scale");
-            } else {
-                bone.addProperty("scale", combined);
-            }
-        }
-    }
-
     /**
      * Bakes the captured {@link WalkState#babyTransform} into every emitted bone - the aged-down
      * proportions vanilla's {@code BabyModelTransform} gives a mesh at registration.
@@ -498,7 +449,7 @@ public final class GeometryParser {
      * grandchildren untouched by reference. So the factor and the offset are decided by a bone's
      * <b>top-level ancestor</b>, not by the bone itself.
      *
-     * <p>Two halves, matching the shape {@link #applyMeshTransformerScaling} already has:
+     * <p>Two halves, laid by {@link #rescaleBones} as the root pose's are:
      * <ul>
      *   <li>The <b>offset</b> is a single translate on the top-level bone, applied <em>before</em>
      *       the scale, so a top-level pivot lands at {@code (pivot + offset) * f}. Descendants
@@ -520,28 +471,188 @@ public final class GeometryParser {
     private static void applyBabyMeshTransform(@NotNull WalkState state) {
         BabyMeshTransform transform = state.babyTransform;
         if (transform == null) return;
+
+        SubtreePose head = new SubtreePose(
+            new float[] { 0f, transform.headYOffset(), transform.headZOffset() }, transform.headFactor(), NO_OFFSET);
+        SubtreePose body = new SubtreePose(
+            new float[] { 0f, transform.bodyYOffset(), 0f }, transform.bodyFactor(), NO_OFFSET);
+        rescaleBones(state, top -> transform.isHeadPart(top) ? head : body);
+    }
+
+    /**
+     * Reads the root pose a {@code MeshDefinition.transformed} call hands the mesh, off the pose operator
+     * the instruction before it pushes: an {@code invokedynamic} lambda whose body takes the pose it is
+     * given through a chain of {@code PartPose.translated(x, y, z)} and {@code PartPose.scaled(f)} and
+     * returns it. Each step composes as vanilla's does - {@code translated} adds to the offset, and
+     * {@code scaled} multiplies the offset and the scale alike - onto {@link WalkState#rootOffset} and
+     * {@link WalkState#rootScale}.
+     *
+     * @param transformed the {@code MeshDefinition.transformed} call
+     * @param state the parse state the root pose is read into
+     * @param cache the session's jar cache, which the lambda body is loaded through
+     * @return whether the operator is a lambda of that shape, every step read
+     */
+    private static boolean readRootPose(@NotNull MethodInsnNode transformed, @NotNull WalkState state, @NotNull ClassNodeCache cache) {
+        if (!(AsmWalker.previousReal(transformed) instanceof InvokeDynamicInsnNode indy) || !Insn.isLambdaInvokeDynamic(indy)) return false;
+        Handle handle = AsmWalker.extractLambdaHandle(indy);
+        if (handle == null || handle.getTag() != Opcodes.H_INVOKESTATIC) return false;
+        ClassNode owner = cache.load(handle.getOwner());
+        MethodNode lambda = owner != null ? ClassKit.findMethod(owner, handle.getName(), handle.getDesc()) : null;
+        if (lambda == null) return false;
+
+        RootPoseFold fold = new RootPoseFold(state.rootOffset, state.rootScale);
+        AsmWalker.over(lambda)
+            .real()
+            .on(Insn.of(AbstractInsnNode.class, insn -> true), fold::step)
+            .run();
+        if (!fold.returned || fold.failed) return false;
+
+        state.rootOffset = fold.offset;
+        state.rootScale = fold.scale;
+        return true;
+    }
+
+    /**
+     * The fold {@link #readRootPose} runs over a pose operator's body: the pose parameter loaded first,
+     * then each {@code PartPose.translated} and {@code PartPose.scaled} step composed onto the offset and
+     * the scale from the float literals pushed before it, and the pose returned with no literal left over.
+     * Any other instruction fails the fold.
+     */
+    private static final class RootPoseFold {
+
+        /** The root pose's offset so far, in model units. */
+        private final float @NotNull [] offset;
+
+        /** The root pose's uniform scale so far. */
+        private float scale;
+
+        /** The float literals pushed since the last step, the most recent last. */
+        private final @NotNull List<Float> floats = new ArrayList<>();
+
+        /** Whether the body has loaded the pose parameter. */
+        private boolean loaded;
+
+        /** Whether the body has returned the pose. */
+        private boolean returned;
+
+        /** Whether an instruction fell outside the shape. */
+        private boolean failed;
+
+        private RootPoseFold(float @NotNull [] offset, float scale) {
+            this.offset = offset.clone();
+            this.scale = scale;
+        }
+
+        /**
+         * Folds one instruction of the body.
+         *
+         * @param insn the instruction
+         */
+        private void step(@NotNull AbstractInsnNode insn) {
+            if (this.failed || this.returned) {
+                this.failed = true;
+                return;
+            }
+            if (!this.loaded) {
+                this.loaded = insn.getOpcode() == Opcodes.ALOAD && insn instanceof VarInsnNode load && load.var == 0;
+                this.failed = !this.loaded;
+                return;
+            }
+
+            Float literal = AsmWalker.floatLiteral(insn);
+            if (literal != null) {
+                this.floats.add(literal);
+            } else if (AsmWalker.isInvokeVirtual(insn, SourceClasses.Types.PART_POSE, "translated") && this.floats.size() == 3) {
+                for (int axis = 0; axis < 3; axis++) this.offset[axis] += this.floats.get(axis);
+                this.floats.clear();
+            } else if (AsmWalker.isInvoke(insn, Opcodes.INVOKEVIRTUAL, SourceClasses.Types.PART_POSE, "scaled", "(F)L" + SourceClasses.Types.PART_POSE + ";")
+                && this.floats.size() == 1) {
+                float f = this.floats.getFirst();
+                for (int axis = 0; axis < 3; axis++) this.offset[axis] *= f;
+                this.scale *= f;
+                this.floats.clear();
+            } else if (insn.getOpcode() == Opcodes.ARETURN && this.floats.isEmpty()) {
+                this.returned = true;
+            } else {
+                this.failed = true;
+            }
+        }
+
+    }
+
+    /**
+     * Bakes the mesh's root pose into every emitted bone - the one {@link #readRootPose} read off
+     * {@code MeshDefinition.transformed}, composed under the whole-mesh scale
+     * {@link WalkState#meshTransformerScale} the registration's {@code MeshTransformer.scaling(F)}
+     * applies after the factory returns.
+     * <p>
+     * That scale is a root pose of its own: vanilla expands it, per {@code PartPose}, as
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, scaling every pivot about
+     * {@link #FEET_ANCHOR} and multiplying the bone's {@code PartPose.scale} by F. So a factory's root
+     * pose of offset {@code o} and scale {@code s} under a whole-mesh scale {@code F} is the one pose of
+     * offset {@code F * o + (0, 24.016 * (1 - F), 0)} and scale {@code F * s}. No 26.1 mesh carries both.
+     * <p>
+     * Vanilla draws the root's children at the root's offset plus its scale times their own offset, so
+     * a top-level pivot lands at {@code offset + scale * pivot}; the scale multiplies every bone's pivot
+     * and {@code scale}, through {@link #rescaleBones}. Cubes are left untouched: the kit multiplies a
+     * cube's local vertices by its bone's {@code scale} at the pivot translate, which is where vanilla's
+     * own per-vertex {@code poseStack.scale(F)} lands. A mesh posed at the identity is left as it was
+     * built.
+     *
+     * @param state the parse state whose emitted bones are re-walked and transformed in place
+     */
+    private static void applyRootPose(@NotNull WalkState state) {
+        float f = state.meshTransformerScale;
+        float[] offset = {
+            f * state.rootOffset[0],
+            f * state.rootOffset[1] + FEET_ANCHOR * (1f - f),
+            f * state.rootOffset[2]
+        };
+        float scale = f * state.rootScale;
+        if (scale == 1f && offset[0] == 0f && offset[1] == 0f && offset[2] == 0f) return;
+
+        SubtreePose pose = new SubtreePose(NO_OFFSET, scale, offset);
+        rescaleBones(state, top -> pose);
+    }
+
+    /**
+     * A translate before a scale and a translate after it - the share of a whole-mesh pose one
+     * top-level bone takes, its descendants taking the factor alone.
+     *
+     * @param before the offset added to the top-level bone's pivot before the factor
+     * @param factor the factor every pivot and bone {@code scale} under the top-level bone is multiplied by
+     * @param after the offset added to the top-level bone's pivot after the factor
+     */
+    private record SubtreePose(float @NotNull [] before, float factor, float @NotNull [] after) {}
+
+    /**
+     * Re-walks every emitted bone under the pose its top-level ancestor takes. A top-level pivot
+     * lands at {@code factor * (pivot + before) + after}, and every other pivot at
+     * {@code factor * pivot}, since descendants inherit a top-level bone's offset through the parent
+     * chain. Every bone's {@code scale} is multiplied by the factor, top-level and descendant alike,
+     * because vanilla's bone scale propagates down the chain at render and this codebase's does not.
+     *
+     * @param state the parse state whose emitted bones are re-walked and transformed in place
+     * @param poseOf the pose of the subtree under each top-level bone, keyed by that bone's name
+     */
+    private static void rescaleBones(@NotNull WalkState state, @NotNull Function<String, SubtreePose> poseOf) {
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
             String top = topLevelAncestor(entry.getKey(), state.boneParents);
-            boolean head = transform.isHeadPart(top);
-            float f = head ? transform.headFactor() : transform.bodyFactor();
-            float offsetY = head ? transform.headYOffset() : transform.bodyYOffset();
-            float offsetZ = head ? transform.headZOffset() : 0f;
+            SubtreePose pose = poseOf.apply(top);
             boolean isTop = entry.getKey().equals(top);
 
             JsonObject bone = entry.getValue().getAsJsonObject();
             JsonArray pivot = bone.getAsJsonArray("pivot");
             if (pivot != null && pivot.size() == 3) {
-                float px = pivot.get(0).getAsFloat();
-                float py = pivot.get(1).getAsFloat() + (isTop ? offsetY : 0f);
-                float pz = pivot.get(2).getAsFloat() + (isTop ? offsetZ : 0f);
-                JsonArray transformed = new JsonArray();
-                transformed.add(f * px);
-                transformed.add(f * py);
-                transformed.add(f * pz);
-                bone.add("pivot", transformed);
+                JsonArray moved = new JsonArray();
+                for (int axis = 0; axis < 3; axis++) {
+                    float p = pivot.get(axis).getAsFloat();
+                    moved.add(isTop ? pose.factor() * (p + pose.before()[axis]) + pose.after()[axis] : pose.factor() * p);
+                }
+                bone.add("pivot", moved);
             }
-            float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
-            float combined = existing * f;
+
+            float combined = (bone.has("scale") ? bone.get("scale").getAsFloat() : 1f) * pose.factor();
             if (combined == 1f) bone.remove("scale");
             else bone.addProperty("scale", combined);
         }
@@ -1453,6 +1564,8 @@ public final class GeometryParser {
         // MeshDefinition.transformed rebuilds the root with a copy of its children - the step every
         // whole-mesh scaling goes through, and one a factory can take directly.
         if (methodInsn.owner.equals(SourceClasses.Types.MESH_DEFINITION) && methodInsn.name.equals(SourceClasses.Methods.TRANSFORMED)) {
+            if (!readRootPose(methodInsn, state, cache))
+                state.parts.refuse("MeshDefinition.%s hands a pose operator that is not a chain of PartPose.translated and scaled", methodInsn.name);
             state.parts.transformRoot();
             return;
         }
@@ -1619,7 +1732,7 @@ public final class GeometryParser {
         // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
         // via {@link Bone#getScale()}
         // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone
-        // tree in {@link #applyMeshTransformerScaling} post-walk so the math agrees with
+        // tree in {@link #applyRootPose} post-walk so the math agrees with
         // vanilla's apply-after-build semantics. Multiplies into any existing capture so
         // sequential {@code .apply(scaling(a)).apply(scaling(b))} chains compose (none
         // observed in vanilla 26.1, but cheap to support). Gated on
@@ -2767,11 +2880,25 @@ public final class GeometryParser {
         /**
          * Whole-layer uniform scale captured from {@code MeshTransformer.scaling(F)} call(s)
          * on the {@code LayerDefinition}; {@code 1f} when no MeshTransformer is applied.
-         * Re-walked into the emitted bone tree by {@link #applyMeshTransformerScaling} after
+         * Re-walked into the emitted bone tree by {@link #applyRootPose} after
          * {@link #walkInstructions} returns. Multiplies on subsequent calls so
          * {@code .apply(scaling(a)).apply(scaling(b))} composes as {@code a * b}.
          */
         float meshTransformerScale = 1f;
+
+        /**
+         * The offset of the root pose {@code MeshDefinition.transformed} hands the mesh, in model units,
+         * read off the pose operator the factory passes it - the copper golem's
+         * {@code pose.translated(0, 24, 0)}. Re-walked into the emitted bone tree by
+         * {@link #applyRootPose} after {@link #walkInstructions} returns.
+         */
+        float @NotNull [] rootOffset = { 0f, 0f, 0f };
+
+        /**
+         * The uniform scale of the root pose {@code MeshDefinition.transformed} hands the mesh - the
+         * arrow's {@code pose.scaled(0.9)} - {@code 1f} where the factory hands none.
+         */
+        float rootScale = 1f;
 
         /**
          * The aged-down whole-mesh transformer the registration applies (set from

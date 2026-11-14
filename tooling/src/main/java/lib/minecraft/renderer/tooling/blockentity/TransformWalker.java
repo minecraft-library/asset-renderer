@@ -36,8 +36,8 @@ import java.util.List;
  * <p>Models a {@code PoseStack} / {@code Matrix4f} as an accumulated {@code T . R . S}
  * ({@link State}): {@code Matrix4f.translation} OVERWRITES the whole matrix, {@code translate}
  * post-composes (folding into the outer translation only past pure-scale), {@code rotate} /
- * {@code rotateAround} append rotations (a block-centred 180 {@code rotateAround} is DROPPED - it
- * is the camera flip the {@code inventory.y_rotation} already carries), {@code scale} multiplies
+ * {@code rotateAround} append rotations (a block-centred 180 {@code rotateAround} is DROPPED, a turn
+ * the walk does not model), {@code scale} multiplies
  * the inner scale. {@code canonicalise} folds a uniform two-negative scale into a 180 rotation
  * ({@code scale(1,-1,-1) = Rx180}, {@code (-s,-s,+s) -> Rx180} by Y-symmetry) and normalises.
  * Same-class factory helpers ({@code baseTransformation}) inline (depth-bounded); the standing
@@ -601,7 +601,7 @@ public final class TransformWalker {
             this.rotations.add(new Quat(axis, angle));
         }
 
-        /** {@code Matrix4f.rotateAround}: a block-centred 180 is the camera flip (dropped); identity is a no-op; else poison. */
+        /** {@code Matrix4f.rotateAround}: a block-centred 180 is dropped, a turn this state does not model; identity is a no-op; else poison. */
         private void postRotateAround(@NotNull Val q, float @NotNull [] c) {
             boolean blockCentre = near(c[0], 0.5f) && near(c[1], 0.5f) && near(c[2], 0.5f);
             if (q.kind != Kind.QUAT) { this.poisoned = true; return; }

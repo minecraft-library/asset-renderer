@@ -446,6 +446,44 @@ public final class EntityOverlayResolver {
     }
 
     /**
+     * The {@code pipeline} node of a pass the layer submits itself, classified off the
+     * {@code RenderTypes} factories its hierarchy's instance methods reach - so a collar, a profession
+     * pass or an enum-map overlay declares the cutout pipeline it submits through, as the composite
+     * arm's rows do.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return the node, or {@code null} for a pass at every identity
+     */
+    private @Nullable JsonTree layerPipeline(@NotNull String layerClass) {
+        return pipelineNode(
+            this.traits.layerInvokes(layerClass, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
+            this.traits.classifyBlend(layerClass),
+            this.traits.layerWritesDepth(layerClass), this.traits.layerSortsQuads(layerClass));
+    }
+
+    /**
+     * The {@code pipeline} node of a pass the layer hands another class to submit - classified off the
+     * one texture-taking factory that class reaches, as a decor layer's carpet is submitted through
+     * {@code EquipmentLayerRenderer}'s {@code armorCutoutNoCull}.
+     *
+     * @param layerClass the layer class's JVM internal name
+     * @return the node, or {@code null} for a pass at every identity or one whose factory is not unique
+     */
+    private @Nullable JsonTree delegatedPipeline(@NotNull String layerClass) {
+        Set<String> factories = this.traits.delegatedTextureFactories(layerClass);
+        if (factories.size() != 1) {
+            this.diagnostics.warn("layer '%s' hands its pass to texture factories %s, not one - pipeline unresolved",
+                simpleName(layerClass), factories);
+            return null;
+        }
+        String factory = factories.iterator().next();
+        return pipelineNode(
+            this.traits.traitsOf(factory).contains(EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
+            this.traits.blendTokenOf(factory),
+            this.traits.factoryWritesDepth(factory), this.traits.factorySortsQuads(factory));
+    }
+
+    /**
      * A raw {@code textures/entity/...png} literal without a format placeholder, or {@code null}.
      */
     private static @Nullable String readEntityTextureLiteral(@NotNull AbstractInsnNode in) {
@@ -503,7 +541,8 @@ public final class EntityOverlayResolver {
             .put("when", JsonTree.object().put("flag", "collared").put("value", true))
             .putIf("geometry", this.geometryRef.primaryKey())
             .put("texture", namespaced(texture))
-            .put("tint_by", "collar_color");
+            .put("tint_by", "collar_color")
+            .putIf("pipeline", layerPipeline(site.layerClass()));
     }
 
     // ------------------------------------------------------------------------------------
@@ -602,6 +641,7 @@ public final class EntityOverlayResolver {
             .putIf("geometry", this.geometryRef.primaryKey())
             .put("texture_by", axisToken(enumMap.token()))
             .put("textures_by_value", byValue(enumMap.textures()))
+            .putIf("pipeline", layerPipeline(site.layerClass()))
             .put("skip_bounds", true);
         if (!enumMap.babyTextures().isEmpty())
             node.put("baby", JsonTree.object().put("textures_by_value", byValue(enumMap.babyTextures())));
@@ -666,10 +706,7 @@ public final class EntityOverlayResolver {
         ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
-        node.putIf("pipeline", pipelineNode(
-            this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name),
-            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
+        node.putIf("pipeline", layerPipeline(cn.name));
         putGrow(node, mesh.grow());
         node.putIf("baby", compositeBabyForm(cn));
         return node;
@@ -1826,7 +1863,8 @@ public final class EntityOverlayResolver {
                 .putIf("texture", texture == null ? null : namespaced(texture))
                 .put("texture_by", category)
                 .putIf("no_hat_root", firstPass ? noHatRoot : null)
-                .putIf("baby", firstPass ? baby : null);
+                .putIf("baby", firstPass ? baby : null)
+                .putIf("pipeline", layerPipeline(site.layerClass()));
             if (texture == null) node.put("skip_bounds", true);
             rows.add(node);
         }
@@ -2157,10 +2195,7 @@ public final class EntityOverlayResolver {
         ColorSource tint = extractOverlayTint(cn);
         if (tint.argb() != NO_TINT) node.putHex("tint", tint.argb());
         node.putIf("tint_by", tint.axisToken());
-        node.putIf("pipeline", pipelineNode(
-            this.traits.layerInvokes(cn.name, EntityPipelineTraits.Trait.NO_CARDINAL_LIGHTING),
-            this.traits.classifyBlend(cn.name),
-            this.traits.layerWritesDepth(cn.name), this.traits.layerSortsQuads(cn.name)));
+        node.putIf("pipeline", layerPipeline(cn.name));
         putGrow(node, mesh.grow());
         return node;
     }
@@ -2249,6 +2284,7 @@ public final class EntityOverlayResolver {
         node.putIf("geometry", mesh.key());
         node.put("texture", namespaced(SourceClasses.Paths.TEXTURES_ENTITY
             + SourceClasses.Paths.EQUIPMENT_DIR + subdir + "/" + assetId + ".png"));
+        node.putIf("pipeline", delegatedPipeline(site.layerClass()));
         putGrow(node, mesh.grow());
         if (EntityOverlayPolicies.DECOR_SKIP_BOUNDS.booleanValue()) node.put("skip_bounds", true);
         JsonTree baby = babyDecorNode(cn, subdir, babyAssetConstant);

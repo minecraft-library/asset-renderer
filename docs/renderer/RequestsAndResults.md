@@ -133,5 +133,13 @@ accessors.
   registries, so answering either means shipping and versioning vanilla data that changes no icon.
   An undecoded special-model field changes only what a malformed definition does, which loads here
   where vanilla refuses it.
+
+  Two tests sit outside that set, as a single exception that does not reopen it: a `condition` on
+  `custom_model_data` reads the stack's `flags` entry at its `index`, and a `select` on it the
+  `strings` entry at its `index`, as the 26.1 client does. A user's ItemsAdder pack uses the flag
+  condition 2016 times to switch a composite's layers, and answering either without the stack draws a
+  stack that sets a flag or a string with the layers the client draws for one that does not. The
+  exception covers those two reads of `custom_model_data` and nothing else; any further test is held to
+  the rule above.
 - Do not model an unset villager level as "no badge" - `VillagerData` raises any level to one, so
   `VillagerProfession.drawsBadge()` and `isBaby` are what suppress one.

@@ -7,6 +7,7 @@ import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.index.EntityPipelineTraits;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
@@ -26,12 +27,16 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Node {@code render} - the render-time residues that survive the frozen-state harness,
  * grouped under one node: {@code scale} (renderer {@code scale()} uniform
- * product, slime 0.999 / wither 2.0) and {@code tint} (per-entity multiplicative base tint,
- * tropical_fish {@code 0xFFF9FFFE}). Omitted when both are identity. What a renderer's own
+ * product, slime 0.999 / wither 2.0), {@code tint} (per-entity multiplicative base tint,
+ * tropical_fish {@code 0xFFF9FFFE}) and {@code blend} (the body pipeline's blend token where it is
+ * not cutout - {@code translucent} for the allay, the vex, the breeze and the piglins). Omitted when
+ * all three are identity. What a renderer's own
  * {@code setupRotations} composes - an addend folded into the delegation's body rotation
  * included - is the transform walk's, carried by the pose table's {@code renderers} rows.
  *
@@ -51,6 +56,7 @@ public final class EntityRenderTraitsResolver {
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
+    private final @NotNull EntityPipelineTraits pipelineTraits;
 
     /**
      * Tolerance for the uniform-scale check on {@code poseStack.scale(F,F,F)} args - vanilla
@@ -63,6 +69,7 @@ public final class EntityRenderTraitsResolver {
         this.cache = context.cache();
         this.subject = context.subject();
         this.diagnostics = context.diagnostics();
+        this.pipelineTraits = context.indexes().pipelineTraits();
         this.uniformScaleTolerance = uniformScaleTolerance(context);
     }
 
@@ -90,7 +97,7 @@ public final class EntityRenderTraitsResolver {
     }
 
     /**
-     * The {@code render} node, or {@code null} when scale and tint are both identity.
+     * The {@code render} node, or {@code null} when scale, tint and blend are all identity.
      *
      * @return the node, or {@code null} to omit
      */
@@ -100,12 +107,50 @@ public final class EntityRenderTraitsResolver {
 
         Float scale = resolveRendererScale(cn);
         int tint = resolveBaseTint(cn);
+        String blend = resolveBodyBlend();
 
-        if (scale == null && tint == NO_TINT) return null;
+        if (scale == null && tint == NO_TINT && blend == null) return null;
         JsonTree node = JsonTree.object();
         if (scale != null) node.put("scale", (float) scale);
         if (tint != NO_TINT) node.putHex("tint", tint);
+        if (blend != null) node.put("blend", blend);
         return node;
+    }
+
+    /**
+     * The {@code blend} token of the pipeline the body draws through, or {@code null} for the
+     * identity - a cutout pipeline, which declares no blend function and is what {@code EntityModel}
+     * draws through for every model naming nothing else.
+     *
+     * <p>Read off every model the renderer's constructor chain allocates, each through the
+     * render-type function its own constructor chain hands {@code Model}: the adult and the baby a
+     * renderer builds are both bodies, and they are one pass apiece.
+     *
+     * @return the token, or {@code null} for a cutout body or a renderer allocating no model
+     * @throws ToolingException if a body's render type resolves to no pipeline, or two bodies of one
+     *     renderer draw through pipelines that blend differently
+     */
+    private @Nullable String resolveBodyBlend() {
+        Set<String> tokens = new TreeSet<>();
+        ClassKit.walkConstructorChain(this.cache, this.subject.rendererClass(), ctor -> AsmWalker.over(ctor)
+            .opcode(Opcodes.NEW)
+            .ofType(TypeInsnNode.class)
+            .forEach(allocation -> {
+                if (!ClassKit.extendsClass(this.cache, allocation.desc, SourceClasses.Types.ENTITY_MODEL)) return;
+                String factory = this.pipelineTraits.modelFactory(allocation.desc);
+                String token = factory == null ? null : this.pipelineTraits.blendTokenOf(factory);
+                if (token == null)
+                    throw new ToolingException("Model '%s' of '%s' draws through no resolvable render type",
+                        allocation.desc, this.subject.rendererClass());
+                tokens.add(token);
+            }));
+        if (tokens.size() > 1)
+            throw new ToolingException("Renderer '%s' allocates bodies blending as %s, and the row carries one body blend",
+                this.subject.rendererClass(), tokens);
+        String token = tokens.isEmpty() ? null : tokens.iterator().next();
+        if (token == null || EntityPipelineTraits.BLEND_CUTOUT.equals(token)) return null;
+        this.diagnostics.info("body draws through a '%s' pipeline", token);
+        return token;
     }
 
     // ------------------------------------------------------------------------------------

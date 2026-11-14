@@ -83,9 +83,9 @@ class PipelineParityDumpTest {
     @Test
     @DisplayName("a block entity is written with the read its texture takes, a plain texture or a sheet sprite")
     void aBlockEntityIsWrittenWithTheReadItsTextureTakes() {
-        Block.BlockEntity.BoneModel bones = new Block.BlockEntity.BoneModel(new EntityMesh(), false, 0f, false, null, false);
+        Block.BlockEntity.BoneModel bones = new Block.BlockEntity.BoneModel(new EntityMesh(), false, false, null, false);
         for (boolean plain : List.of(true, false)) {
-            Block.BlockEntity entity = new Block.BlockEntity(bones, "minecraft:entity/skeleton/skeleton", 0xFFFFFFFF, 0,
+            Block.BlockEntity entity = new Block.BlockEntity(bones, "minecraft:entity/skeleton/skeleton", 0xFFFFFFFF,
                 Concurrent.newUnmodifiableList(), false, plain);
 
             JsonObject written = PipelineParityDump.blockEntity(entity);

@@ -111,6 +111,25 @@ class PassDeclarationTest {
     }
 
     @Test
+    @DisplayName("CUTOUT differs from DEFAULT in its blend alone")
+    void cutoutDiffersFromDefaultInItsBlendAlone() {
+        assertThat(PassDeclaration.CUTOUT,
+            equalTo(new PassDeclaration(false, BlendMode.REPLACE, 1f, true, false, false)));
+        assertThat(PassDeclaration.DEFAULT,
+            equalTo(new PassDeclaration(false, BlendMode.NORMAL, 1f, true, false, false)));
+    }
+
+    @Test
+    @DisplayName("reframed keeps the full-bright flag and the blend, and resets every other declaration")
+    void reframedKeepsTheFlagAndTheBlend() {
+        PassDeclaration source = new PassDeclaration(true, BlendMode.REPLACE, 0.25f, false, true, true);
+
+        assertThat(source.reframed(), equalTo(new PassDeclaration(true, BlendMode.REPLACE, 1f, true, false, false)));
+        assertThat(PassDeclaration.CUTOUT.reframed(), sameInstance(PassDeclaration.CUTOUT));
+        assertThat(PassDeclaration.DEFAULT.reframed(), sameInstance(PassDeclaration.DEFAULT));
+    }
+
+    @Test
     @DisplayName("withAlpha rewrites only the opacity, and returns the same instance when it already matches")
     void withAlphaKeepsEveryOtherDeclaration() {
         PassDeclaration source = new PassDeclaration(true, BlendMode.ADD, 0.25f, false, true, true);

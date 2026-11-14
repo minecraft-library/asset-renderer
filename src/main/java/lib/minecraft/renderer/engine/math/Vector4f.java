@@ -56,6 +56,25 @@ public record Vector4f(float x, float y, float z, float w) {
     }
 
     /**
+     * Returns this rectangle read right to left - its left and right coordinates swapped, the pair a
+     * mirrored face interpolates descending.
+     *
+     * @return the rectangle as {@code (z, y, x, w)}
+     */
+    public @NotNull Vector4f reversedU() {
+        return new Vector4f(this.z, this.y, this.x, this.w);
+    }
+
+    /**
+     * Returns this rectangle read bottom up - its top and bottom coordinates swapped.
+     *
+     * @return the rectangle as {@code (x, w, z, y)}
+     */
+    public @NotNull Vector4f reversedV() {
+        return new Vector4f(this.x, this.w, this.z, this.y);
+    }
+
+    /**
      * Builds the four UV corners (TL, BL, BR, TR) for this rectangle, normalizing each component
      * by the supplied texture scales and applying optional face rotation and U-axis mirroring.
      * <p>

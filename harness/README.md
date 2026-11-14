@@ -115,7 +115,8 @@ Every sweep that submits geometry renders through PIP (picture-in-picture): geom
 `BlockSweep` renders every block as **true 3D geometry at the iso `display.gui` pose** - never a flat inventory icon. It iterates `BuiltInRegistries.BLOCK`, skips technical blocks with no item (`block.asItem() == Items.AIR`), and routes each remaining block by type:
 
 - **Plain blocks** → `BlockFrameRenderer`. The block's geometry is `BlockIconGeometry.resolve`'s answer - the quads vanilla baked for the item model's leaf wherever the shipped `items/<name>.json` walks to a `minecraft:model` leaf naming a `block/` model through no composite - a plain root naming one, or a dispatch whose neutral branch does, as `beehive`'s select falls back to one - and the block's own `BlockStateModel` everywhere else - submitted via `SubmitNodeStorage.submitBlockModel` at the pose `BlockGuiTransform.resolve` reads off that model's `display.gui` - `block/block.json`'s `[30, 225, 0]` + scale `0.625` for a standard cube, `[30, 135, 0]` for stairs, `[30, 45, 0]` + scale `0.8` for fence gates - under `Lighting.Entry.ITEMS_3D`. This bypasses the item-model dispatch, so blocks whose item model parents `item/generated` (rails, vines, ladders, lily_pad, seagrass, sculk_vein, doors, hanging signs) render as actual 3D geometry instead of the 2D billboard the inventory icon would show.
-- **`EntityBlock` blocks with a registered `BlockEntityRenderer`** (chest, shulker_box, banner, sign, bed, skull, bell, beacon, decorated_pot, copper_golem_statue, ...) → `BlockEntityFrameRenderer`. A transient, never-ticked `BlockEntity` is constructed via `EntityBlock.newBlockEntity`, wired to `client.level`, and dispatched through the vanilla BE renderer for its real in-world geometry. See [Block-entity icon composition](#block-entity-icon-composition).
+- **Blocks whose item the client draws through special renderers alone** (chest, bed, banner and wall banner, head and wall head, shulker_box, conduit, decorated_pot, copper_golem_statue) → `ItemFrameRenderer`, the client's slot drawing, checked first. `SlotLayers` routes a block here when every GUI layer `ItemModelResolver` builds for its stack draws with a special renderer: the client poses each by its special's `transformation` and its base's `display.gui`, so the slot drawing is the reference. A wall form's item is its standing form's and draws that icon. The static sweep skips every model's `setupAnim`, so it is the bind render - the copper golem statue head-down.
+- **Other `EntityBlock` blocks with a registered `BlockEntityRenderer`** (sign, hanging_sign, bell, beacon, shelves, ...) → `BlockEntityFrameRenderer`. A transient, never-ticked `BlockEntity` is constructed via `EntityBlock.newBlockEntity`, wired to `client.level`, and dispatched through the vanilla BE renderer for its real in-world geometry. See [Block-entity icon composition](#block-entity-icon-composition).
 - **`EntityBlock` blocks without a renderer** (barrel, hopper, brewing_stand, furnace, chiseled_bookshelf, calibrated_sculk_sensor, ...) → fall back to the plain `BlockFrameRenderer` path, and take the same icon split there: barrel, furnace and chiseled_bookshelf name a block model through their `items/<name>.json` and draw vanilla's icon bake, while hopper and brewing_stand root at an `item/` model and keep their `BlockStateModel`.
 
 Every block draws once from a plain stack of its block. A block-model icon whose definition selects on the stack's `minecraft:block_state` draws once more for each value a case landing on a block model names, from the same default state with only the stack changed to carry that component - the one vanilla gives a picked full hive, or `TestBlock.setModeOnStack` writes. Vanilla 26.1 has five: `beehive` and `bee_nest` at `honey_level=5`, and `test_block` at `mode=log`, `fail` and `accept`. Each is written as `blocks/<ns>__<id>~<property>=<value>.png`, after every plain reference. A walk that ignored the component would draw the select's fallback, so a case reference showing the plain icon is a broken route rather than a match.
@@ -124,15 +125,7 @@ Determinism + in-world-appearance fixes on this path: `FirstVariantRandomSource`
 
 #### Block-entity icon composition
 
-Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_pot and beacon already sit on the unit block, so the block-centred iso pose reproduces asset-renderer's icon directly. Five families instead compose an inventory icon (canonical facing + recenter-and-fit on a vanilla-extent-walker bbox, max extent `1.4` block units):
-
-| Family               | Composition                                                                                        |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| bed                  | Merge both halves (default state is the foot only) at canonical NORTH facing, 90° icon rotation.   |
-| banner / wall_banner | Replace per-facing yaw with a canonical 180°; flat flag (`BannerFlagModelMixin`).                  |
-| skull                | Wall heads re-pointed to the ground transform (rotation 0); ender-dragon head recenter/fit + jaw closed. |
-| sign                 | 180° yaw about block-centre so the face turns toward the camera (standing / wall / 3 hanging forms). |
-| copper_golem_statue  | Entity-convention (y-down/mirrored) model flipped 180° about Z to stand upright, then fit.         |
+A block entity reaching `BlockEntityFrameRenderer` renders raw at the block-centred iso pose. A sign alone is turned - a 180° yaw about block-centre so its face meets the camera (standing / wall / 3 hanging forms).
 
 ### Item phase
 
@@ -262,7 +255,7 @@ src/
     │   │   └── PipDraw.java                # The subject-specific pose-and-submit callback
     │   ├── frame/                          # The eight frame renderers and their helpers
     │   │   ├── BlockFrameRenderer.java     # PIP 3D block-model render (submitBlockModel) → PNG
-    │   │   ├── BlockEntityFrameRenderer.java # PIP BE-dispatch render + inventory-icon composition
+    │   │   ├── BlockEntityFrameRenderer.java # PIP BE-dispatch render; a sign turned to the camera
     │   │   ├── ItemFrameRenderer.java      # PIP GUI item-icon render → PNG
     │   │   ├── EntityFrameRenderer.java    # PIP entity render: fit, chirality, pose, submit
     │   │   ├── EntityBoundsWalker.java     # The reflective silhouette walk that sizes a subject
@@ -272,9 +265,10 @@ src/
     │   │   ├── BlockIconGeometry.java      # A stack's block-model icon quads, off vanilla's own walk
     │   │   ├── ItemDefinitionWalk.java     # The neutral walk of items/<name>.json + a block's block_state cases
     │   │   ├── BlockGuiTransform.java      # Resolves a block's authored display.gui transform
+    │   │   ├── SlotLayers.java             # Whether the client draws a stack in a slot through specials alone
     │   │   └── FirstVariantRandomSource.java # nextInt→0: pin weighted block variants to variants[0]
     │   ├── sweep/                          # One file per subject kind
-    │   │   ├── BlockSweep.java             # BLOCK registry → BE renderer, falling back to plain 3D
+    │   │   ├── BlockSweep.java             # BLOCK registry → slot drawing for specials, BE renderer, else plain 3D
     │   │   ├── ItemSweep.java              # ITEM registry (non-BlockItem) → GUI icon
     │   │   ├── EntitySweep.java            # Variant expansion + family canvas pre-pass
     │   │   ├── EntityAnimationSweep.java   # One strip per entity, posed at each tick of its own schedule

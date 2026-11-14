@@ -58,7 +58,7 @@ figure (`PoseExpr.Answered.Carried`), `Vec3`, or a static table's fill. Indexed 
 - **A flattened container starts at REST, where a bone starts at its authored pose.** The geometry
   flow dissolves the root's pose into the bones below it - the plain root vanilla builds at
   `PartPose.ZERO`, and equally the transformed root a whole-mesh scale or an aged-down proportion
-  rewrites, which `applyMeshTransformerScaling` pushes onto the top-level bones as a translate and
+  rewrites, which `applyRootPose` pushes onto the top-level bones as a translate and
   onto every bone as a factor. So every bone a mesh names at top level already carries whatever the
   container was holding, and a read of a container channel nothing has written is a NUMBER rather than
   a name. `PoseWalk.unwritten` is the one place that is decided, for the channel read and for the arm

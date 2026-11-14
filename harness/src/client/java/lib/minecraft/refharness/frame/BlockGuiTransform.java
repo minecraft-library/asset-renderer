@@ -1,6 +1,5 @@
 package lib.minecraft.refharness.frame;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -15,9 +14,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,9 +45,6 @@ import java.util.concurrent.ConcurrentHashMap;
 final class BlockGuiTransform {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
-
-    /** Degrees-to-radians factor {@link ItemTransform#apply} itself uses, mirrored by {@link #applyFitNeutral}. */
-    private static final float DEG_TO_RAD = 0.017453292f;
 
     /**
      * Fallback gui transform for blocks with no readable authored one - vanilla's
@@ -104,26 +98,6 @@ final class BlockGuiTransform {
             logFailureOnce(state, e);
             return DEFAULT_BLOCK_GUI;
         }
-    }
-
-    /**
-     * Applies {@code gui}'s translation, {@code rotationXYZ}, and scale to {@code pose} <b>without</b>
-     * the trailing {@code T(-0.5)} block-centring that {@link ItemTransform#apply} appends. Callers
-     * that recentre on a measured geometry bbox (the icon-fit pose) supply their own centring and must
-     * not receive the fixed {@code -0.5} shift. The rotation math mirrors {@link ItemTransform#apply}
-     * exactly (same {@code rotationXYZ} factory, same degrees-to-radians factor) so the two paths agree.
-     *
-     * @param gui the gui transform to apply
-     * @param pose the pose to transform in place
-     */
-    static void applyFitNeutral(ItemTransform gui, PoseStack.Pose pose) {
-        Vector3fc translation = gui.translation();
-        Vector3fc rotation = gui.rotation();
-        Vector3fc scale = gui.scale();
-        pose.translate(translation.x(), translation.y(), translation.z());
-        pose.rotate(new Quaternionf().rotationXYZ(
-            rotation.x() * DEG_TO_RAD, rotation.y() * DEG_TO_RAD, rotation.z() * DEG_TO_RAD));
-        pose.scale(scale.x(), scale.y(), scale.z());
     }
 
     private static Optional<Field> propertiesField(Class<?> modelClass) {

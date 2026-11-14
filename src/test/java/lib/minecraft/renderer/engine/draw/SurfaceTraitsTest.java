@@ -18,8 +18,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * {@link SurfaceTraits#WORN_SHELL} would still compile, would still yield a two-sided surface, and
  * would move the enchantment foil off the armour and onto nothing. These tests read each component
  * back by name, so a transposition anywhere in the two constants fails here rather than in a render.
- * Pinning all five components of both also pins the two bits armour geometry differs from block
- * geometry by, the cull and the glint.
+ * Pinning all five components of both also pins the three things armour geometry differs from block
+ * geometry by, the cull, the glint and the cutout pass.
  */
 @DisplayName("Shipped surface traits")
 class SurfaceTraitsTest {
@@ -35,13 +35,13 @@ class SurfaceTraitsTest {
     }
 
     @Test
-    @DisplayName("WORN_SHELL is two-sided, opaque, glinted, directionally lit and on the default pass")
+    @DisplayName("WORN_SHELL is two-sided, opaque, glinted, directionally lit and on the cutout pass")
     void wornShellIsTwoSidedAndGlinted() {
         assertThat(SurfaceTraits.WORN_SHELL.cullBackFaces(), equalTo(false));
         assertThat(SurfaceTraits.WORN_SHELL.translucent(), equalTo(false));
         assertThat(SurfaceTraits.WORN_SHELL.glinted(), equalTo(true));
         assertThat(SurfaceTraits.WORN_SHELL.directionalLight(), equalTo(true));
-        assertThat(SurfaceTraits.WORN_SHELL.pass(), sameInstance(PassDeclaration.DEFAULT));
+        assertThat(SurfaceTraits.WORN_SHELL.pass(), sameInstance(PassDeclaration.CUTOUT));
     }
 
     @Test

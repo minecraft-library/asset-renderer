@@ -183,18 +183,18 @@ class SpecialBasePoseTest {
     @Test
     @DisplayName("specialPose reads the picked base's nearest gui and light, the identity and side light where none, and nothing for the plain branch's base")
     void specialPoseReadsThePickedBase() {
-        SpecialPose unturned = new SpecialPose(ModelTransform.IDENTITY, GuiLight.SIDE);
+        Seen unturned = new Seen(ModelTransform.IDENTITY, GuiLight.SIDE);
         ModelTransform corner = new ModelTransform(EulerRotation.NONE, new float[]{ 21f, -6f, 0f }, new float[]{ 4f, 4f, 4f });
 
         assertThat(pose(Optional.empty()), is(Optional.empty()));
         assertThat(pose(Optional.of(0f)), is(Optional.empty()));
-        assertThat(pose(Optional.of(INHERITS)), is(Optional.of(new SpecialPose(
+        assertThat(pose(Optional.of(INHERITS)), is(Optional.of(new Seen(
             new ModelTransform(new EulerRotation(30f, 45f, 0f), new float[]{ 0f, 3f, 0f }, new float[]{ 1f, 1f, 1f }), GuiLight.SIDE))));
         assertThat(pose(Optional.of(NO_GUI)), is(Optional.of(unturned)));
         assertThat(pose(Optional.of(ABSENT)), is(Optional.of(unturned)));
-        assertThat(pose(Optional.of(MENU)), is(Optional.of(new SpecialPose(corner, GuiLight.FRONT))));
-        assertThat(pose(Optional.of(MENU_SIDE)), is(Optional.of(new SpecialPose(corner, GuiLight.SIDE))));
-        assertThat(pose(Optional.of(COMPOSITE_ONE_BASE)), is(Optional.of(new SpecialPose(corner, GuiLight.FRONT))));
+        assertThat(pose(Optional.of(MENU)), is(Optional.of(new Seen(corner, GuiLight.FRONT))));
+        assertThat(pose(Optional.of(MENU_SIDE)), is(Optional.of(new Seen(corner, GuiLight.SIDE))));
+        assertThat(pose(Optional.of(COMPOSITE_ONE_BASE)), is(Optional.of(new Seen(corner, GuiLight.FRONT))));
         assertThat(pose(Optional.of(COMPOSITE_TWO_BASES)), is(Optional.empty()));
     }
 
@@ -203,14 +203,23 @@ class SpecialBasePoseTest {
      * {@code custom_model_data} float.
      *
      * @param threshold the stack's {@code custom_model_data} float at index 0, empty for no stack
-     * @return the picked special's pose, empty where the block's own pose stands
+     * @return the picked special's gui and light, empty where the block's own pose stands
      */
-    private static @NotNull Optional<SpecialPose> pose(@NotNull Optional<Float> threshold) {
+    private static @NotNull Optional<Seen> pose(@NotNull Optional<Float> threshold) {
         ItemOptions.Builder options = ItemOptions.builder().itemId(HEAD).type(ItemOptions.Type.GUI_ICON);
         threshold.ifPresent(value -> options.context(ItemContext.ofStack(stack(value))));
         ItemOptions built = options.build();
-        return ItemModelDispatch.specialPose(stacked, built, built.itemModelAt(ItemOptions.Type.GUI_ICON));
+        return ItemModelDispatch.specialPose(stacked, built, built.itemModelAt(ItemOptions.Type.GUI_ICON))
+            .map(found -> new Seen(found.gui(), found.light()));
     }
+
+    /**
+     * The pose and light a picked special is drawn at, as a {@link SpecialPose} carries them.
+     *
+     * @param gui the base's {@code display.gui}
+     * @param light the base's {@code gui_light}
+     */
+    private record Seen(@NotNull ModelTransform gui, @NotNull GuiLight light) {}
 
     /**
      * Draws the player head as an inventory icon, with or without a stack carrying a

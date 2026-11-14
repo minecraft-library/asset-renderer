@@ -25,9 +25,11 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
   subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
   meshes the wearer names, and an armour row names none of them.
-- The shell is built two-sided by `SurfaceTraits.WORN_SHELL`, vanilla submitting it through a no-cull
-  cutout pipeline. Armour geometry differs from block geometry by those two bits and not by a code
-  path, so one `buildBox` serves block, item, player, cape and shell alike.
+- The shell is built two-sided, glinted and through `PassDeclaration.CUTOUT` by
+  `SurfaceTraits.WORN_SHELL`, vanilla submitting every layer and trim through `armorCutoutNoCull`,
+  which binds no culling and declares no blend function. Armour geometry differs from block geometry
+  by those three and not by a code path, so one `buildBox` serves block, item, player, cape and shell
+  alike.
 - `Shell`, `ArmorForm` and `ArmorSlot` own what varies by shell, by that shell's shape, and by slot
   alone. Do not forward one onto another.
 - `ArmorSlot` declares LEGGINGS first, vanilla's innermost layer, and all three armour walks iterate

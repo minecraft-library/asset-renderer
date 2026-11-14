@@ -34,28 +34,28 @@ capture named none - a record of a claim rather than a measurement of its own.
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 9681 ms | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 10727 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 8151 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 17559 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 2605 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 883 ms | yes |
-| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 2220 ms | yes |
-| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 1943 ms | yes |
+| `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 2395 ms | yes |
+| `sweep.glint` | sweep-table | STORE | `glintParityVanilla` | 2 | 2 | 11 | 2337 ms | yes |
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 15 | 835 ms | yes |
-| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 17127 ms | yes |
-| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 26531 ms | yes |
+| `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 134 | 24285 ms | yes |
+| `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 134 | 39251 ms | yes |
 | `sweep.tooltip` | sweep-table | STORE | `tooltipParityVanilla` | 2 | 2 | 76 | 2095 ms | yes |
 | `sweep.tooltip-hypixel-skyblock` | sweep-table | STORE | `tooltipHypixelSkyblockParityVanilla` | 2 | 2 | 44 | 3940 ms | yes |
 | `sweep.book` | sweep-table | STORE | `bookParityVanilla` | 2 | 2 | 19 | 4319 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9846 | 106359 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 9846 | 112956 ms | yes |
 | `manifest.pack-tooltips` | manifest | STORE | `renderVanillaPackTooltipsHypixelSkyblock` | 2 | 2 | 44 | 22698 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 169 | 9788 ms | yes |
-| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 9 | 3103 ms | yes |
-| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
-| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 16113 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6260 ms | yes |
+| `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 9 | 3360 ms | yes |
+| `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 14150 ms | yes |
+| `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 14150 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 97 | 6818 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 9 | 3014 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 6 | 20261 ms | yes |
-| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 24190 ms | yes |
+| `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 21624 ms | yes |
 | `pin.vanilla-iso-pose` | pin-set | STORE | `parityPinTest` | 1 | 2 | 1 | 3041 ms | yes |
 | `pin.player-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |
 | `pin.block-crc` | pin-set | STORE | `parityPinTest` | 1 | 1 | 3 | 3041 ms | yes |

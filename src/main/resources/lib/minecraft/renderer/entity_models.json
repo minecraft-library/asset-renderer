@@ -6,6 +6,9 @@
   "models": {
     "minecraft:allay": {
       "renderer": "net/minecraft/client/renderer/entity/AllayRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -736,6 +739,9 @@
     },
     "minecraft:breeze": {
       "renderer": "net/minecraft/client/renderer/entity/BreezeRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -1302,7 +1308,10 @@
           },
           "geometry": "AdultFelineModel#createBodyMesh@scaled=0.8",
           "texture": "cat/cat_collar",
-          "tint_by": "collar_color"
+          "tint_by": "collar_color",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "styles": [
@@ -3422,6 +3431,10 @@
             "white_dots": "horse/horse_markings_whitedots",
             "black_dots": "horse/horse_markings_blackdots"
           },
+          "pipeline": {
+            "blend": "translucent",
+            "sorted": true
+          },
           "skip_bounds": true,
           "baby": {
             "textures_by_value": {
@@ -3729,6 +3742,9 @@
             "low": "iron_golem/iron_golem_crackiness_low",
             "medium": "iron_golem/iron_golem_crackiness_medium",
             "high": "iron_golem/iron_golem_crackiness_high"
+          },
+          "pipeline": {
+            "blend": "cutout"
           },
           "skip_bounds": true
         }
@@ -4913,6 +4929,9 @@
     },
     "minecraft:piglin": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -5028,6 +5047,9 @@
     },
     "minecraft:piglin_brute": {
       "renderer": "net/minecraft/client/renderer/entity/PiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -6579,6 +6601,9 @@
           "layer_index": 0,
           "geometry": "LlamaModel#createBodyLayer@grow=0.5",
           "texture": "equipment/llama_body/trader_llama",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "skip_bounds": true,
           "baby": {
             "texture": "equipment/llama_body/trader_llama_baby",
@@ -6847,6 +6872,9 @@
     },
     "minecraft:vex": {
       "renderer": "net/minecraft/client/renderer/entity/VexRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {
@@ -6922,6 +6950,9 @@
             "texture": "villager/baby/plains",
             "no_hat_geometry": "BabyVillagerModel#createBodyModel@cleared=head"
           },
+          "pipeline": {
+            "blend": "cutout"
+          },
           "no_hat_geometry": "VillagerModel#createBodyModel@scaled=0.9375@cleared=head"
         },
         {
@@ -6929,6 +6960,9 @@
           "layer_index": 1,
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture_by": "profession",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "skip_bounds": true
         },
         {
@@ -6936,6 +6970,9 @@
           "layer_index": 1,
           "geometry": "VillagerModel#createBodyModel@scaled=0.9375",
           "texture_by": "profession_level",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "skip_bounds": true
         }
       ],
@@ -7736,7 +7773,10 @@
           },
           "geometry": "AdultWolfModel#createBodyLayer",
           "texture": "wolf/wolf_collar",
-          "tint_by": "collar_color"
+          "tint_by": "collar_color",
+          "pipeline": {
+            "blend": "cutout"
+          }
         }
       ],
       "equipment": [
@@ -8255,6 +8295,9 @@
             "texture": "zombie_villager/baby/plains",
             "no_hat_geometry": "BabyZombieVillagerModel#createBodyLayer@cleared=head"
           },
+          "pipeline": {
+            "blend": "cutout"
+          },
           "no_hat_geometry": "ZombieVillagerModel#createBodyLayer@cleared=head"
         },
         {
@@ -8262,6 +8305,9 @@
           "layer_index": 4,
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture_by": "profession",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "skip_bounds": true
         },
         {
@@ -8269,6 +8315,9 @@
           "layer_index": 4,
           "geometry": "ZombieVillagerModel#createBodyLayer",
           "texture_by": "profession_level",
+          "pipeline": {
+            "blend": "cutout"
+          },
           "skip_bounds": true
         }
       ],
@@ -8374,6 +8423,9 @@
     },
     "minecraft:zombified_piglin": {
       "renderer": "net/minecraft/client/renderer/entity/ZombifiedPiglinRenderer",
+      "render": {
+        "blend": "translucent"
+      },
       "axes": {
         "age": {
           "options": {

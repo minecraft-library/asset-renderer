@@ -10,7 +10,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -80,7 +79,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -150,7 +148,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -219,7 +216,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -300,7 +296,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -369,7 +364,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": false
       },
       "blocks": [
@@ -426,7 +420,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": false
       }
     },
@@ -437,7 +430,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": false
       }
     },
@@ -448,7 +440,6 @@
       "tinted": false,
       "plain_texture": true,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -493,7 +484,6 @@
       "tinted": false,
       "plain_texture": true,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -530,7 +520,6 @@
       "tinted": false,
       "plain_texture": true,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -559,7 +548,6 @@
       "tinted": false,
       "plain_texture": true,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -588,7 +576,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -695,7 +682,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -802,7 +788,6 @@
       "tinted": true,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -822,7 +807,6 @@
       "tinted": true,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 180.0,
         "flip": true,
         "transform": [
           8.0,
@@ -842,7 +826,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -931,7 +914,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           0.0,
@@ -941,9 +923,6 @@
           0.0,
           0.0
         ]
-      },
-      "icon": {
-        "rotation": 90
       },
       "parts": [
         {
@@ -1029,7 +1008,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           0.0,
@@ -1048,7 +1026,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           8.0,
@@ -1073,7 +1050,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": false
       },
       "icon": {
@@ -1093,7 +1069,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           0.0,
@@ -1129,7 +1104,6 @@
       "tinted": false,
       "plain_texture": false,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true,
         "transform": [
           0.0,
@@ -1148,7 +1122,6 @@
       "tinted": false,
       "plain_texture": true,
       "inventory": {
-        "y_rotation": 0.0,
         "flip": true
       },
       "blocks": [

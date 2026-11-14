@@ -20,6 +20,7 @@ import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -38,7 +39,7 @@ import java.util.Optional;
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box really does read
- * on both paths - so {@link HumanoidPart#textures(PixelBuffer, boolean) textures} and
+ * on both paths - so {@link HumanoidPart#textures textures} and
  * {@link HumanoidPart#crop(PixelBuffer, Face, boolean) crop} work directly on the armor
  * texture. Armor pieces whose texture region is transparent (e.g. the head area of a leggings
  * layer) produce invisible geometry that the depth buffer or alpha compositing discards
@@ -97,11 +98,10 @@ public class PlayerSprite {
                 if (overlay)
                     stack.append(PlayerSlot2D.OVERLAY, frame -> {
                         // The head's hat layer is the one overlay a legacy sheet still carries, and it
-                        // is drawn from the same rectangle at the same crop - so the wider test only
-                        // decides whether the head is reached, never what it draws.
+                        // is drawn from the same rectangle at the same crop - so the layout decides only
+                        // whether the other parts are reached, never what the head draws.
                         for (BodyPart2D row : parts)
-                            if (PlayerAssembly.hasOverlay(skin)
-                                || (row.part() == HumanoidPart.HEAD && PlayerAssembly.hasHatOverlay(skin)))
+                            if (row.part() == HumanoidPart.HEAD || PlayerAssembly.hasOverlay(skin))
                                 blitPart(frame, row, row.part().crop(skin, Face.SOUTH, true));
                     });
                 stack.append(PlayerSlot2D.ARMOR, frame -> compositeArmor2D(frame, parts, options, context));
@@ -167,9 +167,12 @@ public class PlayerSprite {
         // stamp the armor / trim sprite coverage into it so the enchantment foil lands on the armor,
         // not the bare skin. Absent when the caller records no mask - then stampMaskScaled is a no-op.
         PixelMask mask = target.mask().orElse(null);
-        Optional<PixelBuffer> armorTexture =
-            ArmorKit.resolveArmorTexture(context, piece, ArmorForm.ADULT.layerType(slot), item);
-        armorTexture.ifPresent(tex -> blit2D(target, mask, row, tex));
+        // Each layer is blitted in turn, back to front, tinted by its own colour - the flat counterpart
+        // of the passes the 3D armour draws.
+        for (EquipmentKit.Layer layer : ArmorKit.resolveArmorLayers(context, piece, ArmorForm.ADULT.layerType(slot), item)) {
+            PixelBuffer pixels = layer.texture().pixels();
+            blit2D(target, mask, row, layer.tint() == ColorMath.WHITE ? pixels : Shading.apply(pixels, layer.tint(), 1f));
+        }
 
         piece.trim().ifPresent(trim -> ArmorForm.ADULT.trimLayer(slot)
             .flatMap(layer -> ArmorKit.resolveTrimTexture(context, layer, trim.pattern(), trim.color()))

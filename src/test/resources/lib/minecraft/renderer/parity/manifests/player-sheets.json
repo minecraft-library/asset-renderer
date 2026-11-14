@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "armor-2d.png",
-      "sha256": "39594d526647b709093576e5c93b63405c341b5688e451663c8d6991e3d0d482"
+      "sha256": "3cf80ace47d79c308f16d827d3c881a097e7363f6f0ca3e648ca81d822066b79"
     },
     {
       "path": "armor-2d/chainmail_TWO_D.png",
@@ -28,7 +28,7 @@
     },
     {
       "path": "armor-2d/leather_TWO_D.png",
-      "sha256": "4f075e9f6520094da7c605ba293dc252ac04e5887027ed9e3c7f96033d0a3d2e"
+      "sha256": "44a53044798e5eb2da84d51287e7b8293a9d613e3ad484389c2fc7cdd72a2097"
     },
     {
       "path": "armor-2d/netherite_TWO_D.png",
@@ -40,7 +40,7 @@
     },
     {
       "path": "armor-3d.png",
-      "sha256": "d93303a6f43fd8bedf60dec4f9084ff5d976825e9bef7d0c0caf107bc9e77b24"
+      "sha256": "e33806664f4438b916199df42490950360f84baa0a8a55b1c10249e46df0f489"
     },
     {
       "path": "armor-3d/chainmail_THREE_D.png",
@@ -64,7 +64,7 @@
     },
     {
       "path": "armor-3d/leather_THREE_D.png",
-      "sha256": "935175f8f38b15b2477e2e3bbab8cbe6e7617286a5e252afcc41f3783435a502"
+      "sha256": "4cc3957b8fad288736ec07276163dde1b6e87347fb9c1bc187a964f8e8dd2f6b"
     },
     {
       "path": "armor-3d/netherite_THREE_D.png",
@@ -144,11 +144,11 @@
     },
     {
       "path": "facing.png",
-      "sha256": "4a6446ae02fe55ef3b6b33fdd535e94f47e6b5a1361a5cc7aad997a168993915"
+      "sha256": "4a924c1671924493d455214c753488230e53eb9c6a089d6dfc87c15d587adebb"
     },
     {
       "path": "facing/cavalier_default.png",
-      "sha256": "161cc4924a71b4933d7f6508d7c6d8be23f0033030ad2fd37dc214bf508d2f88"
+      "sha256": "9a34fc3c9000fa0403ac85dab98d872c26739269dc2e1febcf6f03619a4a73cf"
     },
     {
       "path": "facing/cavalier_mirrored.png",
@@ -208,11 +208,11 @@
     },
     {
       "path": "leather-dye.png",
-      "sha256": "bb53342091b33281248822a930f852fd701538195e7b2fff9fec63dc4f0fefae"
+      "sha256": "cd6b39d5377c3194552d57ac2f376d78b5dcdb46541a4253cb6cecef209d9ecf"
     },
     {
       "path": "leather-dye/blue_THREE_D.png",
-      "sha256": "8733d5cbc63708055c41541b1e5e8609e9d965e2f9760985059dcd99e028fdd8"
+      "sha256": "19aa17af66295c5ec2399aa7fb26b29913518ec60ef26ba6564345e5ba090c77"
     },
     {
       "path": "leather-dye/blue_TWO_D.png",
@@ -220,15 +220,15 @@
     },
     {
       "path": "leather-dye/cyan_THREE_D.png",
-      "sha256": "b24d3bbc6caf77d699db770f5d3af9d5cc881ecb147c86a213190a715308f688"
+      "sha256": "273131c6eac357e0d95bfcd5469809c853d4ce8e26fc2b0f1b0acbe818c41534"
     },
     {
       "path": "leather-dye/cyan_TWO_D.png",
-      "sha256": "f13ba5781f4324805626f3daeabd23dfa80f7e5de10a98fa4857649e445835c6"
+      "sha256": "3d25d70b97ccf2766035d8f22c0621bdc955c5b38f84414756de812d31262d43"
     },
     {
       "path": "leather-dye/green_THREE_D.png",
-      "sha256": "92de275b377ba290f407b554c5473fe482583fda1b2e112c7f62797f78e44c41"
+      "sha256": "b22ac382d06a88a0c446409bdb609f22a6b28a18eabd7750329737082237a097"
     },
     {
       "path": "leather-dye/green_TWO_D.png",
@@ -236,7 +236,7 @@
     },
     {
       "path": "leather-dye/orange_THREE_D.png",
-      "sha256": "2723d24cbeaea0819a6d9466e6e23848c857948195bc9ea8146b9e0d58925cc8"
+      "sha256": "a3ae4f13b772d5df81950357619b8be5dee4b22d180f2030443659dca10a45ed"
     },
     {
       "path": "leather-dye/orange_TWO_D.png",
@@ -244,19 +244,19 @@
     },
     {
       "path": "leather-dye/red_THREE_D.png",
-      "sha256": "c286635d967a05efde46daa304dc19925aae9b740f5941985b7fe2df43ac4695"
+      "sha256": "0d42c87b3d5c2afeada1339e56a02f352643dce74b7c07b16aac48743f008007"
     },
     {
       "path": "leather-dye/red_TWO_D.png",
-      "sha256": "267302afd907544a66c8cef654c2dd0238e061037ccb3cb3ab73d58ed751d629"
+      "sha256": "75f029930a55356ade8b9f9dffceccf35142d5a23466e3d02c9ad0ccb3a680e0"
     },
     {
       "path": "projections.png",
-      "sha256": "220eb9bbf57a782632702373904af5e896d8192dd26776a7639e8c4e080d70f3"
+      "sha256": "5889319bd4fd412730dcd99abc0fa2d006859f90edb103c95187d24d17bc2e73"
     },
     {
       "path": "projections/cabinet.png",
-      "sha256": "8b8b7062013bfd97604b2d7c147eed14a69b3b8514b11603ef6e2a397548467e"
+      "sha256": "a15188b7db3a800e0a051d45663d5fa4e3b177e35a2e9ae47ae5ed9986457941"
     },
     {
       "path": "projections/dimetric.png",
@@ -272,7 +272,7 @@
     },
     {
       "path": "projections/one_point.png",
-      "sha256": "50a2564114d385f69a908201a085b65ca50670dde7d7a661bea065871f115981"
+      "sha256": "013275af90505b27884b74c27f8019e15981a3992a9e0073fdf44b4dcdefa7d5"
     },
     {
       "path": "projections/portrait.png",
@@ -396,22 +396,21 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "f6199e00e02697bfb09ffebda23dc55984b19109ef0c3a701fa3c6761f6c87ac",
-    "asset_dirty": false,
-    "asset_sha": "336520d912aebf292671cc1472c937d24d727aa4",
+    "asset_content_digest": "71a6e06593a3c400d0d9e30c582368b1c9da78ea4fe85d405977a9e806b5af5a",
+    "asset_dirty": true,
+    "asset_sha": "e3df107d5cd0d24e371d3b4b82a3071f8f23c539",
     "counts": {
       "files": 97
     },
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "parity_class": "shaped",
-    "population_changed": true,
+    "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "Members another artifact or a kept member already holds leave the manifest: visual 42, fluid 3, player-raw its 9 vanilla.png re-encodes, player-sheets 7 twin cells; every kept member is byte-identical to the store",
+    "reason": "Each equipment layer drawn as its own pass, its colour the vertex tint rounded once with the light: the leather-dressed armour rows, the dyed and undyed body-armour entity rows, the worn-leather glint rows and the leather player sheets and raw renders",
     "root": "cache/visual/player-render",
-    "timestamp": "2026-11-04T16:15:49Z",
+    "timestamp": "2026-11-11T05:23:58Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 6416
+    "wall_time_ms": 6818
   }
 }

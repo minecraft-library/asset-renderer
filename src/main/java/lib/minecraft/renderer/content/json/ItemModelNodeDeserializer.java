@@ -118,8 +118,8 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             case "select" -> select(node, context);
             case "range_dispatch" -> new ItemModelNode.RangeDispatch(
                 property(node, ItemModelProperties::isRange, "range_dispatch"), floatValue(node, "scale", 1f), string(node, "target"),
-                intValue(node, "index", 0), entries(node, context), fallback(node, context));
-            case "composite" -> new ItemModelNode.Composite(models(node, context));
+                intValue(node, "index", 0), entries(node, context), fallback(node, context), transform(node));
+            case "composite" -> new ItemModelNode.Composite(models(node, context), transform(node));
             case "special" -> special(node);
             case "bundle/selected_item" -> new ItemModelNode.Bundle();
             case "empty" -> ItemModelNode.Empty.INSTANCE;
@@ -128,7 +128,8 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     }
 
     /**
-     * Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}.
+     * Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}
+     * and keeping the {@code index} a {@code custom_model_data} condition reads its flag at.
      */
     private static @NotNull ItemModelNode condition(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, ItemModelProperties::isCondition, "condition");
@@ -141,8 +142,8 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             ? Optional.of(predicate(requiredString(node, "predicate", "A component condition"), node.get("value")))
             : Optional.empty();
         return new ItemModelNode.Condition(
-            property, component, hasComponent && flag(node, "ignore_default"), predicate,
-            required(node, "on_true", context), required(node, "on_false", context));
+            property, component, hasComponent && flag(node, "ignore_default"), intValue(node, "index", 0), predicate,
+            required(node, "on_true", context), required(node, "on_false", context), transform(node));
     }
 
     /**
@@ -198,7 +199,8 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     }
 
     /**
-     * Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it.
+     * Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it,
+     * and keeping the {@code index} a {@code custom_model_data} select reads its string at.
      */
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, ItemModelProperties::isSelect, "select");
@@ -207,8 +209,8 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         String component = componentSelect ? selectComponent(requiredString(node, "component", "A component select")) : "";
         Optional<DecodedComponent> decoded = componentSelect ? DecodedComponent.of(component) : Optional.empty();
         return new ItemModelNode.Select(
-            property, string(node, "block_state_property"), component, decoded,
-            cases(node, path, decoded, context), fallback(node, context));
+            property, string(node, "block_state_property"), intValue(node, "index", 0), component, decoded,
+            cases(node, path, decoded, context), fallback(node, context), transform(node));
     }
 
     /**

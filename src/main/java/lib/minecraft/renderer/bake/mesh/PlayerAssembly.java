@@ -11,6 +11,7 @@ import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.slot.PlayerSlot3D;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
@@ -18,16 +19,16 @@ import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.engine.mesh.FaceTextures;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.mesh.CapeMesh;
@@ -60,23 +61,18 @@ public class PlayerAssembly {
     private static final float PLAYER_FILL = 1.0f;
 
     /**
-     * Whether the skin is wide enough to have overlay layers.
+     * Whether the skin declares the square layout, which carries an overlay for every part.
+     * <p>
+     * The legacy layout carries the head's hat alone, which both layouts hold, so the hat is drawn
+     * over either and this decides only the other five overlays. It asks the layout rather than the
+     * texel size, since a face reads its region by normalised coordinates: a high-resolution skin and
+     * the checkerboard standing in for a missing one declare the square layout alike.
      *
      * @param skin the skin sheet to measure
-     * @return whether the sheet carries the full overlay column
+     * @return whether the sheet declares the full overlay column
      */
     public static boolean hasOverlay(@NotNull PixelBuffer skin) {
-        return skin.width() >= 64 && skin.height() >= 64;
-    }
-
-    /**
-     * Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay).
-     *
-     * @param skin the skin sheet to measure
-     * @return whether the sheet carries the head's hat layer
-     */
-    public static boolean hasHatOverlay(@NotNull PixelBuffer skin) {
-        return skin.width() >= 48 && skin.height() >= 16;
+        return HumanoidPart.skinSheetHeight(skin) == HumanoidPart.SKIN_SIZE;
     }
 
     /**
@@ -107,9 +103,10 @@ public class PlayerAssembly {
      * {@link PlayerOptions.Type#BUST} and {@link PlayerOptions.Type#FULL} differ in nothing but the scope
      * token, which is why it is a parameter here rather than two bodies that have to be kept in step.
      * {@link PlayerOptions.Type#SKULL} deliberately does not route through this: it draws one box with its
-     * own wider-gated hat overlay rather than {@link #addBody}, and it seats no back layer.
+     * own hat overlay, drawn over either skin layout, rather than {@link #addBody}, and it seats no back
+     * layer.
      *
-     * @param skin the resolved player skin sheet
+     * @param skin the resolved player skin sheet, with the sampler it is read through
      * @param engine the rasterizer the scope is drawn through
      * @param options the render options
      * @param type the player render scope
@@ -120,7 +117,7 @@ public class PlayerAssembly {
      * @return the finished image
      */
     public static @NotNull ImageData renderScope3D(
-        @NotNull PixelBuffer skin,
+        @NotNull SampledTexture skin,
         @NotNull Rasterizer engine,
         @NotNull PlayerOptions options,
         @NotNull PlayerOptions.Type type,
@@ -175,17 +172,18 @@ public class PlayerAssembly {
      * Adds every part a scope draws, in that scope's own draw order.
      * <p>
      * The single-part {@link PlayerOptions.Type#SKULL} scope does not route through here: its head is
-     * a plain unit cube whose overlay carries its own hardcoded inflation and its own, wider
-     * sheet-format test, so folding the two together would change what a legacy skin draws.
+     * a plain unit cube whose overlay carries its own hardcoded inflation and is drawn over either skin
+     * layout, where this scope's overlays wait on the square one, so folding the two together would
+     * change what a legacy skin draws.
      *
      * @param triangles the sink the scope's boxes are appended to
-     * @param skin the resolved player skin sheet
+     * @param skin the resolved player skin sheet, with the sampler it is read through
      * @param type the player render scope
      * @param options the render options
      */
     public static void addBody(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer skin,
+        @NotNull SampledTexture skin,
         @NotNull PlayerOptions.Type type,
         @NotNull PlayerOptions options
     ) {
@@ -194,19 +192,19 @@ public class PlayerAssembly {
     }
 
     /**
-     * Adds a body part's base skin cube and optional overlay to the triangle list.
+     * Adds a body part's base skin cube and optional overlay to the triangle list, each face a region
+     * of the whole skin sheet at the layout the skin declares.
      */
     private static void addBodyPart(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer skin,
+        @NotNull SampledTexture skin,
         @NotNull HumanoidPart part,
         @NotNull Box box,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BoxKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
-        if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BoxKit.buildBox(
-                box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
+        triangles.addAll(BoxKit.buildBox(box, part.skinTextures(skin, false), ColorMath.WHITE));
+        if (options.getSkin().isRenderOverlay() && hasOverlay(skin.pixels()))
+            triangles.addAll(BoxKit.buildBox(box.expand(OVERLAY_INFLATE), part.skinTextures(skin, true), ColorMath.WHITE));
     }
 
     /**
@@ -220,13 +218,14 @@ public class PlayerAssembly {
      * {@code NORTH} design and the {@code SOUTH} lining stay on the faces that name them.
      * <p>
      * A face map moves a strip between faces and cannot turn one in its own plane. The yaw also turns
-     * the two cap strips half a turn in theirs, which {@link #capeTextures} applies after the crop.
+     * the two cap strips half a turn in theirs, which {@link #capeTextures} applies to their regions.
      */
     private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.HALF_Z;
 
     /**
-     * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
-     * the {@link #CAPE_FRAME cape frame}. The {@link CapeMesh cape model} is a 10x16x1 box at UV
+     * Reads each face of the cape cube as its region of the whole cape texture, through the cube's own
+     * atlas unwrap in the {@link #CAPE_FRAME cape frame}, normalised by the cape sheet's declared size
+     * and read through the texture's own sampler. The {@link CapeMesh cape model} is a 10x16x1 box at UV
      * origin (0,0), so the vanilla cube unwrap lays it out as:
      * <pre>
      * y=0:  [1px unused][10px DOWN ][10px UP   ]
@@ -237,19 +236,17 @@ public class PlayerAssembly {
      * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
      * outward and the lining against the back.
      * <p>
-     * The two {@code 10x1} cap strips are turned half a turn after the crop, the in-plane part of the
-     * cape's yaw that the frame cannot carry. On a strip one texel tall that reverses it left to right,
-     * which lays the top strip's texels against the design's top row column for column.
-     * <p>
-     * The stand-in sprite is laid across the cape sheet's size before any face is cropped, so a face
-     * reads it where vanilla's normalised UVs land on its own.
+     * The two {@code 10x1} cap strips are read half a turn round - right to left and bottom up - the
+     * in-plane part of the cape's yaw that the frame cannot carry. On a strip one texel tall that
+     * reverses it left to right, which lays the top strip's texels against the design's top row column
+     * for column.
      */
-    private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
+    private static @NotNull FaceTextures capeTextures(@NotNull SampledTexture cape) {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(CapeMesh.CAPE_UV, CapeMesh.CAPE_SIZE, false);
-        PixelBuffer read = MissingSprite.stretchedTo(cape, CapeMesh.SHEET_WIDTH, CapeMesh.SHEET_HEIGHT);
         return face -> {
-            PixelBuffer strip = unwrap.crop(read, CAPE_FRAME.apply(face));
-            return face.axis() == 1 ? strip.rotate180() : strip;
+            Vector4f strip = unwrap.read(CAPE_FRAME.apply(face));
+            return new FaceTextures.Region(cape, face.axis() == 1 ? strip.reversedU().reversedV() : strip,
+                CapeMesh.SHEET_WIDTH, CapeMesh.SHEET_HEIGHT);
         };
     }
 
@@ -258,13 +255,13 @@ public class PlayerAssembly {
      * The cape width and height are proportional to the torso dimensions.
      *
      * @param triangles the sink the cape's triangles are appended to
-     * @param capeTexture the cape sheet the box's faces are cut from
+     * @param capeTexture the cape sheet the box's faces read, with the sampler it is read through
      * @param torsoMin the torso box's minimum corner
      * @param torsoMax the torso box's maximum corner
      */
     public static void addCape(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer capeTexture,
+        @NotNull SampledTexture capeTexture,
         @NotNull Vector3f torsoMin,
         @NotNull Vector3f torsoMax
     ) {

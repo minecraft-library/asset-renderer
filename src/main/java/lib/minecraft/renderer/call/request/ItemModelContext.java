@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.call.request;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
@@ -47,9 +49,11 @@ import java.util.OptionalInt;
  * <p>The component tests read {@link #components}, the stack's 26.1 component patch. A
  * {@code minecraft:component} condition applies its decoded
  * {@link ItemModelNode.ComponentPredicate predicate}, {@code has_component} asks whether the stack holds
- * the component, and a component select reduces the stack's value to the key its cases were decoded to,
+ * the component, a {@code custom_model_data} condition and select read the stack's flag and string at
+ * their index, and a component select reduces the stack's value to the key its cases were decoded to,
  * through the {@link DecodedComponent} its node carries. With no map supplied, every test reads a stack
- * with no components: {@code has_component} is false, a {@code custom_data} test compares against an
+ * with no components: {@code has_component} and a flag are false, a string select takes its fallback,
+ * a {@code custom_data} test compares against an
  * empty compound - so a {@code {}} test passes - and a component select takes its fallback. Of the components
  * an item holds by default one is known here, {@code minecraft:item_model}, which every 26.1 item holds
  * as its own id, so a test of it reads {@link #itemId} wherever the patch neither sets nor removes it.
@@ -261,8 +265,8 @@ public record ItemModelContext(
     /**
      * Resolves a {@code condition} node's boolean property from the property id alone. Only the
      * properties an icon can honestly evaluate without further inputs are wired ({@code using_item},
-     * {@code broken}); {@code has_component} and {@code component} need the operands their node carries
-     * (see {@link #conditionValue(ItemModelNode.Condition)}), and every other live gameplay flag
+     * {@code broken}); {@code has_component}, {@code component} and {@code custom_model_data} need the
+     * operands their node carries (see {@link #conditionValue(ItemModelNode.Condition)}), and every other live gameplay flag
      * ({@code damaged}, {@code fishing_rod/cast}, ...) reads {@code false}, so the walker takes the
      * {@code on_false} branch.
      *
@@ -282,8 +286,9 @@ public record ItemModelContext(
      * condition applies its decoded {@linkplain ItemModelNode.Condition#predicate() predicate} to the
      * stack's components, {@link #itemId the item's} {@code minecraft:item_model} among them;
      * {@code has_component} asks {@link #hasComponent(String, boolean)} about the component it names,
-     * with its {@code ignore_default}; every other property delegates to
-     * {@link #conditionValue(String)}.
+     * with its {@code ignore_default}; {@code custom_model_data} reads the {@code flags} entry at its
+     * {@linkplain ItemModelNode.Condition#index() index} of the stack's {@code minecraft:custom_model_data}
+     * component; every other property delegates to {@link #conditionValue(String)}.
      *
      * @param condition the condition node
      * @return the boolean value, {@code false} when unevaluable
@@ -294,9 +299,11 @@ public record ItemModelContext(
             return predicate.matches(this.held(predicate.id()));
         }
 
-        return path(condition.property()).equals("has_component")
-            ? this.hasComponent(condition.component(), condition.ignoreDefault())
-            : this.conditionValue(condition.property());
+        return switch (path(condition.property())) {
+            case "has_component" -> this.hasComponent(condition.component(), condition.ignoreDefault());
+            case "custom_model_data" -> this.customModelDataFlag(condition.index());
+            default -> this.conditionValue(condition.property());
+        };
     }
 
     /**
@@ -335,8 +342,8 @@ public record ItemModelContext(
      * Resolves a {@code select} node's case key from the property id alone. {@code display_context}
      * (this context's own key), {@code trim_material} (the caller override, unset by default, qualified
      * as the identifier it is) and {@code context_dimension} (always
-     * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} and {@code block_state}
-     * need the component or block-state property their node names (see
+     * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component}, {@code block_state} and
+     * {@code custom_model_data} need the component, block-state property or index their node names (see
      * {@link #selectValue(ItemModelNode.Select)}), and every other property is unevaluable and answers
      * absent, so the walker takes the no-case-match fallback.
      *
@@ -360,17 +367,20 @@ public record ItemModelContext(
      * it carries - for {@code minecraft:item_model} the {@link #itemId item's} own id where the patch
      * neither sets nor removes one; a {@code minecraft:block_state} select reads the
      * {@linkplain ItemModelNode.Select#blockStateProperty() property it names} out of the stack's
-     * {@code minecraft:block_state} component; every other property delegates to
+     * {@code minecraft:block_state} component; a {@code custom_model_data} select reads the {@code strings}
+     * entry at its {@linkplain ItemModelNode.Select#index() index} of the stack's
+     * {@code minecraft:custom_model_data} component; every other property delegates to
      * {@link #selectValue(String)}.
      *
      * @param select the select node
-     * @return the case key to match - empty where the stack does not hold the component or the property,
-     *     absent where this renderer does not decode the component or the stack's value of it does not
-     *     decode
+     * @return the case key to match - empty where the stack does not hold the component, the property or
+     *     the string, absent where this renderer does not decode the component or the stack's value of it
+     *     does not decode
      */
     public @NotNull Possible<String> selectValue(@NotNull ItemModelNode.Select select) {
         String property = path(select.property());
         if (property.equals("block_state")) return this.blockStateValue(select.blockStateProperty());
+        if (property.equals("custom_model_data")) return this.customModelDataString(select.index());
         if (!property.equals("component")) return this.selectValue(select.property());
         if (select.decoded().isEmpty()) return Possible.absent();
         DecodedComponent component = select.decoded().get();
@@ -450,6 +460,10 @@ public record ItemModelContext(
      * root of a refused definition or a node whose type sits in a mod's namespace, is vanilla's missing
      * item model, {@link ItemModelNode.Resolution#MISSING}.
      *
+     * <p>Each dispatch node the walk passes through hands its {@code transformation} down, as vanilla's
+     * bake hands each child the matrix its parent composed, so a special leaf resolves carrying every one
+     * above it in its {@linkplain ItemModelNode.Resolution#placement() placement}.
+     *
      * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
      * derived model id and tint list - bar the properties that have one honest answer for an icon
      * whatever the caller ({@code display_context}, {@code context_dimension}), which select their
@@ -459,17 +473,42 @@ public record ItemModelContext(
      * @return the resolved branch, {@linkplain ItemModelNode.Resolution#isEmpty() empty} when the branch renders nothing
      */
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
+        return this.resolve(node, Concurrent.newUnmodifiableList());
+    }
+
+    /**
+     * Resolves a dispatch node under the transformations of the dispatch nodes the walk already passed
+     * through, outermost first.
+     */
+    private @NotNull ItemModelNode.Resolution resolve(
+        @NotNull ItemModelNode node, @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement
+    ) {
         return switch (node) {
             case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false, false);
-            case ItemModelNode.Condition condition -> resolve(this.branch(condition));
-            case ItemModelNode.Select select -> resolve(this.branch(select));
-            case ItemModelNode.RangeDispatch range -> resolve(this.branch(range));
-            case ItemModelNode.Composite composite -> resolveComposite(composite);
-            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false, false);
+            case ItemModelNode.Condition condition -> this.resolve(this.branch(condition), placed(placement, condition.transform()));
+            case ItemModelNode.Select select -> this.resolve(this.branch(select), placed(placement, select.transform()));
+            case ItemModelNode.RangeDispatch range -> this.resolve(this.branch(range), placed(placement, range.transform()));
+            case ItemModelNode.Composite composite -> this.resolveComposite(composite, placed(placement, composite.transform()));
+            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(),
+                Optional.of(special), placement, false, false, Concurrent.newUnmodifiableList());
             case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.MISSING;
         };
+    }
+
+    /**
+     * The placement a dispatch node hands its children: the one it was handed, with its own transformation innermost where it declares one.
+     */
+    private static @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placed(
+        @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement, @NotNull ItemModelNode.SpecialTransform transform
+    ) {
+        if (transform.isIdentity()) return placement;
+
+        ConcurrentList<ItemModelNode.SpecialTransform> nested = Concurrent.newList();
+        nested.addAll(placement);
+        nested.add(transform);
+        return nested.toUnmodifiable();
     }
 
     /**
@@ -555,12 +594,14 @@ public record ItemModelContext(
     }
 
     /**
-     * The branch a {@code composite} walk takes: every child walked, and the layers each draws joined in order into one resolution.
+     * The branch a {@code composite} walk takes: every child walked under the placement the composite hands down, and the layers each draws joined in order into one resolution.
      */
-    private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
+    private @NotNull ItemModelNode.Resolution resolveComposite(
+        @NotNull ItemModelNode.Composite composite, @NotNull ConcurrentList<ItemModelNode.SpecialTransform> placement
+    ) {
         return ItemModelNode.Resolution.composite(composite.models()
             .stream()
-            .map(child -> this.resolve(child))
+            .map(child -> this.resolve(child, placement))
             .toList());
     }
 
@@ -569,14 +610,41 @@ public record ItemModelContext(
      */
     private float customModelDataFloat(int index) {
         if (this.customModelData.isPresent()) return this.customModelData.get();
-        if (index < 0) return 0f;
+        return this.customModelDataEntry("floats", index)
+            .map(entry -> entry instanceof FloatTag value ? value.floatValue() : 0f)
+            .orElse(0f);
+    }
+
+    /**
+     * The {@code custom_model_data} flag at an index, as the client's condition reads it: true where the component's {@code flags[index]} is a number whose low byte is not zero, the way a boolean decodes from NBT, and false where it is zero, where the list ends before the index, where the stack carries no such component and at a negative index.
+     */
+    private boolean customModelDataFlag(int index) {
+        return this.customModelDataEntry("flags", index)
+            .map(entry -> entry instanceof NumericalTag<?> flag && flag.byteValue() != 0)
+            .orElse(false);
+    }
+
+    /**
+     * The {@code custom_model_data} string at an index, as the client's select reads it: the component's {@code strings[index]}, empty where the list ends before the index, where the stack carries no such component and at a negative index, so the select takes its fallback, and absent where the entry is not a string, the component's codec reading strings alone.
+     */
+    private @NotNull Possible<String> customModelDataString(int index) {
+        return this.customModelDataEntry("strings", index)
+            .map(entry -> entry instanceof StringTag string ? Possible.of(string.getValue()) : Possible.<String>absent())
+            .orElseGet(Possible::empty);
+    }
+
+    /**
+     * The entry at an index of one of the stack's {@code custom_model_data} lists, or empty where the stack carries no such component, the list is missing or ends before the index, or the index is negative.
+     */
+    private @NotNull Optional<Tag<?>> customModelDataEntry(@NotNull String list, int index) {
+        if (index < 0) return Optional.empty();
         Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
             .filter(CompoundTag.class::isInstance)
             .map(CompoundTag.class::cast);
-        if (customModelData.isEmpty()) return 0f;
-        ListTag<?> floats = customModelData.get().getListTag("floats");
-        if (floats == null || index >= floats.size()) return 0f;
-        return floats.get(index) instanceof FloatTag value ? value.floatValue() : 0f;
+        if (customModelData.isEmpty()) return Optional.empty();
+        ListTag<?> entries = customModelData.get().getListTag(list);
+        if (entries == null || index >= entries.size()) return Optional.empty();
+        return Optional.<Tag<?>>of(entries.get(index));
     }
 
     /**

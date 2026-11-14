@@ -19,9 +19,9 @@
  * {@link lib.minecraft.renderer.bake.armor.ArmorInflate ArmorInflate} is the per-slot inflation a
  * player's worn box sits at in the skin renderer's frame.
  *
- * <p>{@link lib.minecraft.renderer.bake.armor.EquipmentKit EquipmentKit} composites an equipment asset's
- * layers into the one buffer a worn piece is textured with, for humanoid armour and mob equipment
- * alike. {@link lib.minecraft.renderer.bake.armor.ElytraKit ElytraKit} seats the elytra wings on the
+ * <p>{@link lib.minecraft.renderer.bake.armor.EquipmentKit EquipmentKit} resolves an equipment asset's
+ * layers into the passes a worn piece draws - each a texture and the colour it is tinted by - for
+ * humanoid armour and mob equipment alike. {@link lib.minecraft.renderer.bake.armor.ElytraKit ElytraKit} seats the elytra wings on the
  * body they hang from and textures them off the equipment model's wings layer.
  *
  * <p>The flat player is drawn here whole, and every worn slot reaches it through its 2D armour pass.

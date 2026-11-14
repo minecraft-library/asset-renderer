@@ -24,7 +24,9 @@ import static org.hamcrest.Matchers.is;
  * {@code DepthStencilState.DEFAULT} and therefore writes. The corpus contains every disagreement
  * needed to catch that - an emissive pass that writes, an emissive pass that does not, a
  * non-emissive pass that sorts, and an additive pass that is emissive too - so any rule inferring
- * one declaration from another fails at least one row.
+ * one declaration from another fails at least one row. Every overlay the walk classifies declares
+ * its blend, so a cutout layer it stops resolving falls back to source-over and fails the cutout
+ * roster.
  */
 @DisplayName("overlay pipeline declarations")
 class EntityModelLoaderOverlayPassTest {
@@ -38,6 +40,16 @@ class EntityModelLoaderOverlayPassTest {
         "minecraft:breeze", "minecraft:cave_spider", "minecraft:copper_golem",
         "minecraft:ender_dragon", "minecraft:enderman", "minecraft:phantom", "minecraft:spider",
         "minecraft:warden");
+
+    /**
+     * Entities carrying an overlay vanilla submits through a pipeline declaring no blend function -
+     * the clothing, outer and wool layers, both collars, the profession passes, the crackiness, the
+     * trader llama's decor and the tropical fish's pattern.
+     */
+    private static final Set<String> CUTOUT = Set.of(
+        "minecraft:bogged", "minecraft:cat", "minecraft:drowned", "minecraft:iron_golem",
+        "minecraft:sheep", "minecraft:stray", "minecraft:trader_llama", "minecraft:tropical_fish",
+        "minecraft:villager", "minecraft:wolf", "minecraft:zombie_villager");
 
     /** Overlays whose pipeline blends additively - vanilla's two energy swirls. */
     private static final Set<String> ADDITIVE = Set.of("minecraft:creeper", "minecraft:wither");
@@ -93,7 +105,17 @@ class EntityModelLoaderOverlayPassTest {
             if (overlay.pass().sorted() && !overlay.pass().emissive()) sortedNonEmissive.add(id);
         }));
         assertThat(sortedNonEmissive, is(new TreeSet<>(Set.of(
-            "minecraft:breeze", "minecraft:slime", "minecraft:warden"))));
+            "minecraft:breeze", "minecraft:horse", "minecraft:slime", "minecraft:warden"))));
+    }
+
+    @Test
+    @DisplayName("every overlay vanilla submits through a cutout pipeline is written whole")
+    void cutoutOverlaysReplace() {
+        Set<String> cutout = new TreeSet<>();
+        index().forEach((id, entity) -> entity.overlays().forEach(overlay -> {
+            if (overlay.pass().blend() == BlendMode.REPLACE) cutout.add(id);
+        }));
+        assertThat(cutout, is(new TreeSet<>(CUTOUT)));
     }
 
 }

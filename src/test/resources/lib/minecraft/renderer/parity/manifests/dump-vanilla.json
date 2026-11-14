@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "block-entities.json",
-      "sha256": "9514a18abe7140b0b208b8616a56e4d21142441091d4ee4423a3f5681f3afb43"
+      "sha256": "0801b6110dee5c9a6aae826de1ebaf60c82d86cbdf118f58a04dd59fd5559257"
     },
     {
       "path": "block-models.json",
@@ -12,11 +12,11 @@
     },
     {
       "path": "blocks.json",
-      "sha256": "a8d034bd040e020efe7295d67a8ae4bdecfb70115637a47a67ec433e47b54968"
+      "sha256": "1558f9bd9480f1af2a79b57beb93325e25e0e974fd00f67468c9067d14c8b4aa"
     },
     {
       "path": "entities.json",
-      "sha256": "7e7c0e62c0874107b1372c011e29af44df4fa90298277208ae7dbf94147e4bd4"
+      "sha256": "edf91ee767dd9fa4449cb1150eb22c8b2574c30ddc8892f2e5347cf788e73fe6"
     },
     {
       "path": "item-models.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "d968f22f9e7e1ba2f232987704d7adcfb890d9b11ca14babe783a44309599dd0"
+      "sha256": "b64dbfad8bdb81a2951c8cb5b3cde65699a515058749a48cc66bd55af0d1b390"
     },
     {
       "path": "rules.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "68bd48dc039c6e6a78209f8c8b2db49abf07840ce0151dd3f2e5f31d0b1a71d1",
+    "asset_content_digest": "6c6fb10ac7270b5fa185dc6782488d872f33962d207ea0d17dfca6bb12c47f47",
     "asset_dirty": true,
-    "asset_sha": "ddf501fd7368b826e7c8718e16d41c2b2a96ac62",
+    "asset_sha": "1f1d076dd680e786eb8dabe2bdeaffeb722f22ee",
     "counts": {
       "files": 14
     },
@@ -75,10 +75,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "The plain-texture read: block_models.json gains plain_texture, true on the four skull models and the copper golem statue, and both pipeline dumps' blocks.json and block-entities.json carry it on every block-entity object; each digest equals the one the tooling flow and dump A/Bs predicted before the capture",
+    "reason": "Special-drawn block icons held to the client's slot drawing: the harness draws a block whose item specials alone draw through ItemFrameRenderer, and the renderer poses those icons by each layer's composed transformation and the base display.gui with no facing table, icon turn or fit. Tables lose y_rotation and the bed icon turn; the copper golem geometry carries its layer root (0,24,0), moving its posed entity rows by 0.0001. sweep.block sum 7.6024 -> 3.3561.",
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-11-06T19:46:43Z",
+    "timestamp": "2026-11-13T00:31:06Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 16113
+    "wall_time_ms": 14150
   }
 }

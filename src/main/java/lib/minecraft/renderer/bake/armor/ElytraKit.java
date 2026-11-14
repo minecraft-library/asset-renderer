@@ -109,7 +109,7 @@ public class ElytraKit {
         if (texture.isEmpty()) return Concurrent.newList();
 
         return EntityGeometryKit.buildTriangles(wingsMesh(baby), texture.get(),
-            new EntityGeometryKit.EntityBuildParams(frame, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
+            new EntityGeometryKit.EntityBuildParams(frame, PassDeclaration.CUTOUT, ColorMath.WHITE)).triangles();
     }
 
     /**
@@ -145,7 +145,7 @@ public class ElytraKit {
 
         ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(WINGS, texture.get(),
             new EntityGeometryKit.EntityBuildParams(
-                FitFrame.IDENTITY, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
+                FitFrame.IDENTITY, PassDeclaration.CUTOUT, ColorMath.WHITE)).triangles();
 
         float scale = (torsoMax.x() - torsoMin.x()) / HumanoidPart.TORSO.pixelWidth();
         float centreX = (torsoMin.x() + torsoMax.x()) * 0.5f;

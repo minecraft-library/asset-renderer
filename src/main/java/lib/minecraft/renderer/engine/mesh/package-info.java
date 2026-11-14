@@ -10,6 +10,9 @@
  * pins, and carries the shade scalar the caller hands it. Every direction-aware answer - the normal,
  * the winding, the default UV derivation - lives on the face vocabulary in
  * {@link lib.minecraft.renderer.engine.geometry engine.geometry} rather than here.
+ * {@link lib.minecraft.renderer.engine.mesh.FaceTextures FaceTextures} answers what a box paints,
+ * asked one face at a time: the region of a texture the face reads, with the sampler that texture is
+ * read through.
  *
  * <p>{@link lib.minecraft.renderer.engine.mesh.MissingMesh MissingMesh} is what draws for a subject
  * nothing resolved for at all: a unit cube wearing the

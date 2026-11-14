@@ -67,6 +67,10 @@ import java.util.Set;
  *     MULTIPLY)
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
+ * @param bodyPass the pass the base mesh draws through - {@link PassDeclaration#CUTOUT} for a body
+ *     whose model draws through vanilla's cutout pipeline, {@link PassDeclaration#DEFAULT} for one whose
+ *     model names a translucent render type (the allay, the vex, the breeze, the piglins and the
+ *     player). Defaults to {@link PassDeclaration#DEFAULT} where never set
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
  *     textures, baby form, large shape, size meshes / scales, and the forms a carried block and a
  *     filled equipment slot re-pose the wearer as) - see {@link Axes}
@@ -90,6 +94,7 @@ public record Entity(
     @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays,
     int baseTintArgb,
     float rendererScale,
+    @NotNull PassDeclaration bodyPass,
     @NotNull Axes axes,
     @NotNull Layers layers,
     @NotNull ConcurrentList<String> members,
@@ -117,9 +122,9 @@ public record Entity(
     /**
      * Normalises a never-set {@link #overlays}, {@link #blockOverlays} or {@link #members} to an
      * empty unmodifiable list, a never-set {@link #styles} to {@link StyleCatalog#BIND_ONLY}, and
-     * a never-set {@link #pose} to the pose of a model that poses nothing, and a never-set
-     * {@link #layers} to none - no equipment, no worn shell, no wings - so callers can omit any of
-     * the six.
+     * a never-set {@link #pose} to the pose of a model that poses nothing, a never-set
+     * {@link #layers} to none - no equipment, no worn shell, no wings - and a never-set
+     * {@link #bodyPass} to {@link PassDeclaration#DEFAULT}, so callers can omit any of the seven.
      */
     public Entity {
         layers = layers == null
@@ -130,6 +135,7 @@ public record Entity(
         members = members == null ? Concurrent.newUnmodifiableList() : members;
         styles = styles == null ? StyleCatalog.BIND_ONLY : styles;
         pose = pose == null ? EntityPose.NONE : pose;
+        bodyPass = bodyPass == null ? PassDeclaration.DEFAULT : bodyPass;
     }
 
     /**
