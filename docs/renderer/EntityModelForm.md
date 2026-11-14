@@ -95,10 +95,12 @@ draw the arms at rest.
   blend.
 - **A body's pass is the render type its model hands `Model`, and cutout is its identity.** A row's
   `render.blend` is written only where the body draws through a blending pipeline - `translucent` for
-  the allay, the breeze, the vex and the three piglins - and `bodyPassOf` reads an absent one as
-  `PassDeclaration.CUTOUT`, because `EntityModel` hands `entityCutout` to every model naming nothing
-  else. That is the opposite default from an overlay's, whose absent token is source-over, reached
-  only by a row whose walk resolved no pipeline. Equipment layers, worn armour,
+  the allay, the breeze, the vex and the three piglins. The body and every overlay row are read by
+  one `EntityIndexBuilder.passOf`, the body's `render.blend` as a `pipeline` block holding that member
+  alone; the caller names the blend a block naming none composes by, because the two defaults are
+  opposite. A body's absent blend is `BlendMode.REPLACE`, the cutout pass, because `EntityModel` hands
+  `entityCutout` to every model naming nothing else; an overlay's is source-over, reached only by a
+  row whose walk resolved no pipeline. Equipment layers, worn armour,
   the wings and a block entity's bones are cutout by construction - vanilla submits each through a
   pipeline declaring no blend function - so none of them reads a token.
 - **An overlay's `texture_scroll` moves where the pass SAMPLES and never where it stands.** Vanilla

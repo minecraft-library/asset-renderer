@@ -290,7 +290,7 @@ public final class EntityIndexBuilder {
             .blockOverlays(form.blockOverlays())
             .baseTintArgb(ctx.baseTint())
             .rendererScale(ctx.rendererScale())
-            .bodyPass(bodyPassOf(ctx.family().render()))
+            .bodyPass(passOf(bodyPipelineOf(ctx.family().render()), BlendMode.REPLACE, 1f, false))
             .pose(pose)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none(), Optional.empty(), Entity.Variation.none()))
@@ -607,8 +607,6 @@ public final class EntityIndexBuilder {
             EntityPose overlayPose = sameGeometry ? bodyPose : poseOf(poses, coord);
             Optional<String> overlayTexture = Optional.ofNullable(entry.texture());
             boolean hasTint = entry.tint() != null;
-            RawPipeline pipeline = entry.pipeline();
-            boolean emissive = pipeline != null && pipeline.emissive();
             int overlayTint = hasTint ? ColorTypeAdapter.parse(entry.tint()).getRGB() : WHITE;
             // An overlay drawing the base mesh itself is excluded from the canvas-sizing bounds: it
             // renders the IDENTICAL cube tree as the base, so the base already contributes its full
@@ -623,20 +621,12 @@ public final class EntityIndexBuilder {
             // The overlay's render condition, parsed straight from its `when` object into the typed
             // AppearanceGate (flag/charged/tinted). Absent -> unconditional.
             Optional<AppearanceGate> gate = parseOverlayGate(entry.when(), tintBy, overlayTint);
-            // blend / alpha (default NORMAL / 1.0). `additive` -> the energy-swirl glow; `translucent` /
-            // `normal` -> source-over. An un-annotated overlay keeps the NORMAL / 1.0 default.
-            BlendMode blend = parseBlend(pipeline == null ? null : pipeline.blend());
             Optional<PoseExpr> opacity = opacities.get(position);
             // The declaration's opacity is what a frame posing nothing draws: the opacity's value with
             // every input at rest, a constant's being itself, through the one conversion every frame's
             // opacity takes.
             float declared = opacity.map(expression -> atRest(expression, entityId)).orElse(1f);
             float alpha = PassDeclaration.drawnAlpha(declared);
-            // depth_write / sorted are vanilla's own DepthStencilState.writeDepth and
-            // RenderSetup.sortOnUpload, each omitted at its identity: an un-annotated pass writes depth
-            // (what DepthStencilState.DEFAULT declares) and draws in emission order.
-            boolean writesDepth = pipeline == null || pipeline.depthWrite() == null || pipeline.depthWrite();
-            boolean sorted = pipeline != null && pipeline.sorted();
             // The suppressed-pass mesh, named by a member of its OWN rather than by the coordinate this
             // pass draws: it differs from the primary in nothing but the emptied subtree, and naming it
             // as the pass's geometry would flip sameGeometry and take the bounds skip above with it.
@@ -646,8 +636,7 @@ public final class EntityIndexBuilder {
             // The wrap is the pass's own fact, decided here rather than inferred at render: vanilla
             // builds the offset into the render type's texture matrix, so a scrolled pass samples
             // past the sheet and wraps, and every other pass holds at the last texel.
-            PassDeclaration pass =
-                new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, scroll.isPresent());
+            PassDeclaration pass = passOf(entry.pipeline(), BlendMode.NORMAL, alpha, scroll.isPresent());
             out.add(new OverlayLayer(overlayModel, overlayTexture, pass, overlayTint, skipBounds, tintBy,
                 textureBy, gate, noHatModel, overlayPose, scroll, opacity));
         }
@@ -827,36 +816,55 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The pass a family's body draws through. A row whose {@code render} names no {@code blend} draws
-     * through vanilla's cutout pipeline, which is what {@code EntityModel} hands every model naming no
-     * render type of its own, so its body is the {@link PassDeclaration#CUTOUT cutout pass}; a row
-     * naming one draws the pass its token composes by, {@code translucent} being the
-     * {@link PassDeclaration#DEFAULT default pass}.
+     * The pipeline a family's body declares - the row's {@code render.blend}, the one pipeline member a
+     * body row carries, read as a {@code pipeline} block whose other members sit at their identity - or
+     * {@code null} where the row names no blend.
      *
      * @param render the row's {@code render} tuning, or {@code null} where it ships none
-     * @return the body's pass
-     * @throws ContentException if the token is not one the tooling emits
+     * @return the body's pipeline block, or {@code null}
      */
-    private static @NotNull PassDeclaration bodyPassOf(@Nullable RawRender render) {
-        if (render == null || render.blend() == null) return PassDeclaration.CUTOUT;
-        BlendMode blend = parseBlend(render.blend());
-        return blend == BlendMode.NORMAL ? PassDeclaration.DEFAULT : new PassDeclaration(false, blend, 1f, true, false);
+    private static @Nullable RawPipeline bodyPipelineOf(@Nullable RawRender render) {
+        return render == null || render.blend() == null ? null : new RawPipeline(false, render.blend(), null, false);
     }
 
     /**
-     * Parses an overlay's optional {@code blend} token into a {@link BlendMode}. {@code "additive"} maps
-     * to {@link BlendMode#ADD} and {@code "cutout"} to {@link BlendMode#REPLACE};
-     * {@code "translucent"} and an absent token both map to {@link BlendMode#NORMAL} source-over, a
-     * translucent pass carrying its translucency in the texture's alpha. {@code cutout} is the token
-     * that does not: vanilla draws such a pass through a pipeline declaring no blend function at all,
-     * so every fragment surviving the alpha threshold is written over the destination rather than into
-     * it, alpha included. The tooling emits exactly these three, so anything else is a defect worth
-     * failing over rather than a spelling to tolerate.
+     * The pass a {@code pipeline} block declares - a body's or an overlay's, one block read one way,
+     * each member at its identity where the block omits it: shaded, writing depth (what
+     * {@code DepthStencilState.DEFAULT} declares) and drawn in emission order. The one member whose
+     * absence the two read differently is {@code blend}, which the caller names: a body naming none
+     * draws through vanilla's cutout pipeline, what {@code EntityModel} hands every model naming no
+     * render type of its own, so its absent blend is {@link BlendMode#REPLACE}; an overlay naming none
+     * is one whose walk resolved no pipeline, read as {@link BlendMode#NORMAL source-over}.
+     *
+     * @param pipeline the pass's {@code pipeline} block, or {@code null} for one naming nothing
+     * @param unnamed the blend a block naming none composes by
+     * @param alpha the opacity the pass draws at
+     * @param wrapsTexture whether the pass samples past its sheet and wraps, as a scrolled one does
+     * @return the pass
+     * @throws ContentException if the blend token is not one the tooling emits
+     */
+    private static @NotNull PassDeclaration passOf(
+        @Nullable RawPipeline pipeline, @NotNull BlendMode unnamed, float alpha, boolean wrapsTexture
+    ) {
+        boolean emissive = pipeline != null && pipeline.emissive();
+        BlendMode blend = pipeline == null || pipeline.blend() == null ? unnamed : parseBlend(pipeline.blend());
+        boolean writesDepth = pipeline == null || pipeline.depthWrite() == null || pipeline.depthWrite();
+        boolean sorted = pipeline != null && pipeline.sorted();
+        return new PassDeclaration(emissive, blend, alpha, writesDepth, sorted, wrapsTexture);
+    }
+
+    /**
+     * Parses a {@code blend} token into a {@link BlendMode}. {@code "additive"} maps to
+     * {@link BlendMode#ADD}, {@code "cutout"} to {@link BlendMode#REPLACE} and {@code "translucent"} to
+     * {@link BlendMode#NORMAL} source-over, a translucent pass carrying its translucency in the
+     * texture's alpha. {@code cutout} is the token that does not: vanilla draws such a pass through a
+     * pipeline declaring no blend function at all, so every fragment surviving the alpha threshold is
+     * written over the destination rather than into it, alpha included. The tooling emits exactly these
+     * three, so anything else is a defect worth failing over rather than a spelling to tolerate.
      *
      * @throws ContentException if the token is not one the tooling emits
      */
-    private static @NotNull BlendMode parseBlend(@Nullable String blend) {
-        if (blend == null) return BlendMode.NORMAL;
+    private static @NotNull BlendMode parseBlend(@NotNull String blend) {
         return switch (blend) {
             case "additive" -> BlendMode.ADD;
             case "cutout" -> BlendMode.REPLACE;
