@@ -4,6 +4,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.geometry.FixedRootPose;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.geometry.YAxis;
@@ -100,7 +101,9 @@ public final class BlockGeometrySourceResolver {
     /**
      * Emits the split for one resolved primary layer. A banner field carries its own
      * {@code withStick} + split id; otherwise the split id is the method-suffix mapping or the
-     * subject id for single-mesh families.
+     * subject id for single-mesh families. Either carries the root pose the model the renderer
+     * builds over the layer writes on every draw, where that model's {@code setupAnim} takes no
+     * input ({@link NoInputSetupAnim}).
      */
     private void emitGenericSplit(
         @NotNull String field,
@@ -109,17 +112,18 @@ public final class BlockGeometrySourceResolver {
         @NotNull Set<String> seenSplitIds
     ) {
         YAxis yAxis = inferYAxis(entry.factoryClass(), entry.factoryMethod());
+        FixedRootPose setup = NoInputSetupAnim.read(this.cache, this.subject.rendererClass(), field);
         BlockFamilyPolicies.BannerVariant banner = BlockFamilyPolicies.bannerVariant(field);
         if (banner != null) {
             register(splits, seenSplitIds, banner.splitId(), yAxis, GeometryRequest.blockGeometry(
                 entry.factoryClass(), entry.factoryMethod(), this.subject.beTypeId(), yAxis,
-                entry.texWidthOverride(), entry.texHeightOverride(), new int[]{banner.withStick()}, null));
+                entry.texWidthOverride(), entry.texHeightOverride(), new int[]{banner.withStick()}, null).withFixedRootPose(setup));
             return;
         }
         String splitId = BlockFamilyPolicies.methodSplitId(this.subject.localId(), entry.factoryMethod());
         register(splits, seenSplitIds, splitId != null ? splitId : this.subject.beTypeId(), yAxis,
             GeometryRequest.blockGeometry(entry.factoryClass(), entry.factoryMethod(), this.subject.beTypeId(),
-                yAxis, entry.texWidthOverride(), entry.texHeightOverride(), null, null));
+                yAxis, entry.texWidthOverride(), entry.texHeightOverride(), null, null).withFixedRootPose(setup));
     }
 
     /**

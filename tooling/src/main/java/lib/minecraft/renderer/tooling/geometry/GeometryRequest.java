@@ -44,6 +44,8 @@ import java.util.Arrays;
  *     {@code .apply} chain wraps the factory result in, or {@code null} for the meshes vanilla
  *     registers untransformed. It rides beside {@code appliedMeshTransformerScale} rather than
  *     folding into it because it is seven values and two operators, not a factor
+ * @param fixedRootPose the root pose the drawing model's {@code setupAnim} writes where it takes no
+ *     input, or {@code null} for a model whose {@code setupAnim} animates or writes nothing
  */
 public record GeometryRequest(
     @NotNull String factoryClass,
@@ -58,7 +60,8 @@ public record GeometryRequest(
     float appliedMeshTransformerScale,
     @Nullable RefParam refParam,
     @Nullable PoseParam poseParam,
-    @Nullable BabyMeshTransform babyTransform
+    @Nullable BabyMeshTransform babyTransform,
+    @Nullable FixedRootPose fixedRootPose
 ) {
 
     /** The no-grow pre-seed. */
@@ -78,7 +81,23 @@ public record GeometryRequest(
         if (transform == null) return this;
         return new GeometryRequest(this.factoryClass, this.factoryMethod, this.subjectId, this.yAxis,
             this.texWidthOverride, this.texHeightOverride, this.paramIntValues, this.paramFloatValues,
-            this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam, transform);
+            this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam, transform, this.fixedRootPose);
+    }
+
+    /**
+     * Returns a copy carrying the root pose the drawing model's {@code setupAnim} writes on every draw.
+     *
+     * <p>A copy rather than a parameter on each factory because only a block entity's model can carry
+     * one - the model a renderer builds over the baked layer - and the entity recipes never do.
+     *
+     * @param pose the root pose, or {@code null} for none
+     * @return this request when there is no pose, else a copy carrying it
+     */
+    public @NotNull GeometryRequest withFixedRootPose(@Nullable FixedRootPose pose) {
+        if (pose == null) return this;
+        return new GeometryRequest(this.factoryClass, this.factoryMethod, this.subjectId, this.yAxis,
+            this.texWidthOverride, this.texHeightOverride, this.paramIntValues, this.paramFloatValues,
+            this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam, this.babyTransform, pose);
     }
 
     /**
@@ -95,7 +114,7 @@ public record GeometryRequest(
         return new GeometryRequest(declaringClass, this.factoryMethod, this.subjectId, this.yAxis,
             this.texWidthOverride, this.texHeightOverride, this.paramIntValues, this.paramFloatValues,
             this.grow, this.appliedMeshTransformerScale, this.refParam, this.poseParam,
-            this.babyTransform);
+            this.babyTransform, this.fixedRootPose);
     }
 
     /**
@@ -176,7 +195,7 @@ public record GeometryRequest(
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, null, seededParams(floatParam), NO_GROW,
-            appliedMeshTransformerScale, null, null, null);
+            appliedMeshTransformerScale, null, null, null, null);
     }
 
     /**
@@ -205,7 +224,7 @@ public record GeometryRequest(
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, null, seededParams(floatParam), grow,
-            appliedMeshTransformerScale, null, null, null);
+            appliedMeshTransformerScale, null, null, null, null);
     }
 
     /**
@@ -229,7 +248,7 @@ public record GeometryRequest(
         float @NotNull [] grow
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
-            texWidthOverride, texHeightOverride, null, new float[8], grow, 1f, null, null, null);
+            texWidthOverride, texHeightOverride, null, new float[8], grow, 1f, null, null, null, null);
     }
 
     /**
@@ -257,7 +276,7 @@ public record GeometryRequest(
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, null, new float[8], NO_GROW, appliedMeshTransformerScale,
-            null, poseParam, null);
+            null, poseParam, null, null);
     }
 
     /**
@@ -291,7 +310,7 @@ public record GeometryRequest(
         int[] intParams = factoryDesc.startsWith("(Z") || factoryDesc.startsWith("(I") ? new int[8] : null;
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, YAxis.DOWN,
             texWidthOverride, texHeightOverride, intParams, seededParams(floatParam), grow,
-            appliedMeshTransformerScale, null, null, null);
+            appliedMeshTransformerScale, null, null, null, null);
     }
 
     /**
@@ -324,7 +343,7 @@ public record GeometryRequest(
         @Nullable RefParam refParam
     ) {
         return new GeometryRequest(factoryClass, factoryMethod, subjectId, yAxis,
-            texWidthOverride, texHeightOverride, paramIntValues, null, NO_GROW, 1f, refParam, null, null);
+            texWidthOverride, texHeightOverride, paramIntValues, null, NO_GROW, 1f, refParam, null, null, null);
     }
 
     /**

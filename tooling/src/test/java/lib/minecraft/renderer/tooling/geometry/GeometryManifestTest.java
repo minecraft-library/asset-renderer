@@ -55,7 +55,7 @@ class GeometryManifestTest {
         Integer texWidth, float[] floats, float[] grow, GeometryRequest.PoseParam pose) {
 
         return new GeometryRequest("a/b/WolfModel", "createBodyLayer", "minecraft:wolf", YAxis.DOWN,
-            texWidth, null, null, floats, grow, 1f, null, pose, null);
+            texWidth, null, null, floats, grow, 1f, null, pose, null, null);
     }
 
     @Test
@@ -84,10 +84,10 @@ class GeometryManifestTest {
         GeometryManifest manifest = new GeometryManifest();
         String key = manifest.register(new GeometryRequest("a/b/WolfModel", "createBodyLayer",
             "minecraft:wolf", YAxis.DOWN, null, null, null, null, GeometryRequest.NO_GROW, 1f,
-            null, null, null));
+            null, null, null, null));
         assertEquals(key, manifest.register(new GeometryRequest("a/b/WolfModel", "createBodyLayer",
                 "minecraft:sheep", YAxis.UP, null, null, null, null, GeometryRequest.NO_GROW, 1f,
-                null, null, null)),
+                null, null, null, null)),
             "subjectId is provenance and yAxis reaches neither the parse nor the entry");
         assertEquals(1, manifest.size());
     }

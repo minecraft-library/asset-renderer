@@ -294,6 +294,8 @@ public final class GeometryFlow {
             source.put("scaled", request.appliedMeshTransformerScale());
         BabyMeshTransform baby = request.babyTransform();
         if (baby != null) source.put("baby", baby.discriminator());
+        FixedRootPose setup = request.fixedRootPose();
+        if (setup != null) source.put("setup", setup.discriminator());
         GeometryRequest.PoseParam pose = request.poseParam();
         if (pose != null && (pose.offset()[0] != 0f || pose.offset()[1] != 0f || pose.offset()[2] != 0f))
             source.putFloats("pose", pose.offset()[0], pose.offset()[1], pose.offset()[2]);

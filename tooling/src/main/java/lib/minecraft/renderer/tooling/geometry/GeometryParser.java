@@ -119,6 +119,9 @@ public final class GeometryParser {
      */
     private static final float @NotNull [] NO_OFFSET = { 0f, 0f, 0f };
 
+    /** The name vanilla's {@code ModelPart.createPartLookup} gives the mesh root, which a carried root bone takes. */
+    private static final @NotNull String ROOT_BONE = "root";
+
     /**
      * Parses one {@link GeometryRequest}'s factory bytecode and returns the raw parse
      * product - {@code textureWidth}, {@code textureHeight}, {@code bones} and the
@@ -221,6 +224,9 @@ public final class GeometryParser {
         // Carried rather than folded into meshTransformerScale: it rewrites a pose per top-level
         // bone through one of two operators, which no single factor can express.
         state.babyTransform = request.babyTransform();
+        // The root pose the drawing model's input-free setupAnim writes on every draw, laid over the
+        // root the factory and its registration posed.
+        state.fixedRootPose = request.fixedRootPose();
         state.currentSource = request;
         state.diagnostics = diagnostics;
         walkInstructions(instructions, state, cache);
@@ -441,6 +447,16 @@ public final class GeometryParser {
     }
 
     /**
+     * Answers whether every component of a triple is zero.
+     *
+     * @param triple the triple
+     * @return whether it is the origin
+     */
+    private static boolean isOrigin(float @NotNull [] triple) {
+        return triple[0] == 0f && triple[1] == 0f && triple[2] == 0f;
+    }
+
+    /**
      * Bakes the captured {@link WalkState#babyTransform} into every emitted bone - the aged-down
      * proportions vanilla's {@code BabyModelTransform} gives a mesh at registration.
      *
@@ -598,6 +614,14 @@ public final class GeometryParser {
      * cube's local vertices by its bone's {@code scale} at the pivot translate, which is where vanilla's
      * own per-vertex {@code poseStack.scale(F)} lands. A mesh posed at the identity is left as it was
      * built.
+     * <p>
+     * A model whose {@code setupAnim} takes no input writes its root on every draw, and those writes
+     * replace the members they name - {@link FixedRootPose#offsetOver} the offset, its rotation the
+     * zero every factory root is built at. A root left unturned folds into the top-level pivots as
+     * above. A turned one cannot: a top-level bone's own rotation does not compose with its parent's
+     * into one rotation in general, so the root is carried as a bone of its own instead, through
+     * {@link #carryRootBone}, and drawn as vanilla draws its root - turned about its offset, its
+     * children hanging from it.
      *
      * @param state the parse state whose emitted bones are re-walked and transformed in place
      */
@@ -609,10 +633,83 @@ public final class GeometryParser {
             f * state.rootOffset[2]
         };
         float scale = f * state.rootScale;
-        if (scale == 1f && offset[0] == 0f && offset[1] == 0f && offset[2] == 0f) return;
+        float[] rotation = NO_OFFSET;
+        if (state.fixedRootPose != null) {
+            offset = state.fixedRootPose.offsetOver(offset);
+            rotation = state.fixedRootPose.rotation();
+        }
 
-        SubtreePose pose = new SubtreePose(NO_OFFSET, scale, offset);
-        rescaleBones(state, top -> pose);
+        if (isOrigin(rotation)) {
+            if (scale == 1f && isOrigin(offset)) return;
+            SubtreePose pose = new SubtreePose(NO_OFFSET, scale, offset);
+            rescaleBones(state, top -> pose);
+            return;
+        }
+
+        if (scale != 1f) {
+            SubtreePose scaled = new SubtreePose(NO_OFFSET, scale, NO_OFFSET);
+            rescaleBones(state, top -> scaled);
+        }
+        carryRootBone(state, offset, rotation);
+    }
+
+    /**
+     * Carries a turned mesh root as a bone of its own, written first: its pivot the root's offset, its
+     * rotation the root's, and every bone the root held directly hung from it. Vanilla's own root is a
+     * part like any other, created as {@code root} in {@code ModelPart.createPartLookup}, and the bone
+     * takes that name.
+     *
+     * @param state the parse state whose emitted bones are rewritten in place
+     * @param offset the root's offset, in model pixels
+     * @param rotation the root's rotation about x, y and z, in radians
+     * @throws ToolingException when the mesh already holds a bone of that name
+     */
+    private static void carryRootBone(@NotNull WalkState state, float @NotNull [] offset, float @NotNull [] rotation) {
+        if (state.bones.has(ROOT_BONE))
+            throw new ToolingException("'%s' turns its mesh root, and the mesh already holds a bone named '%s'",
+                state.currentSource.factoryClass() + "#" + state.currentSource.factoryMethod(), ROOT_BONE);
+
+        JsonObject root = new JsonObject();
+        root.add("pivot", floatArray(offset));
+        root.add("rotation", floatArray(
+            (float) Math.toDegrees(rotation[0]),
+            (float) Math.toDegrees(rotation[1]),
+            (float) Math.toDegrees(rotation[2])));
+
+        List<Map.Entry<String, JsonElement>> held = new ArrayList<>(state.bones.entrySet());
+        held.forEach(entry -> state.bones.remove(entry.getKey()));
+        state.bones.add(ROOT_BONE, root);
+        // A top-level bone is one recorded under a null parent and written with no parent member.
+        for (Map.Entry<String, JsonElement> entry : held) {
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            if (!bone.has("parent")) {
+                bone = withParent(bone, ROOT_BONE);
+                state.boneParents.put(entry.getKey(), ROOT_BONE);
+            }
+            state.bones.add(entry.getKey(), bone);
+        }
+    }
+
+    /**
+     * Copies a bone with a parent member written where {@link #buildBone} writes one - ahead of its
+     * cubes - so a re-parented bone holds its members in the order every other bone does.
+     *
+     * @param bone the bone, which names no parent
+     * @param parent the parent's name
+     * @return the copy naming the parent
+     */
+    private static @NotNull JsonObject withParent(@NotNull JsonObject bone, @NotNull String parent) {
+        JsonObject copy = new JsonObject();
+        boolean placed = false;
+        for (Map.Entry<String, JsonElement> member : bone.entrySet()) {
+            if (!placed && member.getKey().equals("cubes")) {
+                copy.addProperty("parent", parent);
+                placed = true;
+            }
+            copy.add(member.getKey(), member.getValue());
+        }
+        if (!placed) copy.addProperty("parent", parent);
+        return copy;
     }
 
     /**
@@ -2907,6 +3004,13 @@ public final class GeometryParser {
          * for every mesh vanilla registers untransformed.
          */
         @Nullable BabyMeshTransform babyTransform;
+
+        /**
+         * The root pose the drawing model's {@code setupAnim} writes where it takes no input (set from
+         * {@link GeometryRequest#fixedRootPose()}), laid over the root pose by {@link #applyRootPose}.
+         * {@code null} for every model whose {@code setupAnim} animates or writes nothing.
+         */
+        @Nullable FixedRootPose fixedRootPose;
 
         /**
          * Every {@code addOrReplaceChild} and surgery the walk meets, replayed on vanilla's own map

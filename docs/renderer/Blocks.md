@@ -94,7 +94,12 @@ multipart assembly.
 - The harness draws a block whose item the client draws through specials alone as the client's slot
   draws it, through `ItemFrameRenderer`, wherever every layer `ItemModelResolver` builds for its GUI
   stack is a special (`SlotLayers`). Its static sweep skips every model's `setupAnim`, so the drawing is
-  the bind render, as this renderer's is.
+  the bind render, as this renderer's is - but for one handed `Unit`, which reads no input and so is a
+  fixed pose the client applies on every draw rather than an animation. The copper golem statue's is
+  the one that writes anything: it sets its root's `y` to 0 and its `zRot` to pi, standing the statue
+  upright. The harness runs it, and tooling reads the same body into the statue's geometry
+  (`CopperGolemModel#createBodyLayer@setup=CopperGolemStatueModel`), its root carried as a bone of its
+  own, so both sides draw the statue upright from the client's data alone.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
 
 ## The block index and its first variant
@@ -126,5 +131,6 @@ whether that entry survives the `rendersNothing` filter at all.
 
 - Do not pose a special-drawn block icon by hand - no facing table, icon turn, flip or fit. The slot's
   pose is the client's own data, the specials' `transformation`s and the base's `display.gui`, applied
-  to bind-pose bones; where the bind render disagrees with a real inventory, as for the copper golem
-  statue, the fix is the missing data rather than a correction.
+  to bind-pose bones; where the bind render disagrees with a real inventory, the fix is the missing
+  data rather than a correction - as the copper golem statue's input-free `setupAnim` is read into its
+  geometry rather than its icon being turned.

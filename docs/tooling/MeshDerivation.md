@@ -51,3 +51,20 @@ guard depends on:
   nothing is currently relying on the gap. If a version bump makes it fire, the answer is to encode
   the named member in the key - `@tex=<w>x<h>`, or `@fparam=` widened to `@iparam=`'s bound-table
   rule - which moves keys and owes a promote.
+
+**A block entity's model whose `setupAnim` takes no input poses its mesh, and the key names it.** A
+`setupAnim` declared over `net.minecraft.util.Unit` reads nothing, so every draw runs the same body: what
+it writes is a fixed pose, part of the mesh rather than an animation of it. `NoInputSetupAnim` finds the
+model a renderer builds over each primary layer - the `ModelLayers` read, the `bakeLayer` call and the
+constructor taking the baked part - and reads its input-free body as constant writes to `Model.root`,
+stopping the flow on anything else. The writes ride the request as a `FixedRootPose`, spelled
+`@setup=<SimpleClass>` after `@baby`, naming the model rather than its values, since one model has one
+`setupAnim`. The parser lays them over the root pose the factory and its registration gave it: an
+unturned root folds into the top-level pivots as every root does, and a turned one is carried as a bone
+of its own named `root`, as vanilla names its mesh root, because a top-level bone's own rotation does
+not compose with its parent's into one. In 26.1 the copper golem statue is the one model that writes
+anything - its root's `y` and `zRot` - so its geometry is
+`CopperGolemModel#createBodyLayer@setup=CopperGolemStatueModel`, which the entity table's
+`CopperGolemModel#createBodyLayer` is not. The harness's freeze lets the same `Unit`-fed `setupAnim`
+run, so the reference draws what the geometry carries. The rule names no model; a `setupAnim` that
+takes an input is an animation and is never read here.

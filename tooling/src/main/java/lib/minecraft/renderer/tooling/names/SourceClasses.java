@@ -255,6 +255,9 @@ public final class SourceClasses {
         /** {@code Model} - the base class every renderer-submitted mesh extends. */
         public static final @NotNull String MODEL = CLIENT_MODEL_ROOT + "Model";
 
+        /** {@code Unit} - the input a model's {@code setupAnim} is declared over when it takes none. */
+        public static final @NotNull String UNIT = "net/minecraft/util/Unit";
+
         /** {@code EntityModel} - the model-hierarchy walk sentinel (never walked past). */
         public static final @NotNull String ENTITY_MODEL = CLIENT_MODEL_ROOT + "EntityModel";
 
@@ -822,6 +825,9 @@ public final class SourceClasses {
 
         /** {@code LivingEntityRenderState.isBaby} - the age-selection flag every baby-model dispatch reads. */
         public static final @NotNull String IS_BABY = "isBaby";
+
+        /** {@code Model.root} - the mesh root a model is built over, which its {@code setupAnim} writes. */
+        public static final @NotNull String MODEL_ROOT = "root";
 
         /** {@code <X>RenderState.variant} - the enum-typed variant field on 26.1 render-state classes. */
         public static final @NotNull String VARIANT = "variant";

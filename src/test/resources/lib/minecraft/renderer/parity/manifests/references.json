@@ -904,7 +904,7 @@
     },
     {
       "path": "blocks/minecraft__copper_golem_statue.png",
-      "sha256": "5ec899cffc19535719986f40edee5d3725f6aef91588edc2894b7fca1bde8dac"
+      "sha256": "2f3a75863c45187869e73741250970b6cc1412a88aab7c855d18571e75a9c54d"
     },
     {
       "path": "blocks/minecraft__copper_grate.png",
@@ -1528,7 +1528,7 @@
     },
     {
       "path": "blocks/minecraft__exposed_copper_golem_statue.png",
-      "sha256": "b3f1625f172263d957a55758927ee7ba0ea3ff90803bc9e0d92877f1e8e425ef"
+      "sha256": "f78e16a77084c1c1a475e611d71074325ec461299eae4fbf738b2781d171cea1"
     },
     {
       "path": "blocks/minecraft__exposed_copper_grate.png",
@@ -2636,7 +2636,7 @@
     },
     {
       "path": "blocks/minecraft__oxidized_copper_golem_statue.png",
-      "sha256": "4ee122c581a1604ab1854cfed3e2a82bfdb57230e9b4cfa7de92c1a7277ebf2e"
+      "sha256": "ba2f3bf89c18fe8cd810adf06c3bf5c7f300ba4dd67a476ef193e8d75929e21a"
     },
     {
       "path": "blocks/minecraft__oxidized_copper_grate.png",
@@ -4000,7 +4000,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_copper_golem_statue.png",
-      "sha256": "5ec899cffc19535719986f40edee5d3725f6aef91588edc2894b7fca1bde8dac"
+      "sha256": "2f3a75863c45187869e73741250970b6cc1412a88aab7c855d18571e75a9c54d"
     },
     {
       "path": "blocks/minecraft__waxed_copper_grate.png",
@@ -4056,7 +4056,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_golem_statue.png",
-      "sha256": "b3f1625f172263d957a55758927ee7ba0ea3ff90803bc9e0d92877f1e8e425ef"
+      "sha256": "f78e16a77084c1c1a475e611d71074325ec461299eae4fbf738b2781d171cea1"
     },
     {
       "path": "blocks/minecraft__waxed_exposed_copper_grate.png",
@@ -4120,7 +4120,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_golem_statue.png",
-      "sha256": "4ee122c581a1604ab1854cfed3e2a82bfdb57230e9b4cfa7de92c1a7277ebf2e"
+      "sha256": "ba2f3bf89c18fe8cd810adf06c3bf5c7f300ba4dd67a476ef193e8d75929e21a"
     },
     {
       "path": "blocks/minecraft__waxed_oxidized_copper_grate.png",
@@ -4180,7 +4180,7 @@
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_golem_statue.png",
-      "sha256": "464adf34510a766b9b99a11ca052c0152558da52256052e6183c095c7a276af8"
+      "sha256": "13ed022f1ada9e48248ba3e7dbecd5b22db394e4987c29aca954c1494d301c46"
     },
     {
       "path": "blocks/minecraft__waxed_weathered_copper_grate.png",
@@ -4240,7 +4240,7 @@
     },
     {
       "path": "blocks/minecraft__weathered_copper_golem_statue.png",
-      "sha256": "464adf34510a766b9b99a11ca052c0152558da52256052e6183c095c7a276af8"
+      "sha256": "13ed022f1ada9e48248ba3e7dbecd5b22db394e4987c29aca954c1494d301c46"
     },
     {
       "path": "blocks/minecraft__weathered_copper_grate.png",
@@ -39392,9 +39392,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "6c6fb10ac7270b5fa185dc6782488d872f33962d207ea0d17dfca6bb12c47f47",
+    "asset_content_digest": "e2227fe68f2cc07f249cb861656462530e354abaa8c251a14cbaaf4b41b9a877",
     "asset_dirty": true,
-    "asset_sha": "1f1d076dd680e786eb8dabe2bdeaffeb722f22ee",
+    "asset_sha": "a0ac64d7f013cf3a84e6a835a489b03d7f9746bb",
     "counts": {
       "files": 9846
     },
@@ -39404,10 +39404,10 @@
     "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "renderVanillaAllReferences",
-    "reason": "Special-drawn block icons held to the client's slot drawing: the harness draws a block whose item specials alone draw through ItemFrameRenderer, and the renderer poses those icons by each layer's composed transformation and the base display.gui with no facing table, icon turn or fit. Tables lose y_rotation and the bed icon turn; the copper golem geometry carries its layer root (0,24,0), moving its posed entity rows by 0.0001. sweep.block sum 7.6024 -> 3.3561.",
+    "reason": "Copper golem statue upright: tooling reads CopperGolemStatueModel's input-free setupAnim (root y=0, zRot=pi) into its block geometry, keyed @setup=CopperGolemStatueModel with a root bone; the harness freeze lets a Unit-fed setupAnim run. The 8 statue references re-render upright (two boots agree on all 9843 files), block_models and block_geometry move and the two dumps serialising them follow; the renderer's statue icon is byte-identical to the new reference",
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-11-13T00:33:06Z",
+    "timestamp": "2026-11-14T16:40:59Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 112956
+    "wall_time_ms": 87874
   }
 }
