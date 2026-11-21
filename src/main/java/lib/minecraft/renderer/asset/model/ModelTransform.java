@@ -88,6 +88,20 @@ public class ModelTransform {
     public float getScaleZ() { return this.scale[2]; }
 
     /**
+     * Whether the transform holds its rotation, and a translation and a scale of three components
+     * each. The typed read of a model file answers one that does not where the file writes a property
+     * {@code null}, or as an array of another length, and no reader of the components can be handed
+     * that.
+     *
+     * @return whether every component a reader takes is there
+     */
+    public boolean isWhole() {
+        return this.rotation != null
+            && this.translation != null && this.translation.length == 3
+            && this.scale != null && this.scale.length == 3;
+    }
+
+    /**
      * Composes this transform into a model-space {@link Matrix4f}, in the order vanilla's item
      * transform applies it.
      * <p>
