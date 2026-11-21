@@ -19,5 +19,8 @@
  * atlas source list's permutation entry, what a sprite no pack ships as a PNG is synthesised from.
  * {@link lib.minecraft.renderer.asset.pack.TextPalette TextPalette} is the colour swap a pack's text
  * shader applies to every text vertex, read off the shader by the pack loader.
+ * {@link lib.minecraft.renderer.asset.pack.PatternBudget PatternBudget} is the work a pack's own
+ * regular expressions may spend matching, which every one of them is matched through - the
+ * {@code filter.block} patterns here, an atlas's filter sources and a rule's glob and regex values.
  */
 package lib.minecraft.renderer.asset.pack;

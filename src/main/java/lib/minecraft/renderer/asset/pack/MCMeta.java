@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.engine.draw.Sampler;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -85,14 +86,20 @@ public record MCMeta(
          * sprite source. The difference is not academic: a section whose entries are
          * {@code [{"namespace": "x"}, {"path": "y"}]} has a path-less entry, so the path half is
          * constant-true and <b>every</b> file below is hidden.
+         * <p>
+         * The patterns are the pack's own, so they are matched through a budget, and a walk over
+         * many files shares one across them all - which bounds the whole erase rather than each
+         * match of it.
          *
          * @param namespace the namespace the file lives in
          * @param resourcePath the file's path relative to {@code assets/<namespace>/}, subdirectory
          *     and extension included ({@code blockstates/stone.json})
+         * @param budget the budget the patterns are matched through
          * @return {@code true} when this pack's filters hide that file
+         * @throws ContentException if the budget cannot pay for a match
          */
-        public boolean hidesFile(@NotNull String namespace, @NotNull String resourcePath) {
-            return hidesNamespace(namespace) && hidesPath(resourcePath);
+        public boolean hidesFile(@NotNull String namespace, @NotNull String resourcePath, @NotNull PatternBudget budget) {
+            return hidesNamespace(namespace, budget) && hidesPath(resourcePath, budget);
         }
 
         /**
@@ -101,10 +108,12 @@ public record MCMeta(
          * files it takes.
          *
          * @param namespace the namespace to test
+         * @param budget the budget the patterns are matched through
          * @return {@code true} when a filter covers that namespace
+         * @throws ContentException if the budget cannot pay for a match
          */
-        public boolean hidesNamespace(@NotNull String namespace) {
-            return this.filters.stream().anyMatch(filter -> filter.matchesNamespace(namespace));
+        public boolean hidesNamespace(@NotNull String namespace, @NotNull PatternBudget budget) {
+            return this.filters.stream().anyMatch(filter -> filter.matchesNamespace(namespace, budget));
         }
 
         /**
@@ -112,10 +121,12 @@ public record MCMeta(
          * files once the namespace is covered.
          *
          * @param resourcePath the file's path relative to {@code assets/<namespace>/}
+         * @param budget the budget the patterns are matched through
          * @return {@code true} when a filter takes that path
+         * @throws ContentException if the budget cannot pay for a match
          */
-        public boolean hidesPath(@NotNull String resourcePath) {
-            return this.filters.stream().anyMatch(filter -> filter.matchesPath(resourcePath));
+        public boolean hidesPath(@NotNull String resourcePath, @NotNull PatternBudget budget) {
+            return this.filters.stream().anyMatch(filter -> filter.matchesPath(resourcePath, budget));
         }
 
     }
@@ -142,10 +153,12 @@ public record MCMeta(
          * predicate rather than to a no-match.
          *
          * @param namespace the namespace to test
+         * @param budget the budget the pattern is matched through
          * @return {@code true} when this entry's namespace half matches
+         * @throws ContentException if the budget cannot pay for the match
          */
-        public boolean matchesNamespace(@NotNull String namespace) {
-            return this.namespace.map(pattern -> pattern.matcher(namespace).find()).orElse(true);
+        public boolean matchesNamespace(@NotNull String namespace, @NotNull PatternBudget budget) {
+            return this.namespace.map(pattern -> budget.find(pattern, namespace)).orElse(true);
         }
 
         /**
@@ -164,10 +177,12 @@ public record MCMeta(
          * {@code blockstates/stone.json} rather than {@code stone}.
          *
          * @param resourcePath the file path relative to the namespace root
+         * @param budget the budget the pattern is matched through
          * @return {@code true} when this entry's path half matches
+         * @throws ContentException if the budget cannot pay for the match
          */
-        public boolean matchesPath(@NotNull String resourcePath) {
-            return this.path.map(pattern -> pattern.matcher(resourcePath).find()).orElse(true);
+        public boolean matchesPath(@NotNull String resourcePath, @NotNull PatternBudget budget) {
+            return this.path.map(pattern -> budget.find(pattern, resourcePath)).orElse(true);
         }
 
     }

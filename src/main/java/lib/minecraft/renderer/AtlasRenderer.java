@@ -58,10 +58,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -536,7 +539,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         if (!tree.isPresent() || tree.get().isRejected()) return List.of();
 
         SortedMap<Integer, SortedSet<Float>> floats = new TreeMap<>();
-        collect(tree.get().root(), floats);
+        collect(tree.get().root(), floats, Collections.newSetFromMap(new IdentityHashMap<>()));
         ItemModelContext stack = ItemModelContext.gui().withItemId(id);
         List<ItemModelNode.Resolution> drawn = new ArrayList<>(List.of(stack.resolve(tree.get())));
         List<Branch> branches = new ArrayList<>();
@@ -557,10 +560,19 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * {@code custom_model_data} anywhere below a node - the property bare or {@code minecraft:}, as the
      * walk reads it, at an index a float list can hold.
      *
+     * <p>
+     * A node is searched once however many parents hold it, since a definition mapped from a legacy
+     * pack's overrides shares its nodes and searching one again adds nothing.
+     *
      * @param node the node to search
      * @param floats the floats gathered so far, by index, which this node's are added to
+     * @param searched the nodes already searched, by identity
      */
-    private static void collect(@NotNull ItemModelNode node, @NotNull SortedMap<Integer, SortedSet<Float>> floats) {
+    private static void collect(
+        @NotNull ItemModelNode node, @NotNull SortedMap<Integer, SortedSet<Float>> floats, @NotNull Set<ItemModelNode> searched
+    ) {
+        if (!searched.add(node)) return;
+
         switch (node) {
             case ItemModelNode.RangeDispatch range -> {
                 if (range.index() >= 0 && ResourceId.vanillaPath(range.property()).filter("custom_model_data"::equals).isPresent()) {
@@ -568,18 +580,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                         reaching(entry.threshold(), range.scale()).ifPresent(value -> floats.computeIfAbsent(range.index(), index -> new TreeSet<>()).add(value));
                 }
 
-                range.entries().forEach(entry -> collect(entry.model(), floats));
-                collect(range.fallback(), floats);
+                range.entries().forEach(entry -> collect(entry.model(), floats, searched));
+                collect(range.fallback(), floats, searched);
             }
             case ItemModelNode.Condition condition -> {
-                collect(condition.onTrue(), floats);
-                collect(condition.onFalse(), floats);
+                collect(condition.onTrue(), floats, searched);
+                collect(condition.onFalse(), floats, searched);
             }
             case ItemModelNode.Select select -> {
-                select.cases().forEach(option -> collect(option.model(), floats));
-                collect(select.fallback(), floats);
+                select.cases().forEach(option -> collect(option.model(), floats, searched));
+                collect(select.fallback(), floats, searched);
             }
-            case ItemModelNode.Composite composite -> composite.models().forEach(child -> collect(child, floats));
+            case ItemModelNode.Composite composite -> composite.models().forEach(child -> collect(child, floats, searched));
             case ItemModelNode.Model ignored -> {}
             case ItemModelNode.Special ignored -> {}
             case ItemModelNode.Bundle ignored -> {}

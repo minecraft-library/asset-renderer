@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -15,13 +16,17 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * The shape of the one {@code (pack x root x namespace)} walk, read straight off {@link PackSubtree}
@@ -209,6 +214,59 @@ class PackSubtreeTest {
         assertThat(entries, hasSize(1));
         assertThat("the pack above the filter is untouched by it",
             entries.getFirst().pack().id(), is(new PackId("top")));
+    }
+
+    /**
+     * Pins that the erase is bounded by the files it runs over and not by the pack's patterns. A
+     * section whose pattern costs more steps on the one file below than the walk's budget holds ends
+     * the walk in the documented refusal, naming the pack, where matching it directly would have kept
+     * the walk - and the load around it - busy for as long as the pattern asked.
+     *
+     * @throws IOException if a fixture pack cannot be written
+     */
+    @Test
+    @DisplayName("a filter.block section that costs too much to match is refused, naming its pack")
+    void aFilterThatCostsTooMuchIsRefused() throws IOException {
+        Path van = this.tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/" + "x".repeat(40) + ".json"), "{}");
+
+        Path user = this.tmp.resolve("user");
+        Files.createDirectories(user.resolve("assets/minecraft"));
+
+        List<ResourcePack> ascending = Concurrent.newList(
+            pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")),
+            pack(new PackId("userpack"), user, filtering("userpack", "{\"path\":\"" + "x*".repeat(9) + "y\"}"), Set.of("minecraft")));
+
+        ContentException refusal = assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> assertThrows(ContentException.class, () -> PackSubtree.walk(ascending, BLOCKSTATES)));
+
+        assertThat(refusal.getMessage(), containsString("userpack"));
+        assertThat(refusal.getMessage(), containsString("filter.block"));
+    }
+
+    /**
+     * Pins the other side of the budget: a pattern written without care - opening on {@code .*} and
+     * matching nothing, so it is searched for from every position of every path - is still answered
+     * over a subtree of long paths, and hides what it should.
+     *
+     * @throws IOException if a fixture pack cannot be written
+     */
+    @Test
+    @DisplayName("a careless pattern over many long paths is still matched")
+    void aCarelessPatternIsStillMatched() throws IOException {
+        Path van = this.tmp.resolve("vanilla");
+        for (int file = 0; file < 64; file++)
+            write(van.resolve("assets/minecraft/blockstates/" + "long_block_name_".repeat(6) + file + ".json"), "{}");
+
+        Path user = this.tmp.resolve("user");
+        Files.createDirectories(user.resolve("assets/minecraft"));
+
+        List<ResourcePack> ascending = Concurrent.newList(
+            pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")),
+            pack(new PackId("userpack"), user,
+                filtering("userpack", "{\"path\":\".*\\\\.nomatch$\"},{\"path\":\".*_63\\\\.json$\"}"), Set.of("minecraft")));
+
+        assertThat(PackSubtree.walk(ascending, BLOCKSTATES), hasSize(63));
     }
 
     /** Writes one fixture file, creating its parent directories. */

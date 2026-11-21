@@ -16,6 +16,10 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -23,6 +27,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * The recursive half of {@link BlockTagLoader} - the flatten that turns a tag file's mixed list of
@@ -223,6 +228,27 @@ class BlockTagLoaderTest {
         ConcurrentMap<String, BlockTag> tags = BlockTagLoader.load(stackOf(vanilla, user));
         assertThat(tags.get("minecraft:top").values(),
             contains("minecraft:stone", "minecraft:granite", "minecraft:tuff"));
+    }
+
+    /**
+     * Asserts the flatten's cost follows the number of values and not its square: a tag far larger
+     * than any the client ships still flattens in the order written, a repeat kept once at its first
+     * place, in a time the membership test would not allow if it read back through the list.
+     */
+    @Test
+    @DisplayName("a very large tag flattens in order, each id once")
+    void aVeryLargeTagFlattensInOrder() throws IOException {
+        int count = 200_000;
+        String ids = IntStream.range(0, count).mapToObj(index -> "\"minecraft:b" + index + "\"").collect(Collectors.joining(","));
+        tag(this.tmp, "big", "{\"values\":[" + ids + ",\"minecraft:b0\",\"minecraft:b7\"]}");
+
+        List<String> values = assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> BlockTagLoader.load(stackOf(this.tmp)).get("minecraft:big").values());
+
+        assertThat(values.size(), is(count));
+        assertThat(values.getFirst(), is("minecraft:b0"));
+        assertThat(values.get(7), is("minecraft:b7"));
+        assertThat(values.getLast(), is("minecraft:b" + (count - 1)));
     }
 
     /** A two-pack stack with the user pack above the vanilla one. */

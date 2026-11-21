@@ -5,13 +5,21 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * Coverage of {@link NbtRule#matches} against nbt-factory: the list / wildcard / count path walker, the
  * typed predicates, the three value-normalization gaps (scalar wrap, SNBT booleans, cross-type numeric
- * equality), and negation.
+ * equality), negation, and the refusal of a glob or regex the item's text costs too much to match.
  */
 @DisplayName("NbtRule.matches path walk, predicates and normalization")
 class NbtRuleMatchTest {
@@ -20,6 +28,9 @@ class NbtRuleMatchTest {
         "{display:{Name:\"Excalibur Sword\",Lore:[\"line one\",\"line two\"]},"
             + "ench:[{id:16,lvl:5},{id:34,lvl:3}],"
             + "Unbreakable:1b,Damage:10,ExtraAttributes:{id:\"ASPECT_OF_THE_END\"}}");
+
+    /** An item whose name the costly patterns below take too long to match against. */
+    private static final CompoundTag REPETITIVE = NbtFactory.fromSnbt("{display:{Name:\"" + "x".repeat(48) + "\"}}");
 
     private static boolean match(String path, NbtPredicate predicate) {
         return new NbtRule(NbtPath.parse(path), predicate, false).matches(ITEM);
@@ -99,6 +110,57 @@ class NbtRuleMatchTest {
     void rawPredicate() {
         assertThat(match("display", NbtPredicate.raw(NbtPredicate.glob("*Excalibur*", false))), is(true));
         assertThat(match("display", NbtPredicate.raw(NbtPredicate.glob("*Nonexistent*", false))), is(false));
+    }
+
+    @Test
+    @DisplayName("a regex or glob that costs too much to match holds for no item, negated or not")
+    void aCostlyPatternFailsClosed() {
+        NbtPath name = NbtPath.parse("display.Name");
+        NbtPredicate regex = NbtPredicate.regex("x*".repeat(9) + "y", false);
+        NbtPredicate glob = NbtPredicate.glob("*x".repeat(10) + "y", true);
+
+        for (NbtPredicate predicate : new NbtPredicate[] {regex, glob, NbtPredicate.raw(glob)}) {
+            for (boolean negated : new boolean[] {false, true}) {
+                NbtRule rule = new NbtRule(name, predicate, negated);
+                assertThat(assertTimeoutPreemptively(Duration.ofSeconds(10), () -> rule.matches(REPETITIVE)), is(false));
+            }
+            assertThat("and the same pattern still answers an item it is cheap against",
+                new NbtRule(name, predicate, true).matches(ITEM), is(true));
+        }
+    }
+
+    @Test
+    @DisplayName("a condition refused on every render is reported the first time only")
+    void aRefusalIsReportedOnce() {
+        CompoundTag item = NbtFactory.fromSnbt("{display:{Name:\"" + "x".repeat(70_000) + "\"}}");
+        NbtRule rule = new NbtRule(NbtPath.parse("display.Name"), NbtPredicate.glob("*reported once*", false), false);
+
+        assertThat(errOf(() -> rule.matches(item)), containsString("reported once"));
+        assertThat(errOf(() -> rule.matches(item)), is(emptyString()));
+    }
+
+    @Test
+    @DisplayName("a text past the longest a pattern is matched against fails the condition closed")
+    void anOverlongTextFailsClosed() {
+        CompoundTag item = NbtFactory.fromSnbt("{display:{Name:\"" + "x".repeat(70_000) + "\"}}");
+
+        assertThat(new NbtRule(NbtPath.parse("display.Name"), NbtPredicate.glob("*", false), false).matches(item), is(false));
+        assertThat(new NbtRule(NbtPath.parse("display.Name"), NbtPredicate.glob("*", false), true).matches(item), is(false));
+        assertThat("an exact test reads no pattern and is untouched",
+            new NbtRule(NbtPath.parse("display.Name"), NbtPredicate.exact("x"), true).matches(item), is(true));
+    }
+
+    /** What a run writes to standard error. */
+    private static String errOf(Runnable run) {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        PrintStream original = System.err;
+        try {
+            System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+            run.run();
+        } finally {
+            System.setErr(original);
+        }
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     @Test

@@ -3,9 +3,12 @@ package lib.minecraft.renderer.content.read;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackRoot;
+import lib.minecraft.renderer.asset.pack.PatternBudget;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
@@ -189,20 +192,40 @@ public class PackSubtree {
      * Before a pack's own files are listed, every already-accumulated file its {@code filter.block}
      * section hides is dropped; then each declared subtree is listed over that pack's
      * {@code (root x namespace)} grid.
+     * <p>
+     * One pack's erase spends one {@link PatternBudget}, made across the paths it is run over, so
+     * what a pack's patterns can cost a walk is set by the files the walk holds and not by the
+     * patterns. A pack whose patterns outspend it is refused, because a filter applied to some files
+     * and not to others is neither the pack's stack nor the one below it.
      *
      * @param ascending the stack's packs, vanilla first and the highest-priority pack last
      * @param subtrees the subtrees to walk, listed per pack in this order
      * @return the surviving files, in resolution order
+     * @throws ContentException if a pack's {@code filter.block} patterns cannot be matched over the
+     *     files below it within their budget
      */
     public static @NotNull ConcurrentList<Entry> walk(@NotNull List<ResourcePack> ascending, @NotNull Subtree @NotNull ... subtrees) {
         List<Entry> surviving = new ArrayList<>();
 
         for (ResourcePack pack : ascending) {
-            pack.meta().pack().ifPresent(section -> surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath())));
+            pack.meta().pack().ifPresent(section -> erase(pack, section, surviving));
             surviving.addAll(walk(pack, subtrees));
         }
 
         return Concurrent.adoptList(surviving).toUnmodifiable();
+    }
+
+    /** Drops every file below a pack that the pack's {@code filter.block} section hides. */
+    private static void erase(@NotNull ResourcePack pack, @NotNull MCMeta.Pack section, @NotNull List<Entry> surviving) {
+        if (section.filters().isEmpty()) return;
+        PatternBudget budget = PatternBudget.across(surviving.stream().map(Entry::resourcePath));
+
+        try {
+            surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath(), budget));
+        } catch (ContentException ex) {
+            throw new ContentException(ex, "Pack '%s' has a filter.block section that cannot be matched over the %d files below it: %s",
+                pack.id(), surviving.size(), ex.getMessage());
+        }
     }
 
     /**

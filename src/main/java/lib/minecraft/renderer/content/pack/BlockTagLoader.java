@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -98,28 +99,29 @@ public class BlockTagLoader {
      * @return the resolved tag entity
      */
     private static @NotNull BlockTag resolveTag(@NotNull String tagId, @NotNull Map<String, List<String>> raw) {
-        ArrayList<String> resolved = new ArrayList<>();
+        LinkedHashSet<String> resolved = new LinkedHashSet<>();
         resolve(tagId, raw, resolved, new HashSet<>());
-        return new BlockTag(ResourceId.parse(tagId), Concurrent.adoptList(resolved).toUnmodifiable());
+        return new BlockTag(ResourceId.parse(tagId), Concurrent.adoptList(new ArrayList<>(resolved)).toUnmodifiable());
     }
 
     /**
      * Recursively flattens one tag's raw value list into concrete block ids, appending to
      * {@code out} in encounter order. A {@code #}-prefixed entry recurses into the referenced tag
      * (the {@code #} is stripped before lookup); a plain entry is a block id, appended only when not
-     * already present so duplicates across referenced tags collapse. A tag id already in
+     * already present so duplicates across referenced tags collapse - which the set answers without
+     * reading back through everything appended so far. A tag id already in
      * {@code visited} is skipped (cycle guard - vanilla data has no cycles but a re-visit would
      * also re-append already-flattened ids); an unknown tag id resolves to nothing.
      *
      * @param tagId the namespaced tag id to flatten
      * @param raw the full raw tag map from {@link #parseRawTag}, keyed by tag id
-     * @param out the accumulating concrete-block-id list, mutated in place
+     * @param out the accumulating concrete block ids in encounter order, mutated in place
      * @param visited tag ids already entered on this resolution, mutated in place
      */
     private static void resolve(
         @NotNull String tagId,
         @NotNull Map<String, List<String>> raw,
-        @NotNull ArrayList<String> out,
+        @NotNull LinkedHashSet<String> out,
         @NotNull Set<String> visited
     ) {
         if (!visited.add(tagId)) return; // cycle guard
@@ -129,7 +131,7 @@ public class BlockTagLoader {
         for (String entry : entries) {
             if (entry.startsWith("#"))
                 resolve(entry.substring(1), raw, out, visited);
-            else if (!out.contains(entry))
+            else
                 out.add(entry);
         }
     }

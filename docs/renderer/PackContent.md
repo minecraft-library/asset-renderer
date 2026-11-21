@@ -26,12 +26,42 @@ pack shipped.
 - The walk takes its **root** as a value, as `PackType` does, so `data/` registries walk the same
   code. A `data/` namespace is **named, not enumerated**, because `PackAcquisition.namespaces`
   discovers namespaces from `assets/` alone and reusing that set is wrong in both directions.
+- The patterns are the pack's own regular expressions and the client compiles whatever
+  `java.util.regex` does, so what is bounded is the matching: one pack's erase in one walk spends one
+  `PatternBudget`, made across the files it runs over, and a section that outspends it fails the walk
+  with a `ContentException` naming the pack.
 
 Subtrees go through the walk; **point reads stay hand-written**, because a named file has nothing to
 enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root paths through
 `PackContainer.bytes`, zero `entries()` calls, unreachable by a per-namespace `filter.block`.
 `BlockEntityShadows.report` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
+
+## A pack's patterns
+
+A pack supplies regular expressions in three places: `filter.block`, an atlas's `filter` source, and a
+CIT rule's `regex:`, `iregex:`, `pattern:` and `ipattern:` values. `java.util.regex` backtracks, so
+the cost of matching one is the pattern's to set, and every one is matched through
+`asset.pack.PatternBudget` and never directly.
+
+- **A step is one character the matcher reads**, and a match is charged a few before it reads any, so
+  a long list of patterns that each read nothing still costs. Steps are counted, not timed: the same
+  pack is answered or refused the same way on every machine and under any load.
+- **The scope of a budget is the scope of the bound.** A caller with many subjects makes one budget
+  across them and spends it on all of them, because a pattern can stay inside one match's allowance
+  on every subject and still cost the pass hours. Each subject adds `SUBJECT_STEPS` and `LENGTH_STEPS`
+  for every character of it squared, since that is how the cost of a carelessly written pattern
+  grows, and a subject past `PAID_LENGTH` characters adds what one of that length does, so a pass's
+  budget follows how many subjects it holds and not how long a pack spells them. A caller with one
+  subject and nothing wider takes `SINGLE_STEPS`. The constants carry the measurements they were
+  chosen from.
+- **What a refusal does is the caller's, and follows what that caller does with a pattern it cannot
+  compile.** `filter.block` fails the walk, as a malformed pattern fails the pack's read. An atlas
+  refuses the `filter` source whole, so it removes nothing, and with the atlas's budget spent every
+  later one is refused too; one line on standard error names the first. A CIT condition holds for no
+  item, negated or not, so its rule fails closed, and is reported once.
+- A subject longer than an NBT string can hold is refused unread, and a match the matcher runs out of
+  stack on is refused as one that ran out of steps is.
 
 ## A pack's text palette
 
@@ -129,6 +159,15 @@ and the texture read as a block or item texture, stand.
   byte-identical pair is byte-identical render input while no render code has changed. A decode
   change meant to move a value moves a dump row, and the parity gate's decision table says what
   that mover owes before it is registered.
+- Do not match a pattern a pack supplies outside `PatternBudget` - matched directly it costs what the
+  pack decides.
+- Do not narrow those patterns to a subset that is cheap to match - the client takes any pattern the
+  JDK compiles, and a pack that loads in the game has to be read here.
+- Do not put a deadline where the step count is - it refuses on a busy machine what it answers on an
+  idle one.
+- Do not answer a `filter.block` section that outspends its budget by hiding nothing, or everything -
+  either is a stack no pack described, and one applied to the files reached before the budget ran out
+  is worse than both.
 - Do not fall through to a lower pack's text shader when the winning one is refused - the client runs
   the winning one.
 - Do not parse vanilla's own text program for a table - it swaps nothing, and a stack whose packs ship
