@@ -213,8 +213,8 @@ public class CtmParser {
     /** Unrolls a {@code a-b} numeric range into per-index {@link TileRef.Texture} entries. */
     private static void expandRange(@NotNull String token, @NotNull String propsDir, @NotNull List<TileRef> out) {
         int dash = token.indexOf('-');
-        int from = Integer.parseInt(token.substring(0, dash));
-        int to = Integer.parseInt(token.substring(dash + 1));
+        int from = rangeBound(token, token.substring(0, dash));
+        int to = rangeBound(token, token.substring(dash + 1));
         if (to < from) throw new RuleRejection("tiles", token, "descending tile range");
         for (int i = from; i <= to; i++) out.add(new TileRef.Texture(resolveTile(Integer.toString(i), propsDir)));
     }
@@ -268,6 +268,22 @@ public class CtmParser {
             return Integer.parseInt(raw.trim());
         } catch (NumberFormatException ex) {
             throw new RuleRejection(key, raw, "not an integer");
+        }
+    }
+
+    /**
+     * Reads one end of a numeric tile range. The token is digits either side of its dash, so the only
+     * end that fails to read is one naming a number no {@code int} holds, and it rejects the rule.
+     *
+     * @param token the whole range token, for the diagnostic
+     * @param digits the end's digits
+     * @return the end's value
+     */
+    private static int rangeBound(@NotNull String token, @NotNull String digits) {
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException ex) {
+            throw new RuleRejection("tiles", token, "tile range end is not an integer");
         }
     }
 

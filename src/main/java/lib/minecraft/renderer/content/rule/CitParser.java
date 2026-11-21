@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Parses one OptiFine / MCPatcher CIT {@code .properties} file into a {@link CitRule}. Fail-closed:
@@ -225,8 +226,8 @@ public class CitParser {
     private static @NotNull NbtPredicate parsePredicate(@NotNull String value) {
         if (value.startsWith("pattern:")) return NbtPredicate.glob(value.substring("pattern:".length()), false);
         if (value.startsWith("ipattern:")) return NbtPredicate.glob(value.substring("ipattern:".length()), true);
-        if (value.startsWith("regex:")) return NbtPredicate.regex(value.substring("regex:".length()), false);
-        if (value.startsWith("iregex:")) return NbtPredicate.regex(value.substring("iregex:".length()), true);
+        if (value.startsWith("regex:")) return regexPredicate(value, "regex:", false);
+        if (value.startsWith("iregex:")) return regexPredicate(value, "iregex:", true);
         if (value.startsWith("range:")) {
             try {
                 return NbtPredicate.range(IntRanges.parse(value.substring("range:".length())));
@@ -237,6 +238,24 @@ public class CitParser {
         if (value.startsWith("exists:")) return NbtPredicate.exists(value.substring("exists:".length()).trim().equalsIgnoreCase("true"));
         if (value.startsWith("raw:")) return NbtPredicate.raw(parsePredicate(value.substring("raw:".length())));
         return NbtPredicate.exact(value);
+    }
+
+    /**
+     * Builds a {@code regex:} / {@code iregex:} predicate, rejecting the rule where the pattern does
+     * not compile - an uncompiled pattern is a filter that cannot be tested, and dropping it would
+     * over-match.
+     *
+     * @param value the predicate as written, prefix included
+     * @param prefix the prefix the pattern follows
+     * @param caseInsensitive whether the pattern matches case-insensitively
+     * @return the predicate
+     */
+    private static @NotNull NbtPredicate regexPredicate(@NotNull String value, @NotNull String prefix, boolean caseInsensitive) {
+        try {
+            return NbtPredicate.regex(value.substring(prefix.length()), caseInsensitive);
+        } catch (PatternSyntaxException ex) {
+            throw new RuleRejection("nbt", value, "invalid regex predicate");
+        }
     }
 
     // --- output -------------------------------------------------------------------------------
