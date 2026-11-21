@@ -49,7 +49,10 @@ stack.
   name, the 26.1 program is the one read.
 - **Which shape.** Exactly one. Imports are followed as the 26.1 preprocessor follows them: `<ns:path>`
   from `<ns>:shaders/include/`, `"path"` from the program's own directory, each file once and a repeat
-  importing nothing, and an import no pack ships refuses. `main` is vanilla's with one statement added,
+  importing nothing, and an import no pack ships refuses. So does a file more than 64 imports below
+  the program: the client follows a chain for as long as its stack lasts, the expansion here spends a
+  frame an import as the client's does, and no include of the 26.1 jar imports another.
+  `main` is vanilla's with one statement added,
   `vec4 V = F(Color)`, outside every preprocessor condition and ahead of anything naming `V`, and every
   `vertexColor` it writes reads `V`. `F` switches over `SEL(P.rgb)` with each case returning
   `H(0xRRGGBB, P.a)` and the default the colour itself; `SEL` packs the red, green and blue into one
@@ -131,6 +134,9 @@ and the texture read as a block or item texture, stand.
   that mover owes before it is registered.
 - Do not fall through to a lower pack's text shader when the winning one is refused - the client runs
   the winning one.
+- Do not follow a text program's imports deeper than 64 below the program - the expansion spends a
+  stack frame an import, so how deep it goes cannot be left to the pack. A refused chain is reported as
+  any other shape is, and its text draws in the colours given.
 - Do not parse vanilla's own text program for a table - it swaps nothing, and a stack whose packs ship
   no text shader answers absent.
 - Do not fail a sidecar's document over its `gui` section - the client's blocks and items atlases never
