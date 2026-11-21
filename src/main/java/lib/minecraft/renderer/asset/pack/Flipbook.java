@@ -34,8 +34,8 @@ import java.util.stream.Stream;
  * @param entries the playback sequence, each entry the strip frame it draws and its duration in ticks,
  *     an authored entry's missing time resolved against the section's frametime; empty where the section
  *     leaves fewer than two entries, which does not animate
- * @param totalTicks the cycle length - the sum of every entry's duration, 0 for a table that does not
- *     animate
+ * @param totalTicks the cycle length - the sum of every entry's duration, held at
+ *     {@link Integer#MAX_VALUE} where the durations sum past it, and 0 for a table that does not animate
  * @param interpolate whether adjacent entries blend
  */
 public record Flipbook(
@@ -79,9 +79,12 @@ public record Flipbook(
 
         ConcurrentList<Entry> resolved = table.collect(Concurrent.toUnmodifiableList());
         ConcurrentList<Entry> entries = resolved.size() < 2 ? Concurrent.newUnmodifiableList() : resolved;
+        // Summed wide and held at the most an int counts: the client steps a frame at a time and keeps
+        // no total, so times that sum past an int are a table it plays, not one it refuses.
+        long cycle = entries.stream().mapToLong(Entry::time).sum();
         return Optional.of(new Flipbook(
             frame.width(), frame.height(), entries,
-            entries.stream().mapToInt(Entry::time).sum(), animation.interpolate()));
+            (int) Math.min(cycle, Integer.MAX_VALUE), animation.interpolate()));
     }
 
     /**
@@ -193,7 +196,9 @@ public record Flipbook(
     /**
      * Samples the frame this table plays at the given tick, cropped out of the strip it was resolved
      * against. The tick is resolved modulo the cycle length, so a caller may pass a free-running
-     * clock and get correct looping.
+     * clock and get correct looping. Where the cycle is {@link #totalTicks() held} at the most an int
+     * counts, every tick from 0 up to that count lands on the entry its durations give it; the count
+     * itself and a tick below 0 wrap by the held length, the full one being more than a tick can name.
      *
      * <p>When {@link #interpolate()} is set the result is a linear blend of the current and next
      * entry's frames, weighted by how far the tick has advanced into the current entry's duration.
@@ -209,7 +214,8 @@ public record Flipbook(
 
         int effectiveTick = Math.floorMod(tick, this.totalTicks);
 
-        int accumulated = 0;
+        // Wide, since the entries before the one a tick lands on may sum past an int with it.
+        long accumulated = 0;
         int currentEntry = 0;
         for (int i = 0; i < this.entries.size(); i++) {
             if (effectiveTick < accumulated + this.entries.get(i).time()) {

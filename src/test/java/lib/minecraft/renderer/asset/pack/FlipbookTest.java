@@ -266,6 +266,25 @@ class FlipbookTest {
         assertThat("and holds no entries", none.entries().isEmpty(), is(true));
     }
 
+    @Test
+    @DisplayName("frame times summing past what an int counts hold the cycle at the most an int counts, and every tick still lands on its frame")
+    void aCycleLongerThanAnIntCountsIsHeldAtTheMostAnIntCounts() {
+        int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003 };
+        PixelBuffer strip = PixelBuffer.ofStraight(pixels, 1, 3);
+        int quarter = 1 << 30;
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        frames.add(new MCMeta.Frame(1, Optional.of(quarter)));
+        frames.add(new MCMeta.Frame(2, Optional.of(quarter / 2)));
+        frames.add(new MCMeta.Frame(0, Optional.of(Integer.MAX_VALUE)));
+        frames.add(new MCMeta.Frame(1, Optional.of(1)));
+        Flipbook flipbook = flipbook(strip, 1, false, frames);
+
+        assertThat(flipbook.totalTicks(), equalTo(Integer.MAX_VALUE));
+        assertThat("the first entry", flipbook.frameAt(strip, 0).getPixel(0, 0), equalTo(0xFF000002));
+        assertThat("the second, past the first's ticks", flipbook.frameAt(strip, quarter + 5).getPixel(0, 0), equalTo(0xFF000003));
+        assertThat("the third, whose end the ticks before it carry past an int", flipbook.frameAt(strip, Integer.MAX_VALUE - 1).getPixel(0, 0), equalTo(0xFF000001));
+    }
+
     // --- fixtures ---
 
     /**
