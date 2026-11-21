@@ -134,6 +134,9 @@ The renderer's value records - `Vector2f`, `Vector3f`, `Vector4f`, `EulerRotatio
 > [!IMPORTANT]
 > `ClientOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
 
+> [!NOTE]
+> A resource pack is read under `PackLimits`: ceilings on what an archive inflates to, the pixels one image declares, the decoded pixels a stack keeps, and the entries a range, an animation or a permutation list expands to. A pack over one is refused with a `ContentException`, or draws the missing texture for the file that went over, instead of taking the heap with it. The defaults sit well above the vanilla pack; pass `packLimits(PackLimits.DEFAULTS.withImagePixels(...))` on the builder to raise a ceiling for a pack you trust to be larger.
+
 ### Rendering an item stack
 
 An item render reads one item stack, handed over on `ItemOptions.context`. It is a Minecraft 26.1 stack - `{id, count, components}`, the shape the game writes - read through `ItemContext.ofStack`. A pack's item definitions test the stack's `components` (its custom data, custom name or dyed colour) to pick the model they draw, and the CIT rules, the tooltip and the dye tint read the same stack:

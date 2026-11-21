@@ -198,7 +198,7 @@ public final class IndexedRendererContext implements RendererContext {
         ConcurrentMap<String, Block> blockIndex = blockRows.rows();
         ConcurrentMap<String, Item> itemIndex = itemRows.rows();
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
-        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
+        TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack), stack::keep);
         ConcurrentMap<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
 
         return new IndexedRendererContext(

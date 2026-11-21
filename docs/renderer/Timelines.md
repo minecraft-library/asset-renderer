@@ -28,7 +28,10 @@ context's `findFlipbook` answer and one of its two reads - `resolveTexture` for 
 - **A strip its frame size does not divide is no atlas sprite at all.** Vanilla's sprite loader refuses
   it and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
   keeps the pixels of a sprite read and serves one that fails as unreadable - `resolveTexture` answers
-  empty and the table empty with it. A strip handed to `Flipbook.of` directly still plays the whole
+  empty and the table empty with it. A strip cut into more frames than the stack's limits admit is
+  served the same way, the frames counted from the strip's size and the frame's before any table is
+  built, and `Flipbook.of` answers no flipbook for one over the ceiling it is handed - the default where
+  it is handed none. A strip handed to `Flipbook.of` directly still plays the whole
   frames it holds, and one holding no whole frame resolves to NO flipbook, which is what a caller
   renders as the strip unchanged.
 - **An animation section the client's codec refuses is no atlas sprite either.** Vanilla's sprite loader

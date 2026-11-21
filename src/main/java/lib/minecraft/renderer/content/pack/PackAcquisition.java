@@ -66,7 +66,8 @@ public final class PackAcquisition {
      *
      * @param assets the client assets (options + vanilla pack)
      * @return the resolved, texture-indexed, rule- and palette-carrying stack, vanilla first
-     * @throws ContentException if a source is unreadable or a pack's metadata is malformed
+     * @throws ContentException if a source is unreadable, a pack's metadata is malformed, or an archive
+     *     holds more than the options' {@linkplain ClientOptions#getPackLimits() pack limits} admit
      */
     public static @NotNull PackStack acquire(@NotNull ClientAssets assets) {
         ClientOptions options = assets.options();
@@ -78,7 +79,7 @@ public final class PackAcquisition {
         ConcurrentList<PackIdDeriver.Naming> naming = options.getTexturePacks()
             .stream()
             .map(File::toPath)
-            .map(source -> new PackIdDeriver.Naming(source, PackContainer.detect(source)))
+            .map(source -> new PackIdDeriver.Naming(source, PackContainer.detect(source, options.getPackLimits())))
             .collect(Concurrent.toWideUnmodifiableList());
         ConcurrentList<PackId> ids = PackIdDeriver.assign(naming);
 
@@ -88,7 +89,7 @@ public final class PackAcquisition {
                     .mapToObj(i -> userPack(naming.get(i).container(), ids.get(i), target, minecraftVersion)))
             .collect(Concurrent.toWideUnmodifiableList());
 
-        PackStack base = PackStack.of(packs);
+        PackStack base = PackStack.of(packs, options.getPackLimits());
         PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
         PackStack ruled = indexed.withRules(RuleScanner.mergeAll(indexed.ascending()));
         return ruled.withTextPalette(TextPaletteLoader.load(ruled.ascending()));

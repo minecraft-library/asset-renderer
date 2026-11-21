@@ -12,6 +12,9 @@
  * the files' bytes back to back - into a path-keyed store of
  * {@link lib.minecraft.renderer.content.container.CatsEntry CatsEntry} records, each reading and
  * decompressing its own slice on demand.
+ * {@link lib.minecraft.renderer.content.container.PackLimits PackLimits} holds the ceilings a pack is
+ * read under, which an archive is held to here as it inflates and every reader above holds its own
+ * files to.
  *
  * <p>The package imports nothing from the library but its exceptions, which is what lets every reader
  * of a pack - the pack model, the subtree walk, the rule scanner, the loaders - hold a container by its

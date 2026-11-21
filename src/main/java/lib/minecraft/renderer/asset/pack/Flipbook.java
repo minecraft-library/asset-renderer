@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.content.container.PackLimits;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;
@@ -60,16 +61,36 @@ public record Flipbook(
      * or one wider or taller than the strip itself - which is what a caller renders as the strip
      * unchanged.
      *
+     * <p>The strip is held to the frames {@link PackLimits#DEFAULTS} let one be cut into.
+     *
      * @param strip the frame strip
      * @param animation the parsed {@code .mcmeta} animation section
-     * @return the resolved table, or empty when the strip holds no playable frame
+     * @return the resolved table, or empty when the strip holds no playable frame, or more frames than
+     *     the limit
      */
     public static @NotNull Optional<Flipbook> of(@NotNull PixelBuffer strip, @NotNull MCMeta.Animation animation) {
+        return of(strip, animation, PackLimits.DEFAULTS.frames());
+    }
+
+    /**
+     * Resolves an animation section against the strip it plays over, as
+     * {@link #of(PixelBuffer, MCMeta.Animation)} does, holding the strip to a ceiling on the frames it
+     * is cut into. The frames are counted from the strip's size and the frame's before a table is built,
+     * so a strip over the ceiling costs nothing to refuse.
+     *
+     * @param strip the frame strip
+     * @param animation the parsed {@code .mcmeta} animation section
+     * @param frames the most frames the strip may be cut into
+     * @return the resolved table, or empty when the strip holds no playable frame, or more frames than
+     *     the ceiling
+     */
+    public static @NotNull Optional<Flipbook> of(@NotNull PixelBuffer strip, @NotNull MCMeta.Animation animation, int frames) {
         FrameSize frame = FrameSize.of(animation, strip);
         if (frame.width() <= 0 || frame.height() <= 0) return Optional.empty();
 
-        int frameCount = (strip.width() / frame.width()) * (strip.height() / frame.height());
-        if (frameCount <= 0) return Optional.empty();
+        long counted = frame.count(strip);
+        if (counted <= 0 || counted > frames) return Optional.empty();
+        int frameCount = (int) counted;
 
         Stream<Entry> table = animation.frames().isPresent()
             ? animation.frames().get().stream()
@@ -302,6 +323,18 @@ public record Flipbook(
         public boolean divides(@NotNull PixelBuffer strip) {
             return this.width > 0 && this.height > 0
                 && strip.width() % this.width == 0 && strip.height() % this.height == 0;
+        }
+
+        /**
+         * Counts the whole frames of this size a strip holds across both axes - the entries a table that
+         * declares no frame list is built with.
+         *
+         * @param strip the strip the frames are cut from
+         * @return the frame count, 0 where this size is not positive or is larger than the strip
+         */
+        public long count(@NotNull PixelBuffer strip) {
+            if (this.width <= 0 || this.height <= 0) return 0;
+            return (long) (strip.width() / this.width) * (strip.height() / this.height);
         }
 
     }
