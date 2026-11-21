@@ -244,6 +244,31 @@ class BlockStateLoaderTest {
         assertThat("malformed higher file falls back to lower", result.variants().get("minecraft:bar").get("").model(), is("minecraft:block/bar"));
     }
 
+    @Test
+    @DisplayName("a higher-pack file whose rotation is no number falls back to the lower entry, in either format")
+    void higherFileWithARotationThatIsNoNumberFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates variants = overVanillaFoo("{\"variants\":{\"\":{\"model\":\"block/foo_turned\",\"x\":\"ninety\"}}}");
+        assertThat("the lower variant stands", variants.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+
+        BlockStateLoader.BlockStates weighted = overVanillaFoo(
+            "{\"variants\":{\"\":[{\"model\":\"block/foo_a\"},{\"model\":\"block/foo_b\",\"y\":true}]}}");
+        assertThat("a weighted entry's too", weighted.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+
+        BlockStateLoader.BlockStates parts = overVanillaFoo("{\"multipart\":[{\"apply\":{\"model\":\"block/foo_part\",\"y\":\"ninety\"}}]}");
+        assertThat("the lower variant stands", parts.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(parts.multiparts().containsKey("minecraft:foo"), is(false));
+    }
+
+    @Test
+    @DisplayName("a higher-pack multipart file with a part whose condition is null falls back to the lower entry")
+    void higherFileWithANullConditionFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates result = overVanillaFoo(
+            "{\"multipart\":[{\"when\":null,\"apply\":{\"model\":\"block/foo_part\"}}]}");
+
+        assertThat("the lower variant stands", result.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(result.multiparts().containsKey("minecraft:foo"), is(false));
+    }
+
     /**
      * Loads a two-pack stack whose lower pack defines {@code minecraft:foo} as one variant naming
      * {@code minecraft:block/foo}, and whose higher pack ships the given text as its own

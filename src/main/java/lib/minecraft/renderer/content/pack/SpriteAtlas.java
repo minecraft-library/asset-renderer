@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.pack;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -156,16 +157,18 @@ public final class SpriteAtlas {
             }
             case "unstitch" -> {
                 if (!textures.contains(ResourceId.parse(string(source, "resource")).id()) || !source.has("regions")) return;
-                for (JsonElement region : source.getAsJsonArray("regions")) {
+                for (JsonElement region : array(source, "regions")) {
                     if (!region.isJsonObject()) continue;
                     String sprite = ResourceId.parse(string(region.getAsJsonObject(), "sprite")).id();
                     sprites.put(sprite, sprite);
                 }
             }
             case "paletted_permutations" -> {
-                if (!source.has("textures") || !source.has("permutations")) return;
+                if (array(source, "textures").isEmpty() || !source.has("permutations") || !source.get("permutations").isJsonObject()) return;
                 String separator = source.has("separator") ? string(source, "separator") : "_";
                 for (JsonElement texture : source.getAsJsonArray("textures")) {
+                    // The client reads each texture as an id, which only text spells.
+                    if (!texture.isJsonPrimitive()) continue;
                     for (String permutation : source.getAsJsonObject("permutations").keySet()) {
                         String sprite = ResourceId.parse(texture.getAsString() + separator + permutation).id();
                         sprites.put(sprite, sprite);
@@ -183,6 +186,12 @@ public final class SpriteAtlas {
      */
     private static @NotNull Optional<Pattern> compile(@NotNull JsonObject pattern, @NotNull String key) {
         return pattern.has(key) ? Optional.of(Pattern.compile(string(pattern, key))) : Optional.empty();
+    }
+
+    /** An array member, empty where it is absent or not an array. */
+    private static @NotNull JsonArray array(@NotNull JsonObject node, @NotNull String key) {
+        JsonElement value = node.get(key);
+        return value != null && value.isJsonArray() ? value.getAsJsonArray() : new JsonArray();
     }
 
     /** A string member, {@code ""} where it is absent or not a primitive. */

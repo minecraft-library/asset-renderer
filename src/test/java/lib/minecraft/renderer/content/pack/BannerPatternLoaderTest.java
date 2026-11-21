@@ -80,6 +80,21 @@ class BannerPatternLoaderTest {
         assertThat(patterns.containsKey("minecraft:good"), is(true));
     }
 
+    @Test
+    @DisplayName("skips a file that is not JSON, or whose members are of the wrong JSON type, and loads the rest")
+    void skipsFilesThatDoNotParse(@TempDir Path packRoot) throws IOException {
+        Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
+        Files.createDirectories(patternDir);
+        Files.writeString(patternDir.resolve("truncated.json"), "{\"asset_id\":");
+        Files.writeString(patternDir.resolve("mistyped.json"), "{\"asset_id\":{}}");
+        Files.writeString(patternDir.resolve("good.json"),
+            "{\"asset_id\":\"minecraft:good\",\"translation_key\":\"bar\"}");
+
+        ConcurrentMap<String, BannerPattern> patterns = load(packRoot);
+        assertThat(patterns.size(), is(1));
+        assertThat(patterns.containsKey("minecraft:good"), is(true));
+    }
+
     /** Loads banner patterns from a single-pack (vanilla) stack rooted at the given directory. */
     private static ConcurrentMap<String, BannerPattern> load(Path packRoot) {
         ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(packRoot), MCMeta.EMPTY,

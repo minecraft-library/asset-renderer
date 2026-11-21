@@ -147,6 +147,38 @@ class ItemBakeRefusalTest {
             assertThat(id + " bakes", baked.get(id).isRejected(), is(false));
     }
 
+    @Test
+    @DisplayName("an atlas source whose members are of the wrong JSON type adds nothing of them, and the sources beside it still run")
+    void aSourceOfTheWrongShapeAddsNothing() throws IOException {
+        Path pack = work.resolve("mistyped_sources");
+        write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"mistyped sources fixture\"}}");
+        write(pack.resolve("assets/minecraft/atlases/blocks.json"), """
+            {"sources": [
+              {"type": "minecraft:paletted_permutations", "textures": "fixture/stripe", "permutations": {}},
+              {"type": "minecraft:paletted_permutations", "textures": [], "permutations": []},
+              {"type": "minecraft:paletted_permutations", "textures": [null, {}, ["a", "b"], "fixture/stripe"],
+               "permutations": {"red": "fixture/stripe"}},
+              {"type": "minecraft:unstitch", "resource": "fixture/stripe", "regions": {}},
+              {"type": "minecraft:unstitch", "resource": "fixture/stripe", "regions": [null, 5, {"sprite": "fixture/cut"}]},
+              {"type": "minecraft:single", "resource": "fixture/stripe"}
+            ]}""");
+        Path stripe = pack.resolve("assets/minecraft/textures/fixture/stripe.png");
+        Files.createDirectories(stripe.getParent());
+        ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB), "png", stripe.toFile());
+
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(work.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
+            .build();
+        SpriteAtlas atlas = SpriteAtlas.load(
+            PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla())), SpriteAtlas.BLOCKS);
+
+        assertThat("the permutation of the one texture named as text", atlas.contains("minecraft:fixture/stripe_red"), is(true));
+        assertThat("the one region that is an object", atlas.contains("minecraft:fixture/cut"), is(true));
+        assertThat("the source after them", atlas.contains("minecraft:fixture/stripe"), is(true));
+        assertThat("vanilla's own sources", atlas.contains("minecraft:block/stone"), is(true));
+    }
+
     /** A generated item model layering the given sprites from {@code layer0} up. */
     private static @NotNull String generated(@NotNull String @NotNull ... layers) {
         StringBuilder textures = new StringBuilder();
