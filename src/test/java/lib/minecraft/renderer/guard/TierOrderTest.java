@@ -81,7 +81,8 @@ class TierOrderTest {
         Map.entry("vanilla.equipment", 7.0), Map.entry("vanilla.gui", 7.0),
         Map.entry("vanilla.appearance", 7.1), Map.entry("vanilla.mesh", 7.1),
         Map.entry("asset.mesh", 8.0), Map.entry("asset.model", 8.0), Map.entry("asset.pack", 8.0),
-        Map.entry("asset.rule.filter", 8.0),
+        // a rule's glob and regex are matched through the budget the pack model holds
+        Map.entry("asset.rule.filter", 8.05),
         Map.entry("asset.pose", 8.1), Map.entry("asset.equipment", 8.1), Map.entry("asset.rule", 8.1),
         Map.entry("asset", 8.2), Map.entry("asset.item", 8.3),
         Map.entry("call.result", 9.0), Map.entry("call.request", 9.1),

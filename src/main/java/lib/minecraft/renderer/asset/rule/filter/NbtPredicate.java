@@ -3,6 +3,8 @@ package lib.minecraft.renderer.asset.rule.filter;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.asset.pack.PatternBudget;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -15,6 +17,9 @@ import java.util.regex.Pattern;
  * A rule matches when ANY reached leaf satisfies the predicate (OptiFine's wildcard = "any"), except
  * {@link Exists}, which tests presence of the whole leaf set. The variants are the OptiFine grammar's
  * first-class prefixes ({@code pattern:}/{@code regex:}/{@code range:}/{@code exists:}/{@code raw:}).
+ * <p>
+ * A glob and a regex are the pack's pattern over text the request supplies, so each is matched
+ * through a {@link PatternBudget}, one for all the leaves a test is handed.
  */
 @Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public sealed interface NbtPredicate {
@@ -24,6 +29,7 @@ public sealed interface NbtPredicate {
      *
      * @param leaves the leaves an {@link NbtPath} reached (possibly empty)
      * @return {@code true} when satisfied
+     * @throws ContentException if a glob or regex cannot be matched against a leaf within its budget
      */
     boolean matches(@NotNull List<Tag<?>> leaves);
 
@@ -112,7 +118,8 @@ public sealed interface NbtPredicate {
         /** {@inheritDoc} */
         @Override
         public boolean matches(@NotNull List<Tag<?>> leaves) {
-            return leaves.stream().anyMatch(leaf -> this.pattern.matcher(NbtValues.stringify(leaf)).matches());
+            PatternBudget budget = PatternBudget.single();
+            return leaves.stream().anyMatch(leaf -> budget.matches(this.pattern, NbtValues.stringify(leaf)));
         }
     }
 
@@ -125,7 +132,8 @@ public sealed interface NbtPredicate {
         /** {@inheritDoc} */
         @Override
         public boolean matches(@NotNull List<Tag<?>> leaves) {
-            return leaves.stream().anyMatch(leaf -> this.pattern.matcher(NbtValues.stringify(leaf)).matches());
+            PatternBudget budget = PatternBudget.single();
+            return leaves.stream().anyMatch(leaf -> budget.matches(this.pattern, NbtValues.stringify(leaf)));
         }
     }
 

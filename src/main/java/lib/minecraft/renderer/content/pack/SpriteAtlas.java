@@ -4,7 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import lib.minecraft.renderer.asset.pack.PatternBudget;
 import lib.minecraft.renderer.content.read.PackSubtree;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -40,6 +42,11 @@ import java.util.stream.Collectors;
  * {@code omc_foods:items/seeds/salad_seed} as the sprite {@code _omc_foods:items/seeds/salad_seed}, and
  * their models name the sprite. An {@code unstitch} region and a paletted permutation read their own
  * id, since neither is a whole texture file.
+ * <p>
+ * A {@code filter} source's pattern is the pack's own regular expression, so every one an atlas runs
+ * is matched through a single {@link PatternBudget}, made across the stack's textures. A source the
+ * budget cannot pay for is refused whole and removes nothing, as one that does not compile is, and
+ * the first such source is reported on standard error.
  * <p>
  * A model's texture is looked up in the items atlas first and the blocks atlas second, and one in
  * neither is the missing sprite the blocks atlas holds - so every sprite id the items atlas does not
@@ -78,11 +85,22 @@ public final class SpriteAtlas {
         Set<String> textures = stack.textureIndex().keySet().stream().map(ResourceId::id).collect(Collectors.toSet());
         Map<String, String> sprites = new HashMap<>();
         sprites.put(MISSING_SPRITE, MISSING_SPRITE);
+        PatternBudget budget = PatternBudget.across(textures.stream());
+        boolean refused = false;
 
         for (PackSubtree.Entry entry : PackSubtree.walk(stack.ascending(), ATLASES)) {
             if (!(entry.namespace() + ":" + entry.stem()).equals(atlasId)) continue;
-            for (JsonElement source : sources(entry))
-                if (source.isJsonObject()) run(source.getAsJsonObject(), textures, sprites);
+            for (JsonElement source : sources(entry)) {
+                if (!source.isJsonObject()) continue;
+                try {
+                    run(source.getAsJsonObject(), textures, sprites, budget);
+                } catch (ContentException ex) {
+                    // Once the budget is spent every later filter is refused too, so one line covers them.
+                    if (!refused)
+                        System.err.printf("Refusing the filter sources of atlas '%s' from pack '%s' onward: %s%n", entry.entryPath(), entry.pack().id(), ex.getMessage());
+                    refused = true;
+                }
+            }
         }
         return new SpriteAtlas(sprites);
     }
@@ -119,8 +137,15 @@ public final class SpriteAtlas {
         return List.of();
     }
 
-    /** Runs one source over the sprites gathered so far. */
-    private static void run(@NotNull JsonObject source, @NotNull Set<String> textures, @NotNull Map<String, String> sprites) {
+    /**
+     * Runs one source over the sprites gathered so far.
+     *
+     * @throws ContentException if a {@code filter} source's pattern cannot be matched within the
+     *     budget, the sprites left as they were
+     */
+    private static void run(
+        @NotNull JsonObject source, @NotNull Set<String> textures, @NotNull Map<String, String> sprites, @NotNull PatternBudget budget
+    ) {
         switch (ResourceId.vanillaPath(string(source, "type")).orElse("")) {
             case "directory" -> {
                 String directory = string(source, "source");
@@ -148,11 +173,13 @@ public final class SpriteAtlas {
                     // The client refuses a filter it cannot compile, so it removes nothing.
                     return;
                 }
-                sprites.keySet().removeIf(sprite -> {
+                // Matched in full before anything is removed, so a source the budget refuses removes nothing.
+                List<String> matched = sprites.keySet().stream().filter(sprite -> {
                     ResourceId id = ResourceId.parse(sprite);
-                    return namespace.map(p -> p.matcher(id.namespace()).find()).orElse(true)
-                        && path.map(p -> p.matcher(id.name()).find()).orElse(true);
-                });
+                    return namespace.map(p -> budget.find(p, id.namespace())).orElse(true)
+                        && path.map(p -> budget.find(p, id.name())).orElse(true);
+                }).toList();
+                matched.forEach(sprites::remove);
             }
             case "unstitch" -> {
                 if (!textures.contains(ResourceId.parse(string(source, "resource")).id()) || !source.has("regions")) return;
