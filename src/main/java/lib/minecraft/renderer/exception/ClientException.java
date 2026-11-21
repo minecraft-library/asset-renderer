@@ -9,8 +9,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Thrown when the vanilla client cannot be acquired from what the Mojang API served - the version is
- * absent from the Piston manifest, the jar cannot be written to the cache, or the cached jar cannot be
- * read or extracted.
+ * not a version id or is absent from the Piston manifest, the download is not the jar the Piston
+ * metadata declares, the jar cannot be written to the cache, or the cached jar cannot be read or
+ * extracted, an entry whose name would leave the pack root included.
  *
  * <p>A request the Mojang API itself fails is not wrapped here: it surfaces as that API's own
  * {@link MojangApiException}, which carries the HTTP status, headers and body this type cannot.

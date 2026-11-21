@@ -2839,6 +2839,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/client/ClientAcquisitionRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/client/ClientAssets": {
       "artifacts": [
         "manifest.dump.packs",

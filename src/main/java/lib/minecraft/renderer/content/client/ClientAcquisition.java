@@ -20,15 +20,24 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -39,6 +48,13 @@ import java.util.zip.ZipFile;
  * {@code assets/minecraft} and {@code data/minecraft} trees, read into memory by default, or extracted
  * to {@link ClientOptions#vanillaPackRoot()} and read from there when the options ask for an
  * extraction.
+ * <p>
+ * Three inputs are checked rather than trusted, and each refusal is a {@link ClientException}: the
+ * version, which {@link ClientOptions#vanillaRoot()} holds to a version id's shape; a download, which
+ * becomes the cached jar only when it is the size and SHA-1 its Piston metadata declares; and a jar
+ * entry's name, which neither read accepts with a parent segment in it. A jar the cache already holds
+ * is read as it stands - nothing recorded its hash, and learning it would put a request on the path
+ * that otherwise makes none.
  * <p>
  * All Mojang network access flows through a single lazily-initialised {@link Client} of
  * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The client
@@ -62,13 +78,20 @@ public class ClientAcquisition {
     private static final @NotNull String VERSION_JSON = "version.json";
 
     /**
+     * A {@code ..} segment of an entry name, split on either separator - a zip writes {@code /}, and a
+     * file system that reads {@code \} as one would walk a name spelled that way all the same.
+     */
+    private static final @NotNull Pattern PARENT_SEGMENT = Pattern.compile("(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)");
+
+    /**
      * Downloads the client jar for the given options and opens its vanilla pack - read into memory, or
      * extracted to disk and read from there when the options ask for an extraction.
      *
      * @param options the client options (target version, cache root, extraction)
      * @return the client assets - the options plus the vanilla pack
-     * @throws ClientException if the version is absent from the Piston manifest, or the client jar
-     *     cannot be cached, read or extracted
+     * @throws ClientException if the version is not a version id or is absent from the Piston manifest,
+     *     the download does not match its Piston metadata, the client jar cannot be cached, read or
+     *     extracted, or the jar holds a vanilla pack entry whose name would leave the pack root
      * @throws MojangApiException if the Mojang API fails a request for the manifest, the version
      *     metadata or the jar
      */
@@ -89,12 +112,17 @@ public class ClientAcquisition {
      * <p>
      * The cached file lives at {@code <cacheRoot>/vanilla/<version>/client.jar}. When the file
      * already exists and {@code options.isForceDownload()} is {@code false}, the network round
-     * trip is skipped and the cached path is returned.
+     * trip is skipped and the cached path is returned - as it stands, since nothing recorded what
+     * the file should hash to. A forced download replaces it with one that was verified.
+     * <p>
+     * A download is held to the size and SHA-1 the Piston metadata declares for it before it is
+     * cached, and nothing is created in the cache for a version the manifest does not hold.
      *
      * @param options the client options
      * @return the path to the cached client jar
-     * @throws ClientException if the version is absent from the Piston manifest or the jar cannot be
-     *     written to the cache
+     * @throws ClientException if the version is not a version id or is absent from the Piston
+     *     manifest, the download does not match its Piston metadata, or the jar cannot be written to
+     *     the cache
      * @throws MojangApiException if the Mojang API fails a request for the manifest, the version
      *     metadata or the jar
      */
@@ -104,18 +132,79 @@ public class ClientAcquisition {
             return target;
 
         try {
-            Files.createDirectories(target.getParent());
             MojangContract mojang = mojang();
             PistonMetadata.Downloads.Entry clientEntry = resolveClientEntry(mojang, options.getVersion());
+            // After the lookup, so a version the manifest does not hold leaves nothing in the cache.
+            Files.createDirectories(target.getParent());
 
             try (InputStream stream = mojang.downloadClientJar(clientEntry)) {
-                Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
+                writeVerified(stream, target, clientEntry.getSha1(), clientEntry.getSize());
             }
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to cache client jar at '%s'", target);
         }
 
         return target;
+    }
+
+    /**
+     * Streams a download to {@code target}, which it becomes only when it is the size and SHA-1
+     * declared for it.
+     * <p>
+     * The bytes go to a file of their own beside the target and are renamed over it once they have
+     * been checked, so the target is either the file it was before or a whole, verified one - never a
+     * download that stopped part way, and never one that failed the check. The read stops once it runs
+     * past the declared size, so a stream that never ends does not fill the disk before it is refused.
+     *
+     * @param stream the download
+     * @param target where the verified file lands; its directory already exists
+     * @param sha1 the SHA-1 the download must hash to, in hex
+     * @param size the size the download must be, in bytes
+     * @throws ClientException if the download is not that size or does not hash to that SHA-1
+     * @throws IOException if the download cannot be read or the file cannot be written
+     */
+    static void writeVerified(@NotNull InputStream stream, @NotNull Path target, @NotNull String sha1, long size) throws IOException {
+        MessageDigest digest = sha1Digest();
+        Path partial = target.resolveSibling(target.getFileName() + "." + UUID.randomUUID() + ".part");
+
+        try {
+            long received = 0;
+            try (OutputStream out = Files.newOutputStream(partial, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while (received <= size && (read = stream.read(buffer)) >= 0) {
+                    digest.update(buffer, 0, read);
+                    out.write(buffer, 0, read);
+                    received += read;
+                }
+            }
+
+            if (received != size)
+                throw new ClientException("The download for '%s' is %s than the %d bytes its Piston metadata declares",
+                    target, received > size ? "longer" : "shorter", size);
+
+            String actual = HexFormat.of().formatHex(digest.digest());
+            if (!actual.equalsIgnoreCase(sha1))
+                throw new ClientException("The download for '%s' hashes to SHA-1 %s where its Piston metadata declares %s",
+                    target, actual, sha1);
+
+            try {
+                Files.move(partial, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(partial);
+        }
+    }
+
+    /** The SHA-1 digest a download is verified with - the one hash the Piston metadata carries. */
+    private static @NotNull MessageDigest sha1Digest() {
+        try {
+            return MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException ex) {
+            throw new ClientException(ex, "This JVM has no SHA-1 digest to verify a client jar download with");
+        }
     }
 
     /**
@@ -178,13 +267,31 @@ public class ClientAcquisition {
     }
 
     /**
+     * Refuses a vanilla pack entry whose name carries a {@code ..} segment.
+     * <p>
+     * {@link #isVanillaPackEntry} reads a prefix, and a name can open under a vanilla tree and still
+     * walk back out of it. No client jar Mojang built holds such a name, so one refuses the whole
+     * read rather than being skipped - in memory as on disk, which keeps the two reads answering for
+     * the same entries.
+     *
+     * @param jarPath the client jar the entry was read from
+     * @param name the entry's name
+     * @throws ClientException if the name carries a parent segment
+     */
+    private static void requireNoParentSegment(@NotNull Path jarPath, @NotNull String name) {
+        if (PARENT_SEGMENT.matcher(name).find())
+            throw new ClientException("Client jar '%s' holds an entry whose name leaves its own tree: '%s'", jarPath, name);
+    }
+
+    /**
      * Reads the vanilla pack out of a client jar into memory - every entry {@link #isVanillaPackEntry}
      * keeps, inflated, plus the {@code pack.mcmeta} synthesised from {@code version.json} when the jar
      * ships none. These are the same paths and bytes {@link #extractClientJar} writes to disk.
      *
      * @param jarPath the cached client jar path
      * @return the vanilla pack, held in memory
-     * @throws ClientException if the jar cannot be read
+     * @throws ClientException if the jar cannot be read, or holds a vanilla pack entry whose name
+     *     carries a parent segment
      */
     public static @NotNull PackContainer.Live readVanillaPack(@NotNull Path jarPath) {
         Map<String, byte[]> entries = new HashMap<>();
@@ -198,7 +305,10 @@ public class ClientAcquisition {
 
                 String name = entry.getName();
                 if (name.equals(VERSION_JSON)) versionJson = LiveIndex.readEntry(zip, entry);
-                else if (isVanillaPackEntry(name)) entries.put(name, LiveIndex.readEntry(zip, entry));
+                else if (isVanillaPackEntry(name)) {
+                    requireNoParentSegment(jarPath, name);
+                    entries.put(name, LiveIndex.readEntry(zip, entry));
+                }
             }
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to read client jar '%s'", jarPath);
@@ -228,13 +338,19 @@ public class ClientAcquisition {
      * builds a minimal mcmeta from them, which is written to {@code packRoot} unless the file there
      * already holds those exact bytes. Jars that still ship a real root mcmeta retain it unchanged
      * (the extracted file takes precedence over the synthetic fallback).
+     * <p>
+     * Every entry is written under {@code packRoot} or the extraction is refused: a name carrying a
+     * parent segment, one that resolves anywhere but below the root, and one the file system cannot
+     * spell as a path each stop it, with nothing written for that entry.
      *
      * @param jarPath the cached client jar path
      * @param packRoot the destination pack root
-     * @throws ClientException if the jar cannot be read or an extracted entry cannot be written
+     * @throws ClientException if the jar cannot be read, an extracted entry cannot be written, or an
+     *     entry's name would place it outside {@code packRoot}
      */
     public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
+            Path root = packRoot.toAbsolutePath().normalize();
             boolean extractedRootMcmeta = false;
             byte[] versionJsonBytes = null;
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -249,8 +365,13 @@ public class ClientAcquisition {
                     continue;
                 }
                 if (!isVanillaPackEntry(name)) continue;
+                requireNoParentSegment(jarPath, name);
 
                 Path destination = packRoot.resolve(name);
+                // The name check reads the name; this reads where the file system puts it, which is
+                // the answer that counts on a platform whose paths the check above does not model.
+                if (!destination.toAbsolutePath().normalize().startsWith(root))
+                    throw new ClientException("Client jar '%s' holds an entry that extracts outside '%s': '%s'", jarPath, packRoot, name);
                 // Before the skip, not after: a warm root whose jar ships a real mcmeta still has to
                 // record that it was extracted, or the synthesis below would overwrite the real one
                 // with a synthetic one on every run but the first.
@@ -265,7 +386,7 @@ public class ClientAcquisition {
 
             if (!extractedRootMcmeta && versionJsonBytes != null)
                 writeVanillaPackMeta(versionJsonBytes, packRoot);
-        } catch (IOException ex) {
+        } catch (IOException | InvalidPathException ex) {
             throw new ClientException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }
     }

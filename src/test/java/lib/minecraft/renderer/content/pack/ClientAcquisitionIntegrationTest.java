@@ -4,6 +4,7 @@ import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,6 +25,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * End-to-end acquisition test that downloads the client jar for the Minecraft version
@@ -89,6 +91,16 @@ class ClientAcquisitionIntegrationTest {
         assertThat("the extraction holds what the in-memory read holds",
             extracted.vanilla().entries("").sorted().toList(), equalTo(ClientAcquisition.readVanillaPack(jar).entries("").toList()));
         assertThat("the jar sits beside the pack, not in it", extracted.vanilla().exists("client.jar"), is(false));
+    }
+
+    @Test
+    @DisplayName("a version the manifest does not hold is refused, and nothing is created in the cache for it")
+    void refusesAVersionTheManifestDoesNotHold(@TempDir Path cache) {
+        ClientOptions options = ClientOptions.builder().cacheRoot(cache.toFile()).version("0.0-no-such-version").build();
+
+        assertThrows(ClientException.class, () -> ClientAcquisition.downloadJarToCache(options));
+
+        assertThat("the cache root is still empty", cache.toFile().list(), is(new String[0]));
     }
 
     /**
