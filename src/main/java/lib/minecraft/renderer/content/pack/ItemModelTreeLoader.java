@@ -21,9 +21,12 @@ import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Reads MC 26.1 item-definition dispatch trees from every pack's {@code assets/<namespace>/items/}
@@ -201,37 +204,49 @@ public class ItemModelTreeLoader {
         @NotNull Map<String, ItemModelTree> trees, @NotNull ResolvedModels models, @NotNull SpriteAtlas atlas
     ) {
         HashMap<String, ItemModelTree> baked = new HashMap<>(trees);
-        trees.forEach((itemId, tree) -> mixedAtlasLeaf(tree.root(), models, atlas).ifPresent(model -> {
+        trees.forEach((itemId, tree) -> mixedAtlasLeaf(tree.root(), models, atlas, Collections.newSetFromMap(new IdentityHashMap<>())).ifPresent(model -> {
             System.err.printf("Unable to bake item model '%s': its model '%s' draws sprites from more than one atlas%n", itemId, model);
             baked.put(itemId, ItemModelTree.rejected(tree.id()));
         }));
         return Concurrent.adoptMap(baked).toUnmodifiable();
     }
 
-    /** The first {@code minecraft:model} leaf below a node whose quads draw from more than one atlas. */
-    private static @NotNull Optional<String> mixedAtlasLeaf(@NotNull ItemModelNode node, @NotNull ResolvedModels models, @NotNull SpriteAtlas atlas) {
+    /**
+     * The first {@code minecraft:model} leaf below a node whose quads draw from more than one atlas.
+     * <p>
+     * A definition is a graph rather than a tree where {@link LegacyOverrideMapper} built it, one node
+     * standing under several parents, so each node is searched once: a node already searched held no
+     * such leaf, or the search would have ended there.
+     *
+     * @param searched the nodes already searched, by identity
+     */
+    private static @NotNull Optional<String> mixedAtlasLeaf(
+        @NotNull ItemModelNode node, @NotNull ResolvedModels models, @NotNull SpriteAtlas atlas, @NotNull Set<ItemModelNode> searched
+    ) {
+        if (!searched.add(node)) return Optional.empty();
+
         return switch (node) {
             case ItemModelNode.Model model -> models.find(model.model())
                 .toOptional()
                 .filter(data -> drawsFromBothAtlases(data, atlas))
                 .map(data -> model.model());
-            case ItemModelNode.Condition condition -> mixedAtlasLeaf(condition.onTrue(), models, atlas)
-                .or(() -> mixedAtlasLeaf(condition.onFalse(), models, atlas));
+            case ItemModelNode.Condition condition -> mixedAtlasLeaf(condition.onTrue(), models, atlas, searched)
+                .or(() -> mixedAtlasLeaf(condition.onFalse(), models, atlas, searched));
             case ItemModelNode.Select select -> select.cases()
                 .stream()
-                .map(option -> mixedAtlasLeaf(option.model(), models, atlas))
+                .map(option -> mixedAtlasLeaf(option.model(), models, atlas, searched))
                 .flatMap(Optional::stream)
                 .findFirst()
-                .or(() -> mixedAtlasLeaf(select.fallback(), models, atlas));
+                .or(() -> mixedAtlasLeaf(select.fallback(), models, atlas, searched));
             case ItemModelNode.RangeDispatch range -> range.entries()
                 .stream()
-                .map(entry -> mixedAtlasLeaf(entry.model(), models, atlas))
+                .map(entry -> mixedAtlasLeaf(entry.model(), models, atlas, searched))
                 .flatMap(Optional::stream)
                 .findFirst()
-                .or(() -> mixedAtlasLeaf(range.fallback(), models, atlas));
+                .or(() -> mixedAtlasLeaf(range.fallback(), models, atlas, searched));
             case ItemModelNode.Composite composite -> composite.models()
                 .stream()
-                .map(child -> mixedAtlasLeaf(child, models, atlas))
+                .map(child -> mixedAtlasLeaf(child, models, atlas, searched))
                 .flatMap(Optional::stream)
                 .findFirst();
             case ItemModelNode.Special ignored -> Optional.empty();

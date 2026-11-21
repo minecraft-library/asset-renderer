@@ -20,20 +20,24 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 /**
  * Regression pins on {@link ItemModelTreeLoader#load} over a vanilla-native plus legacy-override
  * stack: a legacy {@code overrides} pack applies on top of the native items tree while leaving its
- * <b>tints</b> and a block item's <b>inventory projection</b> intact, and the legacy scan never
- * reaches a modern (format &gt;= 46) pack.
+ * <b>tints</b> and a block item's <b>inventory projection</b> intact, the legacy scan never
+ * reaches a modern (format &gt;= 46) pack, and the bake refusal searches a mapped definition once per
+ * node however many gate groups share its fallback.
  */
 @DisplayName("legacy override merge preserves the native tree's tints and block-item projection")
 class ItemModelTreeLoaderLegacyMergeTest {
@@ -114,6 +118,44 @@ class ItemModelTreeLoaderLegacyMergeTest {
         ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(PackStack.of(Concurrent.adoptList(packs).toUnmodifiable()));
 
         assertThat("a format-60 pack is not legacy-scanned", trees.containsKey("minecraft:gadget"), is(false));
+    }
+
+    /**
+     * The mapper hands each gate group the tree built so far twice over - as the group's own fallback
+     * and as its gate's other branch - so a file of many groups is a graph whose nodes each stand
+     * under several parents. The bake refusal searches every leaf of it, and has to do so once per
+     * node rather than once per path to it.
+     */
+    @Test
+    @DisplayName("a legacy file of many gate groups is searched for unbakeable leaves once per node")
+    void manyGateGroupsAreSearchedOncePerNode() throws IOException {
+        Path vanilla = tmp.resolve("vanilla");
+        Files.createDirectories(vanilla.resolve("assets/minecraft"));
+
+        // Every way of leaving out, clearing or setting three gates but the empty one is a group of its own.
+        String[] gates = {"pulling", "damaged", "cast"};
+        List<String> overrides = new ArrayList<>();
+        for (int code = 1; code <= 20; code++) {
+            StringBuilder predicate = new StringBuilder();
+            for (int gate = 0, rest = code; gate < gates.length; gate++, rest /= 3)
+                if (rest % 3 != 0) predicate.append('"').append(gates[gate]).append("\":").append(rest % 3 - 1).append(',');
+            overrides.add("{\"predicate\":{" + predicate + "\"custom_model_data\":" + code + "},\"model\":\"item/gadget_" + code + "\"}");
+        }
+
+        Path legacy = tmp.resolve("legacypack");
+        write(legacy.resolve("assets/minecraft/models/item/gadget.json"),
+            "{\"parent\":\"item/generated\",\"overrides\":[" + String.join(",", overrides) + "]}");
+
+        PackStack bare = legacyStack(vanilla, legacy);
+        PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
+        ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(stack);
+
+        Map<String, ItemModelTree> baked = assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> ItemModelTreeLoader.refuseUnbakeable(trees, ResolvedModels.load(stack), SpriteAtlas.load(stack, SpriteAtlas.ITEMS)));
+
+        assertThat(baked.get("minecraft:gadget").isRejected(), is(false));
+        assertThat("and a stack matching no override still walks through every group to the item's own model",
+            ItemModelContext.gui().resolve(baked.get("minecraft:gadget")).modelId().orElse("<none>"), is("minecraft:item/gadget"));
     }
 
     private PackStack legacyStack(Path vanilla, Path legacy) {
