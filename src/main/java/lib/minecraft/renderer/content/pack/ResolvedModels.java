@@ -11,6 +11,7 @@ import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
@@ -74,9 +75,11 @@ import java.util.stream.Stream;
  * <ul>
  *   <li>a winning file that does not read as a JSON object. Vanilla reads only the top pack's copy of
  *   an id, so a lower pack's copy never stands in for it.</li>
- *   <li>a merged chain the typed read rejects, or one a file of which names a light vanilla does not.
- *   Vanilla rejects a file before any merge, where this rejects the merged chain, so a broken parent
- *   takes its children with it here while vanilla parents them on the missing model.</li>
+ *   <li>a merged chain the typed read rejects or answers short of a member a reader takes - a texture
+ *   with no sprite, a {@code null} face, a vector that is not three numbers - or one a file of which
+ *   names a light vanilla does not. Vanilla rejects a file before any merge, where this rejects the
+ *   merged chain, so a broken parent takes its children with it here while vanilla parents them on
+ *   the missing model.</li>
  * </ul>
  * <p>
  * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
@@ -307,7 +310,7 @@ public record ResolvedModels(
      * @param attributed the model's raw file and the pack it came from
      * @param raw every raw model, keyed by model id
      * @return the resolved model, or empty when its chain reaches a cycle, names a light vanilla does
-     *     not, or the merged chain fails the typed read
+     *     not, or the merged chain fails the typed read or comes out of it short of a member
      */
     private static @NotNull Optional<ModelData> resolveModel(
         @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> raw
@@ -324,12 +327,76 @@ public record ResolvedModels(
             resolveDisplay(chain.get()).ifPresent(display -> merged.add("display", display));
             resolveGuiLight(chain.get()).ifPresent(light -> merged.addProperty("gui_light", light.key()));
             model = GSON.fromJson(merged, ModelData.class);
+            requireWhole(model);
         } catch (RuntimeException ex) {
             System.err.printf("Failed to load model '%s' from pack '%s': %s%n", id, attributed.origin(), ex.getMessage());
             return Optional.empty();
         }
 
         return Optional.of(model);
+    }
+
+    /**
+     * Refuses a model the typed read answered short of a member its readers take as there. The read
+     * leaves a member a file writes {@code null} holding nothing, and fills a vector with as many
+     * numbers as the file gives it, so a model can come out of it that no index or bake can be handed.
+     * Vanilla's model reader refuses each in the file that writes it: a texture that is neither an id
+     * nor an object naming a {@code sprite}; an element, a face or a face's texture that is not there;
+     * a {@code from}, a {@code to}, a rotation's {@code origin} or a display slot's vector that is not
+     * three numbers; and an element turned by an angle about no axis. An element whose rotation names
+     * neither is left to load, since 26.1 reads the three angles such a rotation may name instead.
+     *
+     * @param model the model the typed read answered
+     * @throws JsonParseException naming the first member found short
+     */
+    private static void requireWhole(@NotNull ModelData model) {
+        require(model.getTextures() != null, "'textures' is null");
+        require(model.getElements() != null, "'elements' is null");
+        require(model.getDisplay() != null, "'display' is null");
+
+        model.getTextures().forEach((slot, texture) ->
+            require(texture != null && texture.sprite() != null, "Texture '%s' names no sprite", slot));
+
+        for (ModelElement element : model.getElements()) {
+            require(element != null, "An element is null");
+            require(isVector(element.getFrom()), "An element's 'from' is not 3 values");
+            require(isVector(element.getTo()), "An element's 'to' is not 3 values");
+            require(element.getFaces() != null, "An element's 'faces' is null");
+            element.getFaces().forEach((side, face) -> require(
+                face != null && face.getTexture() != null && face.getUv() != null && face.getCullface() != null,
+                "Face '%s' is null, or a member of it is", side));
+
+            require(element.getRotation() != null, "An element's 'rotation' is null");
+            element.getRotation().ifPresent(rotation -> {
+                require(isVector(rotation.origin()), "An element rotation's 'origin' is not 3 values");
+                require(rotation.axis() != null || rotation.angle() == 0f, "An element rotation names an angle and no 'axis'");
+            });
+        }
+
+        model.getDisplay().forEach((slot, transform) ->
+            require(transform != null && transform.isWhole(), "Display slot '%s' is null, or a vector of it is not 3 values", slot));
+    }
+
+    /**
+     * Raises the refusal {@link #requireWhole} reports a model with.
+     *
+     * @param whole whether the member tested is there
+     * @param reason the refusal's wording, as a format
+     * @param args the format's arguments
+     * @throws JsonParseException if the member is not there
+     */
+    private static void require(boolean whole, @NotNull String reason, Object... args) {
+        if (!whole) throw new JsonParseException(String.format(reason, args));
+    }
+
+    /**
+     * Whether a model vector read as the three numbers its readers index.
+     *
+     * @param vector the vector as the typed read answered it
+     * @return whether it holds exactly three components
+     */
+    private static boolean isVector(float[] vector) {
+        return vector != null && vector.length == 3;
     }
 
     /**

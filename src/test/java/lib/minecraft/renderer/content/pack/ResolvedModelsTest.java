@@ -24,7 +24,9 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -538,6 +540,53 @@ class ResolvedModelsTest {
         assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/good")));
         assertThat(output, containsString("Failed to load model 'minecraft:block/bad'"));
         assertThat(output, containsString("Failed to load model 'minecraft:block/bad_child'"));
+    }
+
+    @Test
+    @DisplayName("a model the typed read leaves short of a member a reader takes is absent, and the rest load")
+    void aModelReadShortOfAMemberIsAbsent() throws IOException {
+        String cube = "\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{\"north\":{\"texture\":\"#all\"}}";
+        Map<String, String> refused = new LinkedHashMap<>();
+        refused.put("texture_without_sprite", "{\"textures\":{\"all\":{\"force_translucent\":true}}}");
+        refused.put("null_texture", "{\"textures\":{\"all\":null}}");
+        refused.put("null_textures", "{\"textures\":null}");
+        refused.put("null_elements", "{\"elements\":null}");
+        refused.put("null_element", "{\"elements\":[null]}");
+        refused.put("short_from", "{\"elements\":[{\"from\":[0],\"to\":[16,16,16]}]}");
+        refused.put("long_to", "{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16,16]}]}");
+        refused.put("null_to", "{\"elements\":[{\"from\":[0,0,0],\"to\":null}]}");
+        refused.put("null_faces", "{\"elements\":[{\"faces\":null}]}");
+        refused.put("null_face", "{\"elements\":[{\"faces\":{\"north\":null}}]}");
+        refused.put("null_face_texture", "{\"elements\":[{\"faces\":{\"north\":{\"texture\":null}}}]}");
+        refused.put("rotation_without_origin", "{\"elements\":[{" + cube + ",\"rotation\":{\"angle\":45,\"axis\":\"y\"}}]}");
+        refused.put("rotation_short_origin", "{\"elements\":[{" + cube + ",\"rotation\":{\"origin\":[8],\"angle\":45,\"axis\":\"y\"}}]}");
+        refused.put("rotation_without_axis", "{\"elements\":[{" + cube + ",\"rotation\":{\"origin\":[8,8,8],\"angle\":45}}]}");
+        refused.put("null_display", "{\"display\":null}");
+        refused.put("display_short_translation", "{\"display\":{\"gui\":{\"translation\":[0]}}}");
+        refused.put("display_null_scale", "{\"display\":{\"gui\":{\"scale\":null}}}");
+        refused.put("display_null_rotation", "{\"display\":{\"gui\":{\"rotation\":null}}}");
+
+        Path van = tmp.resolve("vanilla");
+        for (Map.Entry<String, String> model : refused.entrySet())
+            write(van.resolve("assets/minecraft/models/block/" + model.getKey() + ".json"), model.getValue());
+        write(van.resolve("assets/minecraft/models/block/child.json"),
+            "{\"parent\":\"minecraft:block/short_from\",\"textures\":{\"all\":\"minecraft:block/child\"}}");
+        // Whole: an element turned about one axis, one turned the three-angle way, a display slot naming
+        // one property, and a texture in its object form.
+        write(van.resolve("assets/minecraft/models/block/whole.json"),
+            "{\"textures\":{\"all\":{\"sprite\":\"minecraft:block/whole\",\"force_translucent\":true}},"
+                + "\"elements\":[{" + cube + ",\"rotation\":{\"origin\":[8,8,8],\"angle\":45,\"axis\":\"y\"}},"
+                + "{" + cube + ",\"rotation\":{\"origin\":[8,8,8],\"x\":10}}],"
+                + "\"display\":{\"gui\":{\"scale\":[2,2,2]}}}");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft"))))));
+
+        assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/whole")));
+        for (String name : refused.keySet())
+            assertThat(output, containsString("Failed to load model 'minecraft:block/" + name + "'"));
+        assertThat("a child of one takes the refusal with it", output, containsString("Failed to load model 'minecraft:block/child'"));
     }
 
     @Test

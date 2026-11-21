@@ -80,11 +80,15 @@ public class PalettedPermutationLoader {
         }
     }
 
-    /** Builds a {@link PalettedPermutationSource} from a source object, or empty when it is malformed. */
+    /**
+     * Builds a {@link PalettedPermutationSource} from a source object, or empty when it is malformed -
+     * short of its palette key, its permutations or its textures, or listing a {@code null} among
+     * either of the last two.
+     */
     private static @NotNull Optional<PalettedPermutationSource> parseSource(@NotNull SourceDto source) {
         if (source.paletteKey() == null
-            || source.permutations() == null || source.permutations().isEmpty()
-            || source.textures() == null || source.textures().isEmpty())
+            || source.permutations() == null || source.permutations().isEmpty() || source.permutations().containsValue(null)
+            || source.textures() == null || source.textures().isEmpty() || source.textures().contains(null))
             return Optional.empty();
         return Optional.of(new PalettedPermutationSource(source.paletteKey(), Map.copyOf(source.permutations()), List.copyOf(source.textures())));
     }

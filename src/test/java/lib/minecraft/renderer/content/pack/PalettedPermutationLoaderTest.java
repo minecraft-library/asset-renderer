@@ -75,6 +75,24 @@ class PalettedPermutationLoaderTest {
             contains("minecraft:vanilla_key", "minecraft:user_key"));
     }
 
+    @Test
+    @DisplayName("a source listing a null permutation or a null texture is skipped, and the sources beside it are kept")
+    void skipsASourceListingANull() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/atlases/items.json"), """
+            {"sources":[
+              {"type":"minecraft:paletted_permutations","palette_key":"minecraft:null_permutation",
+               "permutations":{"a":null},"textures":["minecraft:base"]},
+              {"type":"minecraft:paletted_permutations","palette_key":"minecraft:null_texture",
+               "permutations":{"a":"minecraft:palette"},"textures":[null]},
+              {"type":"minecraft:paletted_permutations","palette_key":"minecraft:sound",
+               "permutations":{"a":"minecraft:palette"},"textures":["minecraft:base"]}
+            ]}""");
+
+        List<PalettedPermutationSource> sources = PalettedPermutationLoader.load(stack(van, Set.of("minecraft")));
+        assertThat(sources.stream().map(PalettedPermutationSource::paletteKey).toList(), contains("minecraft:sound"));
+    }
+
     private static PackStack stack(Path vanillaRoot, Set<String> namespaces) {
         return PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot, namespaces)));
     }

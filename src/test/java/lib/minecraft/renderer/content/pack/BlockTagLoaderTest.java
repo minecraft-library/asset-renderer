@@ -209,6 +209,27 @@ class BlockTagLoaderTest {
     }
 
     /**
+     * Asserts a file listing a {@code null} among its values is one the reader cannot use, as the
+     * client's tag codec refuses it: skipped whole, so the lower pack's entry stands and a tag only it
+     * defines is absent, and every other tag still resolves.
+     */
+    @Test
+    @DisplayName("a file listing a null value is skipped as a malformed one is")
+    void aFileListingANullValueIsSkipped() throws IOException {
+        Path vanilla = this.tmp.resolve("vanilla");
+        Path user = this.tmp.resolve("user");
+        tag(vanilla, "shadowed", values("minecraft:a"));
+        tag(vanilla, "sound", values("minecraft:b"));
+        tag(user, "shadowed", "{\"values\":[null]}");
+        tag(user, "alone", "{\"values\":[\"minecraft:c\",null]}");
+
+        ConcurrentMap<String, BlockTag> tags = BlockTagLoader.load(stackOf(vanilla, user));
+        assertThat(tags.get("minecraft:shadowed").values(), contains("minecraft:a"));
+        assertThat(tags.get("minecraft:sound").values(), contains("minecraft:b"));
+        assertThat(tags.containsKey("minecraft:alone"), is(false));
+    }
+
+    /**
      * Asserts the flatten runs once over the merged map rather than per pack, so a tag a higher pack
      * introduces still resolves through a reference whose target only the lower pack ships.
      */

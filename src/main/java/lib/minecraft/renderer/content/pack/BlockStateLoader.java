@@ -139,7 +139,8 @@ public class BlockStateLoader {
      * multipart branch, each only when non-empty. A file that defines nothing - neither key, or a
      * {@code "variants"} / {@code "multipart"} left empty once its unusable entries drop - resolves to
      * empty, as a non-object root and a read / parse failure do: vanilla's codec refuses every one of
-     * them, so the lower pack's copy stands.
+     * them, so the lower pack's copy stands. A parse failure is any the read raises, whatever its
+     * type, so one file never fails the load.
      *
      * @param entry the blockstate file the subtree walk resolved
      * @return the parsed variant or multipart record, or empty for a file with no usable definition, a
@@ -164,8 +165,10 @@ public class BlockStateLoader {
             // Neither key: vanilla's codec refuses the file ("Neither 'variants' nor 'multipart' found"),
             // so the lower pack's copy stands, as for a malformed file.
             return Optional.empty();
-        } catch (JsonSyntaxException ex) {
-            // Malformed: fall back to a lower pack's copy.
+        } catch (RuntimeException ex) {
+            // Malformed: fall back to a lower pack's copy. Beside the JSON reader's own refusal this is
+            // a member of the wrong kind surfacing as the JDK's exception - a rotation that is text and
+            // no number - and an unreadable file, which the container reports unchecked.
             return Optional.empty();
         }
     }
@@ -381,8 +384,9 @@ public class BlockStateLoader {
 
         /**
          * Reads one multipart part. A non-object element decodes to {@code null}; an object reads its
-         * {@code "when"} (absent yields {@link Block.Multipart.When.Always}) and its {@code "apply"}
-         * through the shared apply adapter, both via the deserialization context.
+         * {@code "when"} (absent yields {@link Block.Multipart.When.Always}, {@code null} refuses the
+         * file) and its {@code "apply"} through the shared apply adapter, both via the deserialization
+         * context.
          */
         static final class Adapter implements JsonDeserializer<MultipartPart> {
 
@@ -393,6 +397,9 @@ public class BlockStateLoader {
                 Block.Multipart.When when = object.has("when")
                     ? context.deserialize(object.get("when"), Block.Multipart.When.class)
                     : new Block.Multipart.When.Always();
+                // A "when" written null deserialises to no condition at all, where vanilla's codec
+                // refuses the file for a "when" that is no object.
+                if (when == null) throw new JsonSyntaxException("A multipart part's 'when' is null");
                 ApplyDto apply = object.has("apply") ? context.deserialize(object.get("apply"), ApplyDto.class) : null;
                 return new MultipartPart(when, apply);
             }

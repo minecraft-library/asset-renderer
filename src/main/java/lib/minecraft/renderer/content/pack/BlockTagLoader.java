@@ -70,7 +70,8 @@ public class BlockTagLoader {
     /**
      * Parses one tag file's raw (unresolved) {@code "values"} list, keyed by namespaced tag id - the
      * file's stem under its owning namespace, so a nested tag folder keeps its path segments. A file
-     * missing a {@code "values"} array, and a malformed one, yield nothing.
+     * missing a {@code "values"} array, and a malformed one, yield nothing; a {@code null} among the
+     * values makes a file malformed, as the client's tag codec refuses it.
      *
      * @param entry the tag file the subtree walk resolved
      * @return the tag id paired with its raw value list, or empty when the file carries no usable values
@@ -80,7 +81,7 @@ public class BlockTagLoader {
 
         try {
             TagDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), TagDoc.class);
-            if (doc == null || doc.values() == null) return Optional.empty();
+            if (doc == null || doc.values() == null || doc.values().contains(null)) return Optional.empty();
             return Optional.of(Map.entry(tagId, new ArrayList<>(doc.values())));
         } catch (JsonSyntaxException ex) {
             // Skip malformed tag files

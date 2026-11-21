@@ -192,6 +192,15 @@ class CitParserTest {
     }
 
     @Test
+    @DisplayName("a regex predicate that does not compile rejects the whole rule (fail-closed)")
+    void uncompilableRegexRejectsRule() {
+        assertThat(parse(props("items", "diamond_sword", "nbt.display.Name", "regex:[")).isPresent(), is(false));
+        assertThat(parse(props("items", "diamond_sword", "nbt.display.Name", "iregex:[")).isPresent(), is(false));
+        assertThat(parse(props("items", "diamond_sword", "components.custom_data", "raw:regex:[")).isPresent(), is(false));
+        assertThat("a negated one too", parse(props("items", "diamond_sword", "nbt.display.Name", "!regex:[")).isPresent(), is(false));
+    }
+
+    @Test
     @DisplayName("an item rule matching no items is rejected")
     void noItemsRejected() {
         assertThat(parse(props("texture", "blade")).isPresent(), is(false));

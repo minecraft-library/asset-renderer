@@ -76,6 +76,13 @@ class CtmParserTest {
     }
 
     @Test
+    @DisplayName("a tile range naming a number no int holds is rejected (fail-closed)")
+    void tileRangeBeyondIntRejected() {
+        assertThat(parse("stone", "method", "random", "matchTiles", "stone", "tiles", "0-4294967296").isPresent(), is(false));
+        assertThat(parse("stone", "method", "random", "matchTiles", "stone", "tiles", "4294967296-0").isPresent(), is(false));
+    }
+
+    @Test
     @DisplayName("an unknown method is rejected (fail-closed)")
     void unknownMethodRejected() {
         assertThat(parse("stone", "method", "sideways", "matchTiles", "stone", "tiles", "custom").isPresent(), is(false));

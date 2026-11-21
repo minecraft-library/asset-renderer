@@ -23,8 +23,10 @@ context's `findFlipbook` answer and one of its two reads - `resolveTexture` for 
   numbered row by row, so a pack swapping either the sidecar or the PNG swaps the table. An authored
   entry naming a frame the strip does not hold is dropped, and a table left with fewer than two
   entries - an empty `frames` list among them - does not animate: it shows the strip's first frame, as
-  vanilla's sprite shows its top-left frame. It is memoised on `PackStack` on the same `(pack, id)` key
-  the decoded pixels take.
+  vanilla's sprite shows its top-left frame. The cycle length is the entries' times summed wide and held
+  at the most an int counts: the client steps a frame at a time and keeps no total, so times that sum
+  past an int are a table it plays, and every tick from 0 up to that count lands on the entry the times
+  give it. It is memoised on `PackStack` on the same `(pack, id)` key the decoded pixels take.
 - **A strip its frame size does not divide is no atlas sprite at all.** Vanilla's sprite loader refuses
   it and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
   keeps the pixels of a sprite read and serves one that fails as unreadable - `resolveTexture` answers

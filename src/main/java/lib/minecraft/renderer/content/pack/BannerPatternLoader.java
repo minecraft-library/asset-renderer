@@ -69,19 +69,29 @@ public class BannerPatternLoader {
      * Parses a single pattern file into a {@link BannerPattern} carrying its derived registry id. The
      * id is the entry's namespace prefix joined to its stem, so the {@code .json} suffix is dropped
      * and the namespace prepended. A file with no {@code asset_id} field yields nothing; a missing
-     * {@code translation_key} yields the empty string.
+     * {@code translation_key} yields the empty string. A file that does not parse, or cannot be read,
+     * is reported on standard error and yields nothing, so a lower root's definition of the same
+     * pattern stands and the rest of the registry loads.
      *
      * @param entry the pattern JSON entry to parse
-     * @return the parsed pattern, or empty when the file carries no {@code asset_id}
-     * @throws RuntimeException if the file cannot be read
+     * @return the parsed pattern, or empty when the file carries no {@code asset_id}, does not parse
+     *     or cannot be read
      */
     private static @NotNull Optional<BannerPattern> parsePattern(@NotNull PackSubtree.Entry entry) {
         String patternId = VanillaPaths.namespacePrefix(entry.namespace()) + entry.stem();
-        PatternDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
-        if (doc == null || doc.assetId() == null) return Optional.empty();
 
-        String translationKey = doc.translationKey() == null ? "" : doc.translationKey();
-        return Optional.of(new BannerPattern(patternId, doc.assetId(), translationKey));
+        try {
+            PatternDoc doc = GSON.fromJson(new String(entry.container().bytes(entry.entryPath()).orElseThrow(), StandardCharsets.UTF_8), PatternDoc.class);
+            if (doc == null || doc.assetId() == null) return Optional.empty();
+
+            String translationKey = doc.translationKey() == null ? "" : doc.translationKey();
+            return Optional.of(new BannerPattern(patternId, doc.assetId(), translationKey));
+        } catch (RuntimeException ex) {
+            // Malformed JSON, a member of the wrong JSON type, or an unreadable file, which the container
+            // reports unchecked; skip it rather than aborting the whole load.
+            System.err.printf("Skipping malformed banner pattern '%s' from pack '%s': %s%n", patternId, entry.pack().id(), ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     /**
