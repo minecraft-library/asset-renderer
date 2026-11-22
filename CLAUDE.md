@@ -76,7 +76,9 @@ when to load it and which `CLAUDE.md` indexes it, and is linked from that file.
 - `parity/` is the smallest leaf - five annotation types and the toolkit's Python package. Every
   build that writes a declaration takes it **`compileOnly`**; see [parity/CLAUDE.md].
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
-  version string. `./gradlew dependencies` for the live set.
+  version string. `./gradlew dependencies` for the live set. A bump that moves a jar from Maven
+  Central or the plugin portal owes `gradle/verification-metadata.xml` a regeneration, or the next
+  build refuses the jar; [BuildScripts](docs/project/BuildScripts.md) has the command.
 
 What an applied script cannot see, which task types carry the Vector flag and why `javadoc` stays
 red either way, ASM, the source sets and which way the dependency runs are

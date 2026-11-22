@@ -174,7 +174,7 @@ BlockOptions options = BlockOptions.builder()
     .build();
 
 ImageData block = new BlockRenderer(context).render(options).image();
-new ImageFactory().toFile(block, ImageFormat.PNG, new File("grass_block.png"));
+ImageFactory.toFile(block, ImageFormat.PNG, new File("grass_block.png"));
 ```
 
 ### ItemRenderer
@@ -194,8 +194,8 @@ ItemOptions options = ItemOptions.builder()
     .build();
 
 ImageData glinted = new ItemRenderer(context).render(options).image();
-new ImageFactory().toFile(glinted, ImageFormat.GIF, new File("diamond_sword.gif"),
-    GifWriteOptions.builder().withLoopCount(0).isTransparent(true).withAlphaThreshold(8).build());
+ImageFactory.toFile(glinted, ImageFormat.GIF, new File("diamond_sword.gif"),
+    GifWriteOptions.builder().withLoopCount(LoopCount.Preset.INFINITE).isTransparent(true).withAlphaThreshold(8).build());
 ```
 
 ### EntityRenderer
@@ -328,7 +328,7 @@ AtlasOptions options = AtlasOptions.builder()
     .build();
 
 AtlasResult sheet = new AtlasRenderer(context).render(options);
-new ImageFactory().toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
+ImageFactory.toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
 ```
 
 ### GridRenderer

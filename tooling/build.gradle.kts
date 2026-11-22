@@ -11,10 +11,19 @@ java {
     }
 }
 
+// The same two repositories as the renderer's build, scoped the same way and for the reason written
+// there: JitPack is asked only for the three organisations whose libraries that build pins, and
+// they are looked up nowhere else.
 repositories {
     mavenCentral()
-    maven(url = "https://central.sonatype.com/repository/maven-snapshots")
-    maven(url = "https://jitpack.io")
+    exclusiveContent {
+        forRepository { maven(url = "https://jitpack.io") }
+        filter {
+            includeGroup("com.github.simplified-dev")
+            includeGroup("com.github.simplified-api")
+            includeGroup("com.github.minecraft-library")
+        }
+    }
 }
 
 dependencies {
