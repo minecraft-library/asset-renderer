@@ -87,6 +87,9 @@ ceiling, tested in `long` arithmetic before anything is allocated. The ceilings 
   `int` holds and to nothing smaller - the vanilla atlas, 3,531 tiles, is 232 megapixels at a 256
   pixel tile and 927 at 512. It is refused before any tile is asked for. An atlas written to a file is
   held a band at a time, and it is the band that has to fit.
+- **Compressed NBT is inflated under `ItemContext.MAX_NBT_BYTES`**, 104,857,600 bytes, the quota the
+  26.1 client reads compressed NBT under, and read no further than that; the refusal is the
+  `NbtException` a payload that is not NBT raises. Bytes handed over uncompressed are read as they are.
 
 The ceilings are constants, not options, and each is set for the largest render the library's own
 drivers have a use for, with room above it, rather than for the heap any one caller runs in. A caller
