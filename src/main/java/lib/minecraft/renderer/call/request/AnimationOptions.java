@@ -4,8 +4,10 @@ import dev.simplified.annotations.BuildFlag;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.frame.StripFit;
 import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -28,6 +30,11 @@ public class AnimationOptions {
      * Number of output frames. Empty means the subject decides - one frame for a still subject, the
      * strip derived for its row for a moving one; an explicit {@code 1} means one frame OF the
      * animation, sampled at the start tick.
+     * <p>
+     * A count over {@link RenderLimits#MAX_FRAMES}, 4,096 frames, is refused: {@link #getFrameCount()}
+     * raises a {@link RenderException} for it, so every renderer reading the timing refuses the render
+     * before it draws a frame. The frames together are held to {@link RenderLimits#MAX_PIXELS} as well,
+     * which a large canvas reaches in fewer.
      */
     private final @NotNull Optional<Integer> frameCount = Optional.empty();
 
@@ -61,12 +68,14 @@ public class AnimationOptions {
 
     /**
      * The frame count, answering {@code 1} where none is named, so a renderer that treats
-     * {@code 1} as static reads what an unnamed count means to it.
+     * {@code 1} as static reads what an unnamed count means to it. A named count over
+     * {@link RenderLimits#MAX_FRAMES} is refused here, so the ceiling sits with the field it guards.
      *
      * @return the named frame count, or {@code 1}
+     * @throws RenderException if the named count is over the ceiling
      */
     public int getFrameCount() {
-        return this.frameCount.orElse(1);
+        return RenderLimits.frames("Frame count", this.frameCount.orElse(1));
     }
 
     /**

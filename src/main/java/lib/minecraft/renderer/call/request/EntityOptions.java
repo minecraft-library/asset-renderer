@@ -102,7 +102,9 @@ public class EntityOptions implements RenderOptions {
      * Hard cap in pixels on the longer canvas axis for the two {@code BOUNDS} {@link FitMode}s.
      * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
      * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to
-     * {@code 1024}.
+     * {@code 1024}. A cap above {@link lib.minecraft.renderer.engine.frame.RenderLimits#MAX_EDGE
+     * RenderLimits.MAX_EDGE} raises nothing past it: the canvas is held to the ceilings every render is
+     * drawn under, and one sized past them is refused.
      *
      * <p>The vanilla-reference-harness's {@code HarnessConfig.MAX_CANVAS_SIZE} holds this same number
      * and applies the same cap from the other side, so changing it means editing both constants in

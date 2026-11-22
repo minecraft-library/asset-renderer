@@ -426,6 +426,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/RequestCeilingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/SlotElementModelTest": {
       "artifacts": [],
       "source": "derived"
@@ -4718,6 +4722,39 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/frame/RasterPassSupersampleTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/RenderLimits": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.references",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.book",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player",
+        "sweep.tooltip",
+        "sweep.tooltip-hypixel-skyblock"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/RenderLimitsTest": {
       "artifacts": [],
       "source": "derived"
     },

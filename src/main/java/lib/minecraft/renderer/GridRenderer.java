@@ -13,9 +13,11 @@ import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FrameLoan;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -37,7 +39,7 @@ import java.util.stream.IntStream;
  * share one dispatch:
  * <ul>
  *   <li><b>Streamed path</b> - for a grid whose decorator leaves the cell layers as they are, whose
- *       tiles name distinct cells, whose separation is not negative and whose canvas fits one buffer.
+ *       tiles name distinct cells and whose separation is not negative.
  *       The buffer is allocated and filled with the background first, then every tile is rendered, drawn
  *       into its cell and let go on a parallel pass, so the tiles are never all held at once. Distinct
  *       cells a non-negative separation apart are disjoint rectangles, which make the parallel writes
@@ -71,6 +73,9 @@ import java.util.stream.IntStream;
  * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
  * detects the mix and routes through the animated path automatically.
  *
+ * <p>The sheet is one buffer, so a grid whose columns, rows, cell size and separation come to a canvas
+ * no buffer holds is refused before a tile is asked for - see {@link RenderLimits#sheet}.
+ *
  * <p><b>Parity.</b> This store holds no artifact for the grid. Nothing roots at it, and what it
  * arranges is measured where that content is produced rather than in the sheet it is arranged into.
  *
@@ -80,13 +85,24 @@ import java.util.stream.IntStream;
 @Parity(subject = Subject.GRID)
 public final class GridRenderer implements Renderer<GridOptions> {
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * @throws RenderException if the grid's canvas does not fit one buffer
+     */
     @Override
     public @NotNull GridResult render(@NotNull GridOptions options) {
         int cellSize = options.getCellSize();
         int separation = options.getSeparation();
-        int canvasW = options.getColumns() * (cellSize + separation) + separation;
-        int canvasH = options.getRows() * (cellSize + separation) + separation;
+
+        // Every factor is widened before it is multiplied, so a canvas no int holds is refused here
+        // rather than wrapping into one that allocates.
+        long pitch = (long) cellSize + separation;
+        long width = options.getColumns() * pitch + separation;
+        long height = options.getRows() * pitch + separation;
+        RenderLimits.sheet("Grid canvas", width, height);
+        int canvasW = (int) width;
+        int canvasH = (int) height;
 
         // Build the tile placements as a FrameLayer stack so callers can splice layers via
         // GridOptions.layerDecorator. A cell layer renders its tile only when it is contributed, so the
@@ -104,7 +120,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
         }
         LayerStack<FrameLayer> decorated = options.getLayerDecorator().apply(stack);
 
-        if (streamable(options, decorated, cells, resolved) && allocatable(options))
+        if (streamable(options, decorated, cells, resolved))
             return streamed(options, cells, canvasW, canvasH)
                 .orElseGet(() -> held(options, decorated, cells, canvasW, canvasH));
 
@@ -242,22 +258,6 @@ public final class GridRenderer implements Renderer<GridOptions> {
             && IntStream.range(0, cells.length).allMatch(i -> ordered.get(i) == cells[i])
             && Arrays.stream(resolved).allMatch(Objects::isNull)
             && Arrays.stream(cells).mapToLong(cell -> ((long) cell.tile.col() << 32) | (cell.tile.row() & 0xFFFFFFFFL)).distinct().count() == cells.length;
-    }
-
-    /**
-     * Answers whether the grid's canvas fits one buffer: a width and a height that are not negative, each
-     * and their product within an {@code int}, every factor bounded before it is multiplied.
-     *
-     * @param options the grid's options
-     * @return whether the canvas can be allocated up front
-     */
-    private static boolean allocatable(@NotNull GridOptions options) {
-        long pitch = (long) options.getCellSize() + options.getSeparation();
-        long width = options.getColumns() * pitch + options.getSeparation();
-        long height = options.getRows() * pitch + options.getSeparation();
-        return width >= 0 && height >= 0
-            && width <= Integer.MAX_VALUE && height <= Integer.MAX_VALUE
-            && width * height <= Integer.MAX_VALUE;
     }
 
     /**

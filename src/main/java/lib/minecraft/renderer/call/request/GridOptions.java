@@ -34,6 +34,11 @@ import java.util.function.UnaryOperator;
  * rescaled to it by nearest-neighbour sampling, on a static and an animated grid alike, and an
  * animated tile is rescaled frame by frame.
  *
+ * <p>The sheet is one buffer, {@code columns * (cellSize + separation) + separation} pixels wide and
+ * {@code rows * (cellSize + separation) + separation} tall. A width, a height or a pixel count that is
+ * negative or over what an {@code int} holds, 2,147,483,647, is refused with a
+ * {@link lib.minecraft.renderer.exception.RenderException RenderException} before any tile is asked
+ * for.
  *
  * <p><b>Parity.</b> Reaches the grid alone, which this store holds no artifact for.
  *
@@ -117,7 +122,7 @@ public class GridOptions implements RenderOptions {
      * <p>
      * The grid asks the content for the tile's render on any of its threads, beside other tiles' content
      * and in no order. Where the sheet streams - its decorator leaves the cell layers as they are, its
-     * tiles name distinct cells, its separation is not negative and its canvas fits one buffer - the grid
+     * tiles name distinct cells and its separation is not negative - the grid
      * draws each tile as it is answered and lets the render go, so the sheet never holds every tile at
      * once; otherwise every tile is asked first and held until the sheet is composed. When any tile
      * answers animated the sheet is composed again, and every tile already asked is asked once more, the

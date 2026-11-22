@@ -79,6 +79,11 @@ public class TextOptions implements RenderOptions {
      * The lines a {@link Style#LORE} or {@link Style#CHAT} request draws, each {@link LineSegment} as its own
      * line - the renderer never re-wraps them. A {@link Style#BOOK} request draws its {@link #getPage() page}
      * and does not read them.
+     * <p>
+     * The canvas is sized by the text, as wide as its widest line and as tall as its lines, so text that
+     * lays out a canvas of more than {@link lib.minecraft.renderer.engine.frame.RenderLimits#MAX_PIXELS
+     * RenderLimits.MAX_PIXELS}, 268,435,456 pixels over every frame, is refused with a
+     * {@link lib.minecraft.renderer.exception.RenderException RenderException} before a frame is drawn.
      */
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
@@ -140,7 +145,9 @@ public class TextOptions implements RenderOptions {
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
 
     /**
-     * Total number of frames produced when obfuscated text is present.
+     * Total number of frames produced when obfuscated text is present. More than
+     * {@link lib.minecraft.renderer.engine.frame.RenderLimits#MAX_FRAMES RenderLimits.MAX_FRAMES}, 4,096,
+     * is refused where the text is animated.
      */
     private final int frameCount = 20;
 

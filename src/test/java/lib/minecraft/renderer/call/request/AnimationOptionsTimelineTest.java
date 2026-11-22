@@ -1,14 +1,18 @@
 package lib.minecraft.renderer.call.request;
 
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The schedule an {@link AnimationOptions} asks for - the caller-selected fork between the
@@ -63,6 +67,18 @@ class AnimationOptionsTimelineTest {
         assertThat(timeline.frames(), is(64));
         assertThat(timeline.tickAt(63), is(23_625));
         assertThat(timeline.tickAt(63), is(greaterThan(Timeline.MAX_LOOP_TICKS)));
+    }
+
+    @Test
+    @DisplayName("a named frame count on the frame ceiling is answered, and one past it is refused where it is read")
+    void aFrameCountPastTheCeilingIsRefusedWhereItIsRead() {
+        assertThat(AnimationOptions.builder().frameCount(RenderLimits.MAX_FRAMES).build().timeline().frames(), is(RenderLimits.MAX_FRAMES));
+
+        AnimationOptions oversize = AnimationOptions.builder().frameCount(RenderLimits.MAX_FRAMES + 1).build();
+        assertThat(assertThrows(RenderException.class, oversize::getFrameCount).getMessage(), containsString("Frame count '4097'"));
+        assertThrows(RenderException.class, oversize::timeline);
+        assertThrows(RenderException.class, oversize::tickStrip);
+        assertThat("the count is still one the caller named", oversize.isFrameCountNamed(), is(true));
     }
 
     /** Asserts a timeline is the expected {@link Timeline.TickLoop}. */
