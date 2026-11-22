@@ -6090,6 +6090,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/store/ParityStoreWorkingRootTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/store/PinSet": {
       "artifacts": [
         "pin.block-crc",

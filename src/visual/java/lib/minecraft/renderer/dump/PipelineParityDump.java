@@ -150,13 +150,24 @@ public final class PipelineParityDump {
     private static final @NotNull String PARITY_PREFIX = "asset.parity.";
 
     /**
+     * What a label may be: one plain directory name of letters, digits, {@code .}, {@code _} and
+     * {@code -}, holding at least one character that is not a dot.
+     *
+     * <p>The label names a directory under {@code cache/parity-dump/} that the build erases before
+     * this writes into it, so it is held to a single segment that can name nothing else. The build
+     * spells the same expression as {@code parityDumpLabelRule}.
+     */
+    public static final @NotNull String LABEL_RULE = "[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*";
+
+    /**
      * Loads each configuration and writes its dump.
      *
      * @param args the output label; defaults to {@code head} when absent or blank
      * @throws IOException if a section cannot be written
+     * @throws IllegalArgumentException if the label is not one plain directory name
      */
     public static void main(String @NotNull [] args) throws IOException {
-        String label = args.length > 0 && !args[0].isBlank() ? args[0] : "head";
+        String label = requireLabel(args.length > 0 && !args[0].isBlank() ? args[0] : "head");
         Path root = Path.of("cache", "parity-dump", label);
 
         long started = System.currentTimeMillis();
@@ -172,6 +183,20 @@ public final class PipelineParityDump {
         }
 
         System.out.println("parityDump '" + label + "' written in " + (System.currentTimeMillis() - started) + "ms");
+    }
+
+    /**
+     * Answers a label, refused unless it is one plain directory name.
+     *
+     * @param label the label as it was given
+     * @return the label
+     * @throws IllegalArgumentException if the label does not match {@link #LABEL_RULE}
+     */
+    static @NotNull String requireLabel(@NotNull String label) {
+        if (!label.matches(LABEL_RULE))
+            throw new IllegalArgumentException(String.format(
+                "The dump label must be one plain directory name - letters, digits, '.', '_' and '-' (got '%s')", label));
+        return label;
     }
 
     /**

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.guard;
 
+import lib.minecraft.renderer.dump.PipelineParityDump;
 import lib.minecraft.renderer.store.ParityArtifacts;
 import lib.minecraft.renderer.store.ParityStore;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +69,25 @@ final class ParityTaskWiringTest {
         "fun parityFlag(name: String): Boolean = "
             + "gradle.startParameter.projectProperties.containsKey(name) "
             + "&& parityProperty(name) != \"false\"";
+
+    /** The working root's guard: the root's separators normalised, then the one rule and nothing beside it. */
+    private static final String HOLDS_THE_WORKING_ROOT =
+        "fun requireParityRootUnderCache() { "
+            + "val normalized = parityWorkingRoot.replace('\\\\', '/') "
+            + "require(parityWorkingRootRule.matches(normalized)) { "
+            + "\"-PparityRoot must be cache/ followed by plain directory names - letters, digits, '.', '_' \" + "
+            + "\"and '-', with no parent reference (got '$parityWorkingRoot')\" } }";
+
+    /** The dump label's guard: the label as it was given, against the one rule. */
+    private static final String HOLDS_THE_DUMP_LABEL =
+        "fun requireParityDumpLabel() { "
+            + "require(parityDumpLabelRule.matches(parityDumpLabel)) { "
+            + "\"-Plabel must be one plain directory name - letters, digits, '.', '_' and '-', and not \" + "
+            + "\"'.' or '..' (got '$parityDumpLabel')\" } }";
+
+    /** How a task hands the toolkit the working root, in either of the two shapes an argv is built in. */
+    private static final Pattern HANDS_THE_TOOLKIT_THE_ROOT =
+        Pattern.compile("add\\(\"--root\"\\); add\\(parityWorkingRoot\\)|\"--root\", parityWorkingRoot");
 
     /** The requested-task predicate, which has to decide a token the way Gradle itself will. */
     private static final String RESOLVES_THROUGH_GRADLES_MATCHER =
@@ -1443,6 +1463,53 @@ final class ParityTaskWiringTest {
                 + "it, and so does every producer",
             occurrences(collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
                 "mustRunAfter(parityCaptureBeginTask)"), is(equalTo(2)));
+    }
+
+    @Test
+    @DisplayName("the working root and the dump label are held to one rule, wherever the build makes a path of either")
+    void theRootAndTheLabelAreHeldWhereverTheyBecomeAPath() {
+        String build = buildFile();
+
+        assertThat("the rule a working root is held to, spelled once here and once on the Java side. "
+                + "The Java spelling is the one a unit suite reaches, so the two being one expression "
+                + "is what makes that suite's refusals the build's own: a root the store refuses is a "
+                + "root a capture task refuses before it erases anything",
+            declared(build, "val parityWorkingRootRule = Regex\\(\"([^\"]+)\"\\)"),
+            equalTo(ParityStore.WORKING_ROOT_RULE));
+        assertThat("and the rule a dump label is held to, the same way",
+            declared(build, "val parityDumpLabelRule = Regex\\(\"([^\"]+)\"\\)"),
+            equalTo(PipelineParityDump.LABEL_RULE));
+        assertThat("the root's guard, WHOLE: the rule applied to the root with its separators "
+                + "normalised and to nothing else. A second clause beside the match is where an "
+                + "exemption would sit",
+            collapsed(function("requireParityRootUnderCache")), equalTo(HOLDS_THE_WORKING_ROOT));
+        assertThat("and the label's, WHOLE",
+            collapsed(function("requireParityDumpLabel")), equalTo(HOLDS_THE_DUMP_LABEL));
+
+        String[] registrations = build.split("register<");
+        assertThat("no argv handing the toolkit the root is built outside a registration, where "
+                + "the walk below would not see it",
+            HANDS_THE_TOOLKIT_THE_ROOT.matcher(registrations[0]).find(), is(false));
+        int handing = 0;
+        for (int at = 1; at < registrations.length; at++) {
+            String registration = registrations[at];
+            if (!HANDS_THE_TOOLKIT_THE_ROOT.matcher(registration).find()) continue;
+            handing++;
+            assertThat("a registration that hands the toolkit the working root holds the root "
+                    + "itself. The erase is one of them and a capture step is another, and either "
+                    + "can be typed on a command line without the entry point that used to be the "
+                    + "only one asking: " + registration.lines().findFirst().orElse(""),
+                registration, containsString("requireParityRootUnderCache()"));
+        }
+        assertThat("the walk found the registrations it is about, the erase and the capture step "
+            + "among them", handing, is(greaterThan(2)));
+
+        assertThat("the dump holds its label before it makes a directory of it to erase",
+            registeredBlock("parityDump"), containsString("requireParityDumpLabel()"));
+        assertThat("and so does the capture step of a row the dump produces, which reads the tree "
+                + "the label names",
+            collapsed(declaration(REGISTERS_A_CAPTURE_STEP)),
+            containsString("if (\"parityDump\" in spec.producers) requireParityDumpLabel()"));
     }
 
     @Test
