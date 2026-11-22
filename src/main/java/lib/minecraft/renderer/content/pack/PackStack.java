@@ -497,12 +497,16 @@ public final class PackStack {
     /**
      * Probes one pack for a texture path across its namespaces (primary, then minecraft, then sorted),
      * baking the within-pack root walk (base first, overlays after, last existing copy winning) and the
-     * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries.
+     * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries. The path
+     * is written by a pack or a caller, and is joined into an entry path here, so one that climbs out
+     * of the textures directory or is otherwise no {@linkplain PackContainer#isEntryPath entry path}
+     * names no texture, whatever the pack is stored as.
      */
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
         PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
             String relativePath = pack.texturesDir(namespace) + "/" + path + ".png";
+            if (!PackContainer.isEntryPath(relativePath)) return Optional.empty();
             String winning = null;
             for (PackRoot root : pack.roots()) {
                 String candidate = root.prefix() + relativePath;
