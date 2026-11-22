@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -119,6 +120,35 @@ class MCMetaParserTest {
         assertThat(pack.overlays().getFirst().directory(), equalTo("o1"));
         assertThat(pack.overlays().getFirst().formats(), is(new FormatRange(new FormatVersion(3, 0), new FormatVersion(5, MAX))));
         assertThat("the skipped entry is logged, not silent", buffer.toString(StandardCharsets.UTF_8), containsString("skipping overlay entry"));
+    }
+
+    /**
+     * Verifies an overlay entry is kept only where its directory is one name in the client's alphabet.
+     * <p>
+     * Swaps {@link System#err} process-wide as {@link #overlaysSkipMalformed()} does, and is safe for the
+     * same reason.
+     */
+    @Test
+    @DisplayName("an overlay entry whose directory is no single name is skipped with a diagnostic; a name in the client's alphabet is kept")
+    void overlayDirectoryIsOneName() {
+        String[] refused = { "\"..\"", "\".\"", "\"a/b\"", "\"/a\"", "\"a\\\\b\"", "\"a b\"", "\"\"", "\"a\\u0000\"", "[\"a\"]" };
+        StringBuilder entries = new StringBuilder("{\"directory\":\"Ov-1_a.b\",\"formats\":[3,5]}");
+        for (String directory : refused)
+            entries.append(",{\"directory\":").append(directory).append(",\"formats\":[3,5]}");
+        entries.append(",{\"directory\":\"..o2\",\"formats\":[3,5]}");
+
+        PrintStream original = System.err;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+        Pack pack;
+        try {
+            pack = pack("{\"pack\":{\"pack_format\":1},\"overlays\":{\"entries\":[" + entries + "]}}");
+        } finally {
+            System.setErr(original);
+        }
+        assertThat(pack.overlays().stream().map(MCMeta.Overlay::directory).toList(), equalTo(List.of("Ov-1_a.b", "..o2")));
+        assertThat("each refused entry is logged, not silent",
+            buffer.toString(StandardCharsets.UTF_8).lines().filter(line -> line.contains("skipping overlay entry")).count(), is((long) refused.length));
     }
 
     @Test

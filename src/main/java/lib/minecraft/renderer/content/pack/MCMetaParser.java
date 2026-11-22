@@ -12,6 +12,7 @@ import dev.simplified.gson.JsonTree;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -112,7 +113,12 @@ public class MCMetaParser {
                 System.err.printf("Pack '%s': skipping overlay entry missing a directory or a format range: %s%n", packId, entry.toGson());
                 continue;
             }
-            parsed.add(new MCMeta.Overlay(entry.findString("directory").orElse(null), formats.get()));
+            Optional<String> directory = entry.findString("directory").filter(PackRoot::isOverlayDirectory);
+            if (directory.isEmpty()) {
+                System.err.printf("Pack '%s': skipping overlay entry whose directory is not a name an overlay can take: %s%n", packId, entry.toGson());
+                continue;
+            }
+            parsed.add(new MCMeta.Overlay(directory.get(), formats.get()));
         }
         return Concurrent.adoptList(parsed).toUnmodifiable();
     }

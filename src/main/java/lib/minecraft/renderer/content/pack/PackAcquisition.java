@@ -118,7 +118,8 @@ public final class PackAcquisition {
      * Resolves the active roots: base first, then every vanilla {@code overlays.entries} overlay whose
      * format range contains the target, then - for a pack carrying {@link PackCapability#CATHARSIS_CONVENTIONS}
      * - every Catharsis {@code fabric:overlays} entry whose condition holds under the pack's config
-     * defaults. Each active overlay's directory must exist. Both overlay families stack
+     * defaults. Each active overlay's directory must exist, and be a name
+     * {@link PackRoot#isOverlayDirectory} accepts. Both overlay families stack
      * over the root in list order (later wins), the vanilla {@code CompositePackResources} semantics
      * already applies.
      */
@@ -153,16 +154,21 @@ public final class PackAcquisition {
     private static void addCatharsisOverlays(@NotNull PackContainer container,
                                              @NotNull FormatVersion target, @NotNull String minecraftVersion, @NotNull List<PackRoot> roots) {
         // Catharsis overlay evaluation runs over untrusted pack input during acquisition; any failure
-        // (malformed JSON slipping a type guard, an illegal overlay directory string throwing
-        // InvalidPathException on resolve, ...) must degrade to no Catharsis overlays, never break the
-        // acquisition of this or any other pack (overlays inert, never error).
+        // (malformed JSON slipping a type guard, ...) must degrade to no Catharsis overlays, never break
+        // the acquisition of this or any other pack (overlays inert, never error). A directory that is
+        // no overlay name is not a failure: that entry alone is skipped, and the rest stand.
         try {
             Optional<JsonTree> mcmeta = readJsonObject(container, "pack.mcmeta");
             if (mcmeta.isEmpty()) return;
             CatharsisConfig config = CatharsisOverlays.loadConfig(readJson(container, CONFIG_CATHARSIS), mcmeta.get());
             CatharsisTarget catharsisTarget = new CatharsisTarget(target.major(), minecraftVersion);
-            for (String directory : CatharsisOverlays.activeOverlayDirectories(mcmeta.get(), config, catharsisTarget))
+            for (String directory : CatharsisOverlays.activeOverlayDirectories(mcmeta.get(), config, catharsisTarget)) {
+                if (!PackRoot.isOverlayDirectory(directory)) {
+                    System.err.printf("Pack '%s': skipping Catharsis overlay whose directory is not a name an overlay can take: %s%n", container, GSON.toJson(directory));
+                    continue;
+                }
                 if (containsAny(container, directory)) roots.add(PackRoot.overlay(directory));
+            }
         } catch (RuntimeException ex) {
             System.err.printf("Pack '%s': skipping Catharsis overlays after an evaluation error: %s%n", container, ex);
         }
