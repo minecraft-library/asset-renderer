@@ -118,17 +118,61 @@ def resolve_working(root: str | None = None, base: Path | None = None) -> Path:
     is what makes long-lived temp output unrepresentable rather than merely discouraged. What is
     given up deliberately is a redirect off the working tree - ``%TEMP%``, another drive, any
     absolute path - and a research pack that wanted one gets ``cache/parity/<name>`` instead.
+
+    **Under ``cache/`` says where the root lands, not how it is spelled.** A capture opens by
+    erasing every child of this root, so the root is the whole of what a capture may destroy. Two
+    holds, in order: a parent reference is refused wherever it stands, and what is left is resolved
+    through every link on disk and has to land strictly inside the repository's own ``cache``
+    directory - see :func:`_inside_cache`. The second is what refuses ``cache`` itself, whose
+    children are every cache the repository keeps rather than one capture. The default root takes
+    it too, since a linked ``cache`` moves the default like any other.
+
+    :param root: the root as it was given, or None for the default
+    :param base: the repository to resolve against, or None for the one holding this package
+    :return: the root, joined onto the repository as it was spelled
+    :raises Refused: if the root is absolute, is not spelled under ``cache/``, carries a parent
+        reference, or lands anywhere but strictly inside the repository's ``cache`` directory
     """
     home = base if base is not None else repo_root()
     if root is None:
-        return home / WORKING
+        return _inside_cache(home, home / WORKING, WORKING)
     candidate = Path(root)
     if candidate.is_absolute():
         raise Refused(f"working root must be relative and under cache/, got absolute {root!r}")
     parts = candidate.parts
     if not parts or parts[0] != "cache":
         raise Refused(f"working root must be under cache/, got {root!r}")
-    return home / candidate
+    if ".." in parts:
+        raise Refused(f"working root must not carry a parent reference, got {root!r}")
+    return _inside_cache(home, home / candidate, root)
+
+
+def _inside_cache(home: Path, target: Path, given: str) -> Path:
+    """Answer ``target``, refused unless it lands strictly inside the repository's ``cache``.
+
+    Both sides are resolved, so a link anywhere along the root is followed to where the erase would
+    really happen, and a repository that is itself reached through a link still compares equal to
+    itself. ``cache`` is joined on by name rather than resolved: the directory an erase may reach is
+    the one in the checkout, and a ``cache`` that is a link resolves to somewhere that directory is
+    not.
+
+    :param home: the repository the root is resolved against
+    :param target: the root joined onto the repository
+    :param given: the root as it was spelled, for the refusal
+    :return: ``target``, as it was handed in
+    :raises Refused: if it does not resolve strictly inside ``<home>/cache``
+    """
+    try:
+        cache = home.resolve() / "cache"
+        landed = target.resolve()
+    except (OSError, RuntimeError) as failure:
+        raise Refused(f"working root {given!r} cannot be resolved: {failure}") from failure
+    if cache not in landed.parents:
+        raise Refused(
+            f"working root must land strictly inside {cache}, and {given!r} resolves to {landed}; "
+            "a capture erases its root, so cache/ itself and a root a link carries out of it are "
+            "both refused")
+    return target
 
 
 def resolve_store(store: str | None = None, base: Path | None = None) -> Path:

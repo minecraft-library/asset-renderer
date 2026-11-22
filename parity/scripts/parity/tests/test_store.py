@@ -53,6 +53,69 @@ class WorkingRoot(unittest.TestCase):
             with self.assertRaises(Refused):
                 store.resolve_working(candidate, self.base)
 
+    def test_a_root_spelled_under_cache_that_leaves_it_is_refused(self):
+        """A capture opens by erasing its root, so the root is held to where it lands."""
+        for candidate in ("cache/..", "cache/../..", "cache/a/../../x", "cache/../cache/parity",
+                          "cache/parity/../base"):
+            with self.subTest(candidate), self.assertRaises(Refused):
+                store.resolve_working(candidate, self.base)
+
+    def test_cache_itself_is_refused(self):
+        """Its children are every cache the repository keeps, not one capture."""
+        (self.base / "cache").mkdir()
+        for candidate in ("cache", "cache/", "cache/."):
+            with self.subTest(candidate), self.assertRaises(Refused):
+                store.resolve_working(candidate, self.base)
+
+    def test_a_root_that_does_not_exist_yet_is_accepted(self):
+        """The first capture of a checkout makes its own root, and so does a redirected one."""
+        self.assertFalse((self.base / "cache").exists())
+        self.assertEqual(store.resolve_working("cache/parity/a/b", self.base),
+                         self.base / "cache/parity/a/b")
+
+    def test_a_repository_reached_through_a_link_still_resolves(self):
+        """Both sides are resolved, so a checkout under a linked directory is not refused for it."""
+        real = self.base / "real"
+        real.mkdir()
+        linked = self._link(self.base / "linked", real)
+        self.assertEqual(store.resolve_working("cache/parity/base", linked),
+                         linked / "cache/parity/base")
+        self.assertEqual(store.resolve_working(None, linked), linked / "cache/parity/current")
+
+    def test_a_linked_cache_is_refused(self):
+        """The erase may reach the checkout's own cache directory and nowhere a link says that
+        name leads - the default root included, since the link moves it too."""
+        self._link(self.base / "cache", Path(tempfile.mkdtemp()))
+        for candidate in ("cache/parity/base", None):
+            with self.subTest(candidate), self.assertRaises(Refused):
+                store.resolve_working(candidate, self.base)
+
+    def test_a_cache_linked_back_onto_the_repository_is_refused(self):
+        self._link(self.base / "cache", self.base)
+        with self.assertRaises(Refused):
+            store.resolve_working("cache/src", self.base)
+
+    def test_a_link_under_cache_that_leaves_it_is_refused(self):
+        (self.base / "cache").mkdir()
+        self._link(self.base / "cache" / "out", Path(tempfile.mkdtemp()))
+        for candidate in ("cache/out", "cache/out/parity"):
+            with self.subTest(candidate), self.assertRaises(Refused):
+                store.resolve_working(candidate, self.base)
+
+    def test_a_link_under_cache_that_stays_inside_it_is_accepted(self):
+        (self.base / "cache" / "parity").mkdir(parents=True)
+        self._link(self.base / "cache" / "alias", self.base / "cache" / "parity")
+        self.assertEqual(store.resolve_working("cache/alias/base", self.base),
+                         self.base / "cache/alias/base")
+
+    def _link(self, link: Path, target: Path) -> Path:
+        """Make a directory link, or skip the case where the platform will not make one."""
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError) as failure:
+            self.skipTest(f"cannot make a directory link: {failure}")
+        return link
+
 
 class ProductionIsReadOnly(unittest.TestCase):
     """Only parityPromote writes a baseline."""
