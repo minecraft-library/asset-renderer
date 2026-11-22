@@ -141,10 +141,22 @@ tasks.withType<JavaExec>().configureEach {
     forwardAssetProperties()
 }
 
+// Two repositories, each asked only for what it serves. JitPack builds whatever GitHub repository a
+// coordinate names, so it has an answer for any group it is asked about; it is asked about the
+// three organisations whose libraries are pinned below and nothing else, and those three are looked
+// up nowhere else. Everything those libraries bring in transitively is on Maven Central. A new
+// JitPack dependency from another organisation needs its group added here, and to the same block
+// in tooling/build.gradle.kts.
 repositories {
     mavenCentral()
-    maven(url = "https://central.sonatype.com/repository/maven-snapshots")
-    maven(url = "https://jitpack.io")
+    exclusiveContent {
+        forRepository { maven(url = "https://jitpack.io") }
+        filter {
+            includeGroup("com.github.simplified-dev")
+            includeGroup("com.github.simplified-api")
+            includeGroup("com.github.minecraft-library")
+        }
+    }
 }
 
 dependencies {

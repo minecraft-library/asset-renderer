@@ -44,3 +44,11 @@ script keeps and the order it applies the other three in. Indexed from
   copy the four wrapper files over the harness's, which keeps a set of its own because it is a
   build of its own. `gradlew` is committed executable in both, and has to be: the root build starts
   the harness's by path.
+- Two repositories, each asked only for what it serves. Maven Central carries everything but the
+  JitPack-built libraries. JitPack is held by `exclusiveContent` to the three groups this build
+  pins - `com.github.simplified-dev`, `com.github.simplified-api` and
+  `com.github.minecraft-library` - and those groups are looked up nowhere else. The filter is a
+  list of whole group names and not a `com.github.*` pattern, because Maven Central has groups
+  under that prefix too, Caffeine's among them, and a pattern would send those to JitPack. The
+  block is written twice, in `build.gradle.kts` and in `tooling/build.gradle.kts`, so a dependency
+  from a fourth organisation is a line in both.
