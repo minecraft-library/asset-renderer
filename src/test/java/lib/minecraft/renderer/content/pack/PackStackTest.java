@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -105,6 +106,40 @@ class PackStackTest {
         ResolvedTexture resolved = stack.resolveIn(PackId.VANILLA, new ResourceId("minecraft", "x")).orElseThrow();
         assertThat(resolved.path(), is("ov_late/" + rel));
         assertThat(new String(resolved.bytes(), StandardCharsets.UTF_8), is("late"));
+    }
+
+    @Test
+    @DisplayName("a pack-prefixed texture id that climbs out of the textures directory resolves to nothing, whatever the pack is stored as")
+    void packPrefixedIdStaysUnderTextures(@TempDir Path dir) throws IOException {
+        Path root = dir.resolve("pack");
+        write(root.resolve("assets/minecraft/textures/block/x.png"), "texture");
+        write(root.resolve("assets/minecraft/models/y.png"), "not a texture");
+        write(dir.resolve("beside.png"), "not the pack's");
+
+        // "vanilla" is a loaded pack id and no namespace, so the dispatch probes the pack for the id's path.
+        PackStack onDisk = stackOf(new PackContainer.Directory(root));
+        assertThat(onDisk.resolve(new ResourceId("vanilla", "block/x")).orElseThrow().path(), is("assets/minecraft/textures/block/x.png"));
+        for (String path : new String[] { "../../../../beside", "../models/y", "block/../../models/y", "block/x\0" }) {
+            assertThat(path, onDisk.resolve(new ResourceId("vanilla", path)), is(Optional.empty()));
+            assertThat(path, onDisk.resolveIn(PackId.VANILLA, new ResourceId("minecraft", path)), is(Optional.empty()));
+        }
+
+        // An archive looks a path up as a key, and a key spelled with a parent segment is refused the same way.
+        PackStack archived = stackOf(PackContainer.Live.of(dir.resolve("pack.zip"), Map.of(
+            "assets/minecraft/textures/block/x.png", new byte[0],
+            "assets/minecraft/textures/../models/y.png", new byte[0])));
+        assertThat(archived.resolve(new ResourceId("vanilla", "block/x")).isPresent(), is(true));
+        assertThat(archived.resolve(new ResourceId("vanilla", "../models/y")), is(Optional.empty()));
+    }
+
+    private static PackStack stackOf(PackContainer container) {
+        ConcurrentList<PackRoot> roots = Concurrent.newList();
+        roots.add(PackRoot.BASE);
+        ConcurrentList<ResourcePack> ascending = Concurrent.newList();
+        ascending.add(new ResourcePack(PackId.VANILLA, container, MCMeta.EMPTY, roots.toUnmodifiable(),
+                                       Concurrent.newUnmodifiableTreeSet("minecraft"),
+                                       Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE)));
+        return PackStack.of(ascending.toUnmodifiable());
     }
 
     private static void write(Path file, String content) throws IOException {

@@ -4,22 +4,27 @@ import lib.minecraft.renderer.exception.ContentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.opentest4j.TestAbortedException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -123,6 +128,77 @@ class PackContainerTest {
         assertThat(container.exists("assets/x.txt"), is(true));
         assertThat(container.exists("nope.txt"), is(false));
         assertThat(new String(container.bytes("assets/x.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
+    }
+
+    @Test
+    @DisplayName("a directory answers a path that is no entry path as absent, and raises nothing")
+    void directoryServesOnlyEntryPaths(@TempDir Path dir) throws IOException {
+        Path pack = dir.resolve("pack");
+        Files.createDirectories(pack.resolve("assets"));
+        Files.writeString(pack.resolve("assets/x.txt"), "X");
+        Files.writeString(pack.resolve("pack.mcmeta"), "{}");
+        Files.createDirectories(dir.resolve("beside"));
+        Files.writeString(dir.resolve("beside/y.txt"), "Y");
+        String rooted = dir.resolve("beside/y.txt").toAbsolutePath().toString().replace('\\', '/');
+
+        PackContainer container = PackContainer.detect(pack);
+        List<String> refused = List.of("../beside/y.txt", "assets/../../beside/y.txt", "assets/../pack.mcmeta", "assets/..",
+                                       "/", "assets\\x.txt", "assets/x.txt\0");
+        for (String path : refused)
+            assertThat(path, PackContainer.isEntryPath(path), is(false));
+        // A rooted path is refused however the platform spells its root.
+        for (String path : Stream.concat(refused.stream(), Stream.of(rooted)).toList()) {
+            assertThat(path, container.bytes(path), is(Optional.empty()));
+            assertThat(path, container.exists(path), is(false));
+        }
+        for (String prefix : List.of("..", "../beside", "assets/..", "assets/../..", "/", rooted.substring(0, rooted.lastIndexOf('/')), "assets\0"))
+            assertThat(prefix, container.entries(prefix).toList(), is(empty()));
+
+        // A name that only starts or ends with dots is a name like any other, and what the pack holds reads as it did.
+        Files.createDirectories(pack.resolve("assets/..hidden"));
+        Files.writeString(pack.resolve("assets/..hidden/z..txt"), "Z");
+        assertThat(PackContainer.isEntryPath("assets/..hidden/z..txt"), is(true));
+        assertThat(container.exists("assets/..hidden/z..txt"), is(true));
+        assertThat(container.entries("assets").toList(), containsInAnyOrder("assets/x.txt", "assets/..hidden/z..txt"));
+        assertThat(container.entries("").toList(), containsInAnyOrder("pack.mcmeta", "assets/x.txt", "assets/..hidden/z..txt"));
+    }
+
+    @Test
+    @DisplayName("a directory serves a link that stays under its root, and answers one that leaves it as absent")
+    void directoryFollowsNoLinkOutOfItsRoot(@TempDir Path dir) throws IOException {
+        Path pack = dir.resolve("pack");
+        Files.createDirectories(pack.resolve("assets/real/sub"));
+        Files.writeString(pack.resolve("assets/real/x.txt"), "X");
+        Files.writeString(pack.resolve("assets/real/sub/w.txt"), "W");
+        Path beside = dir.resolve("beside");
+        Files.createDirectories(beside.resolve("sub"));
+        Files.writeString(beside.resolve("y.txt"), "Y");
+        Files.writeString(beside.resolve("sub/z.txt"), "Z");
+        link(pack.resolve("assets/inside.txt"), pack.resolve("assets/real/x.txt"));
+        link(pack.resolve("assets/inside"), pack.resolve("assets/real"));
+        link(pack.resolve("assets/outside.txt"), beside.resolve("y.txt"));
+        link(pack.resolve("assets/outside"), beside);
+
+        PackContainer container = new PackContainer.Directory(pack);
+        assertThat(new String(container.bytes("assets/inside.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
+        assertThat(new String(container.bytes("assets/inside/x.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
+        assertThat(container.exists("assets/inside/sub/w.txt"), is(true));
+        assertThat(container.entries("assets/inside/sub").toList(), equalTo(List.of("assets/inside/sub/w.txt")));
+
+        assertThat(container.bytes("assets/outside.txt"), is(Optional.empty()));
+        assertThat(container.exists("assets/outside.txt"), is(false));
+        assertThat(container.bytes("assets/outside/y.txt"), is(Optional.empty()));
+        assertThat(container.exists("assets/outside/y.txt"), is(false));
+        assertThat(container.entries("assets/outside/sub").toList(), is(empty()));
+        assertThat("a listing names the link that stays inside and not the one that leaves",
+            container.entries("assets").toList(), containsInAnyOrder("assets/real/x.txt", "assets/real/sub/w.txt", "assets/inside.txt"));
+
+        // A root that is itself reached through a link is still the root.
+        link(dir.resolve("linked"), pack);
+        PackContainer linked = new PackContainer.Directory(dir.resolve("linked"));
+        assertThat(new String(linked.bytes("assets/real/x.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("X"));
+        assertThat(linked.entries("assets/real/sub").toList(), equalTo(List.of("assets/real/sub/w.txt")));
+        assertThat(linked.exists("assets/outside.txt"), is(false));
     }
 
     @Test
@@ -258,6 +334,15 @@ class PackContainerTest {
             gz.write(raw);
         }
         return out.toByteArray();
+    }
+
+    /** Makes a symbolic link, abandoning the test on a platform, or for a user, that may not make one. */
+    private static void link(Path link, Path target) throws IOException {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | FileSystemException ex) {
+            throw new TestAbortedException("symbolic links cannot be made here", ex);
+        }
     }
 
     private static void writeZip(Path zip, String name1, byte[] content1, String name2, byte[] content2) throws IOException {

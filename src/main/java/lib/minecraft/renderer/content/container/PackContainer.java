@@ -5,8 +5,11 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Map;
@@ -18,7 +21,7 @@ import java.util.zip.ZipFile;
 /**
  * Read-only access to one pack's files, whatever the pack is stored as - the two questions every pack
  * reader asks, "what entries exist" and "give me these bytes". Paths are always {@code /}-separated and
- * relative to the pack root with no leading slash.
+ * relative to the pack root with no leading slash; {@link #isEntryPath} is the test of one.
  *
  * <p>Four kinds of storage answer them: an exploded {@link Directory}, a zip held whole in memory
  * ({@link Live}), a Catharsis {@link Cats} archive (a bare {@code .cats} or a {@code .cats.zip} that
@@ -113,7 +116,32 @@ public sealed interface PackContainer
     }
 
     /**
-     * An exploded pack directory on disk.
+     * Whether a string can be the path of an entry or the prefix of a directory: relative to the pack
+     * root, climbing through no {@code ..} segment, and holding neither a backslash, which one platform
+     * reads as a separator, nor a NUL, which none can spell.
+     *
+     * <p>The three archive kinds look a path up as a key, so a string that fails this is only a key
+     * they do not hold. A {@link Directory} resolves a path against the file system, where the same
+     * string would name a file the pack does not own, so it answers one as absent. A caller joining
+     * text a pack or a request wrote into a path asks this before it reads.
+     *
+     * @param path the string to test
+     * @return {@code true} when the string names a place inside a pack
+     */
+    static boolean isEntryPath(@NotNull String path) {
+        if (path.startsWith("/") || path.indexOf('\\') >= 0 || path.indexOf('\0') >= 0) return false;
+        return !(path.equals("..") || path.startsWith("../") || path.endsWith("/..") || path.contains("/../"));
+    }
+
+    /**
+     * An exploded pack directory on disk, which serves the files under its root and no others.
+     *
+     * <p>A path is refused before the disk is asked where it is not an {@linkplain #isEntryPath entry
+     * path}, or where the platform reads it as rooted or cannot spell it. A file that is found is served
+     * only where it really lies under the root once every link on the way to it is followed, so a link
+     * inside the pack that leads out of it names nothing, as the client itself turns away a pack
+     * directory holding a link it has not been told to trust. A link that stays inside the root, and a
+     * root that is itself reached through one, read as they did.
      *
      * @param root the pack root directory
      */
@@ -122,34 +150,82 @@ public sealed interface PackContainer
         /** {@inheritDoc} */
         @Override
         public @NotNull Optional<byte[]> bytes(@NotNull String path) {
-            Path file = this.root.resolve(path);
-            if (!Files.isRegularFile(file)) return Optional.empty();
+            Optional<Path> file = this.locate(path).filter(Files::isRegularFile).filter(this::isWithinRoot);
+            if (file.isEmpty()) return Optional.empty();
             try {
-                return Optional.of(Files.readAllBytes(file));
+                return Optional.of(Files.readAllBytes(file.get()));
             } catch (IOException ex) {
-                throw new ContentException(ex, "Failed to read '%s'", file);
+                throw new ContentException(ex, "Failed to read '%s'", file.get());
             }
         }
 
         /** {@inheritDoc} */
         @Override
         public @NotNull Stream<String> entries(@NotNull String prefix) {
-            Path base = this.root.resolve(prefix);
-            if (!Files.isDirectory(base)) return Stream.empty();
-            try (Stream<Path> walk = Files.walk(base)) {
-                return walk.filter(Files::isRegularFile)
-                    .map(p -> this.root.relativize(p).toString().replace('\\', '/'))
+            Optional<Path> base = this.locate(prefix).filter(Files::isDirectory).filter(this::isWithinRoot);
+            if (base.isEmpty()) return Stream.empty();
+            // The walk follows no link, so every file it reaches below a base inside the root is inside
+            // the root too, and only a link among them has to be asked where it leads.
+            try (Stream<Path> walk = Files.find(base.get(), Integer.MAX_VALUE, this::isEntry)) {
+                return walk.map(p -> this.root.relativize(p).toString().replace('\\', '/'))
                     .toList()
                     .stream();
             } catch (IOException ex) {
-                throw new ContentException(ex, "Failed to enumerate '%s'", base);
+                throw new ContentException(ex, "Failed to enumerate '%s'", base.get());
+            } catch (UncheckedIOException ex) {
+                // A directory the walk cannot open part-way raises unchecked, out of the stream.
+                throw new ContentException(ex.getCause(), "Failed to enumerate '%s'", base.get());
             }
         }
 
         /** {@inheritDoc} */
         @Override
         public boolean exists(@NotNull String path) {
-            return Files.isRegularFile(this.root.resolve(path));
+            return this.locate(path).filter(Files::isRegularFile).filter(this::isWithinRoot).isPresent();
+        }
+
+        /**
+         * The place under the root a path names, read off the string alone with nothing on disk asked.
+         *
+         * @param path the entry path or directory prefix
+         * @return the place, or empty where the string is no entry path, or is one the platform reads as
+         *     rooted - a drive, on the platform that has them - or cannot spell
+         */
+        private @NotNull Optional<Path> locate(@NotNull String path) {
+            if (!isEntryPath(path)) return Optional.empty();
+            try {
+                Path relative = this.root.getFileSystem().getPath(path);
+                return relative.getRoot() == null ? Optional.of(this.root.resolve(relative)) : Optional.empty();
+            } catch (InvalidPathException ex) {
+                return Optional.empty();
+            }
+        }
+
+        /**
+         * Whether a place that exists really lies under the root, every link on the way to each followed.
+         *
+         * @param located a place {@link #locate} answered
+         * @return {@code true} when it lies under the root; {@code false} when a link leads it out, or
+         *     when either can no longer be resolved
+         */
+        private boolean isWithinRoot(@NotNull Path located) {
+            try {
+                return located.toRealPath().startsWith(this.root.toRealPath());
+            } catch (IOException ex) {
+                return false;
+            }
+        }
+
+        /**
+         * Whether the walk lists a path: a file of the tree itself, or a link to a file under the root.
+         *
+         * @param path the path the walk reached
+         * @param attributes its attributes, read without following a link
+         * @return {@code true} when the path is an entry
+         */
+        private boolean isEntry(@NotNull Path path, @NotNull BasicFileAttributes attributes) {
+            if (attributes.isRegularFile()) return true;
+            return attributes.isSymbolicLink() && Files.isRegularFile(path) && this.isWithinRoot(path);
         }
     }
 

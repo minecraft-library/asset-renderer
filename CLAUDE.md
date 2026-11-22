@@ -23,6 +23,7 @@ check it against source before honouring one.
 | `call/**` - the `*Options` bags, `RenderResult` and the composite results, `LayerSlot`; laying a finished render down (`BlendMode`); `ItemContext` and an item definition's walk; the `vanilla/appearance` vocabulary | [RequestsAndResults](docs/renderer/RequestsAndResults.md) |
 | `content/read` and `filter.block`; the `content/json` value adapters; a pack's text shader, `TextPaletteLoader` and `TextPalette`; a texture sidecar's sections, `MCMetaParser` | [PackContent](docs/renderer/PackContent.md) |
 | A lookup that can miss - the checkerboard, `Substitution`, the missing model, `MissingMesh`, `-PhideTextures` | [MissingTextures](docs/renderer/MissingTextures.md) |
+| `content/container` - `PackContainer`, how a `Directory` reads; an overlay directory's name; a texture id joined into a path | [PackPaths](docs/renderer/PackPaths.md) |
 | `Flipbook` and `.mcmeta` animation, `Timeline` and `SubTickLoop`, the `minecraft:time` clock | [Timelines](docs/renderer/Timelines.md) |
 | `engine/geometry` - `Face`, `CornerPhase`, `Unwrap`, `AxisSigns`, `Box`, `EulerRotation`; `BoxKit`, `BoneKit`, `HumanoidPart`; JOML factories; the order corners round in | [Geometry](docs/renderer/Geometry.md) |
 | `Projection`; `engine/light` - `LightingFrame`, `Shading`, the lighting fold; `Placement`; `Rasterizer.prepareFit`; the entity canvas and its family-fit pre-pass; a bounds walk; a canvas sized to its subject, a tooltip's, chat text's and a book page's included | [ProjectionAndFit](docs/renderer/ProjectionAndFit.md) |

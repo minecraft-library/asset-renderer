@@ -212,8 +212,8 @@ class PackAcquisitionTest {
         write(vanilla.resolve("assets/minecraft/textures/block/stone.png"), "png");
 
         Path user = dir.resolve("catpack");
-        // The condition holds (block.ore default on), but the directory carries a NUL char, so
-        // packRoot.resolve(directory) throws InvalidPathException - acquisition must degrade, not abort.
+        // The condition holds (block.ore default on), but the directory carries a NUL char, which no
+        // overlay name holds - the entry is skipped, and acquisition must degrade, not abort.
         write(user.resolve("pack.mcmeta"), "{\"pack\":{\"min_format\":69,\"max_format\":255},\"fabric:overlays\":{\"entries\":["
             + "{\"directory\":\"\\u0000bad\",\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"block.ore\",\"value\":\"on\"}}]}}");
         write(user.resolve("config.catharsis.json"), "[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]");
@@ -226,6 +226,52 @@ class PackAcquisitionTest {
         PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla)); // must not throw
         ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
         assertThat("illegal overlay directory is skipped, base root survives", catpack.roots(), contains(PackRoot.BASE));
+    }
+
+    @Test
+    @DisplayName("an overlay directory that is no name inside the pack activates nothing in either overlay family, and the entries beside it stand")
+    void overlayDirectoryStaysInsideThePack(@TempDir Path dir) throws IOException {
+        Path vanilla = dir.resolve("vanilla");
+        write(vanilla.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(vanilla.resolve("assets/minecraft/textures/block/stone.png"), "png");
+
+        // A directory beside the pack, which the pack does not own.
+        write(dir.resolve("packs/beside/assets/besidens/textures/block/stone.png"), "png");
+
+        Path user = dir.resolve("packs/catpack");
+        String holds = "\"condition\":{\"condition\":\"catharsis:config\",\"id\":\"block.ore\",\"value\":\"on\"}";
+        write(user.resolve("pack.mcmeta"), "{\"pack\":{\"min_format\":69,\"max_format\":255},"
+            + "\"overlays\":{\"entries\":["
+            + "{\"directory\":\"../beside\",\"min_format\":69,\"max_format\":255},"
+            + "{\"directory\":\"ov_format\",\"min_format\":69,\"max_format\":255}]},"
+            + "\"fabric:overlays\":{\"entries\":["
+            + "{\"directory\":\"../beside\"," + holds + "},"
+            + "{\"directory\":\"ov_config\"," + holds + "}]}}");
+        write(user.resolve("config.catharsis.json"), "[{\"type\":\"boolean\",\"id\":\"block.ore\",\"default\":true}]");
+        write(user.resolve("assets/skyblock/items/foo.json"), "{}");
+        write(user.resolve("ov_format/assets/minecraft/textures/block/stone.png"), "png");
+        write(user.resolve("ov_config/assets/minecraft/textures/block/stone.png"), "png");
+
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(user.toFile())))
+            .build();
+        PrintStream original = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+        PackStack stack;
+        try {
+            stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
+        } finally {
+            System.setErr(original);
+        }
+        ResourcePack catpack = stack.byId(new PackId("catpack")).orElseThrow();
+
+        assertThat(catpack.roots(), contains(PackRoot.BASE, PackRoot.overlay("ov_format"), PackRoot.overlay("ov_config")));
+        assertThat(catpack.namespaces(), containsInAnyOrder("minecraft", "skyblock"));
+        assertThat(stack.textureIndex().keySet().stream().map(ResourceId::namespace).distinct().toList(), contains("minecraft"));
+        assertThat("each refused entry is reported", captured.toString(StandardCharsets.UTF_8),
+            allOf(containsString("skipping overlay entry whose directory"), containsString("skipping Catharsis overlay whose directory")));
     }
 
     /** The 26.1 text program's file, under the {@code minecraft} namespace. */
