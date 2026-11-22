@@ -270,6 +270,7 @@ public final class EntityRenderDriver {
                     .collect(Collectors.joining("-")))
                 + equipmentColorName.map(n -> "_equipdye-" + n.toLowerCase(Locale.ROOT)).orElse("")
                 + age.map(a -> "_" + a).orElse("");
+            File out = OutputFiles.inside(OUTPUT_DIR, safeName + ".png").toFile();
             AppearanceOptions appearance = AppearanceOptions.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
@@ -305,7 +306,6 @@ public final class EntityRenderDriver {
             long perT0 = System.nanoTime();
             try {
                 ImageData image = renderer.render(options).image();
-                File out = OUTPUT_DIR.resolve(safeName + ".png").toFile();
                 ImageFactory.toFile(image, ImageFormat.PNG, out);
 
                 long elapsedMs = (System.nanoTime() - perT0) / 1_000_000L;

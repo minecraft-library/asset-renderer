@@ -417,30 +417,60 @@ val parityTriggerRoots: FileCollection = files(
     fileTree("harness") { exclude(parityWalkSkips) }
 )
 
+// What a working root may be spelled as, once its separators are forward slashes: `cache`, then one
+// or more plain directory names. A name is letters, digits, `.`, `_` and `-` and holds at least one
+// character that is not a dot, so no segment is a parent reference and `cache` alone does not pass.
+// `ParityStore.WORKING_ROOT_RULE` is the same expression on the Java side, and ParityTaskWiringTest
+// holds the two to each other.
+val parityWorkingRootRule = Regex("cache(/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*)+")
+
 /**
- * Refuses a working root a `cache/` clean would not reach.
+ * Refuses a working root that is not a directory of its own inside `cache/`.
  *
  * A redirected root must stay relative and under `cache/`, so a temporary capture can never be
  * written into a tracked directory and always dies with a cache clean. That is what makes long-lived
- * temp output unrepresentable rather than merely discouraged.
+ * temp output unrepresentable rather than merely discouraged. It must also stay there however it is
+ * spelled: a capture opens by erasing its root, so a root that starts with `cache/` and climbs back
+ * out, or that is `cache` itself, names something a capture has no business erasing.
  *
  * It is a pure string test on purpose - nothing here resolves a path, so nothing here can resolve one
  * against the JVM's working directory - and it is called from each parity task's configuration block
  * rather than at the top level, so a malformed -PparityRoot fails the parity tasks and not
- * `./gradlew test`.
+ * `./gradlew test`. The toolkit holds the same root again where the erase happens, and resolves the
+ * links on the way to it, which a string cannot.
  */
 fun requireParityRootUnderCache() {
     val normalized = parityWorkingRoot.replace('\\', '/')
-    val absolute = normalized.startsWith("/") || normalized.matches(Regex("^[A-Za-z]:/.*"))
-    require(!absolute && normalized.startsWith("cache/")) {
-        "-PparityRoot must be a relative path under cache/ (got '$parityWorkingRoot')"
+    require(parityWorkingRootRule.matches(normalized)) {
+        "-PparityRoot must be cache/ followed by plain directory names - letters, digits, '.', '_' " +
+            "and '-', with no parent reference (got '$parityWorkingRoot')"
     }
 }
+
+// What -Plabel may be: one plain directory name, by the rule a working root's segments follow. The
+// label names the directory `parityDump` erases before it writes, so it is held to a single segment
+// that cannot name anything outside cache/parity-dump/. `PipelineParityDump.LABEL_RULE` is the same
+// expression on the Java side, and ParityTaskWiringTest holds the two to each other.
+val parityDumpLabelRule = Regex("[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*")
 
 // -Plabel keeps its meaning and its blank-check: a valueless -Plabel arrives as "" rather than null,
 // which would write the dump to cache/parity-dump//.
 val parityDumpLabel: String =
     (project.findProperty("label") as String?)?.takeIf { it.isNotBlank() } ?: "head"
+
+/**
+ * Refuses a dump label that is not one plain directory name.
+ *
+ * Called from the configuration block of each task that turns the label into a path, for the reason
+ * [requireParityRootUnderCache] is: `stackCountBadge` reads a `-Plabel` of its own, and a label this
+ * rule refuses must fail the dump and not every task typed beside it.
+ */
+fun requireParityDumpLabel() {
+    require(parityDumpLabelRule.matches(parityDumpLabel)) {
+        "-Plabel must be one plain directory name - letters, digits, '.', '_' and '-', and not " +
+            "'.' or '..' (got '$parityDumpLabel')"
+    }
+}
 
 // ---- the Minecraft version, and the reference tree it names -------------------------------------
 // ONE owner for the version segment of the reference tree path, which this file used to hardcode
@@ -1102,6 +1132,10 @@ fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
     val step = register<Exec>(parityCaptureTaskName(spec.artifact)) {
         // No group: these are finalizers, not an entry point. The group = "parity" tasks are.
         description = "Captures ${spec.artifact} from ${spec.source} into the parity working root."
+        // A step erases the root when no capture is open over it, so it holds the root as the erase
+        // does; and a dump row reads the tree the label names, so it takes the label's rule with it.
+        requireParityRootUnderCache()
+        if ("parityDump" in spec.producers) requireParityDumpLabel()
         // Which of this row's producers FAILED, appended where the answer exists: an outcome is not
         // known while the graph is being configured. A step is a finalizer, so it runs whether or not
         // the producer it follows succeeded - and read off a failed producer's output it refuses on
@@ -1364,6 +1398,8 @@ tasks {
         group = "verification"
         mainClass.set("lib.minecraft.renderer.dump.PipelineParityDump")
         classpath = sourceSets["visual"].runtimeClasspath
+        // Before anything below turns the label into a directory to erase.
+        requireParityDumpLabel()
         // parityDumpLabel carries the blank-check a valueless -Plabel needs: it arrives as ""
         // rather than null, which would write the dump to cache/parity-dump//.
         args = listOf(parityDumpLabel)
@@ -1581,6 +1617,7 @@ tasks {
             "runs it, and boots the client only where it disagrees."
         dependsOn("entityScheduleRoster")
         mustRunAfter(parityCaptureBeginTask)
+        requireParityRootUnderCache()
         // And after every narrow run writing the tree, which rewrites what the check reads - a
         // sidecar, the record - while it boots. The whole-tree run waits on this check instead.
         mustRunAfter(harnessRunTrees.filterValues { it == parityReferencesArtifact }.keys - "renderVanillaAllReferences")
@@ -1800,6 +1837,8 @@ tasks {
         // that ran last - and because it has to happen BEFORE every producer, since the rows whose
         // source is the working root are written into it from inside the test JVM.
         description = "Erases the parity working root and opens a capture. Ordered before every producer."
+        // The erase itself, so it holds the root whether parityCapture asked for it or a command line did.
+        requireParityRootUnderCache()
         // And after the registration, which is the one edge that orders the WHOLE capture chain -
         // every producer and every step is already ordered after this task. The erase spares the
         // expected-diff, so either order leaves the manifest intact and this buys no correctness;

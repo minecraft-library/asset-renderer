@@ -72,6 +72,15 @@ class PipelineParityDumpTest {
     private static final String UNKNOWN = "minecraft:definitely_not_a_real_id";
 
     @Test
+    @DisplayName("a label is one plain directory name, which is all the dump's own directory can be")
+    void aLabelIsOnePlainDirectoryName() {
+        for (String label : List.of("head", "base", "phase-2", "a.b_c", "0"))
+            assertThat(label, PipelineParityDump.requireLabel(label), is(label));
+        for (String label : List.of("", ".", "..", "a/b", "../a", "a\\b", "/a", "a b", "a:b"))
+            assertThrows(IllegalArgumentException.class, () -> PipelineParityDump.requireLabel(label), label);
+    }
+
+    @Test
     @DisplayName("the blocks and items sections write an id that draws nothing as its state alone")
     void anIdDrawingNothingIsWrittenAsItsState() {
         RendererContext context = listing(DRAWS_NOTHING);

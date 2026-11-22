@@ -93,7 +93,7 @@ public final class EntityProjectionsDriver {
         EntityRenderer renderer = new EntityRenderer(context);
 
         String safe = entityId.replace(':', '_');
-        Path cellDir = OUTPUT_DIR.resolve(safe);
+        Path cellDir = OutputFiles.inside(OUTPUT_DIR, safe);
         Files.createDirectories(cellDir);
 
         System.out.printf("Entity projections for %s under %d projections at %dx%d%n",

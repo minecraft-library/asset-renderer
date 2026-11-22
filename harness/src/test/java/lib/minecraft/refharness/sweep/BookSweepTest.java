@@ -55,6 +55,15 @@ class BookSweepTest {
     }
 
     @Test
+    @DisplayName("a subject whose key is not one file name is refused")
+    void aKeyThatIsNotOneFileNameIsRefused() {
+        for (String key : List.of("", "..", "a/b", "a\\\\b")) {
+            assertThrows(IllegalArgumentException.class,
+                () -> BookSweep.entries(roster("1", "{\"key\": \"" + key + "\"}"), FILE), key);
+        }
+    }
+
+    @Test
     @DisplayName("a roster listing no subjects, or a subject carrying no key, is refused")
     void malformedSubjectsAreRefused() {
         assertThrows(IllegalStateException.class,

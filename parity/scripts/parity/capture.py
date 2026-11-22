@@ -102,8 +102,38 @@ TOOLKIT = Path(__file__).resolve().parent
 UNPRODUCED_DIR = "unproduced"
 
 
+def checkout_held(root: Path, toolkit: Path = TOOLKIT) -> str | None:
+    """Why a root is a checkout rather than a capture, or None when nothing says it is.
+
+    ``store.resolve_working`` is what keeps a working root inside ``cache/``, and every command
+    reaches the erase through it. This is the erase's own answer for a caller that did not. It reads
+    two signs off the directory itself, neither of which a capture can show: a root holding ``.git``
+    is a checkout or a linked worktree, and a root this package sits under is the checkout the
+    toolkit is running from, or a directory above it.
+
+    :param root: the directory about to be erased
+    :param toolkit: the package directory the second sign is read against
+    :return: the reason to refuse, or None
+    """
+    landed = root.resolve()
+    marker = landed / ".git"
+    if marker.exists() or marker.is_symlink():
+        return f"{landed} holds .git, so it is a checkout and not a capture"
+    home = toolkit.resolve()
+    if landed == home or landed in home.parents:
+        return f"{landed} holds the toolkit itself at {home}, so it is not a capture"
+    return None
+
+
 def wipe(root: Path) -> None:
-    """Erase everything under the root except the exempt files."""
+    """Erase everything under the root except the exempt files.
+
+    :param root: the working root
+    :raises Refused: if the root is a checkout or holds the toolkit - see :func:`checkout_held`
+    """
+    held = checkout_held(root)
+    if held is not None:
+        raise Refused(f"refusing to erase a working root: {held}")
     if not root.exists():
         root.mkdir(parents=True, exist_ok=True)
         return

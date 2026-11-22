@@ -7,6 +7,7 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.driver.OutputFiles;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
@@ -149,8 +150,8 @@ public final class ItemParitySweep {
      * @return the comparison row, its delta {@code POSITIVE_INFINITY} on failure
      */
     private static @NotNull Row renderAndCompare(@NotNull String itemId, @NotNull ItemRenderer javaRenderer) {
-        Path itemDir = OUTPUT_DIR.resolve(itemId.replace(':', '_'));
         try {
+            Path itemDir = OutputFiles.inside(OUTPUT_DIR, itemId.replace(':', '_'));
             Files.createDirectories(itemDir);
             Path vanillaPng = SweepPair.reference(VANILLA_DIR, itemId);
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());

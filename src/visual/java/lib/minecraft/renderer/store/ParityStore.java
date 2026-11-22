@@ -34,8 +34,18 @@ public final class ParityStore {
     /** The tracked production store: the last known value of every parity artifact. */
     public static final @NotNull Path PRODUCTION = Path.of("src/test/resources/lib/minecraft/renderer/parity");
 
+    /**
+     * What a working root may be spelled as, once its separators are forward slashes: {@code cache},
+     * then one or more plain directory names.
+     *
+     * <p>A name is letters, digits, {@code .}, {@code _} and {@code -} and holds at least one
+     * character that is not a dot, so no segment is a parent reference and {@code cache} alone does
+     * not pass. The build spells the same expression as {@code parityWorkingRootRule}.
+     */
+    public static final @NotNull String WORKING_ROOT_RULE = "cache(/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*)+";
+
     /** The gitignored working root a measurement writes into, overridable by {@code -Dasset.parity.root}. */
-    public static final @NotNull Path WORKING = resolveWorking();
+    public static final @NotNull Path WORKING = resolveWorking(System.getProperty("asset.parity.root", "cache/parity/current"));
 
     /** The one reserved directory inside a working root; everything that is not an artifact lives here. */
     public static final @NotNull String RUN_DIR = "_run";
@@ -208,23 +218,23 @@ public final class ParityStore {
     }
 
     /**
-     * Resolves the working root and refuses one a `cache/` clean would not reach.
+     * Resolves a working root and refuses one that is not a directory of its own inside `cache/`.
      *
      * <p>The Gradle side applies the same rule at configuration time, but a `-Dasset.parity.root`
      * can reach a fork by another route, so the guard is repeated where the value is actually used.
      * A root that is absolute, or outside `cache/`, could hold a capture that outlives a clean and
-     * could be committed; both are what single-slot exists to make unrepresentable.
+     * could be committed; both are what single-slot exists to make unrepresentable. A root spelled
+     * under `cache/` that climbs back out of it is refused for the same reason and one more: a
+     * capture erases its root, and a self-captured row is written into it from here.
      *
+     * @param root the root as it was given
      * @return the resolved working root
-     * @throws ParityStoreException if the root escapes `cache/`
+     * @throws ParityStoreException if the root does not match {@link #WORKING_ROOT_RULE}
      */
-    private static @NotNull Path resolveWorking() {
-        String root = System.getProperty("asset.parity.root", "cache/parity/current");
-        String normalized = root.replace('\\', '/');
-        boolean absolute = normalized.startsWith("/") || normalized.matches("^[A-Za-z]:/.*");
-        if (absolute || !normalized.startsWith("cache/"))
+    static @NotNull Path resolveWorking(@NotNull String root) {
+        if (!root.replace('\\', '/').matches(WORKING_ROOT_RULE))
             throw new ParityStoreException(
-                "asset.parity.root must be a relative path under cache/ (got '%s')", root);
+                "asset.parity.root must be cache/ followed by plain directory names, with no parent reference (got '%s')", root);
         return Path.of(root);
     }
 

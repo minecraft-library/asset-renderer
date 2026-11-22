@@ -4146,6 +4146,18 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/driver/OutputFiles": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.block",
+        "sweep.item"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/driver/OutputFilesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/driver/PlayerRenderDriver": {
       "artifacts": [
         "manifest.player-sheets"
@@ -6088,6 +6100,10 @@
         "sweep.tooltip",
         "sweep.tooltip-hypixel-skyblock"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/store/ParityStoreWorkingRootTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/store/PinSet": {

@@ -87,6 +87,54 @@ class Wipe(unittest.TestCase):
         self.assertTrue(fresh.is_dir())
 
 
+class WipeRefusesACheckout(unittest.TestCase):
+    """The erase's own hold, for a caller that reached it past the working root's guard.
+
+    Every case builds the checkout it refuses out of scratch files, and reads the toolkit's place
+    against a scratch stand-in for the package rather than against the package itself.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()) / "checkout"
+        write_text(self.root / "README.md", "kept")
+        write_text(self.root / "src" / "Thing.java", "kept")
+
+    def _files(self) -> list[str]:
+        return sorted(path.relative_to(self.root).as_posix()
+                      for path in self.root.rglob("*") if path.is_file())
+
+    def test_a_root_holding_a_git_directory_is_refused_and_left_whole(self):
+        write_text(self.root / ".git" / "HEAD", "ref: refs/heads/scratch")
+        with self.assertRaises(Refused):
+            capture.wipe(self.root)
+        self.assertEqual(self._files(), [".git/HEAD", "README.md", "src/Thing.java"])
+
+    def test_a_linked_worktree_keeps_git_as_a_file_and_is_refused_the_same(self):
+        write_text(self.root / ".git", "gitdir: elsewhere")
+        with self.assertRaises(Refused):
+            capture.begin(self.root)
+        self.assertEqual(self._files(), [".git", "README.md", "src/Thing.java"])
+
+    def test_a_capture_step_reaching_a_checkout_is_refused_too(self):
+        write_text(self.root / ".git" / "HEAD", "ref: refs/heads/scratch")
+        with self.assertRaises(Refused):
+            capture.join_or_begin(self.root)
+        self.assertEqual(self._files(), [".git/HEAD", "README.md", "src/Thing.java"])
+
+    def test_a_root_the_toolkit_sits_under_is_named(self):
+        toolkit = self.root / "parity" / "scripts" / "parity"
+        toolkit.mkdir(parents=True)
+        for held in (self.root, self.root / "parity", toolkit):
+            with self.subTest(held):
+                self.assertIsNotNone(capture.checkout_held(held, toolkit))
+
+    def test_a_root_beside_the_toolkit_is_not(self):
+        toolkit = self.root / "parity" / "scripts" / "parity"
+        toolkit.mkdir(parents=True)
+        self.assertIsNone(capture.checkout_held(self.root / "cache" / "parity" / "current", toolkit))
+        self.assertIsNone(capture.checkout_held(self.root / "src", toolkit))
+
+
 class OncePerInvocation(unittest.TestCase):
     """The erase happens once per capture invocation, however many rows that invocation names.
 

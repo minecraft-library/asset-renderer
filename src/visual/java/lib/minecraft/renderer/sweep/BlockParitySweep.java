@@ -14,6 +14,7 @@ import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.driver.OutputFiles;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
@@ -173,8 +174,8 @@ public final class BlockParitySweep {
         @NotNull BlockRenderer javaRenderer,
         @NotNull ItemRenderer iconRenderer
     ) {
-        Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_').replace('=', '_'));
         try {
+            Path blockDir = OutputFiles.inside(OUTPUT_DIR, blockId.replace(':', '_').replace('=', '_'));
             Files.createDirectories(blockDir);
             Path vanillaPng = SweepPair.reference(VANILLA_DIR, blockId);
             BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());

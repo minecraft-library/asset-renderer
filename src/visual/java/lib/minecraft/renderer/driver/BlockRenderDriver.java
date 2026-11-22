@@ -118,6 +118,7 @@ public final class BlockRenderDriver {
                 blockId = blockSpec;
             }
             String safeName = blockId.replace(":", "_");
+            File outputFile = OutputFiles.inside(outputDir, safeName + ".png").toFile();
 
             BlockOptions options = BlockOptions.builder()
                 .blockId(blockId)
@@ -134,7 +135,6 @@ public final class BlockRenderDriver {
                 variant.isEmpty() ? "" : "[" + variant + "]", size, size, ssaa);
             try {
                 ImageData image = renderer.render(options).image();
-                File outputFile = outputDir.resolve(safeName + ".png").toFile();
                 ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
             } catch (Exception ex) {
@@ -154,7 +154,7 @@ public final class BlockRenderDriver {
                             .build())
                         .build();
                     ImageData faceImage = renderer.render(faceOpt).image();
-                    File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();
+                    File faceFile = OutputFiles.inside(outputDir, safeName + "_" + face.direction() + ".png").toFile();
                     ImageFactory.toFile(faceImage, ImageFormat.PNG, faceFile);
                 } catch (Exception ex) {
                     System.err.println("  Failed 2D " + face + ": " + ex.getMessage());

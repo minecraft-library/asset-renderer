@@ -39,7 +39,10 @@ Accepted by every command, on either side of the subcommand.
 There is **no `--slot`**. The working root is a path, and an A/B before-side is a redirected root
 (`--root cache/parity/base`) rather than a second name the package knows. The root must be
 **relative and under `cache/`**, which is what makes a long-lived temp capture unrepresentable
-rather than merely discouraged.
+rather than merely discouraged. Under `cache/` means where the root lands and not how it is
+spelled: `capture-begin` erases every child of it, so a parent reference is refused outright, and
+the root has to resolve - through any link on the way - strictly inside the repository's own
+`cache` directory. `cache` itself is refused, and so is a `cache` that is a link to somewhere else.
 
 **stdout carries the answer and nothing else.** Progress, warnings and diagnostics go to stderr and
 never to stdout, so `python parity/scripts/parity <cmd> --format json | <consumer>` is safe. Progress

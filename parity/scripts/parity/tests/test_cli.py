@@ -97,6 +97,45 @@ class ExitCodes(unittest.TestCase):
         self.assertEqual(codes, {0, 1, 2, 3, 4, 5})
 
 
+class CaptureBeginErasesOnlyACapture(unittest.TestCase):
+    """`capture-begin` is the erase, so the root it is handed is the whole of what it may destroy.
+
+    The repository is scratch files, two directories down inside a temporary directory of its own,
+    and every case hands the command that repository as `--repo-root`. No root below climbs more than
+    one directory above it, so a case that stopped being refused could reach nothing this class did
+    not make.
+    """
+
+    def setUp(self):
+        self.scratch = Path(tempfile.mkdtemp())
+        self.repo = self.scratch / "outer" / "repo"
+        write_text(self.scratch / "outer" / "beside.txt", "kept")
+        write_text(self.repo / ".git" / "HEAD", "ref: refs/heads/scratch")
+        write_text(self.repo / "README.md", "kept")
+        write_text(self.repo / "cache" / "other" / "kept.bin", "kept")
+        write_text(self.repo / "cache" / "parity" / "current" / "sweeps" / "stale.json", "{}")
+
+    def _files(self) -> list[str]:
+        return sorted(path.relative_to(self.scratch).as_posix()
+                      for path in self.scratch.rglob("*") if path.is_file())
+
+    def test_a_root_that_leaves_cache_is_refused_and_nothing_is_erased(self):
+        before = self._files()
+        for root in ("cache/..", "cache/../..", "cache/parity/../..", "cache", "cache/."):
+            with self.subTest(root):
+                code, _, _ = run(["--repo-root", str(self.repo), "--root", root, "capture-begin"])
+                self.assertEqual(code, cli.REFUSED)
+                self.assertEqual(self._files(), before)
+
+    def test_a_root_inside_cache_is_still_erased_and_opened(self):
+        code, _, _ = run(["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                          "capture-begin"])
+        self.assertEqual(code, cli.OK)
+        self.assertEqual(self._files(), ["outer/beside.txt", "outer/repo/.git/HEAD",
+                                         "outer/repo/README.md", "outer/repo/cache/other/kept.bin",
+                                         "outer/repo/cache/parity/current/_run/OPEN"])
+
+
 class StdoutContract(unittest.TestCase):
 
     def test_json_format_emits_one_document_and_nothing_else(self):

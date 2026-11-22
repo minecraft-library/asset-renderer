@@ -118,7 +118,7 @@ public final class BlockProjectionsDriver {
                     .rotation(rotation)
                     .build())
                 .build()).image();
-            File outputFile = outputDir.resolve(name + ".png").toFile();
+            File outputFile = OutputFiles.inside(outputDir, name + ".png").toFile();
             ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
             System.out.println("Wrote " + outputFile.getName());
         } catch (Exception ex) {
