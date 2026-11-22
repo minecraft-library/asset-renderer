@@ -272,6 +272,32 @@ class ItemModelContextResolveTest {
             assertThat(withComponents(customModelData(0f, 2f)).resolve(parse(indexed)).modelId().orElseThrow(), is("minecraft:item/custom"));
         }
 
+        @Test
+        @DisplayName("a custom_model_data member that is not a list reads as a list holding no entry")
+        void customModelDataMemberThatIsNotAList() {
+            String leafA = "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/a\"}";
+            String leafB = "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/b\"}";
+            String condition = "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:custom_model_data\","
+                + "\"on_true\":" + leafA + ",\"on_false\":" + leafB + "}}";
+            String select = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:custom_model_data\","
+                + "\"cases\":[{\"when\":\"x\",\"model\":" + leafA + "}],\"fallback\":" + leafB + "}}";
+
+            for (Tag<?> member : List.<Tag<?>>of(new IntTag(5), new StringTag("x"), new CompoundTag())) {
+                CompoundTag customModelData = new CompoundTag();
+                customModelData.put("floats", member);
+                customModelData.put("flags", member);
+                customModelData.put("strings", member);
+                CompoundTag components = new CompoundTag();
+                components.put("minecraft:custom_model_data", customModelData);
+                ItemModelContext context = withComponents(components);
+
+                assertThat("floats, as no float: 0 lands on the base entry",
+                    context.resolve(parse(CMD_TREE)).modelId().orElseThrow(), is("minecraft:item/base"));
+                assertThat("flags, as no flag", context.resolve(parse(condition)).modelId().orElseThrow(), is("minecraft:item/b"));
+                assertThat("strings, as no string: the fallback", context.resolve(parse(select)).modelId().orElseThrow(), is("minecraft:item/b"));
+            }
+        }
+
         private static final String HAS_COMPONENT_TREE =
             "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:has_component\",\"component\":\"minecraft:damage\","
                 + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/has\"},"

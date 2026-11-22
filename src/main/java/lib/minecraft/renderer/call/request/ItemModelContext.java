@@ -634,7 +634,7 @@ public record ItemModelContext(
     }
 
     /**
-     * The entry at an index of one of the stack's {@code custom_model_data} lists, or empty where the stack carries no such component, the list is missing or ends before the index, or the index is negative.
+     * The entry at an index of one of the stack's {@code custom_model_data} lists, or empty where the stack carries no such component, the list is missing, is not a list or ends before the index, or the index is negative.
      */
     private @NotNull Optional<Tag<?>> customModelDataEntry(@NotNull String list, int index) {
         if (index < 0) return Optional.empty();
@@ -642,8 +642,7 @@ public record ItemModelContext(
             .filter(CompoundTag.class::isInstance)
             .map(CompoundTag.class::cast);
         if (customModelData.isEmpty()) return Optional.empty();
-        ListTag<?> entries = customModelData.get().getListTag(list);
-        if (entries == null || index >= entries.size()) return Optional.empty();
+        if (!(customModelData.get().get(list) instanceof ListTag<?> entries) || index >= entries.size()) return Optional.empty();
         return Optional.<Tag<?>>of(entries.get(index));
     }
 
