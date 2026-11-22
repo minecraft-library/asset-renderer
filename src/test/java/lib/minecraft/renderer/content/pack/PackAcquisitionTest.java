@@ -401,6 +401,31 @@ class PackAcquisitionTest {
     }
 
     @Test
+    @DisplayName("an include 64 imports below the program is read, and one any deeper answers empty and says so once")
+    void importDepthIsBounded(@TempDir Path dir) throws IOException {
+        Possible<TextPalette> deepest = acquire(dir.resolve("deepest"), importChain(dir, "deepest", 63)).textPalette();
+        assertThat(deepest.getState(), is(Possible.State.PRESENT));
+        assertThat(Map.copyOf(deepest.get().swaps()), is(equalTo(SWAPS)));
+
+        Path pack = importChain(dir, "deeper", 64);
+        PrintStream original = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+        PackStack stack;
+        try {
+            stack = acquire(dir.resolve("stack-deeper"), pack);
+        } finally {
+            System.setErr(original);
+        }
+        List<String> lines = captured.toString(StandardCharsets.UTF_8).lines().toList();
+
+        assertThat(stack.textPalette().getState(), is(Possible.State.EMPTY));
+        assertThat("the deeper include is reported once", lines.size(), is(1));
+        assertThat("the deeper include is reported naming the pack, the file and the limit", lines.getFirst(),
+            allOf(containsString("'deeper'"), containsString("minecraft:" + PROGRAM_FILE), containsString("more than 64 imports below the program")));
+    }
+
+    @Test
     @DisplayName("a text shader of another shape answers empty and says so once")
     void anotherShapeIsReported(@TempDir Path dir) throws IOException {
         Map<String, Path> refused = new LinkedHashMap<>();
@@ -485,6 +510,24 @@ class PackAcquisitionTest {
         write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
         write(pack.resolve("assets/minecraft/" + programFile), program);
         write(pack.resolve("assets/minecraft/shaders/include/swap.glsl"), swap);
+        return pack;
+    }
+
+    /**
+     * Writes a pack whose text program reaches its swap include through a chain of includes, each
+     * importing the next, so the swap sits one import further below the program than the chain is long.
+     *
+     * @param dir the directory the pack is written under
+     * @param name the pack's directory name, which its id derives from
+     * @param links how many includes stand between the program and the swap
+     * @return the pack's directory
+     * @throws IOException if a file cannot be written
+     */
+    private static Path importChain(Path dir, String name, int links) throws IOException {
+        Path pack = shaderPack(dir, name, PROGRAM_FILE, PROGRAM.replace("<swap.glsl>", "<chain_1.glsl>"), SWAP);
+        for (int link = 1; link <= links; link++)
+            write(pack.resolve("assets/minecraft/shaders/include/chain_" + link + ".glsl"),
+                "#moj_import <" + (link < links ? "chain_" + (link + 1) : "swap") + ".glsl>\n");
         return pack;
     }
 

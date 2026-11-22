@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,29 @@ class PackContainerTest {
         assertThrows(ContentException.class, () -> CatsIndex.decode(oneFileCats(0x02, 0xFF, 0, new byte[0]), Optional.empty()));
         assertThrows(ContentException.class, () -> CatsIndex.decode(oneFileCats(0x01, 0x00, 3, "abc".getBytes(StandardCharsets.UTF_8)), Optional.empty()));
         assertThrows(ContentException.class, () -> CatsIndex.decode(oneFileCats(0x01, 0xFF, 100, "abc".getBytes(StandardCharsets.UTF_8)), Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("the CATS decoder reads a file 64 directories down and refuses a directory nested any deeper")
+    void catsDirectoryDepthIsBounded() throws IOException {
+        CatsIndex deepest = CatsIndex.decode(nestedCats(Collections.nCopies(64, "d"), "f.bin"), Optional.empty());
+        assertThat(deepest.paths().toList(), equalTo(List.of("d/".repeat(64) + "f.bin")));
+
+        assertThrows(ContentException.class, () -> CatsIndex.decode(nestedCats(Collections.nCopies(65, "d"), "f.bin"), Optional.empty()));
+        assertThrows(ContentException.class, () -> CatsIndex.decode(nestedCats(Collections.nCopies(65, ""), "f.bin"), Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("the CATS decoder reads a path of 1,024 characters and refuses a longer one, a directory's as a file's")
+    void catsPathLengthIsBounded() throws IOException {
+        // three 255-character directories and one of 200, each with its slash, leave a file 55 characters of 1,024
+        List<String> directories = List.of("a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(200));
+        CatsIndex longest = CatsIndex.decode(nestedCats(directories, "f".repeat(55)), Optional.empty());
+        assertThat(longest.paths().map(String::length).toList(), equalTo(List.of(1_024)));
+
+        assertThrows(ContentException.class, () -> CatsIndex.decode(nestedCats(directories, "f".repeat(56)), Optional.empty()));
+        List<String> longer = List.of("a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(255), "e");
+        assertThrows(ContentException.class, () -> CatsIndex.decode(nestedCats(longer, "f"), Optional.empty()));
     }
 
     @Test
@@ -236,6 +260,22 @@ class PackContainerTest {
         blob.write(header.toByteArray());
         blob.write(dataRegion);
         return blob.toByteArray();
+    }
+
+    /** A CATS blob holding one stored, empty file under a chain of directories, each the only entry of the one above. */
+    private static byte[] nestedCats(List<String> directories, String file) throws IOException {
+        ByteArrayOutputStream header = new ByteArrayOutputStream();
+        DataOutputStream h = new DataOutputStream(header);
+        h.writeBytes("CATS");
+        h.writeByte(0x01);
+        for (String directory : directories) {
+            h.writeShort(1);
+            h.writeByte(0x01);
+            writeName(h, directory);
+        }
+        h.writeShort(1);
+        writeFileEntry(h, file, 0, 0, 0xFF);
+        return header.toByteArray();
     }
 
     private static void writeFileEntry(DataOutputStream h, String name, int offset, int size, int compression) throws IOException {

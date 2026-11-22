@@ -42,7 +42,8 @@ import java.util.regex.Pattern;
  * <b>Which shape is read.</b> Exactly one, and nothing else is taken for it. The program's imports are
  * followed as the client's preprocessor follows them - {@code <ns:path>} from
  * {@code <ns>:shaders/include/}, {@code "path"} from the program's own directory, each file once and a
- * repeat importing nothing - and every import must resolve. The program's {@code main} is vanilla's
+ * repeat importing nothing - and every import must resolve, no deeper than {@value #MAX_IMPORT_DEPTH}
+ * imports below the program. The program's {@code main} is vanilla's
  * with one statement added, {@code vec4 V = F(Color)}, outside every preprocessor condition, and every
  * {@code vertexColor} it writes reads {@code V}. {@code F} switches over its colour's
  * {@code SEL(P.rgb)}, each case returning {@code H(0xRRGGBB, P.a)} and the default the colour itself;
@@ -72,6 +73,13 @@ public class TextPaletteLoader {
 
     /** An import directive opening its line, quoted or angle-bracketed, as the client's preprocessor matches one. */
     private static final @NotNull Pattern IMPORT = Pattern.compile("(?m)^[ \\t]*#[ \\t]*moj_import[ \\t]*(?:\"(.*)\"|<(.*)>)");
+
+    /**
+     * How many imports below the program a file may sit. The expansion spends a stack frame an import,
+     * as the client's does, and no include of the 26.1 client jar imports another, so its own programs
+     * reach one import down.
+     */
+    private static final int MAX_IMPORT_DEPTH = 64;
 
     /** A preprocessor directive's name. */
     private static final @NotNull Pattern DIRECTIVE = Pattern.compile("#\\s*(\\w*)");
@@ -195,7 +203,7 @@ public class TextPaletteLoader {
             throw new ContentException("Fragment program '%s' is shipped by pack '%s'", fragment, shippedFragment.pack().id());
 
         String directory = directoryOf(program.resourcePath());
-        List<String> tokens = tokenize(expand(program, "", program.namespace(), directory, winners, new HashSet<>()));
+        List<String> tokens = tokenize(expand(program, "", program.namespace(), directory, winners, new HashSet<>(), 0));
         List<Definition> definitions = definitions(tokens);
 
         Optional<SwapCall> call = mainCall(only(definitions, "main", "void", List.of()));
@@ -400,12 +408,14 @@ public class TextPaletteLoader {
      * @param programDirectory the program's own directory, which every quoted import resolves under
      * @param winners every shader file's winning copy, keyed {@code <namespace>:<path>}
      * @param imported every file imported so far
+     * @param depth how many imports below the program this file sits, the program itself at zero
      * @return the expanded source, comment-free
-     * @throws ContentException if an import names a file no pack ships, or climbs out of its namespace
+     * @throws ContentException if an import names a file no pack ships, climbs out of its namespace, or
+     *     names a file that would sit more than {@link #MAX_IMPORT_DEPTH} imports below the program
      */
     private static @NotNull String expand(@NotNull PackSubtree.Entry file, @NotNull String directory, @NotNull String namespace,
                                           @NotNull String programDirectory, @NotNull Map<String, PackSubtree.Entry> winners,
-                                          @NotNull Set<String> imported) {
+                                          @NotNull Set<String> imported, int depth) {
         String source = withoutComments(new String(file.container().bytes(file.entryPath()).orElseThrow(), StandardCharsets.UTF_8));
         StringBuilder expanded = new StringBuilder(source.length());
         Matcher matcher = IMPORT.matcher(source);
@@ -428,8 +438,10 @@ public class TextPaletteLoader {
             PackSubtree.Entry target = winners.get(key);
             if (target == null)
                 throw new ContentException("Import '%s' names a file no pack ships", key);
+            if (depth == MAX_IMPORT_DEPTH)
+                throw new ContentException("Import '%s' sits more than %d imports below the program", key, MAX_IMPORT_DEPTH);
             expanded.append('\n')
-                .append(expand(target, quoted ? directoryOf(path) : "", namespace, programDirectory, winners, imported))
+                .append(expand(target, quoted ? directoryOf(path) : "", namespace, programDirectory, winners, imported, depth + 1))
                 .append('\n');
         }
         return expanded.append(source, last, source.length()).toString();

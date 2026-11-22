@@ -28,6 +28,12 @@ import java.util.stream.Stream;
  * <b>end of the header</b>, so this index slices the data region off at that boundary and reads each
  * file by its offset within it. The container is read-only; the decoder never writes {@code .cats}.
  *
+ * <p>The index is read within two bounds, and one that passes either is malformed: a directory sits
+ * at most {@value #MAX_DEPTH} directories down, and a path runs to at most {@value #MAX_PATH_LENGTH}
+ * characters, its slashes counted. The format states neither, and the decoder recurses once a
+ * directory and holds every file's whole path, so it sets both itself rather than leave them to the
+ * index it is reading.
+ *
  * @see PackContainer.Cats
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
@@ -35,6 +41,19 @@ public final class CatsIndex {
 
     private static final int MAGIC = 0x43415453; // "CATS"
     private static final int VERSION = 0x01;
+
+    /**
+     * How many directories down a directory may sit. The decoder spends a stack frame a level, and the
+     * deepest file of the 26.1 client jar's {@code assets/} and {@code data/} trees sits nine down.
+     */
+    private static final int MAX_DEPTH = 64;
+
+    /**
+     * How many characters a path may run to, its slashes counted. The longest path of the 26.1 client
+     * jar's {@code assets/} and {@code data/} trees runs to 139, and a Windows path stops at 260 by
+     * default.
+     */
+    private static final int MAX_PATH_LENGTH = 1_024;
 
     private final @NotNull ConcurrentMap<String, CatsEntry> entries;
     private final byte @NotNull [] data;
@@ -58,7 +77,8 @@ public final class CatsIndex {
      *     fallback when the container carries no inner {@code pack.mcmeta}; empty for a bare
      *     {@code .cats} source
      * @return the decoded index
-     * @throws ContentException if the magic, version, or structure is malformed
+     * @throws ContentException if the magic, version, or structure is malformed, or the index nests a
+     *     directory or spells a path past what the decoder reads
      */
     static @NotNull CatsIndex decode(byte @NotNull [] blob, @NotNull Optional<byte[]> outerMcmeta) {
         if (blob.length < 5 || readInt(blob, 0) != MAGIC)
@@ -69,7 +89,7 @@ public final class CatsIndex {
 
         LinkedHashMap<String, CatsEntry> entries = new LinkedHashMap<>();
         int[] pos = {5};
-        parseDirectory(blob, pos, "", entries);
+        parseDirectory(blob, pos, "", 0, entries);
         byte[] data = Arrays.copyOfRange(blob, pos[0], blob.length);
 
         for (CatsEntry entry : entries.values()) {
@@ -86,18 +106,24 @@ public final class CatsIndex {
     /**
      * Recursively parses one directory - a {@code u16} entry count then that many entries - appending
      * every file it reaches to {@code out} under its full {@code /}-separated path, and advancing the
-     * cursor past the whole subtree.
+     * cursor past the whole subtree. {@code depth} is how many directories down this one sits, the
+     * root at zero; an entry whose path passes {@link #MAX_PATH_LENGTH}, or a directory that would sit
+     * past {@link #MAX_DEPTH}, is refused before anything under it is read.
      */
-    private static void parseDirectory(byte @NotNull [] blob, int @NotNull [] pos, @NotNull String prefix, @NotNull Map<String, CatsEntry> out) {
+    private static void parseDirectory(byte @NotNull [] blob, int @NotNull [] pos, @NotNull String prefix, int depth, @NotNull Map<String, CatsEntry> out) {
         int count = readShort(blob, pos);
         for (int i = 0; i < count; i++) {
             int type = readByte(blob, pos);
             int nameLen = readByte(blob, pos);
             String name = readName(blob, pos, nameLen);
             String path = prefix.isEmpty() ? name : prefix + "/" + name;
+            if (path.length() > MAX_PATH_LENGTH)
+                throw new ContentException("CATS entry '%s' has a path of %d characters, past the %d the decoder reads", path, path.length(), MAX_PATH_LENGTH);
 
             if (type == 0x01) {
-                parseDirectory(blob, pos, path, out);
+                if (depth == MAX_DEPTH)
+                    throw new ContentException("CATS directory '%s' is nested more than %d directories down", path, MAX_DEPTH);
+                parseDirectory(blob, pos, path, depth + 1, out);
             } else if (type == 0x00) {
                 int offset = readInt(blob, advance(pos, 4));
                 int size = readInt(blob, advance(pos, 4));
