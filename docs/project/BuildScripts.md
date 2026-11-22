@@ -52,3 +52,14 @@ script keeps and the order it applies the other three in. Indexed from
   under that prefix too, Caffeine's among them, and a pattern would send those to JitPack. The
   block is written twice, in `build.gradle.kts` and in `tooling/build.gradle.kts`, so a dependency
   from a fourth organisation is a line in both.
+- The `constraints` block in `build.gradle.kts` holds floors under modules this build never
+  names: transitives the JitPack-built libraries bring at a version with published advisories,
+  each raised to the first release of its line that has none. A constraint raises a module only
+  while something else brings it, so a floor the pins have moved past does nothing and can be
+  deleted. They are declared on `api`, which is what writes them into the module metadata the
+  library is published with, so a Gradle consumer that reads that metadata resolves the floors
+  with the library. A Maven consumer does not: a POM carries them as `dependencyManagement`, and
+  Maven does not apply a dependency's management section to the project that depends on it. To
+  re-check the set, resolve `runtimeClasspath`, look each module up in an advisory database, and
+  ask `./gradlew dependencyInsight --dependency <name> --configuration runtimeClasspath` which
+  library brings the one that answers.

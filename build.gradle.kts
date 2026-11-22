@@ -212,6 +212,24 @@ dependencies {
     // Gson
     api(libs.gson)
 
+    // Floors under seven modules this build never names. Each arrives through the Simplified
+    // libraries above - the HTTP client and the Jackson XML set through `client`, Guava through
+    // `reflection`, log4j-api through three of them - at a version with published advisories, and
+    // each floor is the first release of the same line that has none. A constraint adds nothing to a
+    // classpath: it raises a module something else already brings and is ignored once nothing does,
+    // so a floor can go when the pins above move past it. They are on `api` so the compile and
+    // runtime classpaths agree, and so the floors are published with the library and hold on a
+    // consumer's classpath as they do on this one.
+    constraints {
+        api("com.fasterxml.jackson.core:jackson-core:2.18.11")
+        api("com.fasterxml.jackson.core:jackson-databind:2.18.11")
+        api("org.apache.httpcomponents.client5:httpclient5:5.6.3")
+        api("org.apache.httpcomponents.core5:httpcore5:5.4.3")
+        api("org.apache.httpcomponents.core5:httpcore5-h2:5.4.3")
+        api("org.apache.logging.log4j:log4j-api:2.25.5")
+        api("com.google.guava:guava:33.7.2-jre")
+    }
+
     // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.content.client`
     // is in this source tree, and every dependency it declared is already declared above at the same
     // pin. The generators reach it through `project(":")` the way they reach everything else here.
