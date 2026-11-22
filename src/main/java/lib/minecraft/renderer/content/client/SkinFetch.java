@@ -34,12 +34,24 @@ public class SkinFetch {
      * @throws ContentException if the Mojang API fails the request or the texture cannot be streamed
      */
     public static byte @NotNull [] fetchTexture(@NotNull String url) {
-        String hash = url.substring(url.lastIndexOf('/') + 1);
+        String hash = textureHash(url);
         try (InputStream stream = ClientAcquisition.mojang().downloadTexture(hash)) {
             return stream.readAllBytes();
         } catch (IOException | MojangApiException ex) {
             throw new ContentException(ex, "Failed to fetch texture from '%s'", url);
         }
+    }
+
+    /**
+     * Answers the texture hash a Mojang texture URL names - its trailing path segment, which is all of
+     * the URL {@link #fetchTexture} reads. Two URLs naming one hash are one texture, however the rest
+     * of each is spelled.
+     *
+     * @param url the Mojang texture URL
+     * @return the texture hash the URL names
+     */
+    public static @NotNull String textureHash(@NotNull String url) {
+        return url.substring(url.lastIndexOf('/') + 1);
     }
 
 }

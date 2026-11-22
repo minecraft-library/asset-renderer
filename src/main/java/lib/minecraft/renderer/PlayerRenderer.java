@@ -3,7 +3,6 @@ package lib.minecraft.renderer;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
@@ -39,7 +38,12 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
 /**
  * Renders player models in three body scopes ({@link PlayerOptions.Type#SKULL SKULL},
@@ -57,7 +61,7 @@ import java.util.Optional;
  * {@link Rasterizer} with a {@link Projection#VANILLA_ISO} pose, with armor as slightly inflated overlapping geometry.</li>
  * </ul>
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
- * renderer's lifetime.
+ * renderer's lifetime, the {@link FetchedTextures#CAPACITY} most recently read of them.
  */
 @Parity(claim = "player-geometry", subject = Subject.PLAYER)
 public final class PlayerRenderer implements Renderer<PlayerOptions> {
@@ -102,11 +106,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private final @NotNull RendererContext context;
 
     /**
-     * URL-fetched skin and cape textures cached for the renderer's lifetime, keyed by URL (capes use a
-     * {@code "cape:"} prefix so they never collide with a skin sharing the same URL). The renderer each
-     * render builds shares this one, so a URL is fetched once per renderer a caller holds.
+     * URL-fetched skin, cape and elytra textures cached for the renderer's lifetime. The renderer each
+     * render builds shares this one, so a texture is fetched once per renderer a caller holds, for as
+     * long as the cache keeps it.
      */
-    private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache;
+    private final @NotNull FetchedTextures skinCache;
 
     private final @NotNull Skull skull;
     private final @NotNull Bust bust;
@@ -118,17 +122,28 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @param context renderer context for texture resolution and engine setup
      */
     public PlayerRenderer(@NotNull RendererContext context) {
-        this(context, Concurrent.newMap());
+        this(context, SkinFetch::fetchTexture);
+    }
+
+    /**
+     * Constructs a player renderer over the given context that reads a URL-sourced texture through the
+     * given fetch, so a test draws a URL skin without reaching the texture server.
+     *
+     * @param context renderer context for texture resolution and engine setup
+     * @param fetch reads the PNG bytes a texture URL serves
+     */
+    PlayerRenderer(@NotNull RendererContext context, @NotNull Function<String, byte[]> fetch) {
+        this(context, new FetchedTextures(fetch));
     }
 
     /**
      * Constructs a player renderer over the given context that caches fetched textures in the given
-     * map, so the renderer a render builds shares it with the one the caller holds.
+     * cache, so the renderer a render builds shares it with the one the caller holds.
      *
      * @param context renderer context for texture resolution and engine setup
      * @param skinCache the cache of URL-fetched textures
      */
-    private PlayerRenderer(@NotNull RendererContext context, @NotNull ConcurrentMap<String, PixelBuffer> skinCache) {
+    private PlayerRenderer(@NotNull RendererContext context, @NotNull FetchedTextures skinCache) {
         this.context = context;
         this.skinCache = skinCache;
         this.skull = new Skull(this);
@@ -182,8 +197,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
-     * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
-     * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
+     * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached under the
+     * texture hash it names, see {@link FetchedTextures}) &gt; skin texture id (resolved against the pack stack) &gt; the default
      * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
      * included, that no pack supplies or that cannot be read is the checkerboard. Every part reads
      * its faces as regions of the whole skin sheet, normalised by the layout the skin declares, so the
@@ -200,10 +215,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getSkin().getUrl().isPresent()) {
             String url = options.getSkin().getSkin().getUrl().get();
-            return SampledTexture.of(parent.skinCache.computeIfAbsent(url, u -> {
-                byte[] bytes = SkinFetch.fetchTexture(u);
-                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            }));
+            return SampledTexture.of(parent.skinCache.read("skin", url));
         }
 
         String skinId = options.getSkin().getSkin().getId().orElse(STEVE_SKIN_ID);
@@ -229,10 +241,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getCape().getUrl().isPresent()) {
             String url = options.getSkin().getCape().getUrl().get();
-            return Optional.of(SampledTexture.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
-                byte[] bytes = SkinFetch.fetchTexture(url);
-                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            })));
+            return Optional.of(SampledTexture.of(parent.skinCache.read("cape", url)));
         }
 
         if (options.getSkin().getCape().getId().isPresent()) {
@@ -261,10 +270,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getElytra().getUrl().isPresent()) {
             String url = options.getSkin().getElytra().getUrl().get();
-            return Optional.of(SampledTexture.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
-                byte[] bytes = SkinFetch.fetchTexture(url);
-                return ImageFactory.fromByteArray(bytes).toPixelBuffer();
-            })));
+            return Optional.of(SampledTexture.of(parent.skinCache.read("elytra", url)));
         }
 
         if (options.getSkin().getElytra().getId().isPresent()) {
@@ -475,6 +481,100 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 PlayerArmorKit.appendArmor(stack, type, options, textures);
                 appendBackLayer(parent, textures, stack, options, engine, type.lattice().boxOf(HumanoidPart.TORSO));
             }, playerLighting(view), textures);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Fetched textures.
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * The textures a renderer has fetched by URL, each kept under what was fetched rather than under how
+     * the request spelled it: the kind of sheet it is read as and the texture hash its URL names, which
+     * is all of the URL {@link SkinFetch#fetchTexture} reads. However many ways a request spells the URL
+     * of one texture, it is fetched and held once. The kind keeps a skin, a cape and an elytra sheet
+     * naming one hash apart.
+     * <p>
+     * The cache holds the {@link #CAPACITY} sheets read most recently and lets the one read longest ago
+     * go for each one past that, so what a renderer holds does not grow with the number of textures it
+     * has been asked for. A sheet let go is fetched again when it is next asked for.
+     * <p>
+     * A sheet is fetched outside the cache's lock, by the first render to ask for it; a render asking
+     * for the same sheet meanwhile waits for that fetch instead of making its own, and one asking for
+     * another sheet is not held up. A fetch that fails is not kept, so the next render asks again.
+     */
+    static final class FetchedTextures {
+
+        /**
+         * The most sheets the cache holds. A skin is 64 by 64 pixels, so a full cache of them is about
+         * 16 MiB.
+         */
+        static final int CAPACITY = 1024;
+
+        /** Reads the PNG bytes a texture URL serves. */
+        private final @NotNull Function<String, byte[]> fetch;
+
+        /** The sheets held, least recently read first, each as the fetch that answers it. */
+        private final @NotNull Map<String, CompletableFuture<PixelBuffer>> sheets = new LinkedHashMap<>(16, 0.75f, true) {
+
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, CompletableFuture<PixelBuffer>> eldest) {
+                return size() > CAPACITY;
+            }
+
+        };
+
+        /**
+         * Constructs an empty cache reading through the given fetch.
+         *
+         * @param fetch reads the PNG bytes a texture URL serves
+         */
+        FetchedTextures(@NotNull Function<String, byte[]> fetch) {
+            this.fetch = fetch;
+        }
+
+        /**
+         * Answers the sheet a URL names, fetching and decoding it where the cache does not hold it.
+         *
+         * @param kind the kind of sheet the texture is read as - {@code skin}, {@code cape} or
+         *     {@code elytra}
+         * @param url the texture URL
+         * @return the decoded sheet
+         */
+        @NotNull PixelBuffer read(@NotNull String kind, @NotNull String url) {
+            String key = kind + ':' + SkinFetch.textureHash(url);
+            CompletableFuture<PixelBuffer> sheet;
+            boolean fetching = false;
+
+            synchronized (this.sheets) {
+                sheet = this.sheets.get(key);
+                if (sheet == null) {
+                    sheet = new CompletableFuture<>();
+                    this.sheets.put(key, sheet);
+                    fetching = true;
+                }
+            }
+
+            if (fetching) {
+                try {
+                    sheet.complete(ImageFactory.fromByteArray(this.fetch.apply(url)).toPixelBuffer());
+                } catch (Throwable failure) {
+                    synchronized (this.sheets) {
+                        this.sheets.remove(key, sheet);
+                    }
+
+                    sheet.completeExceptionally(failure);
+                    throw failure;
+                }
+            }
+
+            try {
+                return sheet.join();
+            } catch (CompletionException failed) {
+                if (failed.getCause() instanceof RuntimeException cause) throw cause;
+                throw failed;
+            }
+        }
+
     }
 
 }

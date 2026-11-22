@@ -90,6 +90,9 @@ ceiling, tested in `long` arithmetic before anything is allocated. The ceilings 
 - **Compressed NBT is inflated under `ItemContext.MAX_NBT_BYTES`**, 104,857,600 bytes, the quota the
   26.1 client reads compressed NBT under, and read no further than that; the refusal is the
   `NbtException` a payload that is not NBT raises. Bytes handed over uncompressed are read as they are.
+- **A fetched texture is cached under what was fetched.** `PlayerRenderer` keeps a URL-sourced skin,
+  cape or elytra sheet under the kind it is read as and the texture hash its URL names, which is all
+  of the URL the fetch reads, and holds the 1,024 read most recently.
 
 The ceilings are constants, not options, and each is set for the largest render the library's own
 drivers have a use for, with room above it, rather than for the heap any one caller runs in. A caller
