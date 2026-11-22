@@ -324,6 +324,20 @@ There is no dry-run flag, and Gradle owns `--dry-run` for itself. `parityPlan` i
 it runs no producer, prints the plan and the budget, and writes only `_run/plan.json` - which is
 still a write, and the one the next bare `parityCapture` in that root reads.
 
+## What runs without a prompt
+
+`.claude/settings.json` lists the commands an agent may run without asking: the four of the standard
+invocation, the summary compare, the tooling-table A/B of `references/procedures.md` with its compare
+against `cache/parity/base`, and `paritySelfTest`, `slowTest`, `menuRender` and `entityParityVanilla`
+with no argument. Anything else asks first - a scoped capture, a registration, a promotion, a root
+other than the one that A/B names, a sweep narrowed to one subject.
+
+**An entry is one whole command, typed out, and never a pattern.** A `*` in a permission rule stands
+for any text, spaces included, so a wildcard after a task name approves every argument that could
+follow it, and no second rule can hold it to the ones that were meant. A spelling worth running
+unprompted is added as a line of its own; one that carries a value chosen at the time keeps its
+prompt, which is the point of it.
+
 ## Decision rules
 
 | Situation | Behavior |
