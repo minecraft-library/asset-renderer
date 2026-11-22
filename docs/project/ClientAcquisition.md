@@ -15,6 +15,22 @@ exception hierarchy a batch renderer's skip-and-continue reads: `RendererExcepti
   memory once, plus the `pack.mcmeta` it synthesises from `version.json`. Nothing is extracted unless
   `ClientOptions.extractAssets` asks, and then into `<cacheRoot>/vanilla/<version>/pack`, beside the
   jar and the harness `references/` rather than around them.
+- **Acquisition checks three inputs and refuses each as a `ClientException`.** The version is held to
+  a version id's shape in `ClientOptions.vanillaRoot()`, the one place every path here is resolved
+  from, so it names exactly one directory under `<cacheRoot>/vanilla`. The pattern is drawn around
+  the ids the Piston manifest publishes, a dozen of which carry a space, so widen it from the
+  manifest rather than from memory. A download is streamed to a file of its own beside `client.jar`
+  and renamed over it only when it is the size and SHA-1 the Piston metadata declares, so a short,
+  long or altered download never becomes the cache, and a version the manifest does not hold creates
+  nothing in it. And a vanilla pack entry whose name carries a `..` segment, or that would resolve
+  outside the pack root, refuses the whole read, in memory and extracted alike, because no client jar
+  Mojang built has one.
+- **A jar already in the cache is not re-verified.** Nothing recorded its hash when it was written,
+  and fetching the metadata to learn it would put a network round trip on the warm path, which the
+  fast suite and every offline run depend on never opening a socket. `forceDownload` replaces a
+  doubted jar with a verified one. What the entry check bounds is what a jar somebody else put there
+  can do: it is read, and never written outside the pack root. That check reads names and paths, not
+  links, so the cache directory itself is still trusted to be the caller's own.
 
 ## Decisions that stay closed
 
