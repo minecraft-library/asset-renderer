@@ -35,3 +35,12 @@ script keeps and the order it applies the other three in. Indexed from
 - The dependency runs one way and only one. `:tooling` takes `project(":")`; nothing here names a
   tooling type, and `implementation` is what stops ASM and the walkers coming back - they are on
   this project's classpath nowhere and in no published JAR.
+- Both wrappers - this build's and the harness's - name their Gradle distribution twice, by
+  `distributionUrl` and by `distributionSha256Sum`, so a wrapper refuses a download whose bytes are
+  not the ones Gradle published. A version bump moves three things together. Run
+  `./gradlew wrapper --gradle-version <v> --gradle-distribution-sha256-sum <sum>` with the sum read
+  from `https://services.gradle.org/distributions/gradle-<v>-bin.zip.sha256`; hold the regenerated
+  `gradle/wrapper/gradle-wrapper.jar` to `gradle-<v>-wrapper.jar.sha256` from the same place; and
+  copy the four wrapper files over the harness's, which keeps a set of its own because it is a
+  build of its own. `gradlew` is committed executable in both, and has to be: the root build starts
+  the harness's by path.
