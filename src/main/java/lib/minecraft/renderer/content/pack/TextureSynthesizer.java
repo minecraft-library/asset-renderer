@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Lazily generates paletted-permutation sprites on a texture-resolution miss. Sits
@@ -47,13 +48,30 @@ public final class TextureSynthesizer {
     private final @NotNull ConcurrentMap<String, Entry> registry;
     private final @NotNull ConcurrentMap<String, PixelBuffer> cache = Concurrent.newMap();
 
+    /** Asked before a synthesised sprite is memoised; a sprite it turns down is synthesised again on the next read. */
+    private final @NotNull Predicate<PixelBuffer> keep;
+
     /**
-     * Builds a synthesiser from the merged paletted-permutation sources. Sources arrive ascending by
-     * pack, so a later source declaring the same {@code <base>_<permutation>} id takes the key.
+     * Builds a synthesiser from the merged paletted-permutation sources, memoising every sprite it
+     * synthesises. Sources arrive ascending by pack, so a later source declaring the same
+     * {@code <base>_<permutation>} id takes the key.
      *
      * @param sources the concatenated {@code atlases/*.json} paletted-permutation sources
      */
     public TextureSynthesizer(@NotNull List<PalettedPermutationSource> sources) {
+        this(sources, sprite -> true);
+    }
+
+    /**
+     * Builds a synthesiser from the merged paletted-permutation sources, memoising a synthesised sprite
+     * only where it is given room for it - a pack stack's {@link PackStack#keep}, which counts the
+     * sprite among the decoded pixels the stack keeps.
+     *
+     * @param sources the concatenated {@code atlases/*.json} paletted-permutation sources
+     * @param keep whether a synthesised sprite may be held for later reads
+     */
+    public TextureSynthesizer(@NotNull List<PalettedPermutationSource> sources, @NotNull Predicate<PixelBuffer> keep) {
+        this.keep = keep;
         this.registry = sources.stream()
             .flatMap(source -> source.textures()
                 .stream()
@@ -100,7 +118,7 @@ public final class TextureSynthesizer {
         if (!base.isPresent() || !palette.isPresent() || !material.isPresent()) return Possible.empty();
 
         PixelBuffer permuted = Palette.permute(base.get(), palette.get(), material.get());
-        this.cache.put(id.id(), permuted);
+        if (this.keep.test(permuted)) this.cache.put(id.id(), permuted);
         return Possible.of(permuted);
     }
 

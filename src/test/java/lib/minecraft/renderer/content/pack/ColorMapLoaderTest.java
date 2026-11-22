@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.content.container.PackLimits;
 import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -46,7 +47,7 @@ class ColorMapLoaderTest {
         Path png = dir.resolve("grass.png");
         ImageIO.write(image, "PNG", png.toFile());
 
-        byte[] pixels = ColorMapLoader.decode(Files.readAllBytes(png));
+        byte[] pixels = ColorMapLoader.decode(Files.readAllBytes(png), PackLimits.DEFAULTS.imagePixels());
         assertThat(pixels, is(new byte[]{
             (byte) 0xFF, (byte) 0x7F, (byte) 0xB2, (byte) 0x38,
             (byte) 0xFF, 0x01, 0x02, 0x03
@@ -148,7 +149,7 @@ class ColorMapLoaderTest {
 
         ColorMapException refused = assertThrows(ColorMapException.class, () -> ColorMapLoader.load(stack));
         assertThat(refused.getMessage(),
-            is("Colormap 'foliage' from pack 'brokenpack' cannot be read: Colormap bytes could not be decoded"));
+            is("Colormap 'foliage' from pack 'brokenpack' cannot be read: Colormap bytes could not be decoded - PNG header missing"));
         assertThat(refused.getCause(), is(instanceOf(ContentException.class)));
     }
 

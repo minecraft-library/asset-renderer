@@ -2,8 +2,9 @@
 
 Load when touching `content/read` - `PackSubtree`, a loader walking a pack subtree, `pack.mcmeta`'s
 `filter.block` - the value adapters under `content/json`, a pack's text shader - `TextPaletteLoader`,
-`TextPalette` - or a texture sidecar's sections - `MCMetaParser`, `MCMeta.GuiScaling`,
-`MCMeta.TextureSampling`. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
+`TextPalette` - a texture sidecar's sections - `MCMetaParser`, `MCMeta.GuiScaling`,
+`MCMeta.TextureSampling` - or what a pack may ask its reader to hold - `PackLimits`, an archive's
+inflate, an image's decode, a list a file expands. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 ## The pack filter
 
@@ -118,8 +119,52 @@ A section the codec refuses is held as there and refused - `MCMeta.gui()` empty 
 the document, because the client's GUI atlas alone asks for the section: the sidecar's other sections,
 and the texture read as a block or item texture, stand.
 
+## The limits a pack is read under
+
+A pack file is a few bytes naming a far larger thing: a compressed entry its inflated size, an image
+header its pixel count, a range, an animation or a permutation list the entries it expands to.
+`content.container.PackLimits` holds one ceiling for each, and a stack is built under the limits its
+`ClientOptions` carry (`packLimits`, `PackLimits.DEFAULTS` unless set), which `PackStack.limits()`
+answers to every loader over it.
+
+- **A ceiling is tested before what it bounds is allocated.** A zip entry is refused on its declared
+  size, or once it has inflated one byte too many; an image on the width and height in its header; a
+  range, a strip and a permutation source on a count taken from their two ends or their two lists. A
+  check made after the allocation bounds nothing.
+- **An archive is held to three:** its entry count, the bytes one entry inflates to, and the bytes
+  every entry read inflates to - a record a later one replaces included, so the work is bounded as
+  well as what is kept. `LiveIndex` holds a zip to all three as it reads it; a Catharsis archive's
+  compressed file is held to the entry ceiling on each read, since `CatsIndex` inflates on demand and
+  keeps nothing. Over any of them is a `ContentException`, which fails the load as an unreadable source
+  does. The vanilla pack is read out of the client jar under none of them.
+- **An image is a PNG and declares no more pixels than the ceiling.** `PngHeader` reads the signature
+  and the header chunk, which is what the client's reader validates before it decodes anything, so an
+  image of another format is no texture here either. A texture that fails it is unreadable, drawn and
+  reported as [MissingTextures](MissingTextures.md) says; a colormap that fails it fails as one that
+  does not decode.
+- **A stack keeps decoded pixels up to a ceiling and no further.** `PackStack.keep` counts each buffer
+  a cache is about to hold, the sprite read's, the plain read's and a synthesised permutation's, and a
+  buffer it turns down is served and let go, decoded again on its next read. So a stack past its
+  ceiling draws exactly what one within it draws and costs the decode each time; nothing is evicted.
+  The default is a quarter of the heap's maximum, the one default that follows the JVM.
+- **A list a file expands is held where it is expanded.** A connected-texture range rejects its rule
+  where it would take the tile list past the ceiling. A `paletted_permutations` source that would take
+  the stack's registry, or one atlas, past the ceiling is skipped and reported, lower packs' sources
+  keeping their place. A strip cut into more frames than the ceiling is no atlas sprite, as one its
+  frame size does not divide is not - [Timelines](Timelines.md).
+- **The connected-texture ceiling and a bare `Flipbook.of` are held to the defaults**, whatever the
+  stack carries: the rule scanner and a context with no index take no limits.
+
+What a ceiling bounds is one file's share. A pack still holds as many files as its entry and byte
+ceilings admit, each of which may reach its own.
+
 ## Decisions that stay closed
 
+- Do not bound a texture's decode by lowering the image library's pixel cap. It is one static for the
+  whole JVM, so setting it changes every other decode an embedding application makes, and its read
+  options are a marker interface that carries no bound of its own. The bound is the header check, which
+  is per read.
+- Do not move a ceiling's test behind the read it bounds - after the inflate, the decode or the loop.
 - Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
   `EulerRotationAdapter`, `TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - or
   `CubeGrowFactory` a declaration that plans the renders their decoded values feed. The contributor

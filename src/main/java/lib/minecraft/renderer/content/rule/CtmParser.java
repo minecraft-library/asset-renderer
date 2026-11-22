@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.rule.CtmMethod;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.CtmTarget;
 import lib.minecraft.renderer.asset.rule.TileRef;
+import lib.minecraft.renderer.content.container.PackLimits;
 import lib.minecraft.renderer.diagnostic.RuleDiagnostics;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.RuleRejection;
@@ -210,12 +211,18 @@ public class CtmParser {
         return Concurrent.adoptList(tiles).toUnmodifiable();
     }
 
-    /** Unrolls a {@code a-b} numeric range into per-index {@link TileRef.Texture} entries. */
+    /**
+     * Unrolls a {@code a-b} numeric range into per-index {@link TileRef.Texture} entries, rejecting the
+     * rule where the range would take its tile list past {@link PackLimits#tiles()} - tested on the
+     * range's two ends, before any index is unrolled.
+     */
     private static void expandRange(@NotNull String token, @NotNull String propsDir, @NotNull List<TileRef> out) {
         int dash = token.indexOf('-');
         int from = Integer.parseInt(token.substring(0, dash));
         int to = Integer.parseInt(token.substring(dash + 1));
         if (to < from) throw new RuleRejection("tiles", token, "descending tile range");
+        if (out.size() + ((long) to - from + 1) > PackLimits.DEFAULTS.tiles())
+            throw new RuleRejection("tiles", token, "tile range takes the rule past " + PackLimits.DEFAULTS.tiles() + " tiles");
         for (int i = from; i <= to; i++) out.add(new TileRef.Texture(resolveTile(Integer.toString(i), propsDir)));
     }
 

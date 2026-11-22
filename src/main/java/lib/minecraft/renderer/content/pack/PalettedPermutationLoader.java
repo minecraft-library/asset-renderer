@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,14 +54,34 @@ public class PalettedPermutationLoader {
      * Loads and concatenates the paletted-permutation atlas sources across the whole pack stack,
      * ascending.
      *
+     * <p>A source adds one sprite per texture per permutation, so two short lists name their product.
+     * The sources are held together to the permutations the stack's limits admit: each is counted from
+     * the lengths of its two lists, and one that would take the count past the limit is skipped and
+     * reported, lower packs' sources - vanilla's first - keeping their place ahead of it.
+     *
      * @param stack the resolved pack stack
      * @return the ordered paletted-permutation sources (lower packs first)
      */
     public static @NotNull ConcurrentList<PalettedPermutationSource> load(@NotNull PackStack stack) {
-        return PackSubtree.walk(stack.ascending(), ATLASES)
-            .stream()
-            .flatMap(entry -> parseAtlas(entry.container(), entry.entryPath()).stream())
-            .collect(Concurrent.toWideUnmodifiableList());
+        int limit = stack.limits().permutations();
+        long counted = 0;
+        List<PalettedPermutationSource> kept = new ArrayList<>();
+
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack.ascending(), ATLASES)) {
+            for (PalettedPermutationSource source : parseAtlas(entry.container(), entry.entryPath())) {
+                long sprites = (long) source.textures().size() * source.permutations().size();
+                if (counted + sprites > limit) {
+                    System.err.printf("Skipping a paletted-permutations source of atlas '%s' from pack '%s': its %d sprites take the stack past the limit of %d%n",
+                        entry.entryPath(), entry.pack().id(), sprites, limit);
+                    continue;
+                }
+
+                counted += sprites;
+                kept.add(source);
+            }
+        }
+
+        return kept.stream().collect(Concurrent.toWideUnmodifiableList());
     }
 
     /** The {@code paletted_permutations} sources one atlas file declares, empty when it is malformed. */

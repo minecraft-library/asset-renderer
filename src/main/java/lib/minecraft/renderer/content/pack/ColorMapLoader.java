@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})
@@ -70,7 +71,7 @@ public class ColorMapLoader {
             .orElseThrow(() -> new ColorMapException("No pack ships colormap '%s'", name));
 
         try {
-            return new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes()));
+            return new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes(), stack.limits().imagePixels()));
         } catch (ContentException ex) {
             throw new ColorMapException(ex, "Colormap '%s' from pack '%s' cannot be read: %s", name, resolved.pack().value(), ex.getMessage());
         }
@@ -85,11 +86,21 @@ public class ColorMapLoader {
      * source is container-agnostic (a materialized directory, zip, or {@code .cats} pack all decode
      * identically).
      *
+     * <p>The bytes are held to the header the client's image reader requires and to a ceiling on the
+     * pixels they declare, both read from that header before {@link ImageIO} is handed the image, so a
+     * colormap over the ceiling is refused without being decoded.
+     *
      * @param bytes the raw colormap PNG bytes
+     * @param ceiling the most pixels the colormap may declare, its width by its height
      * @return the raw ARGB pixel bytes
-     * @throws ContentException if the PNG cannot be read or decoded
+     * @throws ContentException if the bytes do not open as a PNG, declare more pixels than the
+     *     ceiling, or cannot be read or decoded
      */
-    static byte @NotNull [] decode(byte @NotNull [] bytes) {
+    static byte @NotNull [] decode(byte @NotNull [] bytes, long ceiling) {
+        Optional<String> refused = PngHeader.refusal(bytes, ceiling);
+        if (refused.isPresent())
+            throw new ContentException("Colormap bytes could not be decoded - %s", refused.get());
+
         BufferedImage image;
         try {
             image = ImageIO.read(new ByteArrayInputStream(bytes));

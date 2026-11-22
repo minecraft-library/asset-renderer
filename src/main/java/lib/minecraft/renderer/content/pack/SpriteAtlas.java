@@ -79,10 +79,12 @@ public final class SpriteAtlas {
         Map<String, String> sprites = new HashMap<>();
         sprites.put(MISSING_SPRITE, MISSING_SPRITE);
 
+        // The paletted permutations the atlas may still add, counted down across its sources.
+        long[] permutations = {stack.limits().permutations()};
         for (PackSubtree.Entry entry : PackSubtree.walk(stack.ascending(), ATLASES)) {
             if (!(entry.namespace() + ":" + entry.stem()).equals(atlasId)) continue;
             for (JsonElement source : sources(entry))
-                if (source.isJsonObject()) run(source.getAsJsonObject(), textures, sprites);
+                if (source.isJsonObject()) run(source.getAsJsonObject(), textures, sprites, permutations, entry);
         }
         return new SpriteAtlas(sprites);
     }
@@ -119,8 +121,13 @@ public final class SpriteAtlas {
         return List.of();
     }
 
-    /** Runs one source over the sprites gathered so far. */
-    private static void run(@NotNull JsonObject source, @NotNull Set<String> textures, @NotNull Map<String, String> sprites) {
+    /**
+     * Runs one source over the sprites gathered so far. A {@code paletted_permutations} source is counted
+     * from the lengths of its two lists before it adds a sprite, and skipped and reported where it would
+     * add more than the atlas has left of the permutations its stack's limits admit.
+     */
+    private static void run(@NotNull JsonObject source, @NotNull Set<String> textures, @NotNull Map<String, String> sprites,
+                            long @NotNull [] permutations, @NotNull PackSubtree.Entry entry) {
         switch (ResourceId.vanillaPath(string(source, "type")).orElse("")) {
             case "directory" -> {
                 String directory = string(source, "source");
@@ -165,6 +172,16 @@ public final class SpriteAtlas {
             case "paletted_permutations" -> {
                 if (!source.has("textures") || !source.has("permutations")) return;
                 String separator = source.has("separator") ? string(source, "separator") : "_";
+                long added = source.get("textures").isJsonArray() && source.get("permutations").isJsonObject()
+                    ? (long) source.getAsJsonArray("textures").size() * source.getAsJsonObject("permutations").size()
+                    : 0;
+                if (added > permutations[0]) {
+                    System.err.printf("Skipping a paletted-permutations source of atlas '%s' from pack '%s': its %d sprites take the atlas past its limit%n",
+                        entry.entryPath(), entry.pack().id(), added);
+                    return;
+                }
+
+                permutations[0] -= added;
                 for (JsonElement texture : source.getAsJsonArray("textures")) {
                     for (String permutation : source.getAsJsonObject("permutations").keySet()) {
                         String sprite = ResourceId.parse(texture.getAsString() + separator + permutation).id();

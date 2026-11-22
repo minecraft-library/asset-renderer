@@ -71,18 +71,35 @@ public sealed interface PackContainer
      *
      * @param source the pack source path
      * @return the detected container
-     * @throws ContentException if the source is neither a directory nor a recognised archive
+     * @throws ContentException if the source is neither a directory nor a recognised archive, or is an
+     *     archive holding more than {@link PackLimits#DEFAULTS} admit
      */
     static @NotNull PackContainer detect(@NotNull Path source) {
+        return detect(source, PackLimits.DEFAULTS);
+    }
+
+    /**
+     * Detects the container kind of a pack source by content, as {@link #detect(Path)} does, and builds
+     * the matching container under the given limits: a zip is held to its entry count and to the bytes
+     * it inflates to, in one entry and in all, and an archive's compressed file to the bytes one entry
+     * may inflate to.
+     *
+     * @param source the pack source path
+     * @param limits the limits an archive is read under
+     * @return the detected container
+     * @throws ContentException if the source is neither a directory nor a recognised archive, or is an
+     *     archive holding more than the limits admit
+     */
+    static @NotNull PackContainer detect(@NotNull Path source, @NotNull PackLimits limits) {
         if (Files.isDirectory(source)) return new Directory(source);
         if (!Files.isRegularFile(source))
             throw new ContentException("Pack source '%s' is neither a directory nor a regular file", source);
 
         byte[] head = readHead(source);
-        if (Cats.isCats(head)) return Cats.read(source);
+        if (Cats.isCats(head)) return Cats.read(source, limits);
         if (Live.isZip(head)) {
-            Live archive = Live.read(source);
-            return Cats.wraps(archive) ? Cats.unwrap(archive) : archive;
+            Live archive = Live.read(source, limits);
+            return Cats.wraps(archive) ? Cats.unwrap(archive, limits) : archive;
         }
 
         throw new ContentException("Pack source '%s' is not a directory, zip, or CATS container", source);
@@ -154,7 +171,8 @@ public sealed interface PackContainer
     }
 
     /**
-     * A plain zip archive pack, re-opened for every read.
+     * A plain zip archive pack, re-opened for every read, each entry held to the bytes
+     * {@link PackLimits#DEFAULTS} let one inflate to.
      *
      * @param zip the zip file path
      */
@@ -166,9 +184,11 @@ public sealed interface PackContainer
             try (ZipFile archive = new ZipFile(this.zip.toFile())) {
                 ZipEntry entry = archive.getEntry(path);
                 if (entry == null || entry.isDirectory()) return Optional.empty();
-                try (InputStream in = archive.getInputStream(entry)) {
-                    return Optional.of(in.readAllBytes());
-                }
+                byte[] bytes = LiveIndex.readEntry(archive, entry, PackLimits.DEFAULTS.entryBytes());
+                if (bytes == null)
+                    throw PackLimits.over(String.format("Entry '%s' of zip '%s'", path, this.zip), PackLimits.DEFAULTS.entryBytes(), "inflated bytes");
+
+                return Optional.of(bytes);
             } catch (IOException ex) {
                 throw new ContentException(ex, "Failed to read '%s' from zip '%s'", path, this.zip);
             }
@@ -224,15 +244,27 @@ public sealed interface PackContainer
         }
 
         /**
-         * Reads and decodes a bare {@code .cats} archive.
+         * Reads and decodes a bare {@code .cats} archive, under {@link PackLimits#DEFAULTS}.
          *
          * @param cats the archive path
          * @return the container
          * @throws ContentException if the archive cannot be read or is malformed
          */
         public static @NotNull Cats read(@NotNull Path cats) {
+            return read(cats, PackLimits.DEFAULTS);
+        }
+
+        /**
+         * Reads and decodes a bare {@code .cats} archive.
+         *
+         * @param cats the archive path
+         * @param limits the limits the archive's files are read under
+         * @return the container
+         * @throws ContentException if the archive cannot be read or is malformed
+         */
+        public static @NotNull Cats read(@NotNull Path cats, @NotNull PackLimits limits) {
             try {
-                return new Cats(cats, CatsIndex.decode(Files.readAllBytes(cats), Optional.empty()));
+                return new Cats(cats, CatsIndex.decode(Files.readAllBytes(cats), Optional.empty(), limits));
             } catch (IOException ex) {
                 throw new ContentException(ex, "Failed to read pack source '%s'", cats);
             }
@@ -258,9 +290,22 @@ public sealed interface PackContainer
          * @throws ContentException if the zip carries no {@code pack.cats} or the archive is malformed
          */
         public static @NotNull Cats unwrap(@NotNull Live archive) {
+            return unwrap(archive, PackLimits.DEFAULTS);
+        }
+
+        /**
+         * Unwraps the archive a {@code .cats.zip} carries, as {@link #unwrap(Live)} does, its files read
+         * under the given limits.
+         *
+         * @param archive the {@code .cats.zip}, held in memory
+         * @param limits the limits the archive's files are read under
+         * @return the container, over the zip's path
+         * @throws ContentException if the zip carries no {@code pack.cats} or the archive is malformed
+         */
+        public static @NotNull Cats unwrap(@NotNull Live archive, @NotNull PackLimits limits) {
             byte[] wrapped = archive.bytes(WRAPPED).orElseThrow(() ->
                 new ContentException("Pack zip '%s' carries no %s", archive.source(), WRAPPED));
-            return new Cats(archive.source(), CatsIndex.decode(wrapped, archive.bytes("pack.mcmeta")));
+            return new Cats(archive.source(), CatsIndex.decode(wrapped, archive.bytes("pack.mcmeta"), limits));
         }
 
         /** {@inheritDoc} */
@@ -302,14 +347,27 @@ public sealed interface PackContainer
         }
 
         /**
-         * Reads every file entry of a zip into memory.
+         * Reads every file entry of a zip into memory, under {@link PackLimits#DEFAULTS}.
          *
          * @param zip the zip file path
          * @return the container
-         * @throws ContentException if the zip cannot be read
+         * @throws ContentException if the zip cannot be read, or holds more than the limits admit
          */
         public static @NotNull Live read(@NotNull Path zip) {
-            return new Live(zip, LiveIndex.read(zip));
+            return read(zip, PackLimits.DEFAULTS);
+        }
+
+        /**
+         * Reads every file entry of a zip into memory.
+         *
+         * @param zip the zip file path
+         * @param limits the limits the zip is read under
+         * @return the container
+         * @throws ContentException if the zip cannot be read, or holds more entries or inflates to more
+         *     bytes, in one entry or in all, than the limits admit
+         */
+        public static @NotNull Live read(@NotNull Path zip, @NotNull PackLimits limits) {
+            return new Live(zip, LiveIndex.read(zip, limits));
         }
 
         /**

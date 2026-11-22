@@ -5,10 +5,11 @@ Load when touching a texture, model or subject lookup that can miss - `withMissi
 `-PhideTextures`. Indexed from [`CLAUDE.md`](../../CLAUDE.md).
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
-the id once. A face whose texture a pack ships but which cannot be read - zero bytes, a body the image
-reader refuses, a `.png.mcmeta` sidecar that does not parse or carries an animation or texture section
-the client's codec refuses, or an animation whose frame size does not divide the strip on both axes -
-draws it the same way, and is reported as unreadable rather than missing, because vanilla's sprite
+the id once. A face whose texture a pack ships but which cannot be read - zero bytes, a body that is no
+PNG or declares more pixels than the stack's limits admit, a body the image reader refuses, a
+`.png.mcmeta` sidecar that does not parse or carries an animation or texture section the client's codec
+refuses, or an animation whose frame size does not divide the strip on both axes or cuts it into more
+frames than the limits admit - draws it the same way, and is reported as unreadable rather than missing, because vanilla's sprite
 loader draws its missing sprite for all of them and a texture has no lower pack to show through. A
 sidecar that does not parse loses only its own texture: the index captures it as there and yielding
 nothing rather than failing the context load; a refused section loses the texture too, its sidecar's
@@ -28,8 +29,9 @@ an atlas: an entity's base, overlay and group-member textures, the equipment and
 pack-rule tiles, the elytra wings, the cape and the skin, the glint, the two textures the portal shader
 samples, a skull's and the copper golem statue's, a menu's container sheet and the book's page texture -
 is read with its sidecar's texture section alone. One no pack ships draws the checkerboard and is
-reported missing; one a pack ships draws it and is reported unreadable for zero bytes, a body the image
-reader refuses, a sidecar that does not parse, or a texture section the client's codec refuses, which
+reported missing; one a pack ships draws it and is reported unreadable for zero bytes, a body that is no
+PNG or declares more pixels than the stack's limits admit, a body the image reader refuses, a sidecar
+that does not parse, or a texture section the client's codec refuses, which
 are the failures on which the client's texture loader answers its missing texture. An animation section,
 refused or with a frame size that does not divide, costs it nothing: it plays no table, and the whole
 file draws. A menu's named chrome art is the checkerboard read across the sheet the client composes a

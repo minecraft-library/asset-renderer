@@ -9,6 +9,9 @@ import dev.simplified.util.compression.exception.CompressionException;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -40,6 +43,9 @@ public final class CatsIndex {
     private final byte @NotNull [] data;
     private final @NotNull Optional<byte[]> outerMcmeta;
 
+    /** The most bytes one compressed file may inflate to. */
+    private final long entryBytes;
+
     /**
      * Answers whether bytes open with the {@code "CATS"} magic every container starts with.
      *
@@ -51,7 +57,7 @@ public final class CatsIndex {
     }
 
     /**
-     * Decodes a {@code pack.cats} blob into an index over its files.
+     * Decodes a {@code pack.cats} blob into an index over its files, under {@link PackLimits#DEFAULTS}.
      *
      * @param blob the whole {@code pack.cats} byte content
      * @param outerMcmeta the outer {@code .cats.zip} decoy {@code pack.mcmeta}, used only as a
@@ -61,6 +67,22 @@ public final class CatsIndex {
      * @throws ContentException if the magic, version, or structure is malformed
      */
     static @NotNull CatsIndex decode(byte @NotNull [] blob, @NotNull Optional<byte[]> outerMcmeta) {
+        return decode(blob, outerMcmeta, PackLimits.DEFAULTS);
+    }
+
+    /**
+     * Decodes a {@code pack.cats} blob into an index over its files.
+     *
+     * @param blob the whole {@code pack.cats} byte content
+     * @param outerMcmeta the outer {@code .cats.zip} decoy {@code pack.mcmeta}, used only as a
+     *     fallback when the container carries no inner {@code pack.mcmeta}; empty for a bare
+     *     {@code .cats} source
+     * @param limits the limits the container is read under, of which each compressed file is held to
+     *     the bytes one entry may inflate to
+     * @return the decoded index
+     * @throws ContentException if the magic, version, or structure is malformed
+     */
+    static @NotNull CatsIndex decode(byte @NotNull [] blob, @NotNull Optional<byte[]> outerMcmeta, @NotNull PackLimits limits) {
         if (blob.length < 5 || readInt(blob, 0) != MAGIC)
             throw new ContentException("Not a CATS container: bad magic");
         int version = blob[4] & 0xFF;
@@ -80,7 +102,7 @@ public final class CatsIndex {
                 );
         }
 
-        return new CatsIndex(Concurrent.adoptLinkedMap(entries).toUnmodifiable(), data, outerMcmeta);
+        return new CatsIndex(Concurrent.adoptLinkedMap(entries).toUnmodifiable(), data, outerMcmeta, limits.entryBytes());
     }
 
     /**
@@ -114,9 +136,12 @@ public final class CatsIndex {
      * {@code pack.mcmeta}: the inner file wins, and the outer {@code .cats.zip} decoy is returned only
      * when the container carries no inner {@code pack.mcmeta}.
      *
+     * <p>A compressed file is inflated through a stream and refused once it yields more than the bytes
+     * one entry may inflate to, so what it costs to refuse is that ceiling and not its inflated size.
+     *
      * @param path the {@code /}-separated file path
      * @return the file's decompressed bytes, or empty when absent
-     * @throws ContentException if a GZIP file cannot be inflated
+     * @throws ContentException if a GZIP file cannot be inflated, or inflates past the limit
      */
     public @NotNull Optional<byte[]> read(@NotNull String path) {
         CatsEntry entry = this.entries.get(path);
@@ -124,14 +149,20 @@ public final class CatsIndex {
             return "pack.mcmeta".equals(path) ? this.outerMcmeta.map(byte[]::clone) : Optional.empty();
 
         byte[] slice = Arrays.copyOfRange(this.data, entry.offset(), entry.offset() + entry.size());
-        if (entry.compression() == Compression.NONE)
+        // The codec is chosen by the bytes' own magic, and bytes carrying none are handed back as stored.
+        if (entry.compression() == Compression.NONE || Compression.getType(slice) == Compression.NONE)
             return Optional.of(slice);
 
-        try {
-            return Optional.of(Compression.decompress(slice));
-        } catch (CompressionException ex) {
+        byte[] inflated;
+        try (InputStream in = Compression.wrap(new ByteArrayInputStream(slice))) {
+            inflated = PackLimits.readWithin(in, this.entryBytes);
+        } catch (CompressionException | IOException ex) {
             throw new ContentException(ex, "Failed to decompress CATS entry '%s'", path);
         }
+        if (inflated == null)
+            throw PackLimits.over(String.format("CATS entry '%s'", path), this.entryBytes, "inflated bytes");
+
+        return Optional.of(inflated);
     }
 
     /**

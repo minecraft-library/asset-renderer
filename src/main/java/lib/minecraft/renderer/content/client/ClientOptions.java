@@ -4,6 +4,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.content.container.PackLimits;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -46,6 +47,13 @@ public class ClientOptions {
      * the vanilla pack from there, rather than reading it from the jar held in memory.
      */
     private final boolean extractAssets = false;
+
+    /**
+     * The limits the texture packs are read under - how much one pack may ask the reader to hold, from
+     * the bytes an archive inflates to down to the pixels one image declares. Defaults to
+     * {@link PackLimits#DEFAULTS}; raise a ceiling for packs trusted to be larger.
+     */
+    private final @NotNull PackLimits packLimits = PackLimits.DEFAULTS;
 
     /**
      * Builds an options instance with every field at its default (version {@code 26.1}, cache

@@ -19,6 +19,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.pack.TextPalette;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.content.container.PackLimits;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
@@ -32,6 +33,8 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 /**
@@ -100,6 +103,14 @@ public final class PackStack {
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull Possible<TextPalette> textPalette;
 
+    /**
+     * The limits the stack's packs are read under: the pixels one image may declare, the decoded pixels
+     * the stack keeps, the frames one strip may be cut into, and what every loader over the stack holds
+     * a pack to.
+     */
+    @Getter(style = NamingStyle.FLUENT)
+    private final @NotNull PackLimits limits;
+
     private final @NotNull Set<String> loggedAmbiguities = ConcurrentHashMap.newKeySet();
 
     /**
@@ -143,15 +154,38 @@ public final class PackStack {
     private final @NotNull ConcurrentMap<PixelKey, Possible<Flipbook>> flipbookCache = Concurrent.newMap();
 
     /**
-     * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The
-     * texture index starts empty - {@link #withTextureIndex} attaches it once the pipeline has scanned
-     * the stack.
+     * The decoded pixels this stack keeps for later reads, across {@link #pixelCache}, {@link #plainCache}
+     * and whatever else {@link #keep} was asked for, each buffer counted once.
+     */
+    private final @NotNull AtomicLong keptPixels = new AtomicLong();
+
+    /** Whether the stack has said that it keeps no more, which it says once. */
+    private final @NotNull AtomicBoolean reportedFull = new AtomicBoolean();
+
+    /**
+     * Builds a stack from packs in ascending-priority order, read under {@link PackLimits#DEFAULTS}; the
+     * first must be the vanilla pack. The texture index starts empty - {@link #withTextureIndex} attaches
+     * it once the pipeline has scanned the stack.
      *
      * @param ascending the packs, vanilla first, then user packs ascending
      * @return the assembled stack
      * @throws ContentException if the stack is empty or does not lead with the vanilla pack
      */
     public static @NotNull PackStack of(@NotNull ConcurrentList<ResourcePack> ascending) {
+        return of(ascending, PackLimits.DEFAULTS);
+    }
+
+    /**
+     * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The
+     * texture index starts empty - {@link #withTextureIndex} attaches it once the pipeline has scanned
+     * the stack.
+     *
+     * @param ascending the packs, vanilla first, then user packs ascending
+     * @param limits the limits the stack's packs are read under
+     * @return the assembled stack
+     * @throws ContentException if the stack is empty or does not lead with the vanilla pack
+     */
+    public static @NotNull PackStack of(@NotNull ConcurrentList<ResourcePack> ascending, @NotNull PackLimits limits) {
         if (ascending.isEmpty())
             throw new ContentException("Pack stack is empty; the vanilla pack is required at priority 0");
         if (!ascending.getFirst().id().equals(PackId.VANILLA))
@@ -162,7 +196,7 @@ public final class PackStack {
         ConcurrentSet<String> namespaces = ascending.stream()
             .flatMap(pack -> pack.namespaces().stream())
             .collect(Concurrent.toUnmodifiableLinkedSet());
-        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA), Possible.absent());
+        return new PackStack(ascending, byId, namespaces, Concurrent.newMap(), RuleSet.empty(PackId.VANILLA), Possible.absent(), limits);
     }
 
     /**
@@ -172,7 +206,7 @@ public final class PackStack {
      * @return the indexed stack
      */
     public @NotNull PackStack withTextureIndex(@NotNull ConcurrentMap<ResourceId, ResolvedTexture> index) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules, this.textPalette);
+        return new PackStack(this.ascending, this.byId, this.namespaces, index, this.rules, this.textPalette, this.limits);
     }
 
     /**
@@ -182,7 +216,7 @@ public final class PackStack {
      * @return the stack carrying the rules
      */
     public @NotNull PackStack withRules(@NotNull RuleSet rules) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules, this.textPalette);
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules, this.textPalette, this.limits);
     }
 
     /**
@@ -194,7 +228,7 @@ public final class PackStack {
      * @return the stack carrying the palette
      */
     public @NotNull PackStack withTextPalette(@NotNull Possible<TextPalette> textPalette) {
-        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, this.rules, textPalette);
+        return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, this.rules, textPalette, this.limits);
     }
 
     /**
@@ -343,7 +377,7 @@ public final class PackStack {
         // table never outlives the pixels it would play over.
         Possible<Flipbook> resolved = indexed.get().meta().orAbsent(Possible::empty)
             .flatMap(meta -> meta.animation().orAbsent(Possible::empty))
-            .flatMap(animation -> pixels(id).flatMap(strip -> Possible.ofOptional(Flipbook.of(strip, animation))));
+            .flatMap(animation -> pixels(id).flatMap(strip -> Possible.ofOptional(Flipbook.of(strip, animation, this.limits.frames()))));
         this.flipbookCache.put(key, resolved);
         return resolved;
     }
@@ -381,7 +415,8 @@ public final class PackStack {
         PixelBuffer buffer = image.get();
 
         // An animation is checked against the strip it plays over before the pixels are kept, so a strip
-        // its frame size does not divide is decoded once and held nowhere.
+        // its frame size does not divide, or cuts into more frames than the limits admit, is decoded once
+        // and held nowhere.
         Optional<MCMeta.Animation> animation = meta.toOptional().flatMap(document -> document.animation().toOptional());
         if (animation.isPresent()) {
             Flipbook.FrameSize frame = Flipbook.FrameSize.of(animation.get(), buffer);
@@ -389,9 +424,14 @@ public final class PackStack {
                 return unreadable(this.undecodable, key, "Image '%s' in pack '%s' size %d,%d is not multiple of frame size %d,%d%n",
                     texture.id(), texture.pack(), buffer.width(), buffer.height(), frame.width(), frame.height());
             }
+            if (frame.count(buffer) > this.limits.frames()) {
+                return unreadable(this.undecodable, key, "Image '%s' in pack '%s' size %d,%d holds more than the limit of %d frames of size %d,%d%n",
+                    texture.id(), texture.pack(), buffer.width(), buffer.height(), this.limits.frames(), frame.width(), frame.height());
+            }
         }
 
-        this.pixelCache.put(key, buffer);
+        // A buffer the plain read holds is counted already; a fresh one is kept only where there is room.
+        if (plain != null || keep(buffer)) this.pixelCache.put(key, buffer);
         return Possible.of(buffer);
     }
 
@@ -428,7 +468,8 @@ public final class PackStack {
         // The client builds the texture's sampler from the section it read; a file with no sidecar is the
         // empty document.
         SampledTexture texture = new SampledTexture(image.get(), meta.orElse(MCMeta.EMPTY).sampler());
-        this.plainCache.put(key, texture);
+        // A buffer the sprite read holds is counted already; a fresh one is kept only where there is room.
+        if (sprite != null || keep(image.get())) this.plainCache.put(key, texture);
         return Possible.of(texture);
     }
 
@@ -436,16 +477,26 @@ public final class PackStack {
      * Decodes a resolved texture's image, recording the texture in the given set and reporting it the
      * first time it is seen where its bytes are empty or do not decode.
      *
+     * <p>The bytes are held to the header the client's image reader requires, which reads a PNG and
+     * nothing else, and to the pixels the stack's limits let one image declare, both read from the
+     * header before the image is decoded - so an image over the limit is refused without its pixels
+     * ever being allocated.
+     *
      * @param texture the winning file the dispatch resolved
      * @param key the resolved key the texture is remembered under
      * @param into the read's set of the textures it could not read
-     * @return the decoded pixels, or empty where the bytes do not decode
+     * @return the decoded pixels, or empty where the bytes do not open as a PNG, declare more pixels
+     *     than the limits admit, or do not decode
      */
     private @NotNull Possible<PixelBuffer> image(@NotNull ResolvedTexture texture, @NotNull PixelKey key,
                                                  @NotNull ConcurrentSet<PixelKey> into) {
         // Read before the try: an entry that vanished since the index scan is an I/O race rather than
         // a state of the file, so it raises.
         byte[] bytes = texture.bytes();
+        Optional<String> refused = PngHeader.refusal(bytes, this.limits.imagePixels());
+        if (refused.isPresent())
+            return unreadable(into, key, "Unreadable texture '%s' in pack '%s' - %s%n", texture.id(), texture.pack(), refused.get());
+
         try {
             // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
             // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
@@ -460,6 +511,30 @@ public final class PackStack {
             if (!(ex instanceof ImageException || ex instanceof IOException)) throw ex;
             return unreadable(into, key, "Unreadable texture '%s' in pack '%s' - %s%n", texture.id(), texture.pack(), ex);
         }
+    }
+
+    /**
+     * Asks the stack to count a decoded buffer among the pixels it keeps for later reads, which it does
+     * while the count stays within {@link PackLimits#heldPixels()}.
+     *
+     * <p>A buffer that is refused is no failure: whoever decoded it serves it and lets it go, and decodes
+     * it again on the next read. So a stack past its limit draws exactly what one within it draws, and
+     * costs the decode each time rather than the memory once. The first refusal is reported, since from
+     * then on the stack is slower than it looks.
+     *
+     * @param buffer the decoded buffer a cache is about to hold
+     * @return {@code true} where the buffer is counted and may be held, {@code false} where holding it
+     *     would take the stack past its limit
+     */
+    public boolean keep(@NotNull PixelBuffer buffer) {
+        long pixels = (long) buffer.width() * buffer.height();
+        if (this.keptPixels.addAndGet(pixels) <= this.limits.heldPixels()) return true;
+
+        this.keptPixels.addAndGet(-pixels);
+        if (this.reportedFull.compareAndSet(false, true))
+            System.err.printf("Pack stack keeps its limit of %d decoded pixels - a texture read past it is decoded on every read%n", this.limits.heldPixels());
+
+        return false;
     }
 
     /**

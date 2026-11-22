@@ -4,14 +4,15 @@ import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -42,24 +43,55 @@ public final class LiveIndex {
     private final byte @NotNull [] @NotNull [] data;
 
     /**
+     * Reads every file entry of a zip into memory, under {@link PackLimits#DEFAULTS}.
+     *
+     * @param zip the zip file path
+     * @return the index
+     * @throws ContentException if the zip cannot be read, or holds more than the limits admit
+     */
+    static @NotNull LiveIndex read(@NotNull Path zip) {
+        return read(zip, PackLimits.DEFAULTS);
+    }
+
+    /**
      * Reads every file entry of a zip into memory.
      *
      * <p>A zip can carry two records under one name; the later one is kept, which is the record
      * {@link ZipFile#getEntry} answers for that name.
      *
+     * <p>The zip is read under three of the limits: its entry count, tested before any entry is read;
+     * the inflated bytes of each entry; and the inflated bytes of every entry read, a record a later
+     * one replaces included. An entry is refused on the size it declares where that is already over,
+     * and otherwise as soon as it inflates past what is left, so a zip never costs more than the limits
+     * to refuse.
+     *
      * @param zip the zip file path
+     * @param limits the limits the zip is read under
      * @return the index
-     * @throws ContentException if the zip cannot be read
+     * @throws ContentException if the zip cannot be read, or holds more entries or inflates to more
+     *     bytes, in one entry or in all, than the limits admit
      */
-    static @NotNull LiveIndex read(@NotNull Path zip) {
+    static @NotNull LiveIndex read(@NotNull Path zip, @NotNull PackLimits limits) {
         TreeMap<String, byte[]> entries = new TreeMap<>();
         try (ZipFile archive = new ZipFile(zip.toFile())) {
+            if (archive.size() > limits.entries())
+                throw PackLimits.over(String.format("Pack zip '%s'", zip), limits.entries(), "entries");
+
+            long left = limits.packBytes();
             Enumeration<? extends ZipEntry> all = archive.entries();
             while (all.hasMoreElements()) {
                 ZipEntry entry = all.nextElement();
                 if (entry.isDirectory()) continue;
 
-                entries.put(entry.getName(), readEntry(archive, entry));
+                byte[] bytes = readEntry(archive, entry, Math.min(limits.entryBytes(), left));
+                if (bytes == null) {
+                    throw left < limits.entryBytes()
+                        ? PackLimits.over(String.format("Pack zip '%s'", zip), limits.packBytes(), "inflated bytes")
+                        : PackLimits.over(String.format("Entry '%s' of pack zip '%s'", entry.getName(), zip), limits.entryBytes(), "inflated bytes");
+                }
+
+                left -= bytes.length;
+                entries.put(entry.getName(), bytes);
             }
         } catch (IOException ex) {
             throw new ContentException(ex, "Failed to read pack zip '%s'", zip);
@@ -84,19 +116,28 @@ public final class LiveIndex {
      * @throws IOException if the entry cannot be read
      */
     public static byte @NotNull [] readEntry(@NotNull ZipFile archive, @NotNull ZipEntry entry) throws IOException {
+        return Objects.requireNonNull(readEntry(archive, entry, Long.MAX_VALUE));
+    }
+
+    /**
+     * Reads one zip entry whole, refusing it where it inflates past a ceiling - on the size it declares
+     * where that is already over, before any of it is read, and otherwise once it has yielded one byte
+     * too many.
+     *
+     * @param archive the open zip
+     * @param entry the entry to read
+     * @param ceiling the most bytes the entry may inflate to
+     * @return the entry's bytes, or {@code null} where it inflates to more than the ceiling
+     * @throws IOException if the entry cannot be read
+     */
+    static byte @Nullable [] readEntry(@NotNull ZipFile archive, @NotNull ZipEntry entry, long ceiling) throws IOException {
+        long declared = entry.getSize();
+        if (declared > ceiling) return null;
+
         try (InputStream in = archive.getInputStream(entry)) {
-            long declared = entry.getSize();
-            if (declared < 0 || declared > MAX_ARRAY) return in.readAllBytes();
-
-            byte[] bytes = in.readNBytes((int) declared);
-            int next = in.read();
-            if (next < 0) return bytes;
-
-            ByteArrayOutputStream whole = new ByteArrayOutputStream(bytes.length + 1);
-            whole.write(bytes);
-            whole.write(next);
-            in.transferTo(whole);
-            return whole.toByteArray();
+            return declared < 0 || declared > MAX_ARRAY
+                ? PackLimits.readWithin(in, ceiling)
+                : PackLimits.readWithin(in, (int) declared, ceiling);
         }
     }
 
