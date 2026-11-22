@@ -16,14 +16,18 @@
   },
   "permissions": {
     "allow": [
-      "Bash(./gradlew parityPlan*)",
-      "Bash(./gradlew parityExpect*)",
-      "Bash(./gradlew parityCapture*)",
-      "Bash(./gradlew parityCompare*)",
-      "Bash(./gradlew paritySelfTest*)",
-      "Bash(./gradlew slowTest*)",
-      "Bash(./gradlew menuRender*)",
-      "Bash(./gradlew entityParityVanilla*)"
+      "Bash(./gradlew parityPlan)",
+      "Bash(./gradlew parityExpect -PexpectEmpty)",
+      "Bash(./gradlew parityCapture)",
+      "Bash(./gradlew parityCapture -Partifacts=manifest.tooling-tables)",
+      "Bash(./gradlew parityCapture -Partifacts=manifest.tooling-tables -PparityRoot=cache/parity/base)",
+      "Bash(./gradlew parityCompare)",
+      "Bash(./gradlew parityCompare -Psummary)",
+      "Bash(./gradlew parityCompare -Pbase=cache/parity/base)",
+      "Bash(./gradlew paritySelfTest)",
+      "Bash(./gradlew slowTest)",
+      "Bash(./gradlew menuRender)",
+      "Bash(./gradlew entityParityVanilla)"
     ]
   }
 }
