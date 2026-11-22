@@ -106,12 +106,34 @@ public record RefKey(List<String> directories, Optional<String> namespace,
     /**
      * Resolves this key to a PNG path below a sweep's output directory.
      *
+     * <p>Every directory segment and the file name are held to one path segment each, so a key built
+     * from a roster's text names a file below the sweep's directory or is refused. A roster's keys
+     * are resolved while the roster is read, which is where a refusal here surfaces.
+     *
      * @param sweepRoot the sweep's output directory
      * @return the path to write
+     * @throws IllegalArgumentException if a directory segment or the file name is empty, is a self or
+     *     parent reference, or carries a separator or a NUL
      */
     public Path resolve(Path sweepRoot) {
         Path path = sweepRoot;
-        for (String directory : directories) path = path.resolve(directory);
-        return path.resolve(fileName() + ".png");
+        for (String directory : directories) path = path.resolve(segment(directory));
+        return path.resolve(segment(fileName()) + ".png");
+    }
+
+    /**
+     * Answers a name that is one path segment, and refuses any other.
+     *
+     * @param name a directory segment, or the file name without its extension
+     * @return the name
+     * @throws IllegalArgumentException if the name is not one path segment
+     */
+    private static String segment(String name) {
+        if (name.isEmpty() || name.equals(".") || name.equals("..")
+            || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException(String.format(
+                "Reference key segment '%s' is not a single file name - no separators or parent references", name));
+        }
+        return name;
     }
 }

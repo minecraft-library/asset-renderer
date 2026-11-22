@@ -120,6 +120,7 @@ public final class ItemRenderDriver {
                 case GUI_ICON -> "_icon";
                 default -> "";
             };
+            File outputFile = OutputFiles.inside(outputDir, safeName + ".png").toFile();
 
             ItemOptions.Builder builder = ItemOptions.builder()
                 .itemId(itemId)
@@ -134,7 +135,6 @@ public final class ItemRenderDriver {
                 itemId, type, size, size, supersample, antiAlias);
             try {
                 ImageData image = renderer.render(options).image();
-                File outputFile = outputDir.resolve(safeName + ".png").toFile();
                 ImageFactory.toFile(image, ImageFormat.PNG, outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
             } catch (Exception ex) {

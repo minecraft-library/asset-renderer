@@ -74,7 +74,7 @@ public final class StackCountBadgeDriver {
         }
 
         String label = args.length >= 1 ? args[0] : "default";
-        Path labelDir = OUTPUT_DIR.resolve(label);
+        Path labelDir = OutputFiles.inside(OUTPUT_DIR, label);
         Files.createDirectories(labelDir);
         runRender(labelDir);
     }
@@ -113,8 +113,8 @@ public final class StackCountBadgeDriver {
      * @throws IOException if a PNG cannot be read
      */
     private static void runDiff(@NotNull String labelA, @NotNull String labelB) throws IOException {
-        Path dirA = OUTPUT_DIR.resolve(labelA);
-        Path dirB = OUTPUT_DIR.resolve(labelB);
+        Path dirA = OutputFiles.inside(OUTPUT_DIR, labelA);
+        Path dirB = OutputFiles.inside(OUTPUT_DIR, labelB);
         if (!Files.isDirectory(dirA) || !Files.isDirectory(dirB)) {
             System.err.println("missing directory: " + (Files.isDirectory(dirA) ? dirB : dirA));
             System.exit(1);

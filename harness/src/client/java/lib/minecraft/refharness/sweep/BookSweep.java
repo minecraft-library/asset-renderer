@@ -149,6 +149,7 @@ public final class BookSweep implements Sweep<BookSweep.BookSubject> {
      * @return the roster's entries
      * @throws IllegalStateException if the roster is of another format or lists no subjects, a subject is
      *     not an object or carries no key, or two subjects would write one file
+     * @throws IllegalArgumentException if a subject's key is not one file name
      */
     static List<RosterEntry> entries(JsonObject roster, Path file) {
         JsonElement format = roster.get("format");
