@@ -11,6 +11,7 @@ import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
@@ -56,14 +57,23 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull Type type = Type.CHEST;
 
     /**
+     * The most rows, and the most columns, a {@link Type#CHEST} is laid out at: 256, where the largest
+     * chest the client opens is six rows of nine. A panel of 256 by 256 is 65,536 cells on a canvas of
+     * about 9,300 pixels a side.
+     */
+    public static final int MAX_GRID_SIDE = 256;
+
+    /**
      * Number of slot rows, read by {@link Type#CHEST} alone. Every other screen ships one grid and
-     * carries its own.
+     * carries its own. More than {@link #MAX_GRID_SIDE} is refused with a {@link RenderException} when
+     * the menu is laid out, before a cell is.
      */
     private final int rows = 3;
 
     /**
      * Number of slot columns, read by {@link Type#CHEST} alone. Nine is the chest the client
      * composes; any other width is a panel it ships no sheet for, and is laid out as a plain grid.
+     * More than {@link #MAX_GRID_SIDE} is refused as too many rows are.
      */
     private final int columns = 9;
 
@@ -205,8 +215,15 @@ public class MenuOptions implements RenderOptions {
      * where the fill names one, the fill drawing in every slot the map leaves - and air holds nothing.
      *
      * @return the screen
+     * @throws RenderException if a chest is asked for at more rows or columns than
+     *     {@link #MAX_GRID_SIDE}
      */
     public @NotNull ScreenMetrics screen() {
+        if (this.type == Type.CHEST && (this.rows > MAX_GRID_SIDE || this.columns > MAX_GRID_SIDE))
+            throw new RenderException(
+                "Menu rows '%d' and columns '%d' are over the limit of '%d' a side",
+                this.rows, this.columns, MAX_GRID_SIDE);
+
         return switch (this.type) {
             case PLAYER -> ScreenMetrics.grid(PLAYER_VIEW_ROWS, ScreenMetrics.COLUMNS);
             case CHEST -> this.columns == ScreenMetrics.COLUMNS

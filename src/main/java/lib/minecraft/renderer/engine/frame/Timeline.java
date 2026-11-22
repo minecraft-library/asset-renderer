@@ -273,11 +273,20 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * A raster pass draws source-over onto a transparent {@link PixelBuffer#canvas canvas}, so every
      * frame, and the image, holds premultiplied colour.
      *
+     * <p>
+     * The bake is refused before its first frame where the frames together, at the size the pass
+     * rasterizes them, are over the {@linkplain RenderLimits ceilings a render is drawn under}.
+     *
      * @param pass the raster configuration and callbacks to play this schedule through
      * @return the finished image, held premultiplied
-     * @throws RenderException if the schedule is empty
+     * @throws RenderException if the schedule is empty, or the frames it bakes are over a render's
+     *     ceilings
      */
     default @NotNull ImageData bake(@NotNull RasterPass pass) {
+        int supersample = Math.max(1, pass.ssaa());
+        RenderLimits.frames("Frame count", frames());
+        RenderLimits.render("Raster", (long) pass.width() * supersample, (long) pass.height() * supersample, frames());
+
         ConcurrentList<PixelBuffer> buffers;
 
         // One frame is drawn on the calling thread, where a one-element parallel stream draws it too,

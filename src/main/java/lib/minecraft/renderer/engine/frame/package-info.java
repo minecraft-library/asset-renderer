@@ -11,6 +11,10 @@
  * {@link lib.minecraft.renderer.engine.frame.Timeline#empty empty} are the one-frame terminals for a
  * renderer that draws without a schedule.
  *
+ * <p><b>Ceilings.</b> {@link lib.minecraft.renderer.engine.frame.RenderLimits RenderLimits} holds how
+ * much one request may ask a renderer to draw - an edge, a frame count, the pixels its frames come to -
+ * and the bake refuses a schedule and a pass that together name more.
+ *
  * <p><b>Frame compositing.</b>
  * {@link lib.minecraft.renderer.engine.frame.FramePlacement FramePlacement} positions a possibly-
  * animated sub-render, and {@link lib.minecraft.renderer.engine.frame.FrameCompositor FrameCompositor}

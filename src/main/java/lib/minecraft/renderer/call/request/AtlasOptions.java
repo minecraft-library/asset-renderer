@@ -44,12 +44,18 @@ public class AtlasOptions implements RenderOptions {
     private final @NotNull Optional<Predicate<String>> filter = Optional.empty();
 
     /**
-     * Output tile dimensions in pixels (square)
+     * Output tile dimensions in pixels (square). A tile is one render, so a size over
+     * {@link lib.minecraft.renderer.engine.frame.RenderLimits#MAX_EDGE RenderLimits.MAX_EDGE}, 16,384
+     * pixels, is refused with a {@link lib.minecraft.renderer.exception.RenderException RenderException}
+     * before a tile is drawn.
      */
     private final int tileSize = 128;
 
     /**
-     * Number of tile columns per row in the output atlas
+     * Number of tile columns per row in the output atlas. A sheet rendered whole is one buffer,
+     * {@code columns * tileSize} pixels wide and as tall as its rows of tiles, and one that comes to
+     * more pixels than an {@code int} holds is refused before a tile is drawn; a sheet written to a file
+     * is held a band of rows at a time, and it is the band that has to fit.
      */
     private final int columns = 16;
 

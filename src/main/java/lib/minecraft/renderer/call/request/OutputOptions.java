@@ -5,7 +5,9 @@ import dev.simplified.annotations.Getter;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -29,6 +31,10 @@ public class OutputOptions {
      * Output image dimensions in pixels (square), defaulting to {@code 256}. The subject renderers
      * share this frame, so one value here is the tile dimension every one of them agrees on out of
      * the box.
+     * <p>
+     * A size over {@link RenderLimits#MAX_EDGE}, 16,384 pixels, is refused: {@link #getCanvasSize()}
+     * raises a {@link RenderException} for it, so every renderer reading the frame refuses the render
+     * before it allocates a canvas.
      */
     private final int canvasSize = 256;
 
@@ -57,6 +63,10 @@ public class OutputOptions {
      * {@link #getSupersample()} answers {@code 1} for anything below it. The clamp belongs to the field
      * rather than to any one renderer - every reader used to spell {@code Math.max(1, ...)} around this
      * accessor for itself, which put one rule in six places and left a seventh reader without it.
+     * <p>
+     * The raster's edge, {@code canvasSize * supersample}, is held to {@link RenderLimits#MAX_EDGE} as
+     * the canvas is, and {@link #getSupersample()} raises a {@link RenderException} for a factor that
+     * takes it over.
      */
     private final int supersample = 1;
 
@@ -67,11 +77,36 @@ public class OutputOptions {
     private final boolean antiAlias = false;
 
     /**
+     * Answers the output size, refusing one over {@link RenderLimits#MAX_EDGE}. Hand-written rather
+     * than generated so the ceiling sits with the field it guards, and no reader of the frame is left
+     * without it.
+     *
+     * @return the output image dimensions in pixels
+     * @throws RenderException if the size is over the ceiling
+     */
+    public int getCanvasSize() {
+        return RenderLimits.edge("Canvas size", this.canvasSize);
+    }
+
+    /**
      * Answers {@code 1} for any stored factor below it, since a sub-1 supersample asks for a zero-pixel
-     * raster. Hand-written rather than generated so the clamp sits with the field it guards.
+     * raster, and refuses a factor that takes the raster's edge over {@link RenderLimits#MAX_EDGE}.
+     * Hand-written rather than generated so the clamp and the ceiling sit with the field they guard.
+     * A canvas that is over the ceiling by itself is refused as {@link #getCanvasSize()} refuses it,
+     * whichever of the two a renderer reads first.
+     *
+     * @return the supersample factor, at least {@code 1}
+     * @throws RenderException if the canvas, alone or at this factor, is over the ceiling
      */
     public int getSupersample() {
-        return Math.max(1, this.supersample);
+        int factor = Math.max(1, this.supersample);
+        long raster = (long) factor * Math.max(0, getCanvasSize());
+        if (raster > RenderLimits.MAX_EDGE)
+            throw new RenderException(
+                "Supersample '%d' takes a canvas of '%d' pixels to a raster of '%d', over the limit of '%d' pixels",
+                factor, this.canvasSize, raster, RenderLimits.MAX_EDGE);
+
+        return factor;
     }
 
     /**

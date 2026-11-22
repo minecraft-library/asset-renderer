@@ -21,6 +21,7 @@ import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -192,19 +194,24 @@ class GridRendererSuppliedTileTest {
     }
 
     @Test
-    @DisplayName("a sheet no buffer can hold is composed held, every tile asked before the allocation fails as it does today")
-    void anUnallocatableSheetIsHeld() {
-        List<RenderResult> renders = renders(3, 16);
-        AtomicIntegerArray asked = new AtomicIntegerArray(renders.size());
-        GridOptions options = GridOptions.builder()
-            .tiles(supplied(renders, asked))
-            .cellSize(16)
-            .columns(COLUMNS)
-            .rows(-1)
-            .build();
+    @DisplayName("a sheet no buffer can hold is refused before a tile is asked for")
+    void anUnallocatableSheetIsRefused() {
+        int[][] sheets = { { COLUMNS, -1, 16 }, { 50_000, 1, 50_000 }, { Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE } };
+        for (int[] sheet : sheets) {
+            List<RenderResult> renders = renders(3, 16);
+            AtomicIntegerArray asked = new AtomicIntegerArray(renders.size());
+            GridOptions options = GridOptions.builder()
+                .tiles(supplied(renders, asked))
+                .cellSize(sheet[2])
+                .columns(sheet[0])
+                .rows(sheet[1])
+                .build();
 
-        assertThrows(NegativeArraySizeException.class, () -> new GridRenderer().render(options));
-        assertAskedOnce("unallocatable", asked);
+            RenderException refusal = assertThrows(RenderException.class, () -> new GridRenderer().render(options));
+            assertThat(refusal.getMessage(), containsString("Grid canvas"));
+            for (int i = 0; i < asked.length(); i++)
+                assertThat("tile " + i + " of a " + sheet[0] + " by " + sheet[1] + " sheet", asked.get(i), is(0));
+        }
     }
 
     @Test

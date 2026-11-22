@@ -4,7 +4,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.util.StringUtil;
+import dev.simplified.util.compression.Compression;
 import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.exception.NbtException;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -15,6 +17,8 @@ import lib.minecraft.renderer.asset.rule.filter.NbtRule;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.Optional;
 
 /**
@@ -66,6 +70,13 @@ public record ItemContext(
     /** The empty context - no item, no metadata. CIT rules never match against this, and the item render seam short-circuits it. */
     public static final @NotNull ItemContext EMPTY = new ItemContext(
         "", 0, 0, 1, Optional.empty(), Optional.empty(), Concurrent.newMap(), Concurrent.newList());
+
+    /**
+     * The most bytes a compressed NBT payload may inflate to, 104,857,600 - the quota the 26.1 client
+     * reads compressed NBT under, so a payload the client reads is one this reads. A single stack sent
+     * over the network is held by the client to 2,097,152.
+     */
+    public static final int MAX_NBT_BYTES = 104_857_600;
 
     /**
      * A minimal context describing only the item id, for render calls that do not care about CIT
@@ -290,11 +301,15 @@ public record ItemContext(
          * <p>The decoded array is freshly allocated per call, so the borrow tree's buffer-retention
          * contract carries no caller-mutation hazard here.
          *
+         * <p>A compressed payload is inflated under {@link #MAX_NBT_BYTES}, as {@link #nbt(byte[])}
+         * inflates one.
+         *
          * @param base64 the base64 NBT payload
          * @return this builder
+         * @throws NbtException if the payload is not NBT, or is compressed and inflates past the ceiling
          */
         public @NotNull Builder nbtBase64(@NotNull String base64) {
-            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(StringUtil.decodeBase64(base64)));
+            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(inflated(StringUtil.decodeBase64(base64), MAX_NBT_BYTES)));
             return this;
         }
 
@@ -306,12 +321,52 @@ public record ItemContext(
          * <p>The returned tree retains the (decompressed) input bytes, so callers must not mutate
          * {@code bytes} after this call.
          *
+         * <p>Compressed bytes name a larger payload than they hold, so they are inflated here, under
+         * {@link #MAX_NBT_BYTES}, and one that inflates past it is refused once that many bytes are
+         * read rather than inflated whole. Bytes that are not compressed are read as they are, whatever
+         * their length.
+         *
          * @param bytes the binary NBT bytes
          * @return this builder
+         * @throws NbtException if the bytes are not NBT, or are compressed and inflate past the ceiling
          */
         public @NotNull Builder nbt(byte @NotNull [] bytes) {
-            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(bytes));
+            this.nbt = Optional.of(NbtFactory.borrowFromByteArray(inflated(bytes, MAX_NBT_BYTES)));
             return this;
+        }
+
+        /**
+         * Answers a binary NBT payload inflated: the bytes themselves where they are not compressed,
+         * and otherwise what they inflate to, read no further than the ceiling.
+         * <p>
+         * What comes back is never compressed, so the NBT reader it is handed to, which inflates a
+         * compressed array whole, has nothing left to inflate: a payload that inflates to a second
+         * compressed one is refused here, where the reader would have refused it as not NBT.
+         *
+         * @param bytes the binary NBT bytes, compressed or not
+         * @param ceiling the most bytes a compressed payload may inflate to
+         * @return the uncompressed NBT bytes
+         * @throws NbtException if the bytes cannot be inflated, inflate past the ceiling, or inflate to
+         *     a compressed payload
+         */
+        static byte @NotNull [] inflated(byte @NotNull [] bytes, int ceiling) {
+            if (Compression.getType(bytes) == Compression.NONE)
+                return bytes;
+
+            byte[] plain;
+            try (InputStream stream = Compression.wrap(new ByteArrayInputStream(bytes))) {
+                plain = stream.readNBytes(ceiling + 1);
+            } catch (Exception ex) {
+                throw new NbtException(ex);
+            }
+
+            if (plain.length > ceiling)
+                throw new NbtException("Compressed NBT inflates past the limit of '%d' bytes", ceiling);
+
+            if (Compression.getType(plain) != Compression.NONE)
+                throw new NbtException("Compressed NBT inflates to a compressed payload, not to NBT");
+
+            return plain;
         }
 
         /**

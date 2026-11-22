@@ -3,6 +3,9 @@ package lib.minecraft.renderer.call.request;
 import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Possible;
+import dev.simplified.util.compression.Compression;
+import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.exception.NbtException;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -12,14 +15,20 @@ import lib.minecraft.renderer.vanilla.DecodedComponent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Base64;
 import java.util.Optional;
+import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of {@link ItemContext} as the one item stack a render reads: a Minecraft 26.1 stack
@@ -111,6 +120,52 @@ class ItemContextTest {
         CompoundTag misshapen = new CompoundTag();
         misshapen.put("components", new StringTag("not a compound"));
         assertThat(ItemContext.builder().nbt(misshapen).build().components(), is(Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("compressed binary NBT reads as the stack it holds, through either entry")
+    void compressedNbtReadsAsItsStack() {
+        CompoundTag stack = compound("id", new StringTag("minecraft:diamond_sword"));
+        for (Compression compression : new Compression[] { Compression.NONE, Compression.GZIP, Compression.ZLIB }) {
+            byte[] bytes = NbtFactory.toByteArray(stack, compression);
+            assertThat(compression + " bytes",
+                ItemContext.builder().nbt(bytes).build().nbt().orElseThrow().get("id").getValue().toString(), equalTo("minecraft:diamond_sword"));
+            assertThat(compression + " base64",
+                ItemContext.builder().nbtBase64(Base64.getEncoder().encodeToString(bytes)).build().nbt().orElseThrow().get("id").getValue().toString(),
+                equalTo("minecraft:diamond_sword"));
+        }
+    }
+
+    @Test
+    @DisplayName("compressed NBT is inflated no further than its ceiling, and refused past it")
+    void compressedNbtIsInflatedUnderACeiling() throws IOException {
+        byte[] plain = NbtFactory.toByteArray(compound("id", new StringTag("minecraft:diamond_sword")), Compression.NONE);
+        byte[] packed = Compression.compress(plain, Compression.GZIP);
+
+        assertThat("a payload that inflates to the ceiling exactly is answered inflated",
+            ItemContext.Builder.inflated(packed, plain.length), is(plain));
+        assertThat("and uncompressed bytes are answered as they are, whatever the ceiling",
+            ItemContext.Builder.inflated(plain, 1), is(sameInstance(plain)));
+
+        NbtException refusal = assertThrows(NbtException.class, () -> ItemContext.Builder.inflated(packed, plain.length - 1));
+        assertThat(refusal.getMessage(), containsString("past the limit of '" + (plain.length - 1) + "' bytes"));
+
+        // Far more than the ceiling behind a few bytes: the read stops at the ceiling.
+        ByteArrayOutputStream zeros = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(zeros)) {
+            gzip.write(new byte[1 << 20]);
+        }
+        assertThrows(NbtException.class, () -> ItemContext.Builder.inflated(zeros.toByteArray(), 1 << 10));
+    }
+
+    @Test
+    @DisplayName("a compressed payload that inflates to another compressed payload is refused as not NBT")
+    void nestedCompressionIsRefused() {
+        byte[] plain = NbtFactory.toByteArray(compound("id", new StringTag("minecraft:diamond_sword")), Compression.NONE);
+        byte[] twice = Compression.compress(Compression.compress(plain, Compression.GZIP), Compression.GZIP);
+
+        assertThrows(NbtException.class, () -> ItemContext.Builder.inflated(twice, 1 << 20));
+        assertThrows(NbtException.class, () -> ItemContext.builder().nbt(twice));
     }
 
     /**

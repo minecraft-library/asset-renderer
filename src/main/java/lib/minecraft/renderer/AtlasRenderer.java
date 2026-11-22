@@ -27,6 +27,7 @@ import lib.minecraft.renderer.call.result.GridResult;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
@@ -240,13 +241,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @param options the atlas options
      * @return the composed atlas image paired with the sidecar describing its tiles and the subjects it
      *     left out
-     * @throws RenderException when the column count or the tile size is not positive, or when the render
-     *     produces zero tiles (nothing to compose)
+     * @throws RenderException when the column count or the tile size is not positive, when the tile
+     *     size is over {@link RenderLimits#MAX_EDGE}, when the sheet does not fit one buffer, or when the
+     *     render produces zero tiles (nothing to compose)
      */
     @Override
     public @NotNull AtlasResult render(@NotNull AtlasOptions options) {
         if (options.getColumns() < 1 || options.getTileSize() < 1)
             throw new RenderException("Atlas columns and tile size must be positive, were '%s' and '%s'", options.getColumns(), options.getTileSize());
+
+        RenderLimits.edge("Atlas tile size", options.getTileSize());
 
         Bake bake = new Bake(options, candidates(options));
         while (true) {
@@ -275,7 +279,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private @NotNull Optional<AtlasResult> layDown(@NotNull Bake bake, @NotNull List<Integer> standing) {
         AtlasOptions options = bake.options;
         int columns = options.getColumns();
-        int rows = (standing.size() + columns - 1) / columns;
+        int rows = Math.ceilDiv(standing.size(), columns);
+        RenderLimits.sheet("Atlas sheet", (long) columns * options.getTileSize(), (long) rows * options.getTileSize());
+
         ConcurrentList<GridOptions.GridTile> tiles = IntStream.range(0, standing.size())
             .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, () -> renderTile(bake, standing.get(i))))
             .collect(Concurrent.toWideUnmodifiableList());
@@ -314,13 +320,17 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @param options the atlas options
      * @param file the PNG file to write, replaced when it exists
      * @return the sidecar placing every tile the file holds
-     * @throws RenderException when the column count or the tile size is not positive, or when the render
-     *     produces zero tiles
+     * @throws RenderException when the column count or the tile size is not positive, when the tile
+     *     size is over {@link RenderLimits#MAX_EDGE}, when a band of the sheet does not fit one buffer or
+     *     the sheet's width or height is over what an {@code int} holds, or when the render produces zero
+     *     tiles
      * @throws IOException when the file cannot be written
      */
     public @NotNull AtlasResult.Sidecar write(@NotNull AtlasOptions options, @NotNull Path file) throws IOException {
         if (options.getColumns() < 1 || options.getTileSize() < 1)
             throw new RenderException("Atlas columns and tile size must be positive, were '%s' and '%s'", options.getColumns(), options.getTileSize());
+
+        RenderLimits.edge("Atlas tile size", options.getTileSize());
 
         Path partial = file.resolveSibling(file.getFileName() + ".partial");
         Bake bake = new Bake(options, candidates(options));
@@ -363,8 +373,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         AtlasOptions options = bake.options;
         int columns = options.getColumns();
         int tileSize = options.getTileSize();
-        int rows = (standing.size() + columns - 1) / columns;
+        int rows = Math.ceilDiv(standing.size(), columns);
         int bandRows = bandRows(options.getBackground(), tileSize);
+
+        // The sheet is never held whole, so what has to fit one buffer is a band of it; the sheet's own
+        // height has only to be one an int holds, as its width is once a band fits.
+        long height = (long) rows * tileSize;
+        RenderLimits.sheet("Atlas band", (long) columns * tileSize, (long) Math.min(rows, bandRows) * tileSize);
+        if (height > Integer.MAX_VALUE)
+            throw new RenderException("Atlas sheet of '%d' rows of '%d' pixel tiles is taller than the '%d' pixels a sheet runs to", rows, tileSize, Integer.MAX_VALUE);
+
         GridResult.Cell[] cells = new GridResult.Cell[standing.size()];
 
         writePng(new BandedSheet(columns * tileSize, rows * tileSize, bandRows * tileSize, band -> {

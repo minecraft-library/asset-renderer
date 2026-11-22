@@ -62,6 +62,42 @@ drawn and the child's own result. `Renderer` and the renderers sit in the root.
   wrap - `toLines`, `fromLegacy` - cannot be wrapped as the client wraps them, so the page is never
   handed in as lines.
 
+**A request is drawn under ceilings, and a request past one is refused with a `RenderException`.**
+A bag is a few numbers naming a far larger thing, so each number that sizes an allocation is held to a
+ceiling, tested in `long` arithmetic before anything is allocated. The ceilings are the constants of
+`engine/frame/RenderLimits`, where each is given with the figure it was set from.
+
+- **A shared bag holds its own ceiling, on the accessor.** `OutputOptions.getCanvasSize()` refuses a
+  canvas over `MAX_EDGE`, 16,384 pixels, and `getSupersample()` a factor that takes the raster's edge
+  over it; `AnimationOptions.getFrameCount()` refuses a count over `MAX_FRAMES`, 4,096. Six renderers
+  and the kits under them read those bags, so the rule sits with the field, as the sub-1 supersample
+  clamp does, and a reader added later cannot be left without it.
+- **What a render bakes is held together.** `Timeline.bake` refuses frames that, at the size the pass
+  rasterizes them, come to more than `MAX_PIXELS`, 268,435,456 - `MAX_EDGE` squared - so a large
+  canvas is bounded in frames and a long strip in size. It reads the pass rather than the bags, so a
+  canvas sized from an entity's bounds, a sub-tick loop's multiplied frames and any size computed past
+  an `int` are held by it too.
+- **A renderer that sizes its own canvas refuses where it sizes it.** A menu's chest reads at most
+  `MenuOptions.MAX_GRID_SIDE` rows and columns, 256, tested in `MenuOptions.screen()` before a cell is
+  laid out; the text renderer holds the canvas its lines lay out, over its frames, to `MAX_PIXELS` and
+  to no edge of its own, a long column of lines being a narrow canvas; an atlas tile is a render and is
+  held to `MAX_EDGE`.
+- **A sheet's ceiling is its buffer's.** A grid, and an atlas rendered whole, is one buffer as large as
+  the tiles laid out in it, so its width, its height and its pixel count are each held to what an
+  `int` holds and to nothing smaller - the vanilla atlas, 3,531 tiles, is 232 megapixels at a 256
+  pixel tile and 927 at 512. It is refused before any tile is asked for. An atlas written to a file is
+  held a band at a time, and it is the band that has to fit.
+- **Compressed NBT is inflated under `ItemContext.MAX_NBT_BYTES`**, 104,857,600 bytes, the quota the
+  26.1 client reads compressed NBT under, and read no further than that; the refusal is the
+  `NbtException` a payload that is not NBT raises. Bytes handed over uncompressed are read as they are.
+- **A fetched texture is cached under what was fetched.** `PlayerRenderer` keeps a URL-sourced skin,
+  cape or elytra sheet under the kind it is read as and the texture hash its URL names, which is all
+  of the URL the fetch reads, and holds the 1,024 read most recently.
+
+The ceilings are constants, not options, and each is set for the largest render the library's own
+drivers have a use for, with room above it, rather than for the heap any one caller runs in. A caller
+that forwards sizes from its own users holds them to its own budget first.
+
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
 side supplies it, and the pipeline reads it too, so it lives below `call/request` - a vanilla fact
 under `vanilla`, a decoded record under `asset` - and `call/request` points down at it, never the

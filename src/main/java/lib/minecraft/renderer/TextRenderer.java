@@ -18,6 +18,7 @@ import lib.minecraft.renderer.call.slot.TextSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.draw.SampledTexture;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
+import lib.minecraft.renderer.engine.frame.RenderLimits;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
@@ -247,7 +248,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @param options the text render options
      * @return the rendered text and every stand-in drawn in it
      * @throws RenderException if this renderer holds no context and the request is a book, or a tooltip
-     * naming the sprite chrome
+     * naming the sprite chrome, or if the canvas the text lays out holds, over its frames, more than
+     * {@link RenderLimits#MAX_PIXELS}, or the text animates over more than {@link RenderLimits#MAX_FRAMES}
      */
     @Override
     public @NotNull RenderResult render(@NotNull TextOptions options) {
@@ -264,7 +266,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * @return the rendered text, empty where the canvas laid out for it holds no pixel or a tooltip or chat
      * request holds no line
      * @throws RenderException if this renderer holds no context and the request is a book, or a tooltip
-     * naming the sprite chrome
+     * naming the sprite chrome, or if the canvas the text lays out holds, over its frames, more than
+     * {@link RenderLimits#MAX_PIXELS}, or the text animates over more than {@link RenderLimits#MAX_FRAMES}
      */
     @NotNull ImageData draw(@NotNull TextOptions options) {
         return switch (options.getStyle()) {
@@ -292,7 +295,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         boolean animated = hasObfuscation(options.getLines()) || hasAnimatedGradient(options.getLines());
         int ticksPerFrame = ticksPerFrame(options);
-        int frameCount = animated ? animationFrameCount(options.getLines(), options, ticksPerFrame) : 1;
+        int frameCount = RenderLimits.frames("Text frame count",
+            animated ? animationFrameCount(options.getLines(), options, ticksPerFrame) : 1);
         ChromeStyle chromeStyle = options.getChromeStyle()
             .orElse(this.context.isPresent() ? ChromeStyle.SPRITE : ChromeStyle.PROCEDURAL);
         TooltipChrome chrome = TooltipChrome.of(chromeStyle);
@@ -313,6 +317,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (box.width() <= 0 || box.height() <= 0)
             return Timeline.empty();
 
+        requireCanvas(box.width(), box.height(), frameCount);
         TextPalette palette = this.context.map(context -> context.findTextPalette().orElse(TextPalette.VANILLA))
             .orElse(TextPalette.VANILLA);
 
@@ -345,12 +350,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         ConcurrentList<LineSegment> lines = pageLines(options.getPage());
         boolean animated = hasObfuscation(lines) || hasAnimatedGradient(lines);
         int ticksPerFrame = ticksPerFrame(options);
-        int frameCount = animated ? animationFrameCount(lines, options, ticksPerFrame) : 1;
+        int frameCount = RenderLimits.frames("Text frame count",
+            animated ? animationFrameCount(lines, options, ticksPerFrame) : 1);
         Optional<Rectangle> drawn = pageBounds(sheet, lines, frameCount);
         if (drawn.isEmpty())
             return Timeline.empty();
 
         Rectangle bounds = drawn.get();
+        requireCanvas(bounds.width, bounds.height, frameCount);
         if (!animated)
             return Timeline.still(drawPageFrame(options, lines, sheet, bounds, palette, 0L, 0L));
 
@@ -542,6 +549,24 @@ public final class TextRenderer implements Renderer<TextOptions> {
                 drawn = union(drawn, TextKit.inkBounds(line, xMcPx, topMcPx + ascentMcPx + i * pitchMcPx, DEFAULT_COLOR_ARGB, i, frame, true));
         }
         return drawn;
+    }
+
+    /**
+     * Refuses a text render whose canvas, over its frames, holds more than
+     * {@link RenderLimits#MAX_PIXELS}. The canvas is sized by the text - its widest line and how many
+     * lines there are - so this is tested once the text is laid out and before any frame is allocated.
+     * Neither edge is held to a ceiling of its own, a long column of lines being a narrow canvas.
+     *
+     * @param widthMcPx the canvas width in mcPixels
+     * @param heightMcPx the canvas height in mcPixels
+     * @param frameCount how many frames the render draws
+     * @throws RenderException if the canvas is over the ceiling
+     */
+    static void requireCanvas(float widthMcPx, float heightMcPx, int frameCount) {
+        RenderLimits.pixels("Text canvas",
+            Math.round((double) widthMcPx * MinecraftFont.MC_PIXEL_SCALE),
+            Math.round((double) heightMcPx * MinecraftFont.MC_PIXEL_SCALE),
+            frameCount);
     }
 
     /**

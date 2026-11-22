@@ -207,6 +207,7 @@ HELD_DEMOTES: dict[str, frozenset[str]] = {
         "src/main/java/lib/minecraft/renderer/engine/draw/Sampler.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/FrameLoan.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/RasterPass.java",
+        "src/main/java/lib/minecraft/renderer/engine/frame/RenderLimits.java",
         "src/main/java/lib/minecraft/renderer/engine/frame/Timeline.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
